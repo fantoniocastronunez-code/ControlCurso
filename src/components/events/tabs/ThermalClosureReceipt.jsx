@@ -1,4 +1,5 @@
 import React from 'react';
+import { createPortal } from 'react-dom';
 
 const ThermalClosureReceipt = ({ event, stats, itemsSummary }) => {
   if (!event || !stats) return null;
@@ -7,7 +8,7 @@ const ThermalClosureReceipt = ({ event, stats, itemsSummary }) => {
     return new Intl.NumberFormat('es-CL', { style: 'currency', currency: 'CLP' }).format(amount);
   };
 
-  return (
+  const receiptContent = (
     <div className="thermal-receipt closure-receipt" style={{ display: 'none' }}>
       <div style={{ textAlign: 'center', marginBottom: '10px' }}>
         <h3 style={{ margin: '0 0 5px 0', fontSize: '14px', textTransform: 'uppercase' }}>CIERRE DE EVENTO</h3>
@@ -68,17 +69,11 @@ const ThermalClosureReceipt = ({ event, stats, itemsSummary }) => {
       
       <style>{`
         @media print {
-          body * {
-            visibility: hidden;
-          }
-          .thermal-receipt, .thermal-receipt * {
-            visibility: visible;
+          body > *:not(.thermal-receipt) {
+            display: none !important;
           }
           .thermal-receipt {
             display: block !important;
-            position: absolute;
-            left: 0;
-            top: 0;
             width: 58mm; /* Standard POS printer width */
             padding: 0;
             margin: 0;
@@ -86,10 +81,15 @@ const ThermalClosureReceipt = ({ event, stats, itemsSummary }) => {
             background: white;
             font-family: monospace;
           }
+          @page {
+            margin: 0;
+          }
         }
       `}</style>
     </div>
   );
+
+  return createPortal(receiptContent, document.body);
 };
 
 export default ThermalClosureReceipt;

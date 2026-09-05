@@ -1,4 +1,5 @@
 import React from 'react';
+import { createPortal } from 'react-dom';
 import { formatStudentName } from '../../../utils/nameUtils';
 
 // Este componente solo es visible cuando se invoca la impresión (@media print en CSS global)
@@ -13,7 +14,7 @@ const ThermalReceipt = ({ sale, eventName }) => {
   const padRight = (str, len) => (str + ' '.repeat(len)).substring(0, len);
   const padLeft = (str, len) => (' '.repeat(len) + str).slice(-len);
 
-  return (
+  const receiptContent = (
     <div className="thermal-receipt" style={{ display: 'none' }}>
       <div style={{ textAlign: 'center', marginBottom: '10px' }}>
         <h3 style={{ margin: '0 0 5px 0', fontSize: '14px' }}>{eventName}</h3>
@@ -72,17 +73,11 @@ const ThermalReceipt = ({ sale, eventName }) => {
       {/* Estilos para impresión */}
       <style>{`
         @media print {
-          body * {
-            visibility: hidden;
-          }
-          .thermal-receipt, .thermal-receipt * {
-            visibility: visible;
+          body > *:not(.thermal-receipt) {
+            display: none !important;
           }
           .thermal-receipt {
             display: block !important;
-            position: absolute;
-            left: 0;
-            top: 0;
             width: 58mm; /* Standard POS printer width */
             padding: 0;
             margin: 0;
@@ -90,10 +85,15 @@ const ThermalReceipt = ({ sale, eventName }) => {
             background: white;
             font-family: monospace;
           }
+          @page {
+            margin: 0;
+          }
         }
       `}</style>
     </div>
   );
+
+  return createPortal(receiptContent, document.body);
 };
 
 export default ThermalReceipt;
