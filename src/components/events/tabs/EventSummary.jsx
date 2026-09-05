@@ -143,6 +143,7 @@ const EventSummary = ({ event }) => {
         </div>
       </div>
     </div>
+    </div>
   );
 };
 

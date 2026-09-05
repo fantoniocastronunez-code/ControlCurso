@@ -1,7 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { db } from '../../../firebase/config';
 import { collection, getDocs, doc, setDoc, query, where, orderBy } from 'firebase/firestore';
-import { ShoppingCart, Plus, Minus, Trash2, Printer } from 'lucide-react';
+import { ShoppingCart, Plus, Minus, Trash2, Printer, Maximize, Minimize } from 'lucide-react';
 import { useModal } from '../../../context/ModalContext';
 import ThermalReceipt from './ThermalReceipt';
 
@@ -10,6 +10,10 @@ const EventPOS = ({ event }) => {
   const [items, setItems] = useState([]);
   const [sales, setSales] = useState([]);
   const [loading, setLoading] = useState(true);
+
+  // Fullscreen State
+  const posContainerRef = useRef(null);
+  const [isFullscreen, setIsFullscreen] = useState(false);
 
   // POS State
   const [cart, setCart] = useState([]);
@@ -28,6 +32,28 @@ const EventPOS = ({ event }) => {
   useEffect(() => {
     fetchData();
   }, [event.id]);
+
+  useEffect(() => {
+    const handleFullscreenChange = () => {
+      setIsFullscreen(!!document.fullscreenElement);
+    };
+    document.addEventListener('fullscreenchange', handleFullscreenChange);
+    return () => document.removeEventListener('fullscreenchange', handleFullscreenChange);
+  }, []);
+
+  const toggleFullscreen = () => {
+    if (!document.fullscreenElement) {
+      if (posContainerRef.current?.requestFullscreen) {
+        posContainerRef.current.requestFullscreen().catch(err => {
+          console.error("Error attempting to enable fullscreen:", err);
+        });
+      }
+    } else {
+      if (document.exitFullscreen) {
+        document.exitFullscreen();
+      }
+    }
+  };
 
   const fetchData = async () => {
     setLoading(true);
@@ -168,7 +194,25 @@ const EventPOS = ({ event }) => {
   if (loading) return <div>Cargando Punto de Venta...</div>;
 
   return (
-    <div style={{ display: 'flex', gap: '2rem', flexWrap: 'wrap', position: 'relative' }}>
+    <div 
+      ref={posContainerRef}
+      style={{ 
+        display: 'flex', gap: '2rem', flexWrap: 'wrap', position: 'relative',
+        backgroundColor: isFullscreen ? '#0f172a' : 'transparent', // using slate-900 as fallback if var is not available
+        padding: isFullscreen ? '2rem' : '0',
+        overflowY: isFullscreen ? 'auto' : 'visible',
+        minHeight: isFullscreen ? '100vh' : 'auto'
+      }}
+    >
+      {/* Fullscreen Toggle Button */}
+      <button 
+        onClick={toggleFullscreen}
+        className="btn btn-outline"
+        style={{ position: 'absolute', top: isFullscreen ? '2rem' : '0', right: isFullscreen ? '2rem' : '0', padding: '0.5rem', zIndex: 10 }}
+        title="Pantalla Completa"
+      >
+        {isFullscreen ? <Minimize size={20} /> : <Maximize size={20} />}
+      </button>
       
       {/* Modal Subproductos */}
       {showSubproductModal && selectedItemForSubproducts && (
@@ -242,7 +286,7 @@ const EventPOS = ({ event }) => {
       <ThermalReceipt sale={lastSale} eventName={event.name} />
 
       {/* Lado Izquierdo: Productos */}
-      <div style={{ flex: '1 1 400px' }}>
+      <div style={{ flex: '1 1 400px', marginTop: isFullscreen ? '0' : '3rem' }}>
         <h3 style={{ marginBottom: '1.5rem', color: 'var(--primary)' }}>Productos Disponibles</h3>
         {items.length === 0 ? (
           <p style={{ color: 'var(--text-muted)' }}>No hay productos en el menú.</p>
