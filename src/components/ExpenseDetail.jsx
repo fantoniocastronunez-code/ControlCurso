@@ -62,15 +62,19 @@ const ExpenseDetail = ({ expenseId, onBack }) => {
 
   const processPayment = async (debtId, method, defaultAmount, isApproval = false) => {
     const debtToPay = debts.find(d => d.id === debtId);
+    
+    // Suggested amount: If manual, default to the full amount. If approval, use what the apoderado reported.
+    const suggestedAmount = isApproval ? (debtToPay.paidAmount || debtToPay.amount) : debtToPay.amount;
+
     const amountStr = window.prompt(
-      `Confirma el monto ${isApproval ? 'aprobado' : 'pagado en ' + (method === 'cash' ? 'Efectivo' : 'Transferencia')}:`, 
-      defaultAmount
+      `Confirma el MONTO TOTAL PAGADO HASTA AHORA por este alumno:\n(Monto total a cobrar: $${debtToPay.amount})`, 
+      suggestedAmount
     );
     
     if (amountStr === null) return;
     
-    const amountPaid = parseFloat(amountStr);
-    if (isNaN(amountPaid) || amountPaid <= 0) {
+    const totalPaid = parseFloat(amountStr);
+    if (isNaN(totalPaid) || totalPaid <= 0) {
       alert("Monto inválido.");
       return;
     }
@@ -78,41 +82,25 @@ const ExpenseDetail = ({ expenseId, onBack }) => {
     try {
       const debtRef = doc(db, 'debts', debtId);
       
-      let creatingRemainder = false;
-      if (amountPaid < debtToPay.amount) {
-        const confirmSplit = window.confirm(`El monto pagado ($${amountPaid}) es menor a la deuda ($${debtToPay.amount}).\n\n¿Deseas registrar este pago parcial y generar automáticamente una NUEVA deuda por la diferencia ($${debtToPay.amount - amountPaid})?`);
-        
-        if (confirmSplit) {
-          creatingRemainder = true;
-          // Crear nueva deuda por la diferencia
-          const newDebtRef = doc(collection(db, 'debts'));
-          const { id, ...debtData } = debtToPay;
-          await setDoc(newDebtRef, {
-            ...debtData,
-            amount: debtToPay.amount - amountPaid,
-            paidAmount: 0,
-            status: 'partial',
-            paymentMethod: null,
-            approvedAt: null,
-            receiptUrl: null,
-            title: `${debtToPay.title} (Saldo Restante)`
-          });
-        }
-      }
+      let newStatus = 'pending';
+      if (totalPaid >= debtToPay.amount) newStatus = 'paid';
+      else if (totalPaid > 0) newStatus = 'partial';
 
       await updateDoc(debtRef, {
-        status: 'paid',
-        paidAmount: amountPaid,
+        status: newStatus,
+        paidAmount: totalPaid,
         paymentMethod: method,
         approvedAt: new Date().toISOString()
       });
 
+      // Recalcular cuántos alumnos están completamente pagados
+      const q = query(collection(db, 'debts'), where('expenseId', '==', expenseId));
+      const snap = await getDocs(q);
+      const fullyPaidCount = snap.docs.filter(d => d.data().status === 'paid').length;
+      
       const expenseRef = doc(db, 'expenses', expenseId);
-      const currentPaidCount = expense.paidCount || 0;
-      // Si creamos un remanente, el paidCount no debería incrementar, porque la cuota original se dividió y una parte sigue pendiente. 
-      // O si incrementamos paidCount, significa que "un pago se realizó". Es mejor incrementarlo para reflejar que esta fracción ya se pagó.
       await updateDoc(expenseRef, {
-        paidCount: currentPaidCount + 1
+        paidCount: fullyPaidCount
       });
 
       fetchDetail();
@@ -278,10 +266,15 @@ const ExpenseDetail = ({ expenseId, onBack }) => {
     if(!window.confirm('¿Seguro que deseas rechazar este comprobante? El apoderado tendrá que subir uno nuevo.')) return;
     try {
       const debtRef = doc(db, 'debts', debtId);
+      const debtToReject = debts.find(d => d.id === debtId);
+      
+      // Revert status to partial if they had a previous valid partial payment, else pending
+      const previousValidPaidAmount = debtToReject.previousPaidAmount || 0;
+      
       await updateDoc(debtRef, {
-        status: 'pending',
-        receiptUrl: null, // Borramos la ref al comprobante (opcional, pero útil)
-        paidAmount: 0
+        status: previousValidPaidAmount > 0 ? 'partial' : 'pending',
+        receiptUrl: null,
+        paidAmount: previousValidPaidAmount
       });
       fetchDetail();
     } catch (error) {
@@ -498,8 +491,19 @@ const ExpenseDetail = ({ expenseId, onBack }) => {
             </tr>
           </thead>
           <tbody>
-            {debts.map(debt => (
-              <tr key={debt.id} style={{ borderBottom: '1px solid var(--border-color)', backgroundColor: selectedDebts.includes(debt.id) ? 'rgba(99,102,241,0.05)' : 'transparent' }}>
+            {debts.filter(d => !d.title.includes('(Saldo Restante)')).map(debt => {
+              const rowBgColor = selectedDebts.includes(debt.id) 
+                ? 'rgba(99,102,241,0.1)' 
+                : debt.status === 'paid' 
+                  ? 'rgba(16, 185, 129, 0.08)' // Verde suave
+                  : debt.status === 'partial' 
+                    ? 'rgba(234, 179, 8, 0.08)'  // Amarillo suave
+                    : debt.status === 'pending'
+                      ? 'rgba(239, 68, 68, 0.08)' // Rojo suave
+                      : 'transparent';
+
+              return (
+              <tr key={debt.id} style={{ borderBottom: '1px solid var(--border-color)', backgroundColor: rowBgColor }}>
                 <td style={{ padding: '1rem' }}>
                   {(debt.status === 'pending' || debt.status === 'partial') && (
                     <input 
@@ -638,7 +642,8 @@ const ExpenseDetail = ({ expenseId, onBack }) => {
                   )}
                 </td>
               </tr>
-            ))}
+              );
+            })}
           </tbody>
         </table>
         {debts.length === 0 && (
