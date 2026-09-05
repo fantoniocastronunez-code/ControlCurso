@@ -44,7 +44,12 @@ const EventSummary = ({ event }) => {
         
         if (data.items && Array.isArray(data.items)) {
           data.items.forEach(item => {
-            const name = item.name;
+            let name = item.name;
+            if (item.selectedSubproducts && item.selectedSubproducts.length > 0) {
+              const spNames = item.selectedSubproducts.map(sp => sp.name).join(', ');
+              name = `${item.name} (+${spNames})`;
+            }
+            
             if (!itemsMap.has(name)) {
               itemsMap.set(name, { name, qty: 0, total: 0 });
             }

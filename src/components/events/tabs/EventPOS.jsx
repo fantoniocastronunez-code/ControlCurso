@@ -26,6 +26,10 @@ const EventPOS = ({ event }) => {
   const [selectedItemForSubproducts, setSelectedItemForSubproducts] = useState(null);
   const [selectedSubproducts, setSelectedSubproducts] = useState([]);
   
+  // Cash Calculator Modal State
+  const [showCashModal, setShowCashModal] = useState(false);
+  const [cashReceived, setCashReceived] = useState('');
+  
   // Printing State
   const [lastSale, setLastSale] = useState(null);
 
@@ -130,10 +134,18 @@ const EventPOS = ({ event }) => {
 
   const cartTotal = cart.reduce((sum, item) => sum + (item.unitPrice * item.quantity), 0);
 
-  const handleCompleteSale = async () => {
+  const handleCompleteSaleClick = () => {
     if (cart.length === 0) return;
-    if (!window.confirm('¿Completar esta venta y generar ticket?')) return;
+    
+    if (paymentMethod === 'cash') {
+      setCashReceived('');
+      setShowCashModal(true);
+    } else {
+      processSale();
+    }
+  };
 
+  const processSale = async () => {
     try {
       // Generate next correlative
       const nextCorrelative = sales.length > 0 ? sales[0].correlative + 1 : 1;
@@ -213,6 +225,74 @@ const EventPOS = ({ event }) => {
       >
         {isFullscreen ? <Minimize size={20} /> : <Maximize size={20} />}
       </button>
+
+      {/* Modal Efectivo / Calculadora de Vuelto */}
+      {showCashModal && (
+        <div style={{
+          position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+          backgroundColor: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(4px)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          zIndex: 1100
+        }}>
+          <div className="glass-panel" style={{ width: '90%', maxWidth: '400px', padding: '2rem' }}>
+            <h3 style={{ marginBottom: '1.5rem', textAlign: 'center', color: 'var(--primary)' }}>Pago en Efectivo</h3>
+            
+            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '1.2rem', marginBottom: '1rem' }}>
+              <span>Total a Cobrar:</span>
+              <strong style={{ color: 'var(--text-main)' }}>{formatMoney(cartTotal)}</strong>
+            </div>
+
+            <div className="input-group" style={{ marginBottom: '1.5rem' }}>
+              <label className="input-label">Monto Recibido</label>
+              <input 
+                type="number" 
+                className="input-field" 
+                style={{ fontSize: '1.5rem', textAlign: 'right' }}
+                placeholder="Ej. 10000"
+                value={cashReceived}
+                onChange={(e) => setCashReceived(e.target.value)}
+                autoFocus
+              />
+            </div>
+            
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem', marginBottom: '1.5rem' }}>
+               <button className="btn btn-outline" onClick={() => setCashReceived(cartTotal)}>Exacto</button>
+               <button className="btn btn-outline" onClick={() => setCashReceived(Math.ceil(cartTotal / 1000) * 1000)}>Redondear (Mil)</button>
+               <button className="btn btn-outline" onClick={() => setCashReceived(5000)}>$5.000</button>
+               <button className="btn btn-outline" onClick={() => setCashReceived(10000)}>$10.000</button>
+               <button className="btn btn-outline" onClick={() => setCashReceived(20000)}>$20.000</button>
+            </div>
+
+            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '1.5rem', marginBottom: '2rem', borderTop: '1px solid rgba(255,255,255,0.1)', paddingTop: '1rem' }}>
+              <span>Vuelto:</span>
+              <strong style={{ color: (cashReceived && Number(cashReceived) >= cartTotal) ? 'var(--success)' : 'var(--danger)' }}>
+                {cashReceived && Number(cashReceived) >= cartTotal ? formatMoney(Number(cashReceived) - cartTotal) : '$0'}
+              </strong>
+            </div>
+
+            <div style={{ display: 'flex', gap: '1rem' }}>
+              <button 
+                className="btn btn-outline" 
+                style={{ flex: 1 }}
+                onClick={() => { setShowCashModal(false); setCashReceived(''); }}
+              >
+                Cancelar
+              </button>
+              <button 
+                className="btn btn-primary" 
+                style={{ flex: 2 }}
+                disabled={!cashReceived || Number(cashReceived) < cartTotal}
+                onClick={() => {
+                  setShowCashModal(false);
+                  processSale();
+                }}
+              >
+                Confirmar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
       
       {/* Modal Subproductos */}
       {showSubproductModal && selectedItemForSubproducts && (
@@ -424,7 +504,7 @@ const EventPOS = ({ event }) => {
           </div>
 
           <button 
-            onClick={handleCompleteSale}
+            onClick={handleCompleteSaleClick}
             disabled={cart.length === 0} 
             className="btn btn-primary" 
             style={{ width: '100%', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '0.5rem', padding: '1rem', fontSize: '1.1rem' }}

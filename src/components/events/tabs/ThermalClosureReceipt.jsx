@@ -52,7 +52,7 @@ const ThermalClosureReceipt = ({ event, stats, itemsSummary }) => {
               {itemsSummary.map((item, idx) => (
                 <tr key={idx} style={{ fontSize: '11px' }}>
                   <td style={{ verticalAlign: 'top' }}>{item.qty}x</td>
-                  <td>{item.name.substring(0, 16)}</td>
+                  <td style={{ wordBreak: 'break-word', paddingRight: '5px' }}>{item.name}</td>
                   <td style={{ textAlign: 'right' }}>{formatMoney(item.total)}</td>
                 </tr>
               ))}
