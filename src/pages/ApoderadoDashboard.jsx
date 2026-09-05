@@ -61,6 +61,11 @@ const ApoderadoDashboard = () => {
       );
       const snapStudents = await getDocs(qStudents);
       const students = snapStudents.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      students.sort((a, b) => {
+        const aNum = parseInt(a.listNumber) || 999;
+        const bNum = parseInt(b.listNumber) || 999;
+        return aNum - bNum;
+      });
       setMyStudents(students);
 
       // 2. Fetch Debts
@@ -97,6 +102,11 @@ const ApoderadoDashboard = () => {
       const term = lastNameSearch.toLowerCase().trim();
       
       const filtered = allStudents.filter(s => s.name.toLowerCase().includes(term));
+      filtered.sort((a, b) => {
+        const aNum = parseInt(a.listNumber) || 999;
+        const bNum = parseInt(b.listNumber) || 999;
+        return aNum - bNum;
+      });
       setSearchResults(filtered);
     } catch (error) {
       console.error("Error searching students:", error);

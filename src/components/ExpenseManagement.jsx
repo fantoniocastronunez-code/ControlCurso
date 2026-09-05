@@ -34,6 +34,11 @@ const ExpenseManagement = ({ onBack }) => {
         id: doc.id,
         ...doc.data()
       }));
+      studentList.sort((a, b) => {
+        const aNum = parseInt(a.listNumber) || 999;
+        const bNum = parseInt(b.listNumber) || 999;
+        return aNum - bNum;
+      });
       setStudents(studentList);
       setSelectedStudents(new Set(studentList.map(s => s.id)));
 
@@ -300,7 +305,7 @@ const ExpenseManagement = ({ onBack }) => {
                     style={{ width: '18px', height: '18px', accentColor: 'var(--primary)', cursor: 'pointer' }}
                   />
                   <div>
-                    <span style={{ display: 'block', fontWeight: '500' }}>{formatStudentName(student)}</span>
+                    <span style={{ display: 'block', fontWeight: '500' }}>{student.listNumber || '-'}. {formatStudentName(student)}</span>
                     <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
                       {student.apoderadoEmails?.length > 0 ? student.apoderadoEmails.join(', ') : (student.apoderadoEmail || 'Sin apoderado')}
                     </span>

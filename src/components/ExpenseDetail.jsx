@@ -36,26 +36,26 @@ const ExpenseDetail = ({ expenseId, onBack }) => {
         setExpense({ id: expenseSnap.id, ...expenseSnap.data() });
       }
 
+      // Obtener alumnos para el orden y saldos a favor
+      const studentsSnap = await getDocs(collection(db, 'students'));
+      const studentsData = studentsSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+      setStudents(studentsData);
+
       // Obtener las deudas de este gasto
       const q = query(collection(db, 'debts'), where('expenseId', '==', expenseId));
       const debtSnap = await getDocs(q);
       const debtsData = debtSnap.docs.map(d => ({ id: d.id, ...d.data() }));
       
-      // Ordenar: En revisión primero, luego pendientes, luego pagados
+      // Ordenar estrictamente por el número de lista del alumno
       debtsData.sort((a, b) => {
-        if (a.status === 'review' && b.status !== 'review') return -1;
-        if (a.status !== 'review' && b.status === 'review') return 1;
-        if (a.status === 'pending' && b.status === 'paid') return -1;
-        if (a.status === 'paid' && b.status === 'pending') return 1;
-        return 0;
+         const studentA = studentsData.find(s => s.id === a.studentId);
+         const studentB = studentsData.find(s => s.id === b.studentId);
+         const aNum = studentA ? (parseInt(studentA.listNumber) || 999) : 999;
+         const bNum = studentB ? (parseInt(studentB.listNumber) || 999) : 999;
+         return aNum - bNum;
       });
       
       setDebts(debtsData);
-
-      // Obtener alumnos para revisar sus saldos a favor
-      const studentsSnap = await getDocs(collection(db, 'students'));
-      const studentsData = studentsSnap.docs.map(d => ({ id: d.id, ...d.data() }));
-      setStudents(studentsData);
     } catch (error) {
       console.error("Error fetching expense details:", error);
     } finally {
@@ -565,7 +565,7 @@ const ExpenseDetail = ({ expenseId, onBack }) => {
                 <td style={{ padding: '1rem', fontWeight: '500' }}>
                   {(() => {
                     const student = students.find(s => s.id === debt.studentId);
-                    return student ? formatStudentName(student) : debt.studentName;
+                    return student ? `${student.listNumber || '-'}. ${formatStudentName(student)}` : debt.studentName;
                   })()}
                 </td>
                 <td style={{ padding: '1rem', color: 'var(--text-muted)' }}>{debt.apoderadoEmail || 'Sin apoderado'}</td>

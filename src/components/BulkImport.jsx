@@ -115,6 +115,12 @@ Si algún apellido materno falta, déjalo vacío (""). Asegúrate de limpiar los
         tempId: Date.now().toString() + Math.random().toString(36).substr(2, 9)
       }));
 
+      dataWithIds.sort((a, b) => {
+        const aNum = parseInt(a.listNumber) || 999;
+        const bNum = parseInt(b.listNumber) || 999;
+        return aNum - bNum;
+      });
+
       setResults(dataWithIds);
       setMessage('¡Imagen procesada! Por favor revisa los datos antes de guardar.');
       
