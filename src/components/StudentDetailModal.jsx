@@ -1,11 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { db } from '../firebase/config';
-import { collection, query, where, getDocs } from 'firebase/firestore';
-import { X, User, AlertCircle, CheckCircle, Clock } from 'lucide-react';
+import { collection, query, where, getDocs, addDoc } from 'firebase/firestore';
+import { X, User, AlertCircle, CheckCircle, Clock, Share2 } from 'lucide-react';
 
 const StudentDetailModal = ({ student, usersMap, onClose }) => {
   const [debts, setDebts] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [sharing, setSharing] = useState(false);
 
   useEffect(() => {
     fetchDebts();
@@ -34,17 +35,65 @@ const StudentDetailModal = ({ student, usersMap, onClose }) => {
 
   const emails = student.apoderadoEmails || (student.apoderadoEmail ? [student.apoderadoEmail] : []);
 
+  const handleShare = async () => {
+    if (emails.length === 0) {
+      alert("No hay correos vinculados a este alumno para enviar la información.");
+      return;
+    }
+    
+    if (!window.confirm("¿Deseas enviar un correo a los apoderados con este historial?")) return;
+    
+    setSharing(true);
+    try {
+      const htmlContent = `
+        <h2>Historial de Cuenta: ${student.name}</h2>
+        <p>A continuación se detalla el estado actual de cobros y pagos asociados al alumno.</p>
+        
+        <h3 style="color: #d97706;">Pendientes / En Revisión</h3>
+        <ul>
+          ${pendingDebts.length > 0 ? pendingDebts.map(d => `<li><strong>${d.title}</strong>: ${formatMoney(d.amount)} (${d.status === 'review' ? 'Comprobante en revisión' : 'Pendiente'})</li>`).join('') : '<li>No hay deudas pendientes</li>'}
+        </ul>
+
+        <h3 style="color: #10b981;">Pagos Realizados</h3>
+        <ul>
+          ${paidDebts.length > 0 ? paidDebts.map(d => `<li><strong>${d.title}</strong>: ${formatMoney(d.amount)}</li>`).join('') : '<li>No hay pagos registrados</li>'}
+        </ul>
+        <br/>
+        <p><em>Este es un correo automático. Por favor, revisa la aplicación para más detalles.</em></p>
+      `;
+
+      await addDoc(collection(db, 'mail'), {
+        to: emails,
+        message: {
+          subject: `Historial de Cuenta - ${student.name}`,
+          html: htmlContent
+        }
+      });
+      alert("Historial enviado correctamente por correo a los apoderados.");
+    } catch (error) {
+      console.error("Error al enviar correo:", error);
+      alert("Hubo un error al intentar enviar el correo.");
+    } finally {
+      setSharing(false);
+    }
+  };
+
   return (
-    <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.7)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: '1rem' }}>
-      <div className="glass-panel animate-fade-in" style={{ width: '100%', maxWidth: '700px', padding: '2rem', backgroundColor: 'var(--bg-main)', maxHeight: '90vh', overflowY: 'auto' }}>
+    <div style={{ padding: '1rem', borderTop: 'none', borderBottom: '1px solid var(--border-color)', backgroundColor: 'rgba(0,0,0,0.2)' }}>
+      <div className="glass-panel animate-fade-in" style={{ width: '100%', padding: '2rem', backgroundColor: 'var(--bg-main)' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '2rem', borderBottom: '1px solid var(--border-color)', paddingBottom: '1rem' }}>
           <div>
             <h2 style={{ margin: '0 0 0.5rem 0', color: 'var(--primary)' }}>{student.name}</h2>
             <p style={{ margin: 0, color: 'var(--text-muted)' }}>Número de Lista: {student.listNumber || '-'}</p>
           </div>
-          <button onClick={onClose} className="btn btn-outline" style={{ padding: '0.5rem' }}>
-            <X size={20} />
-          </button>
+          <div style={{ display: 'flex', gap: '0.5rem' }}>
+            <button onClick={handleShare} disabled={sharing} className="btn btn-outline" style={{ padding: '0.5rem 1rem', display: 'flex', alignItems: 'center', gap: '0.5rem', borderColor: 'var(--primary)', color: 'var(--primary)' }}>
+              <Share2 size={18} /> {sharing ? 'Enviando...' : 'Compartir Info'}
+            </button>
+            <button onClick={onClose} className="btn btn-outline" style={{ padding: '0.5rem' }} title="Cerrar Ficha">
+              <X size={20} />
+            </button>
+          </div>
         </div>
 
         {/* Sección Apoderados */}

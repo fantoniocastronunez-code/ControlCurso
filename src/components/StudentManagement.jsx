@@ -293,8 +293,9 @@ const StudentManagement = ({ onBack }) => {
           </thead>
           <tbody>
             {students.map(s => (
-              <tr key={s.id} style={{ borderBottom: '1px solid var(--border-color)' }}>
-                {editingId === s.id ? (
+              <React.Fragment key={s.id}>
+                <tr style={{ borderBottom: '1px solid var(--border-color)', backgroundColor: selectedStudent?.id === s.id ? 'rgba(99, 102, 241, 0.05)' : 'transparent' }}>
+                  {editingId === s.id ? (
                   <>
                     <td style={{ padding: '1rem' }}>
                       <input 
@@ -357,7 +358,7 @@ const StudentManagement = ({ onBack }) => {
                     <td style={{ padding: '1rem', color: 'var(--text-muted)' }}>{s.listNumber || '-'}</td>
                     <td style={{ padding: '1rem', fontWeight: '500' }}>
                       <button 
-                        onClick={() => setSelectedStudent(s)}
+                        onClick={() => setSelectedStudent(selectedStudent?.id === s.id ? null : s)}
                         style={{ background: 'none', border: 'none', color: 'var(--primary)', cursor: 'pointer', fontWeight: '500', padding: 0, fontSize: 'inherit', textAlign: 'left', textDecoration: 'underline' }}
                       >
                         {s.name}
@@ -387,7 +388,21 @@ const StudentManagement = ({ onBack }) => {
                     </td>
                   </>
                 )}
-              </tr>
+                </tr>
+                
+                {/* Fila expandible para la ficha del alumno */}
+                {selectedStudent?.id === s.id && (
+                  <tr>
+                    <td colSpan="5" style={{ padding: 0 }}>
+                      <StudentDetailModal 
+                        student={selectedStudent} 
+                        usersMap={usersMap} 
+                        onClose={() => setSelectedStudent(null)} 
+                      />
+                    </td>
+                  </tr>
+                )}
+              </React.Fragment>
             ))}
           </tbody>
         </table>
@@ -397,14 +412,6 @@ const StudentManagement = ({ onBack }) => {
           </div>
         )}
       </div>
-
-      {selectedStudent && (
-        <StudentDetailModal 
-          student={selectedStudent} 
-          usersMap={usersMap} 
-          onClose={() => setSelectedStudent(null)} 
-        />
-      )}
     </div>
   );
 };

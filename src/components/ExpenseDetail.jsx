@@ -91,7 +91,7 @@ const ExpenseDetail = ({ expenseId, onBack }) => {
             ...debtData,
             amount: debtToPay.amount - amountPaid,
             paidAmount: 0,
-            status: 'pending',
+            status: 'partial',
             paymentMethod: null,
             approvedAt: null,
             receiptUrl: null,
@@ -214,11 +214,11 @@ const ExpenseDetail = ({ expenseId, onBack }) => {
   };
 
   const toggleSelectAll = () => {
-    const pendingDebts = debts.filter(d => d.status === 'pending').map(d => d.id);
-    if (selectedDebts.length === pendingDebts.length) {
+    const pendings = debts.filter(d => d.status === 'pending' || d.status === 'partial').map(d => d.id);
+    if (selectedDebts.length === pendings.length) {
       setSelectedDebts([]);
     } else {
-      setSelectedDebts(pendingDebts);
+      setSelectedDebts(pendings);
     }
   };
 
@@ -296,6 +296,29 @@ const ExpenseDetail = ({ expenseId, onBack }) => {
     return new Intl.NumberFormat('es-CL', { style: 'currency', currency: 'CLP' }).format(amount);
   };
 
+  // Calculate statuses
+  const studentStatusMap = {};
+  debts.forEach(d => {
+    if (!studentStatusMap[d.studentId]) {
+      studentStatusMap[d.studentId] = { paid: 0, partial: 0, pending: 0, review: 0 };
+    }
+    studentStatusMap[d.studentId][d.status] = (studentStatusMap[d.studentId][d.status] || 0) + 1;
+  });
+
+  let fullyPaidCount = 0;
+  let partialCount = 0;
+  let unpaidCount = 0;
+
+  Object.values(studentStatusMap).forEach(statusCounts => {
+    if (statusCounts.partial > 0 || (statusCounts.pending > 0 && statusCounts.paid > 0)) {
+       partialCount++;
+    } else if (statusCounts.pending > 0 || statusCounts.review > 0) {
+       unpaidCount++;
+    } else if (statusCounts.paid > 0) {
+       fullyPaidCount++;
+    }
+  });
+
   if (loading) {
     return <div style={{ textAlign: 'center', padding: '2rem' }}>Cargando detalle...</div>;
   }
@@ -363,11 +386,25 @@ const ExpenseDetail = ({ expenseId, onBack }) => {
               </div>
               <p style={{ color: 'var(--text-muted)' }}>Emitido el: {expense.date}</p>
             </div>
-            <div style={{ textAlign: 'right' }}>
-              <p style={{ fontSize: '1.25rem', fontWeight: 'bold' }}>Total a recaudar: {formatMoney(expense.totalAmount)}</p>
-              <p style={{ fontSize: '1.1rem', color: expense.paidCount === expense.studentsCount ? 'var(--success)' : 'var(--warning)' }}>
-                {expense.paidCount || 0} de {expense.studentsCount} cuotas pagadas
-              </p>
+            <div style={{ textAlign: 'right', display: 'flex', flexDirection: 'column', gap: '0.5rem', alignItems: 'flex-end' }}>
+              <p style={{ fontSize: '1.25rem', fontWeight: 'bold', margin: 0 }}>Total a recaudar: {formatMoney(expense.totalAmount)}</p>
+              
+              <div style={{ display: 'flex', gap: '1.5rem', marginTop: '0.5rem', backgroundColor: 'rgba(255,255,255,0.03)', padding: '1rem', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-color)' }}>
+                <div style={{ textAlign: 'center' }}>
+                  <p style={{ margin: 0, fontSize: '0.85rem', color: 'var(--text-muted)' }}>Pagados completo</p>
+                  <p style={{ margin: 0, fontSize: '1.2rem', color: 'var(--success)', fontWeight: 'bold' }}>{fullyPaidCount}</p>
+                </div>
+                <div style={{ width: '1px', backgroundColor: 'rgba(255,255,255,0.1)' }}></div>
+                <div style={{ textAlign: 'center' }}>
+                  <p style={{ margin: 0, fontSize: '0.85rem', color: 'var(--text-muted)' }}>Pago parcial</p>
+                  <p style={{ margin: 0, fontSize: '1.2rem', color: '#eab308', fontWeight: 'bold' }}>{partialCount}</p>
+                </div>
+                <div style={{ width: '1px', backgroundColor: 'rgba(255,255,255,0.1)' }}></div>
+                <div style={{ textAlign: 'center' }}>
+                  <p style={{ margin: 0, fontSize: '0.85rem', color: 'var(--text-muted)' }}>Impagos / Revisión</p>
+                  <p style={{ margin: 0, fontSize: '1.2rem', color: 'var(--danger)', fontWeight: 'bold' }}>{unpaidCount}</p>
+                </div>
+              </div>
             </div>
           </>
         )}
@@ -394,14 +431,15 @@ const ExpenseDetail = ({ expenseId, onBack }) => {
                 <input 
                   type="checkbox" 
                   onChange={toggleSelectAll}
-                  checked={debts.filter(d => d.status === 'pending').length > 0 && selectedDebts.length === debts.filter(d => d.status === 'pending').length}
-                  disabled={debts.filter(d => d.status === 'pending').length === 0}
+                  checked={debts.filter(d => d.status === 'pending' || d.status === 'partial').length > 0 && selectedDebts.length === debts.filter(d => d.status === 'pending' || d.status === 'partial').length}
+                  disabled={debts.filter(d => d.status === 'pending' || d.status === 'partial').length === 0}
                   style={{ cursor: 'pointer' }}
                 />
               </th>
               <th style={{ padding: '1rem' }}>Alumno</th>
               <th style={{ padding: '1rem' }}>Apoderado</th>
               <th style={{ padding: '1rem' }}>Estado</th>
+              <th style={{ padding: '1rem' }}>Monto A Cobrar</th>
               <th style={{ padding: '1rem' }}>Monto Informado</th>
               <th style={{ padding: '1rem' }}>Comprobante</th>
               <th style={{ padding: '1rem' }}>Acciones</th>
@@ -411,7 +449,7 @@ const ExpenseDetail = ({ expenseId, onBack }) => {
             {debts.map(debt => (
               <tr key={debt.id} style={{ borderBottom: '1px solid var(--border-color)', backgroundColor: selectedDebts.includes(debt.id) ? 'rgba(99,102,241,0.05)' : 'transparent' }}>
                 <td style={{ padding: '1rem' }}>
-                  {debt.status === 'pending' && (
+                  {(debt.status === 'pending' || debt.status === 'partial') && (
                     <input 
                       type="checkbox" 
                       checked={selectedDebts.includes(debt.id)}
@@ -434,6 +472,11 @@ const ExpenseDetail = ({ expenseId, onBack }) => {
                       <Clock size={14}/> En Revisión
                     </span>
                   )}
+                  {debt.status === 'partial' && (
+                    <span style={{ padding: '0.25rem 0.75rem', borderRadius: '1rem', fontSize: '0.85rem', backgroundColor: 'rgba(234, 179, 8, 0.2)', color: '#eab308', display: 'inline-flex', alignItems: 'center', gap: '0.3rem', whiteSpace: 'nowrap' }}>
+                      <Clock size={14}/> Pago Parcial
+                    </span>
+                  )}
                   {debt.status === 'pending' && (
                     <span style={{ padding: '0.25rem 0.75rem', borderRadius: '1rem', fontSize: '0.85rem', backgroundColor: 'rgba(239, 68, 68, 0.2)', color: 'var(--danger)', display: 'inline-flex', alignItems: 'center', gap: '0.3rem' }}>
                       <XCircle size={14}/> Pendiente
@@ -441,8 +484,12 @@ const ExpenseDetail = ({ expenseId, onBack }) => {
                   )}
                 </td>
 
-                <td style={{ padding: '1rem' }}>
-                  {debt.paidAmount ? formatMoney(debt.paidAmount) : '-'}
+                <td style={{ padding: '1rem', fontWeight: 'bold' }}>
+                  {formatMoney(debt.amount)}
+                </td>
+                
+                <td style={{ padding: '1rem', color: 'var(--success)' }}>
+                  {debt.paidAmount ? `+${formatMoney(debt.paidAmount)}` : '-'}
                 </td>
 
                 <td style={{ padding: '1rem' }}>
@@ -477,7 +524,7 @@ const ExpenseDetail = ({ expenseId, onBack }) => {
                         <XCircle size={16} /> Rechazar
                       </button>
                     </div>
-                  ) : debt.status === 'pending' ? (
+                  ) : (debt.status === 'pending' || debt.status === 'partial') ? (
                     <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
                       <button 
                         onClick={() => handleManualPayment(debt.id, 'cash')}

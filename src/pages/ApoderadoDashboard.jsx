@@ -68,8 +68,10 @@ const ApoderadoDashboard = () => {
         const fetchedDebts = snapDebts.docs.map(doc => ({ id: doc.id, ...doc.data() }));
         // Ordenar: pendientes primero
         fetchedDebts.sort((a, b) => {
-          if (a.status === 'pending' && b.status !== 'pending') return -1;
-          if (a.status !== 'pending' && b.status === 'pending') return 1;
+          const statusOrder = { pending: 1, partial: 2, review: 3, paid: 4 };
+          if (statusOrder[a.status] !== statusOrder[b.status]) {
+            return statusOrder[a.status] - statusOrder[b.status];
+          }
           return new Date(b.createdAt) - new Date(a.createdAt);
         });
         setDebts(fetchedDebts);
@@ -213,7 +215,7 @@ const ApoderadoDashboard = () => {
       </header>
 
       {/* BANNER URGENTE */}
-      {isProfileComplete && debts.some(d => d.urgentNotice && d.status === 'pending') && (
+      {isProfileComplete && debts.some(d => d.urgentNotice && (d.status === 'pending' || d.status === 'partial')) && (
         <div className="glass-panel" style={{ backgroundColor: 'rgba(239, 68, 68, 0.1)', border: '1px solid var(--danger)', padding: '1rem', marginBottom: '2rem', display: 'flex', alignItems: 'center', gap: '1rem', color: 'var(--danger)' }}>
           <AlertCircle size={24} />
           <div>
@@ -367,20 +369,20 @@ const ApoderadoDashboard = () => {
                     {studentDebts.map(debt => (
                       <div key={debt.id} style={{ 
                         display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '1rem', padding: '1rem', backgroundColor: 'rgba(255,255,255,0.03)', borderRadius: 'var(--radius-md)', 
-                        borderLeft: `4px solid ${debt.status === 'paid' ? 'var(--success)' : debt.status === 'review' ? 'var(--warning)' : 'var(--danger)'}` 
+                        borderLeft: `4px solid ${debt.status === 'paid' ? 'var(--success)' : debt.status === 'review' ? 'var(--warning)' : debt.status === 'partial' ? '#eab308' : 'var(--danger)'}` 
                       }}>
                         <div>
                           <p style={{ fontWeight: '500', fontSize: '1.1rem', marginBottom: '0.2rem' }}>{debt.title}</p>
                           <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>
-                            Monto de la cuota: <strong>${debt.amount}</strong> • Emitida: {debt.date}
+                            {debt.status === 'partial' ? `Saldo Restante: ` : `Monto de la cuota: `} <strong>${debt.amount}</strong> • Emitida: {debt.date}
                           </p>
                         </div>
                         
                         <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-                          {debt.status === 'pending' && (
+                          {(debt.status === 'pending' || debt.status === 'partial') && (
                             <>
-                              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: 'var(--danger)', fontWeight: '500' }}>
-                                <AlertCircle size={18} /> Por Pagar
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: debt.status === 'partial' ? '#eab308' : 'var(--danger)', fontWeight: '500' }}>
+                                <AlertCircle size={18} /> {debt.status === 'partial' ? 'Pago Parcial (Saldo Pendiente)' : 'Por Pagar'}
                               </div>
                               <button 
                                 onClick={() => {
