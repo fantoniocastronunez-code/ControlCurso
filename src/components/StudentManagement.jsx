@@ -3,9 +3,11 @@ import { db } from '../firebase/config';
 import { collection, getDocs, doc, setDoc, deleteDoc, updateDoc } from 'firebase/firestore';
 import { ArrowLeft, UserPlus, CheckCircle, Trash2, Edit2, X, Save, Image as ImageIcon } from 'lucide-react';
 import BulkImport from './BulkImport';
+import StudentDetailModal from './StudentDetailModal';
 
 const StudentManagement = ({ onBack }) => {
   const [students, setStudents] = useState([]);
+  const [usersMap, setUsersMap] = useState({});
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState('');
   
@@ -16,14 +18,37 @@ const StudentManagement = ({ onBack }) => {
   const [newBalance, setNewBalance] = useState('');
   
   const [showBulkImport, setShowBulkImport] = useState(false);
+  const [selectedStudent, setSelectedStudent] = useState(null);
 
   // Estados para edición
   const [editingId, setEditingId] = useState(null);
   const [editData, setEditData] = useState({ name: '', apoderadoEmail1: '', apoderadoEmail2: '', listNumber: '', balance: '' });
 
   useEffect(() => {
-    fetchStudents();
+    fetchData();
   }, []);
+
+  const fetchData = async () => {
+    setLoading(true);
+    await Promise.all([fetchUsers(), fetchStudents()]);
+    setLoading(false);
+  };
+
+  const fetchUsers = async () => {
+    try {
+      const usersSnap = await getDocs(collection(db, 'users'));
+      const map = {};
+      usersSnap.forEach(doc => {
+        const data = doc.data();
+        if (data.formalName) {
+          map[doc.id] = data.formalName;
+        }
+      });
+      setUsersMap(map);
+    } catch (error) {
+      console.error("Error fetching users:", error);
+    }
+  };
 
   const fetchStudents = async () => {
     try {
@@ -42,8 +67,6 @@ const StudentManagement = ({ onBack }) => {
       setStudents(studentList);
     } catch (error) {
       console.error("Error al obtener alumnos:", error);
-    } finally {
-      setLoading(false);
     }
   };
 
@@ -332,11 +355,18 @@ const StudentManagement = ({ onBack }) => {
                 ) : (
                   <>
                     <td style={{ padding: '1rem', color: 'var(--text-muted)' }}>{s.listNumber || '-'}</td>
-                    <td style={{ padding: '1rem', fontWeight: '500' }}>{s.name}</td>
+                    <td style={{ padding: '1rem', fontWeight: '500' }}>
+                      <button 
+                        onClick={() => setSelectedStudent(s)}
+                        style={{ background: 'none', border: 'none', color: 'var(--primary)', cursor: 'pointer', fontWeight: '500', padding: 0, fontSize: 'inherit', textAlign: 'left', textDecoration: 'underline' }}
+                      >
+                        {s.name}
+                      </button>
+                    </td>
                     <td style={{ padding: '1rem', color: 'var(--text-muted)' }}>
                       {s.apoderadoEmails?.length > 0 
-                        ? s.apoderadoEmails.join(', ') 
-                        : (s.apoderadoEmail || 'Sin apoderado')}
+                        ? s.apoderadoEmails.map(email => usersMap[email] || email).join(', ') 
+                        : (s.apoderadoEmail ? (usersMap[s.apoderadoEmail] || s.apoderadoEmail) : 'Sin apoderado')}
                     </td>
                     <td style={{ padding: '1rem' }}>
                       {s.balance > 0 ? (
@@ -367,6 +397,14 @@ const StudentManagement = ({ onBack }) => {
           </div>
         )}
       </div>
+
+      {selectedStudent && (
+        <StudentDetailModal 
+          student={selectedStudent} 
+          usersMap={usersMap} 
+          onClose={() => setSelectedStudent(null)} 
+        />
+      )}
     </div>
   );
 };

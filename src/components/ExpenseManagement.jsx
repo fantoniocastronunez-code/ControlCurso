@@ -13,6 +13,7 @@ const ExpenseManagement = ({ onBack }) => {
   const [totalAmount, setTotalAmount] = useState('');
   const [calculationMode, setCalculationMode] = useState('divide');
   const [selectedStudents, setSelectedStudents] = useState(new Set());
+  const [customAmounts, setCustomAmounts] = useState({});
   
   const [funds, setFunds] = useState([]);
   const [selectedFundId, setSelectedFundId] = useState('');
@@ -72,23 +73,41 @@ const ExpenseManagement = ({ onBack }) => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!title || !totalAmount || selectedStudents.size === 0 || !selectedFundId) {
-      alert('Debes ingresar título, monto, fondo destino y seleccionar al menos un alumno. Si no tienes fondos, crea uno en Administrar Fondos.');
+    if (!title || selectedStudents.size === 0 || !selectedFundId) {
+      alert('Debes ingresar título, seleccionar fondo y al menos un alumno.');
       return;
+    }
+    if (calculationMode !== 'custom' && !totalAmount) {
+      alert('Debes ingresar el monto.');
+      return;
+    }
+
+    if (calculationMode === 'custom') {
+      for (const id of selectedStudents) {
+        if (!customAmounts[id] || isNaN(parseFloat(customAmounts[id])) || parseFloat(customAmounts[id]) <= 0) {
+          alert('Debes ingresar un monto válido mayor a 0 para cada alumno seleccionado en modo personalizado.');
+          return;
+        }
+      }
     }
 
     setLoading(true);
     try {
-      const inputAmount = parseFloat(totalAmount);
       let amountPerStudent;
       let finalTotalAmount;
 
       if (calculationMode === 'divide') {
+        const inputAmount = parseFloat(totalAmount);
         amountPerStudent = Math.round(inputAmount / selectedStudents.size);
         finalTotalAmount = inputAmount;
-      } else {
+      } else if (calculationMode === 'perStudent') {
+        const inputAmount = parseFloat(totalAmount);
         amountPerStudent = inputAmount;
         finalTotalAmount = inputAmount * selectedStudents.size;
+      } else {
+        // custom
+        amountPerStudent = 'Variable';
+        finalTotalAmount = Array.from(selectedStudents).reduce((sum, id) => sum + parseFloat(customAmounts[id]), 0);
       }
       
       const expenseId = 'exp_' + Date.now().toString();
@@ -113,12 +132,14 @@ const ExpenseManagement = ({ onBack }) => {
         const debtId = `debt_${expenseId}_${studentId}`;
         const debtRef = doc(db, 'debts', debtId);
         
+        const finalStudentAmount = calculationMode === 'custom' ? parseFloat(customAmounts[studentId]) : amountPerStudent;
+        
         await setDoc(debtRef, {
           expenseId,
           studentId,
           studentName: student.name,
           apoderadoEmails: student.apoderadoEmails || (student.apoderadoEmail ? [student.apoderadoEmail] : []),
-          amount: amountPerStudent,
+          amount: finalStudentAmount,
           status: 'pending', // pending, review, paid
           title,
           date,
@@ -182,27 +203,35 @@ const ExpenseManagement = ({ onBack }) => {
               <select 
                 className="input-field"
                 value={calculationMode}
-                onChange={(e) => setCalculationMode(e.target.value)}
+                onChange={(e) => {
+                  setCalculationMode(e.target.value);
+                  if (e.target.value === 'custom') {
+                    setTotalAmount('');
+                  }
+                }}
               >
                 <option value="divide">Monto Total a Dividir</option>
                 <option value="perStudent">Monto Fijo por Alumno</option>
+                <option value="custom">Monto Personalizado por Alumno</option>
               </select>
             </div>
 
-            <div className="input-group">
-              <label className="input-label">
-                {calculationMode === 'divide' ? 'Monto Total a Dividir ($)' : 'Monto por Alumno ($)'}
-              </label>
-              <input 
-                type="number" 
-                required
-                min="1"
-                className="input-field" 
-                placeholder="Ej. 50000"
-                value={totalAmount}
-                onChange={(e) => setTotalAmount(e.target.value)}
-              />
-            </div>
+            {calculationMode !== 'custom' && (
+              <div className="input-group">
+                <label className="input-label">
+                  {calculationMode === 'divide' ? 'Monto Total a Dividir ($)' : 'Monto por Alumno ($)'}
+                </label>
+                <input 
+                  type="number" 
+                  required
+                  min="1"
+                  className="input-field" 
+                  placeholder="Ej. 50000"
+                  value={totalAmount}
+                  onChange={(e) => setTotalAmount(e.target.value)}
+                />
+              </div>
+            )}
 
             <div className="input-group">
               <label className="input-label">Fecha Límite / Emisión</label>
@@ -231,7 +260,7 @@ const ExpenseManagement = ({ onBack }) => {
             </div>
           </div>
 
-          {totalAmount && selectedStudents.size > 0 && (
+          {calculationMode !== 'custom' && totalAmount && selectedStudents.size > 0 && (
             <div style={{ marginTop: '1rem', padding: '1rem', backgroundColor: 'rgba(99, 102, 241, 0.1)', borderRadius: 'var(--radius-md)', border: '1px solid var(--primary)' }}>
               <strong>Resumen:</strong> 
               {calculationMode === 'divide' ? (
@@ -239,6 +268,12 @@ const ExpenseManagement = ({ onBack }) => {
               ) : (
                 <span> Se cobrará <strong>${parseFloat(totalAmount)}</strong> a cada alumno (Total a recaudar: ${parseFloat(totalAmount) * selectedStudents.size}).</span>
               )}
+            </div>
+          )}
+          
+          {calculationMode === 'custom' && selectedStudents.size > 0 && (
+            <div style={{ marginTop: '1rem', padding: '1rem', backgroundColor: 'rgba(99, 102, 241, 0.1)', borderRadius: 'var(--radius-md)', border: '1px solid var(--primary)' }}>
+              <strong>Resumen:</strong> Total a recaudar: <strong>${Array.from(selectedStudents).reduce((sum, id) => sum + (parseFloat(customAmounts[id]) || 0), 0)}</strong>
             </div>
           )}
         </div>
@@ -262,8 +297,22 @@ const ExpenseManagement = ({ onBack }) => {
                 />
                 <div>
                   <span style={{ display: 'block', fontWeight: '500' }}>{student.name}</span>
-                  <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>{student.apoderadoEmail || 'Sin apoderado'}</span>
+                  <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+                    {student.apoderadoEmails?.length > 0 ? student.apoderadoEmails.join(', ') : (student.apoderadoEmail || 'Sin apoderado')}
+                  </span>
                 </div>
+                {calculationMode === 'custom' && selectedStudents.has(student.id) && (
+                  <input 
+                    type="number"
+                    min="1"
+                    placeholder="Monto $"
+                    className="input-field"
+                    style={{ width: '100px', marginLeft: 'auto', padding: '0.25rem 0.5rem' }}
+                    value={customAmounts[student.id] || ''}
+                    onChange={(e) => setCustomAmounts({...customAmounts, [student.id]: e.target.value})}
+                    onClick={(e) => e.stopPropagation()}
+                  />
+                )}
               </label>
             ))}
             {students.length === 0 && (
