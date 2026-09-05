@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { LogOut, Users, DollarSign, Activity, FileText } from 'lucide-react';
+import { LogOut, Users, DollarSign, Activity, FileText, RefreshCw } from 'lucide-react';
 import { db } from '../firebase/config';
 import { collection, getDocs, query, where, orderBy } from 'firebase/firestore';
 
@@ -168,15 +168,21 @@ const AdminDashboard = () => {
 
   return (
     <div className="container animate-fade-in">
-      <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem' }}>
+      <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem', flexWrap: 'wrap', gap: '1rem' }}>
         <div>
           <h2>Panel de Administración</h2>
           <p style={{ color: 'var(--text-muted)' }}>Bienvenido, {user?.displayName} ({role})</p>
         </div>
-        <button onClick={logout} className="btn btn-outline">
-          <LogOut size={18} />
-          Salir
-        </button>
+        <div style={{ display: 'flex', gap: '1rem' }}>
+          <button onClick={() => window.location.reload()} className="btn btn-outline" style={{ borderColor: 'var(--primary)', color: 'var(--primary)' }} title="Forzar recarga de la página">
+            <RefreshCw size={18} />
+            Actualizar
+          </button>
+          <button onClick={logout} className="btn btn-outline">
+            <LogOut size={18} />
+            Salir
+          </button>
+        </div>
       </header>
 
       {currentView === 'dashboard' ? (
