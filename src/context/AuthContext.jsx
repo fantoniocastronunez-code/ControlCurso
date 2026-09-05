@@ -17,30 +17,37 @@ export const AuthProvider = ({ children }) => {
       if (currentUser) {
         setUser(currentUser);
         // Check role in Firestore using Email as ID
-        const userDocRef = doc(db, 'users', currentUser.email);
-        const userDoc = await getDoc(userDocRef);
+        try {
+          const userDocRef = doc(db, 'users', currentUser.email);
+          const userDoc = await getDoc(userDocRef);
 
-        if (userDoc.exists()) {
-          setRole(userDoc.data().role);
-          // Actualizamos la info de perfil por si cambió
-          await setDoc(userDocRef, {
-            ...userDoc.data(),
-            displayName: currentUser.displayName || userDoc.data().displayName || '',
-            photoURL: currentUser.photoURL || userDoc.data().photoURL || '',
-            uid: currentUser.uid
-          }, { merge: true });
-        } else {
-          // Si el usuario no existe en la BD, lo creamos como apoderado por defecto, o si es tu email, superadmin.
-          const initialRole = currentUser.email === 'fantoniocastronunez@gmail.com' ? 'superadmin' : 'apoderado';
-          await setDoc(userDocRef, {
-            email: currentUser.email,
-            displayName: currentUser.displayName || '',
-            photoURL: currentUser.photoURL || '',
-            uid: currentUser.uid,
-            role: initialRole,
-            createdAt: new Date().toISOString(),
-          });
-          setRole(initialRole);
+          if (userDoc.exists()) {
+            setRole(userDoc.data().role);
+            // Actualizamos la info de perfil por si cambió
+            await setDoc(userDocRef, {
+              ...userDoc.data(),
+              displayName: currentUser.displayName || userDoc.data().displayName || '',
+              photoURL: currentUser.photoURL || userDoc.data().photoURL || '',
+              uid: currentUser.uid
+            }, { merge: true });
+          } else {
+            // Si el usuario no existe en la BD, lo creamos como apoderado por defecto, o si es tu email, superadmin.
+            const initialRole = currentUser.email === 'fantoniocastronunez@gmail.com' ? 'superadmin' : 'apoderado';
+            await setDoc(userDocRef, {
+              email: currentUser.email,
+              displayName: currentUser.displayName || '',
+              photoURL: currentUser.photoURL || '',
+              uid: currentUser.uid,
+              role: initialRole,
+              createdAt: new Date().toISOString(),
+            });
+            setRole(initialRole);
+          }
+        } catch (error) {
+          console.error("Error al obtener o crear el usuario en Firestore:", error);
+          alert("Error de permisos en la base de datos. Por favor revisa las reglas de Firestore.");
+          // Forzar un rol básico para que no se quede pegado, o simplemente cerrar sesión
+          setRole('apoderado');
         }
       } else {
         setUser(null);
