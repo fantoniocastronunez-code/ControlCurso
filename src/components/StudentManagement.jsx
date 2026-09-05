@@ -11,10 +11,11 @@ const StudentManagement = ({ onBack }) => {
   const [newName, setNewName] = useState('');
   const [newRut, setNewRut] = useState('');
   const [newApoderadoEmail, setNewApoderadoEmail] = useState('');
+  const [newListNumber, setNewListNumber] = useState('');
 
   // Estados para edición
   const [editingId, setEditingId] = useState(null);
-  const [editData, setEditData] = useState({ name: '', rut: '', apoderadoEmail: '' });
+  const [editData, setEditData] = useState({ name: '', rut: '', apoderadoEmail: '', listNumber: '' });
 
   useEffect(() => {
     fetchStudents();
@@ -28,6 +29,12 @@ const StudentManagement = ({ onBack }) => {
         id: doc.id,
         ...doc.data()
       }));
+      // Ordenar por número de lista si existe
+      studentList.sort((a, b) => {
+        const aNum = parseInt(a.listNumber) || 999;
+        const bNum = parseInt(b.listNumber) || 999;
+        return aNum - bNum;
+      });
       setStudents(studentList);
     } catch (error) {
       console.error("Error al obtener alumnos:", error);
@@ -48,15 +55,21 @@ const StudentManagement = ({ onBack }) => {
         name: newName,
         rut: newRut,
         apoderadoEmail: newApoderadoEmail.toLowerCase().trim(),
+        listNumber: newListNumber,
         createdAt: new Date().toISOString(),
       };
       
       await setDoc(studentRef, newStudent);
       
-      setStudents([...students, { id: studentId, ...newStudent }]);
+      setStudents([...students, { id: studentId, ...newStudent }].sort((a, b) => {
+        const aNum = parseInt(a.listNumber) || 999;
+        const bNum = parseInt(b.listNumber) || 999;
+        return aNum - bNum;
+      }));
       setNewName('');
       setNewRut('');
       setNewApoderadoEmail('');
+      setNewListNumber('');
       
       setMessage('Alumno agregado correctamente');
       setTimeout(() => setMessage(''), 3000);
@@ -84,13 +97,14 @@ const StudentManagement = ({ onBack }) => {
     setEditData({
       name: student.name || '',
       rut: student.rut || '',
-      apoderadoEmail: student.apoderadoEmail || ''
+      apoderadoEmail: student.apoderadoEmail || '',
+      listNumber: student.listNumber || ''
     });
   };
 
   const cancelEditing = () => {
     setEditingId(null);
-    setEditData({ name: '', rut: '', apoderadoEmail: '' });
+    setEditData({ name: '', rut: '', apoderadoEmail: '', listNumber: '' });
   };
 
   const handleSaveEdit = async () => {
@@ -100,12 +114,19 @@ const StudentManagement = ({ onBack }) => {
       await updateDoc(studentRef, {
         name: editData.name,
         rut: editData.rut,
-        apoderadoEmail: editData.apoderadoEmail.toLowerCase().trim()
+        apoderadoEmail: editData.apoderadoEmail.toLowerCase().trim(),
+        listNumber: editData.listNumber
       });
       
-      setStudents(students.map(s => 
+      let updatedList = students.map(s => 
         s.id === editingId ? { ...s, ...editData, apoderadoEmail: editData.apoderadoEmail.toLowerCase().trim() } : s
-      ));
+      );
+      updatedList.sort((a, b) => {
+        const aNum = parseInt(a.listNumber) || 999;
+        const bNum = parseInt(b.listNumber) || 999;
+        return aNum - bNum;
+      });
+      setStudents(updatedList);
       
       setMessage('Alumno modificado correctamente');
       setTimeout(() => setMessage(''), 3000);
@@ -153,6 +174,16 @@ const StudentManagement = ({ onBack }) => {
               onChange={(e) => setNewName(e.target.value)}
             />
           </div>
+          <div className="input-group" style={{ flex: '0.5', minWidth: '80px', marginBottom: 0 }}>
+            <label className="input-label">N° Lista</label>
+            <input 
+              type="number" 
+              className="input-field" 
+              placeholder="Ej. 1"
+              value={newListNumber}
+              onChange={(e) => setNewListNumber(e.target.value)}
+            />
+          </div>
           <div className="input-group" style={{ flex: '1', minWidth: '150px', marginBottom: 0 }}>
             <label className="input-label">RUT (Opcional)</label>
             <input 
@@ -183,6 +214,7 @@ const StudentManagement = ({ onBack }) => {
         <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
           <thead>
             <tr style={{ borderBottom: '1px solid var(--border-color)', backgroundColor: 'rgba(255,255,255,0.03)' }}>
+              <th style={{ padding: '1rem', width: '80px' }}>N°</th>
               <th style={{ padding: '1rem' }}>Nombre Alumno</th>
               <th style={{ padding: '1rem' }}>RUT</th>
               <th style={{ padding: '1rem' }}>Apoderado</th>
@@ -194,6 +226,15 @@ const StudentManagement = ({ onBack }) => {
               <tr key={s.id} style={{ borderBottom: '1px solid var(--border-color)' }}>
                 {editingId === s.id ? (
                   <>
+                    <td style={{ padding: '1rem' }}>
+                      <input 
+                        type="number" 
+                        className="input-field" 
+                        value={editData.listNumber} 
+                        onChange={(e) => setEditData({...editData, listNumber: e.target.value})}
+                        style={{ padding: '0.4rem', width: '60px' }}
+                      />
+                    </td>
                     <td style={{ padding: '1rem' }}>
                       <input 
                         type="text" 
@@ -234,6 +275,7 @@ const StudentManagement = ({ onBack }) => {
                   </>
                 ) : (
                   <>
+                    <td style={{ padding: '1rem', color: 'var(--text-muted)' }}>{s.listNumber || '-'}</td>
                     <td style={{ padding: '1rem', fontWeight: '500' }}>{s.name}</td>
                     <td style={{ padding: '1rem', color: 'var(--text-muted)' }}>{s.rut || '-'}</td>
                     <td style={{ padding: '1rem', color: 'var(--text-muted)' }}>{s.apoderadoEmail || 'Sin apoderado'}</td>
