@@ -13,12 +13,13 @@ const StudentManagement = ({ onBack }) => {
   const [newRut, setNewRut] = useState('');
   const [newApoderadoEmail, setNewApoderadoEmail] = useState('');
   const [newListNumber, setNewListNumber] = useState('');
+  const [newBalance, setNewBalance] = useState('');
   
   const [showBulkImport, setShowBulkImport] = useState(false);
 
   // Estados para edición
   const [editingId, setEditingId] = useState(null);
-  const [editData, setEditData] = useState({ name: '', rut: '', apoderadoEmail: '', listNumber: '' });
+  const [editData, setEditData] = useState({ name: '', rut: '', apoderadoEmail: '', listNumber: '', balance: '' });
 
   useEffect(() => {
     fetchStudents();
@@ -59,6 +60,7 @@ const StudentManagement = ({ onBack }) => {
         rut: newRut,
         apoderadoEmail: newApoderadoEmail.toLowerCase().trim(),
         listNumber: newListNumber,
+        balance: Number(newBalance) || 0,
         createdAt: new Date().toISOString(),
       };
       
@@ -73,6 +75,7 @@ const StudentManagement = ({ onBack }) => {
       setNewRut('');
       setNewApoderadoEmail('');
       setNewListNumber('');
+      setNewBalance('');
       
       setMessage('Alumno agregado correctamente');
       setTimeout(() => setMessage(''), 3000);
@@ -101,13 +104,14 @@ const StudentManagement = ({ onBack }) => {
       name: student.name || '',
       rut: student.rut || '',
       apoderadoEmail: student.apoderadoEmail || '',
-      listNumber: student.listNumber || ''
+      listNumber: student.listNumber || '',
+      balance: student.balance || 0
     });
   };
 
   const cancelEditing = () => {
     setEditingId(null);
-    setEditData({ name: '', rut: '', apoderadoEmail: '', listNumber: '' });
+    setEditData({ name: '', rut: '', apoderadoEmail: '', listNumber: '', balance: '' });
   };
 
   const handleSaveEdit = async () => {
@@ -118,11 +122,12 @@ const StudentManagement = ({ onBack }) => {
         name: editData.name,
         rut: editData.rut,
         apoderadoEmail: editData.apoderadoEmail.toLowerCase().trim(),
-        listNumber: editData.listNumber
+        listNumber: editData.listNumber,
+        balance: Number(editData.balance) || 0
       });
       
       let updatedList = students.map(s => 
-        s.id === editingId ? { ...s, ...editData, apoderadoEmail: editData.apoderadoEmail.toLowerCase().trim() } : s
+        s.id === editingId ? { ...s, ...editData, apoderadoEmail: editData.apoderadoEmail.toLowerCase().trim(), balance: Number(editData.balance) || 0 } : s
       );
       updatedList.sort((a, b) => {
         const aNum = parseInt(a.listNumber) || 999;
@@ -139,6 +144,10 @@ const StudentManagement = ({ onBack }) => {
       setMessage('Error al modificar alumno');
       setTimeout(() => setMessage(''), 3000);
     }
+  };
+
+  const formatMoney = (amount) => {
+    return new Intl.NumberFormat('es-CL', { style: 'currency', currency: 'CLP' }).format(amount);
   };
 
   if (loading) {
@@ -230,6 +239,16 @@ const StudentManagement = ({ onBack }) => {
               onChange={(e) => setNewApoderadoEmail(e.target.value)}
             />
           </div>
+          <div className="input-group" style={{ flex: '1', minWidth: '120px', marginBottom: 0 }}>
+            <label className="input-label">Saldo a Favor ($)</label>
+            <input 
+              type="number" 
+              className="input-field" 
+              placeholder="Ej. 10000"
+              value={newBalance}
+              onChange={(e) => setNewBalance(e.target.value)}
+            />
+          </div>
           <button type="submit" className="btn btn-primary" style={{ height: '42px' }}>
             Añadir
           </button>
@@ -244,6 +263,7 @@ const StudentManagement = ({ onBack }) => {
               <th style={{ padding: '1rem' }}>Nombre Alumno</th>
               <th style={{ padding: '1rem' }}>RUT</th>
               <th style={{ padding: '1rem' }}>Apoderado</th>
+              <th style={{ padding: '1rem' }}>Saldo a Favor</th>
               <th style={{ padding: '1rem' }}>Acciones</th>
             </tr>
           </thead>
@@ -289,6 +309,15 @@ const StudentManagement = ({ onBack }) => {
                       />
                     </td>
                     <td style={{ padding: '1rem' }}>
+                      <input 
+                        type="number" 
+                        className="input-field" 
+                        value={editData.balance} 
+                        onChange={(e) => setEditData({...editData, balance: e.target.value})}
+                        style={{ padding: '0.4rem', width: '100px' }}
+                      />
+                    </td>
+                    <td style={{ padding: '1rem' }}>
                       <div style={{ display: 'flex', gap: '0.5rem' }}>
                         <button onClick={handleSaveEdit} className="btn btn-outline" style={{ padding: '0.4rem 0.75rem', color: 'var(--success)', borderColor: 'rgba(16, 185, 129, 0.3)', gap: '0.5rem', display: 'flex', alignItems: 'center' }}>
                           <Save size={16} /> Guardar
@@ -305,6 +334,13 @@ const StudentManagement = ({ onBack }) => {
                     <td style={{ padding: '1rem', fontWeight: '500' }}>{s.name}</td>
                     <td style={{ padding: '1rem', color: 'var(--text-muted)' }}>{s.rut || '-'}</td>
                     <td style={{ padding: '1rem', color: 'var(--text-muted)' }}>{s.apoderadoEmail || 'Sin apoderado'}</td>
+                    <td style={{ padding: '1rem' }}>
+                      {s.balance > 0 ? (
+                        <span style={{ color: 'var(--success)', fontWeight: 'bold' }}>{formatMoney(s.balance)}</span>
+                      ) : (
+                        <span style={{ color: 'var(--text-muted)' }}>-</span>
+                      )}
+                    </td>
                     <td style={{ padding: '1rem' }}>
                       <div style={{ display: 'flex', gap: '0.5rem' }}>
                         <button onClick={() => startEditing(s)} className="btn btn-outline" style={{ padding: '0.4rem 0.75rem', color: 'var(--primary)', borderColor: 'rgba(99, 102, 241, 0.3)', gap: '0.5rem', display: 'flex', alignItems: 'center' }}>

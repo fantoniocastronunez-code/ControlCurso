@@ -6,6 +6,7 @@ import { ArrowLeft, CheckCircle, Clock, XCircle, FileText, Download, Trash2, Edi
 const ExpenseDetail = ({ expenseId, onBack }) => {
   const [expense, setExpense] = useState(null);
   const [debts, setDebts] = useState([]);
+  const [students, setStudents] = useState([]);
   const [loading, setLoading] = useState(true);
   
   // Para ver imagen en grande
@@ -47,6 +48,11 @@ const ExpenseDetail = ({ expenseId, onBack }) => {
       });
       
       setDebts(debtsData);
+
+      // Obtener alumnos para revisar sus saldos a favor
+      const studentsSnap = await getDocs(collection(db, 'students'));
+      const studentsData = studentsSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+      setStudents(studentsData);
     } catch (error) {
       console.error("Error fetching expense details:", error);
     } finally {
@@ -135,6 +141,49 @@ const ExpenseDetail = ({ expenseId, onBack }) => {
     } catch (error) {
       console.error("Error al registrar pago masivo:", error);
       alert("Error al registrar los pagos.");
+      setLoading(false);
+    }
+  };
+
+  const handlePayWithBalance = async (debtId) => {
+    const debtToPay = debts.find(d => d.id === debtId);
+    const student = students.find(s => s.name === debtToPay.studentName);
+    
+    if (!student || !student.balance || student.balance < debtToPay.amount) {
+      alert("El alumno no tiene saldo suficiente a favor.");
+      return;
+    }
+
+    if(!window.confirm(`¿Usar ${formatMoney(debtToPay.amount)} del saldo a favor de ${student.name}? Le quedarán ${formatMoney(student.balance - debtToPay.amount)} a favor.`)) return;
+    
+    setLoading(true);
+    try {
+      // 1. Actualizar deuda
+      const debtRef = doc(db, 'debts', debtId);
+      await updateDoc(debtRef, {
+        status: 'paid',
+        paidAmount: debtToPay.amount,
+        paymentMethod: 'balance',
+        approvedAt: new Date().toISOString()
+      });
+
+      // 2. Descontar saldo del estudiante
+      const studentRef = doc(db, 'students', student.id);
+      await updateDoc(studentRef, {
+        balance: student.balance - debtToPay.amount
+      });
+
+      // 3. Aumentar el contador del gasto
+      const expenseRef = doc(db, 'expenses', expenseId);
+      const currentPaidCount = expense.paidCount || 0;
+      await updateDoc(expenseRef, {
+        paidCount: currentPaidCount + 1
+      });
+
+      fetchDetail();
+    } catch (error) {
+      console.error("Error al registrar pago con saldo:", error);
+      alert("Error al registrar el pago.");
       setLoading(false);
     }
   };
@@ -425,10 +474,26 @@ const ExpenseDetail = ({ expenseId, onBack }) => {
                       >
                          Transf.
                       </button>
+                      {(() => {
+                        const student = students.find(s => s.name === debt.studentName);
+                        if (student && student.balance >= debt.amount) {
+                          return (
+                            <button 
+                              onClick={() => handlePayWithBalance(debt.id)}
+                              className="btn btn-primary" 
+                              style={{ padding: '0.3rem 0.6rem', fontSize: '0.8rem', backgroundColor: 'var(--success)', border: 'none' }}
+                              title={`Usar saldo a favor de ${formatMoney(student.balance)}`}
+                            >
+                               Usar Saldo
+                            </button>
+                          );
+                        }
+                        return null;
+                      })()}
                     </div>
                   ) : (
                     <span style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>
-                       Procesado {debt.paymentMethod ? `(${debt.paymentMethod === 'cash' ? 'Efectivo' : 'Transf.'})` : ''}
+                       Procesado {debt.paymentMethod ? `(${debt.paymentMethod === 'cash' ? 'Efectivo' : debt.paymentMethod === 'transfer' ? 'Transf.' : 'Saldo a Favor'})` : ''}
                     </span>
                   )}
                 </td>

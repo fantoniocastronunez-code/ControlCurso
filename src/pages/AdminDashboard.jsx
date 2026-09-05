@@ -68,6 +68,7 @@ const AdminDashboard = () => {
         collected += amt;
         if (data.paymentMethod === 'cash') cashIn += amt;
         if (data.paymentMethod === 'transfer') transferIn += amt;
+        // paymentMethod === 'balance' no suma a cashIn/transferIn porque el dinero físico ya fue ingresado manualmente en Incomes
       });
 
       // 4. Gastos Directiva (Egresos)
@@ -100,6 +101,8 @@ const AdminDashboard = () => {
       // Calcular balances por fondo
       debtsSnap.forEach(doc => {
         const data = doc.data();
+        if (data.paymentMethod === 'balance') return; // El dinero físico ya debe estar en algún fondo mediante un 'income'
+        
         const amt = data.paidAmount || data.amount || 0;
         const fundId = data.fundId || 'general'; // 'general' para los antiguos
         
