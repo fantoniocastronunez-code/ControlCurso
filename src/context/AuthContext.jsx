@@ -16,20 +16,27 @@ export const AuthProvider = ({ children }) => {
     const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
       if (currentUser) {
         setUser(currentUser);
-        // Check role in Firestore
-        const userDocRef = doc(db, 'users', currentUser.uid);
+        // Check role in Firestore using Email as ID
+        const userDocRef = doc(db, 'users', currentUser.email);
         const userDoc = await getDoc(userDocRef);
 
         if (userDoc.exists()) {
           setRole(userDoc.data().role);
+          // Actualizamos la info de perfil por si cambió
+          await setDoc(userDocRef, {
+            ...userDoc.data(),
+            displayName: currentUser.displayName || userDoc.data().displayName || '',
+            photoURL: currentUser.photoURL || userDoc.data().photoURL || '',
+            uid: currentUser.uid
+          }, { merge: true });
         } else {
           // Si el usuario no existe en la BD, lo creamos como apoderado por defecto, o si es tu email, superadmin.
-          // Cambia el email de abajo por el tuyo.
           const initialRole = currentUser.email === 'fantoniocastronunez@gmail.com' ? 'superadmin' : 'apoderado';
           await setDoc(userDocRef, {
             email: currentUser.email,
-            displayName: currentUser.displayName,
-            photoURL: currentUser.photoURL,
+            displayName: currentUser.displayName || '',
+            photoURL: currentUser.photoURL || '',
+            uid: currentUser.uid,
             role: initialRole,
             createdAt: new Date().toISOString(),
           });

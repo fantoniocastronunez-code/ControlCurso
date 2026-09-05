@@ -1,14 +1,18 @@
 import React, { useEffect, useState } from 'react';
 import { db } from '../firebase/config';
-import { collection, getDocs, doc, updateDoc } from 'firebase/firestore';
+import { collection, getDocs, doc, updateDoc, setDoc } from 'firebase/firestore';
 import { useAuth } from '../context/AuthContext';
-import { ArrowLeft, UserCheck } from 'lucide-react';
+import { ArrowLeft, UserCheck, UserPlus } from 'lucide-react';
 
 const UserManagement = ({ onBack }) => {
   const { role } = useAuth();
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState('');
+  
+  const [newEmail, setNewEmail] = useState('');
+  const [newName, setNewName] = useState('');
+  const [newRole, setNewRole] = useState('apoderado');
 
   useEffect(() => {
     fetchUsers();
@@ -30,18 +34,49 @@ const UserManagement = ({ onBack }) => {
     }
   };
 
-  const handleRoleChange = async (userId, newRole) => {
+  const handleRoleChange = async (userId, changedRole) => {
     try {
       const userRef = doc(db, 'users', userId);
-      await updateDoc(userRef, { role: newRole });
+      await updateDoc(userRef, { role: changedRole });
       
-      setUsers(users.map(u => u.id === userId ? { ...u, role: newRole } : u));
+      setUsers(users.map(u => u.id === userId ? { ...u, role: changedRole } : u));
       
       setMessage('Rol actualizado correctamente');
       setTimeout(() => setMessage(''), 3000);
     } catch (error) {
       console.error("Error actualizando el rol:", error);
       setMessage('Error al actualizar rol');
+      setTimeout(() => setMessage(''), 3000);
+    }
+  };
+
+  const handleAddUser = async (e) => {
+    e.preventDefault();
+    if (!newEmail) return;
+
+    try {
+      const emailLower = newEmail.toLowerCase().trim();
+      const userRef = doc(db, 'users', emailLower);
+      const newUser = {
+        email: emailLower,
+        displayName: newName,
+        role: newRole,
+        createdAt: new Date().toISOString(),
+        preRegistered: true
+      };
+      
+      await setDoc(userRef, newUser);
+      
+      setUsers([...users, { id: emailLower, ...newUser }]);
+      setNewEmail('');
+      setNewName('');
+      setNewRole('apoderado');
+      
+      setMessage('Usuario pre-registrado correctamente');
+      setTimeout(() => setMessage(''), 3000);
+    } catch (error) {
+      console.error("Error agregando usuario:", error);
+      setMessage('Error al agregar usuario');
       setTimeout(() => setMessage(''), 3000);
     }
   };
@@ -65,6 +100,46 @@ const UserManagement = ({ onBack }) => {
         </div>
       )}
 
+      {/* Formulario para agregar usuario */}
+      <div className="glass-panel" style={{ padding: '1.5rem', marginBottom: '2rem' }}>
+        <h4 style={{ marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+          <UserPlus size={18} /> Pre-registrar Usuario
+        </h4>
+        <form onSubmit={handleAddUser} style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap', alignItems: 'flex-end' }}>
+          <div className="input-group" style={{ flex: '1', minWidth: '200px', marginBottom: 0 }}>
+            <label className="input-label">Email</label>
+            <input 
+              type="email" 
+              required
+              className="input-field" 
+              placeholder="correo@ejemplo.com"
+              value={newEmail}
+              onChange={(e) => setNewEmail(e.target.value)}
+            />
+          </div>
+          <div className="input-group" style={{ flex: '1', minWidth: '150px', marginBottom: 0 }}>
+            <label className="input-label">Nombre (Opcional)</label>
+            <input 
+              type="text" 
+              className="input-field" 
+              placeholder="Juan Pérez"
+              value={newName}
+              onChange={(e) => setNewName(e.target.value)}
+            />
+          </div>
+          <div className="input-group" style={{ width: '150px', marginBottom: 0 }}>
+            <label className="input-label">Rol</label>
+            <select className="input-field" value={newRole} onChange={(e) => setNewRole(e.target.value)}>
+              <option value="apoderado">Apoderado</option>
+              <option value="admin">Administrador</option>
+            </select>
+          </div>
+          <button type="submit" className="btn btn-primary" style={{ height: '42px' }}>
+            Agregar
+          </button>
+        </form>
+      </div>
+
       <div className="glass-panel" style={{ overflowX: 'auto' }}>
         <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
           <thead>
@@ -72,6 +147,7 @@ const UserManagement = ({ onBack }) => {
               <th style={{ padding: '1rem' }}>Nombre</th>
               <th style={{ padding: '1rem' }}>Email</th>
               <th style={{ padding: '1rem' }}>Rol</th>
+              <th style={{ padding: '1rem' }}>Estado</th>
               <th style={{ padding: '1rem' }}>Acciones</th>
             </tr>
           </thead>
@@ -84,7 +160,7 @@ const UserManagement = ({ onBack }) => {
                       <img src={u.photoURL} alt={u.displayName} style={{ width: '32px', height: '32px', borderRadius: '50%' }} />
                     ) : (
                       <div style={{ width: '32px', height: '32px', borderRadius: '50%', backgroundColor: 'var(--primary)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                        {u.email[0].toUpperCase()}
+                        {u.displayName ? u.displayName[0].toUpperCase() : u.email[0].toUpperCase()}
                       </div>
                     )}
                     <span>{u.displayName || 'Sin Nombre'}</span>
@@ -103,7 +179,13 @@ const UserManagement = ({ onBack }) => {
                   </span>
                 </td>
                 <td style={{ padding: '1rem' }}>
-                  {/* Solo superadmin puede cambiar roles, y no puede quitarse su propio rol si es superadmin (lógica básica) */}
+                  {u.uid ? (
+                    <span style={{ color: 'var(--success)', fontSize: '0.85rem' }}>Activo</span>
+                  ) : (
+                    <span style={{ color: 'var(--warning)', fontSize: '0.85rem' }}>Pendiente de Ingreso</span>
+                  )}
+                </td>
+                <td style={{ padding: '1rem' }}>
                   {role === 'superadmin' && u.role !== 'superadmin' ? (
                     <select 
                       className="input-field" 

@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { LogOut, Users, DollarSign, Activity } from 'lucide-react';
 import UserManagement from '../components/UserManagement';
+import StudentManagement from '../components/StudentManagement';
 
 const AdminDashboard = () => {
   const { user, role, logout } = useAuth();
@@ -61,7 +62,12 @@ const AdminDashboard = () => {
             <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>
               <button className="btn btn-primary">Registrar Pago</button>
               <button className="btn btn-outline">Añadir Gasto</button>
-              <button className="btn btn-outline">Gestionar Alumnos</button>
+              <button 
+                onClick={() => setCurrentView('students')} 
+                className="btn btn-outline"
+              >
+                Gestionar Alumnos
+              </button>
               {role === 'superadmin' && (
                  <button 
                    onClick={() => setCurrentView('users')}
@@ -76,6 +82,8 @@ const AdminDashboard = () => {
         </>
       ) : currentView === 'users' ? (
         <UserManagement onBack={() => setCurrentView('dashboard')} />
+      ) : currentView === 'students' ? (
+        <StudentManagement onBack={() => setCurrentView('dashboard')} />
       ) : null}
     </div>
   );
