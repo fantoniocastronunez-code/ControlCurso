@@ -9,17 +9,21 @@ import StudentManagement from '../components/StudentManagement';
 import ExpenseManagement from '../components/ExpenseManagement';
 import ExpenseDetail from '../components/ExpenseDetail';
 import DebtorsManagement from '../components/DebtorsManagement';
+import OutcomeManagement from '../components/OutcomeManagement';
+import FundManagement from '../components/FundManagement';
 
 const AdminDashboard = () => {
   const { user, role, logout } = useAuth();
   const [currentView, setCurrentView] = useState('dashboard');
   const [selectedExpenseId, setSelectedExpenseId] = useState(null);
 
-  // Estadísticas
   const [stats, setStats] = useState({
     activeStudents: 0,
     totalCollected: 0,
-    totalExpected: 0
+    totalExpected: 0,
+    totalCash: 0,
+    totalTransfer: 0,
+    fundsBalances: []
   });
   
   // Lista de cuotas
@@ -56,14 +60,66 @@ const AdminDashboard = () => {
       // 3. Cobros (Dinero realmente pagado)
       const debtsSnap = await getDocs(query(collection(db, 'debts'), where('status', '==', 'paid')));
       let collected = 0;
+      let cashIn = 0;
+      let transferIn = 0;
       debtsSnap.forEach(doc => {
-        collected += (doc.data().paidAmount || doc.data().amount || 0);
+        const data = doc.data();
+        const amt = data.paidAmount || data.amount || 0;
+        collected += amt;
+        if (data.paymentMethod === 'cash') cashIn += amt;
+        if (data.paymentMethod === 'transfer') transferIn += amt;
       });
+
+      // 4. Gastos Directiva (Egresos)
+      const outcomesSnap = await getDocs(collection(db, 'outcomes'));
+      let cashOut = 0;
+      let transferOut = 0;
+      outcomesSnap.forEach(doc => {
+        const data = doc.data();
+        const amt = data.amount || 0;
+        if (data.paymentMethod === 'cash') cashOut += amt;
+        if (data.paymentMethod === 'transfer') transferOut += amt;
+      });
+
+      // 5. Fondos (Categorías)
+      const fundsSnap = await getDocs(collection(db, 'funds'));
+      const fundsMap = new Map(); // id -> { name, balance }
+      fundsSnap.forEach(doc => {
+        fundsMap.set(doc.id, { id: doc.id, name: doc.data().name, balance: 0 });
+      });
+
+      // Calcular balances por fondo
+      debtsSnap.forEach(doc => {
+        const data = doc.data();
+        const amt = data.paidAmount || data.amount || 0;
+        const fundId = data.fundId || 'general'; // 'general' para los antiguos
+        
+        if (!fundsMap.has(fundId)) {
+          fundsMap.set(fundId, { id: fundId, name: fundId === 'general' ? 'Fondo General' : 'Fondo Desconocido', balance: 0 });
+        }
+        fundsMap.get(fundId).balance += amt;
+      });
+
+      outcomesSnap.forEach(doc => {
+        const data = doc.data();
+        const amt = data.amount || 0;
+        const fundId = data.fundId || 'general';
+        
+        if (!fundsMap.has(fundId)) {
+          fundsMap.set(fundId, { id: fundId, name: fundId === 'general' ? 'Fondo General' : 'Fondo Desconocido', balance: 0 });
+        }
+        fundsMap.get(fundId).balance -= amt;
+      });
+
+      const fundsBalances = Array.from(fundsMap.values());
 
       setStats({
         activeStudents: activeStudentsCount,
         totalCollected: collected,
-        totalExpected: expected
+        totalExpected: expected,
+        totalCash: cashIn - cashOut,
+        totalTransfer: transferIn - transferOut,
+        fundsBalances
       });
       setExpenses(expensesList);
 
@@ -113,21 +169,45 @@ const AdminDashboard = () => {
                     <DollarSign size={24} />
                   </div>
                   <div>
-                    <h3 style={{ fontSize: '1.5rem', margin: 0 }}>{formatMoney(stats.totalCollected)}</h3>
-                    <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem' }}>Cobros Efectivos (Pagados)</p>
+                    <h3 style={{ fontSize: '1.5rem', margin: 0 }}>{formatMoney(stats.totalCash)}</h3>
+                    <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem' }}>Caja Chica (Efectivo)</p>
+                  </div>
+                </div>
+
+                <div className="glass-panel" style={{ padding: '1.5rem', display: 'flex', alignItems: 'center', gap: '1rem' }}>
+                  <div style={{ backgroundColor: 'rgba(59,130,246,0.2)', padding: '1rem', borderRadius: '50%', color: '#3b82f6' }}>
+                    <Activity size={24} />
+                  </div>
+                  <div>
+                    <h3 style={{ fontSize: '1.5rem', margin: 0 }}>{formatMoney(stats.totalTransfer)}</h3>
+                    <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem' }}>Banco (Transferencias)</p>
                   </div>
                 </div>
 
                 <div className="glass-panel" style={{ padding: '1.5rem', display: 'flex', alignItems: 'center', gap: '1rem' }}>
                   <div style={{ backgroundColor: 'rgba(239,68,68,0.2)', padding: '1rem', borderRadius: '50%', color: 'var(--danger)' }}>
-                    <Activity size={24} />
+                    <FileText size={24} />
                   </div>
                   <div>
-                    <h3 style={{ fontSize: '1.5rem', margin: 0 }}>{formatMoney(stats.totalExpected)}</h3>
-                    <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem' }}>Total Emitido en Cuotas</p>
+                    <h3 style={{ fontSize: '1.5rem', margin: 0 }}>{formatMoney(stats.totalCash + stats.totalTransfer)}</h3>
+                    <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem' }}>Fondo Total Disponible</p>
                   </div>
                 </div>
               </div>
+
+              {stats.fundsBalances.length > 0 && (
+                <div className="glass-panel" style={{ padding: '1.5rem', marginBottom: '2rem' }}>
+                  <h4 style={{ marginBottom: '1rem', color: 'var(--primary)', margin: 0 }}>Distribución por Fondos</h4>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: '1rem', marginTop: '1rem' }}>
+                    {stats.fundsBalances.map(fb => (
+                      <div key={fb.id} style={{ padding: '1rem', backgroundColor: 'rgba(255,255,255,0.03)', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-color)' }}>
+                        <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem', margin: '0 0 0.5rem 0' }}>{fb.name}</p>
+                        <h4 style={{ margin: 0 }}>{formatMoney(fb.balance)}</h4>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
 
               <div className="glass-panel" style={{ padding: '2rem', marginBottom: '2rem' }}>
                 <h3>Gestión Rápida</h3>
@@ -137,11 +217,17 @@ const AdminDashboard = () => {
                   <button onClick={() => setCurrentView('expenses_add')} className="btn btn-primary">
                     Cobrar Cuota
                   </button>
-                  <button onClick={() => setCurrentView('debtors')} className="btn btn-outline" style={{ color: 'var(--danger)', borderColor: 'rgba(239, 68, 68, 0.3)' }}>
+                  <button onClick={() => setCurrentView('outcomes')} className="btn btn-outline" style={{ color: 'var(--danger)', borderColor: 'rgba(239, 68, 68, 0.3)' }}>
+                    Registrar Gasto
+                  </button>
+                  <button onClick={() => setCurrentView('debtors')} className="btn btn-outline" style={{ color: 'var(--warning)', borderColor: 'rgba(245, 158, 11, 0.3)' }}>
                     Apoderados en Deuda
                   </button>
                   <button onClick={() => setCurrentView('students')} className="btn btn-outline">
                     Gestionar Alumnos
+                  </button>
+                  <button onClick={() => setCurrentView('funds')} className="btn btn-outline">
+                    Administrar Fondos
                   </button>
                   {role === 'superadmin' && (
                      <button 
@@ -203,6 +289,10 @@ const AdminDashboard = () => {
         <ExpenseManagement onBack={() => setCurrentView('dashboard')} />
       ) : currentView === 'debtors' ? (
         <DebtorsManagement onBack={() => setCurrentView('dashboard')} />
+      ) : currentView === 'outcomes' ? (
+        <OutcomeManagement onBack={() => setCurrentView('dashboard')} />
+      ) : currentView === 'funds' ? (
+        <FundManagement onBack={() => setCurrentView('dashboard')} />
       ) : currentView === 'expense_detail' && selectedExpenseId ? (
         <ExpenseDetail expenseId={selectedExpenseId} onBack={() => setCurrentView('dashboard')} />
       ) : null}

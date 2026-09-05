@@ -53,6 +53,7 @@ const ExpenseDetail = ({ expenseId, onBack }) => {
       const debtRef = doc(db, 'debts', debtId);
       await updateDoc(debtRef, {
         status: 'paid',
+        paymentMethod: 'transfer',
         approvedAt: new Date().toISOString()
       });
 
@@ -68,6 +69,32 @@ const ExpenseDetail = ({ expenseId, onBack }) => {
     } catch (error) {
       console.error("Error al aprobar pago:", error);
       alert("Hubo un error al aprobar el pago.");
+    }
+  };
+
+  const handleManualPayment = async (debtId, method) => {
+    if(!window.confirm(`¿Registrar pago manual en ${method === 'cash' ? 'Efectivo' : 'Transferencia'}?`)) return;
+    try {
+      const debtRef = doc(db, 'debts', debtId);
+      const debtToPay = debts.find(d => d.id === debtId);
+      
+      await updateDoc(debtRef, {
+        status: 'paid',
+        paidAmount: debtToPay.amount,
+        paymentMethod: method,
+        approvedAt: new Date().toISOString()
+      });
+
+      const expenseRef = doc(db, 'expenses', expenseId);
+      const currentPaidCount = expense.paidCount || 0;
+      await updateDoc(expenseRef, {
+        paidCount: currentPaidCount + 1
+      });
+
+      fetchDetail();
+    } catch (error) {
+      console.error("Error al registrar pago manual:", error);
+      alert("Error al registrar el pago.");
     }
   };
 
@@ -217,9 +244,28 @@ const ExpenseDetail = ({ expenseId, onBack }) => {
                         <XCircle size={16} /> Rechazar
                       </button>
                     </div>
+                  ) : debt.status === 'pending' ? (
+                    <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+                      <button 
+                        onClick={() => handleManualPayment(debt.id, 'cash')}
+                        className="btn btn-outline" 
+                        style={{ padding: '0.3rem 0.6rem', fontSize: '0.8rem', color: 'var(--primary)', borderColor: 'rgba(99, 102, 241, 0.3)' }}
+                        title="Pago Manual en Efectivo"
+                      >
+                         Efectivo
+                      </button>
+                      <button 
+                        onClick={() => handleManualPayment(debt.id, 'transfer')}
+                        className="btn btn-outline" 
+                        style={{ padding: '0.3rem 0.6rem', fontSize: '0.8rem', color: 'var(--primary)', borderColor: 'rgba(99, 102, 241, 0.3)' }}
+                        title="Pago Manual con Transferencia"
+                      >
+                         Transf.
+                      </button>
+                    </div>
                   ) : (
                     <span style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>
-                       {debt.status === 'paid' ? 'Procesado' : 'Esperando pago'}
+                       Procesado {debt.paymentMethod ? `(${debt.paymentMethod === 'cash' ? 'Efectivo' : 'Transf.'})` : ''}
                     </span>
                   )}
                 </td>

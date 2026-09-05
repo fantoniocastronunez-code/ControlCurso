@@ -13,13 +13,17 @@ const ExpenseManagement = ({ onBack }) => {
   const [totalAmount, setTotalAmount] = useState('');
   const [calculationMode, setCalculationMode] = useState('divide');
   const [selectedStudents, setSelectedStudents] = useState(new Set());
+  
+  const [funds, setFunds] = useState([]);
+  const [selectedFundId, setSelectedFundId] = useState('');
 
   useEffect(() => {
-    fetchStudents();
+    fetchData();
   }, []);
 
-  const fetchStudents = async () => {
+  const fetchData = async () => {
     try {
+      // Fetch students
       const studentsCollection = collection(db, 'students');
       const studentSnapshot = await getDocs(studentsCollection);
       const studentList = studentSnapshot.docs.map(doc => ({
@@ -27,11 +31,22 @@ const ExpenseManagement = ({ onBack }) => {
         ...doc.data()
       }));
       setStudents(studentList);
-      
-      // Por defecto seleccionamos todos
       setSelectedStudents(new Set(studentList.map(s => s.id)));
+
+      // Fetch funds
+      const fundsCollection = collection(db, 'funds');
+      const fundsSnapshot = await getDocs(fundsCollection);
+      const fundsList = fundsSnapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      }));
+      fundsList.sort((a, b) => a.name.localeCompare(b.name));
+      setFunds(fundsList);
+      if (fundsList.length > 0) {
+        setSelectedFundId(fundsList[0].id);
+      }
     } catch (error) {
-      console.error("Error al obtener alumnos:", error);
+      console.error("Error al obtener datos:", error);
     } finally {
       setLoading(false);
     }
@@ -57,8 +72,8 @@ const ExpenseManagement = ({ onBack }) => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!title || !totalAmount || selectedStudents.size === 0) {
-      alert('Debes ingresar título, monto y seleccionar al menos un alumno.');
+    if (!title || !totalAmount || selectedStudents.size === 0 || !selectedFundId) {
+      alert('Debes ingresar título, monto, fondo destino y seleccionar al menos un alumno. Si no tienes fondos, crea uno en Administrar Fondos.');
       return;
     }
 
@@ -86,6 +101,7 @@ const ExpenseManagement = ({ onBack }) => {
         amountPerStudent,
         studentsCount: selectedStudents.size,
         paidCount: 0,
+        fundId: selectedFundId,
         createdAt: new Date().toISOString()
       };
       
@@ -106,6 +122,7 @@ const ExpenseManagement = ({ onBack }) => {
           status: 'pending', // pending, review, paid
           title,
           date,
+          fundId: selectedFundId,
           createdAt: new Date().toISOString()
         });
       }
@@ -196,6 +213,21 @@ const ExpenseManagement = ({ onBack }) => {
                 value={date}
                 onChange={(e) => setDate(e.target.value)}
               />
+            </div>
+
+            <div className="input-group">
+              <label className="input-label">Fondo Destino</label>
+              <select 
+                className="input-field"
+                value={selectedFundId}
+                onChange={(e) => setSelectedFundId(e.target.value)}
+                required
+              >
+                <option value="" disabled>Selecciona un fondo...</option>
+                {funds.map(f => (
+                  <option key={f.id} value={f.id}>{f.name}</option>
+                ))}
+              </select>
             </div>
           </div>
 
