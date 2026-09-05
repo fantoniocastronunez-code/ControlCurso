@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { LogOut, CheckCircle, Clock, Search, UserPlus, Upload, AlertCircle } from 'lucide-react';
 import { db, storage } from '../firebase/config';
-import { collection, query, where, getDocs, doc, updateDoc } from 'firebase/firestore';
+import { collection, query, where, getDocs, getDoc, doc, updateDoc, setDoc } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 
 const ApoderadoDashboard = () => {
@@ -11,6 +11,10 @@ const ApoderadoDashboard = () => {
   const [myStudents, setMyStudents] = useState([]);
   const [debts, setDebts] = useState([]);
   const [loading, setLoading] = useState(true);
+  
+  // Profile completion states
+  const [isProfileComplete, setIsProfileComplete] = useState(true);
+  const [formalName, setFormalName] = useState('');
   
   // States for search
   const [lastNameSearch, setLastNameSearch] = useState('');
@@ -30,6 +34,18 @@ const ApoderadoDashboard = () => {
   const fetchData = async () => {
     setLoading(true);
     try {
+      // 0. Check Profile Completion
+      const userDocRef = doc(db, 'users', user.email);
+      const userSnap = await getDoc(userDocRef);
+      if (userSnap.exists()) {
+        const userData = userSnap.data();
+        if (!userData.formalName) {
+          setIsProfileComplete(false);
+          setLoading(false);
+          return; // Stop here if profile is incomplete
+        }
+      }
+
       // 1. Fetch Students
       const qStudents = query(collection(db, 'students'), where('apoderadoEmail', '==', user.email));
       const snapStudents = await getDocs(qStudents);
@@ -84,6 +100,34 @@ const ApoderadoDashboard = () => {
     } catch (error) {
       console.error("Error linking student:", error);
       alert('Hubo un error al vincular el alumno.');
+    }
+  };
+
+  const handleSaveProfile = async (e) => {
+    e.preventDefault();
+    if (!formalName.trim()) return;
+    try {
+      const userDocRef = doc(db, 'users', user.email);
+      await updateDoc(userDocRef, { formalName: formalName.trim() });
+      setIsProfileComplete(true);
+      fetchData(); // Now fetch students and debts
+    } catch (error) {
+      console.error("Error saving profile:", error);
+      alert('Hubo un error al guardar tu nombre.');
+    }
+  };
+
+  const handleSaveProfile = async (e) => {
+    e.preventDefault();
+    if (!formalName.trim()) return;
+    try {
+      const userDocRef = doc(db, 'users', user.email);
+      await updateDoc(userDocRef, { formalName: formalName.trim() });
+      setIsProfileComplete(true);
+      fetchData(); // Now fetch students and debts
+    } catch (error) {
+      console.error("Error saving profile:", error);
+      alert('Hubo un error al guardar tu nombre.');
     }
   };
 
@@ -145,7 +189,36 @@ const ApoderadoDashboard = () => {
         </button>
       </header>
 
-      {/* MODAL DE PAGO */}
+      {!isProfileComplete ? (
+        <div className="glass-panel" style={{ padding: '3rem 2rem', textAlign: 'center', maxWidth: '500px', margin: '0 auto' }}>
+          <div style={{ backgroundColor: 'rgba(99,102,241,0.1)', padding: '1.5rem', borderRadius: '50%', display: 'inline-block', marginBottom: '1.5rem', color: 'var(--primary)' }}>
+            <UserPlus size={40} />
+          </div>
+          <h3 style={{ marginBottom: '1rem' }}>Completa tu Perfil</h3>
+          <p style={{ color: 'var(--text-muted)', marginBottom: '2rem' }}>
+            Para poder gestionar los pagos y vincular a tu alumno, necesitamos que ingreses tu nombre y apellido real.
+          </p>
+
+          <form onSubmit={handleSaveProfile} style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+            <div className="input-group" style={{ textAlign: 'left' }}>
+              <label className="input-label">Nombre y Apellido del Apoderado</label>
+              <input 
+                type="text" 
+                required
+                className="input-field" 
+                placeholder="Ej. Juan Pérez"
+                value={formalName}
+                onChange={(e) => setFormalName(e.target.value)}
+              />
+            </div>
+            <button type="submit" className="btn btn-primary" style={{ width: '100%', padding: '0.8rem' }}>
+              Guardar y Continuar
+            </button>
+          </form>
+        </div>
+      ) : (
+        <>
+          {/* MODAL DE PAGO */}
       {payingDebt && (
         <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.7)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: '1rem' }}>
           <div className="glass-panel" style={{ width: '100%', maxWidth: '500px', padding: '2rem', backgroundColor: 'var(--bg-main)' }}>
