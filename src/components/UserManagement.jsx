@@ -1,8 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import { db } from '../firebase/config';
-import { collection, getDocs, doc, updateDoc, setDoc } from 'firebase/firestore';
+import { collection, getDocs, doc, updateDoc, setDoc, deleteDoc } from 'firebase/firestore';
 import { useAuth } from '../context/AuthContext';
-import { ArrowLeft, UserCheck, UserPlus } from 'lucide-react';
+import { ArrowLeft, UserCheck, UserPlus, Trash2 } from 'lucide-react';
 
 const UserManagement = ({ onBack }) => {
   const { role } = useAuth();
@@ -78,6 +78,18 @@ const UserManagement = ({ onBack }) => {
       console.error("Error agregando usuario:", error);
       setMessage('Error al agregar usuario');
       setTimeout(() => setMessage(''), 3000);
+    }
+  };
+
+  const handleDeleteUser = async (userId) => {
+    if (!window.confirm('¿Seguro que deseas eliminar este usuario? Si ya había iniciado sesión, perderá el acceso hasta que vuelva a iniciar.')) return;
+    try {
+      await deleteDoc(doc(db, 'users', userId));
+      setUsers(users.filter(u => u.id !== userId));
+      setMessage('Usuario eliminado');
+      setTimeout(() => setMessage(''), 3000);
+    } catch (error) {
+      console.error("Error eliminando:", error);
     }
   };
 
@@ -182,20 +194,25 @@ const UserManagement = ({ onBack }) => {
                   {u.uid ? (
                     <span style={{ color: 'var(--success)', fontSize: '0.85rem' }}>Activo</span>
                   ) : (
-                    <span style={{ color: 'var(--warning)', fontSize: '0.85rem' }}>Pendiente de Ingreso</span>
+                    <span style={{ color: 'var(--warning)', fontSize: '0.85rem' }}>Pendiente</span>
                   )}
                 </td>
                 <td style={{ padding: '1rem' }}>
                   {role === 'superadmin' && u.role !== 'superadmin' ? (
-                    <select 
-                      className="input-field" 
-                      style={{ padding: '0.4rem', fontSize: '0.85rem' }}
-                      value={u.role}
-                      onChange={(e) => handleRoleChange(u.id, e.target.value)}
-                    >
-                      <option value="apoderado">Apoderado</option>
-                      <option value="admin">Administrador</option>
-                    </select>
+                    <div style={{ display: 'flex', gap: '0.5rem' }}>
+                      <select 
+                        className="input-field" 
+                        style={{ padding: '0.4rem', fontSize: '0.85rem' }}
+                        value={u.role}
+                        onChange={(e) => handleRoleChange(u.id, e.target.value)}
+                      >
+                        <option value="apoderado">Apoderado</option>
+                        <option value="admin">Admin</option>
+                      </select>
+                      <button onClick={() => handleDeleteUser(u.id)} className="btn btn-outline" style={{ padding: '0.4rem 0.75rem', color: 'var(--danger)', borderColor: 'rgba(239, 68, 68, 0.3)', gap: '0.5rem', display: 'flex', alignItems: 'center' }}>
+                        <Trash2 size={16} /> Eliminar
+                      </button>
+                    </div>
                   ) : (
                     <span style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>No modificable</span>
                   )}

@@ -155,8 +155,8 @@ const StudentManagement = ({ onBack }) => {
                 <td style={{ padding: '1rem', color: 'var(--text-muted)' }}>{s.rut || '-'}</td>
                 <td style={{ padding: '1rem', color: 'var(--text-muted)' }}>{s.apoderadoEmail || 'Sin apoderado'}</td>
                 <td style={{ padding: '1rem' }}>
-                  <button onClick={() => handleDelete(s.id)} className="btn btn-outline" style={{ padding: '0.4rem', color: 'var(--danger)', borderColor: 'rgba(239, 68, 68, 0.3)' }}>
-                    <Trash2 size={16} />
+                  <button onClick={() => handleDelete(s.id)} className="btn btn-outline" style={{ padding: '0.4rem 0.75rem', color: 'var(--danger)', borderColor: 'rgba(239, 68, 68, 0.3)', gap: '0.5rem', display: 'flex', alignItems: 'center' }}>
+                    <Trash2 size={16} /> Eliminar
                   </button>
                 </td>
               </tr>
