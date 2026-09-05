@@ -285,6 +285,51 @@ const ExpenseDetail = ({ expenseId, onBack }) => {
     }
   };
 
+  const handleRevertPayment = async (debtId) => {
+    const debtToRevert = debts.find(d => d.id === debtId);
+    if (!debtToRevert) return;
+    
+    if (!(await showConfirm('¿Estás seguro de que deseas anular este pago y volver a marcarlo como PENDIENTE?'))) return;
+    
+    setLoading(true);
+    try {
+      const debtRef = doc(db, 'debts', debtId);
+      
+      // If payment was with balance, refund the student
+      if (debtToRevert.paymentMethod === 'balance' && debtToRevert.paidAmount > 0) {
+         const student = students.find(s => s.id === debtToRevert.studentId);
+         if (student) {
+            await updateDoc(doc(db, 'students', student.id), {
+               balance: (student.balance || 0) + debtToRevert.paidAmount
+            });
+         }
+      }
+
+      await updateDoc(debtRef, {
+        status: 'pending',
+        paidAmount: 0,
+        paymentMethod: null,
+        receiptUrl: null,
+        approvedAt: null
+      });
+
+      // Si el estado anterior era 'paid', descontamos el contador de la cuota
+      if (debtToRevert.status === 'paid') {
+        const expenseRef = doc(db, 'expenses', expenseId);
+        const currentPaidCount = expense.paidCount || 0;
+        await updateDoc(expenseRef, {
+          paidCount: Math.max(0, currentPaidCount - 1)
+        });
+      }
+
+      fetchDetail();
+    } catch (error) {
+      console.error("Error al revertir el pago:", error);
+      await showAlert("Hubo un error al revertir el pago.");
+      setLoading(false);
+    }
+  };
+
   const handleDeleteExpense = async () => {
     if (!(await showConfirm('¿Seguro que deseas ELIMINAR esta cuota? Se borrarán también todas las deudas de los alumnos y los pagos ya realizados desaparecerán del balance general.'))) return;
     setLoading(true);
@@ -644,9 +689,18 @@ const ExpenseDetail = ({ expenseId, onBack }) => {
                       })()}
                     </div>
                   ) : (
-                    <span style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>
-                       Procesado {debt.paymentMethod ? `(${debt.paymentMethod === 'cash' ? 'Efectivo' : debt.paymentMethod === 'transfer' ? 'Transf.' : 'Saldo a Favor'})` : ''}
-                    </span>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                      <span style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>
+                         Procesado {debt.paymentMethod ? `(${debt.paymentMethod === 'cash' ? 'Efectivo' : debt.paymentMethod === 'transfer' ? 'Transf.' : 'Saldo a Favor'})` : ''}
+                      </span>
+                      <button 
+                        onClick={() => handleRevertPayment(debt.id)}
+                        style={{ background: 'none', border: 'none', color: 'var(--danger)', cursor: 'pointer', padding: '0.2rem' }}
+                        title="Anular Pago y Volver a Pendiente"
+                      >
+                        <Trash2 size={16} />
+                      </button>
+                    </div>
                   )}
                 </td>
               </tr>
