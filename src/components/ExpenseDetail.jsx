@@ -15,6 +15,9 @@ const ExpenseDetail = ({ expenseId, onBack }) => {
   const [isEditing, setIsEditing] = useState(false);
   const [editData, setEditData] = useState({ title: '', totalAmount: '' });
 
+  // Selección Múltiple
+  const [selectedDebts, setSelectedDebts] = useState([]);
+
   useEffect(() => {
     fetchDetail();
   }, [expenseId]);
@@ -99,6 +102,53 @@ const ExpenseDetail = ({ expenseId, onBack }) => {
     } catch (error) {
       console.error("Error al registrar pago manual:", error);
       alert("Error al registrar el pago.");
+    }
+  };
+
+  const handleBulkPayment = async (method) => {
+    if (selectedDebts.length === 0) return;
+    if (!window.confirm(`¿Registrar pago masivo a ${selectedDebts.length} alumnos en ${method === 'cash' ? 'Efectivo' : 'Transferencia'}?`)) return;
+    
+    setLoading(true);
+    try {
+      let newlyPaidCount = 0;
+      for (const debtId of selectedDebts) {
+        const debtRef = doc(db, 'debts', debtId);
+        const debtToPay = debts.find(d => d.id === debtId);
+        await updateDoc(debtRef, {
+          status: 'paid',
+          paidAmount: debtToPay.amount,
+          paymentMethod: method,
+          approvedAt: new Date().toISOString()
+        });
+        newlyPaidCount++;
+      }
+
+      const expenseRef = doc(db, 'expenses', expenseId);
+      const currentPaidCount = expense.paidCount || 0;
+      await updateDoc(expenseRef, {
+        paidCount: currentPaidCount + newlyPaidCount
+      });
+
+      setSelectedDebts([]);
+      fetchDetail();
+    } catch (error) {
+      console.error("Error al registrar pago masivo:", error);
+      alert("Error al registrar los pagos.");
+      setLoading(false);
+    }
+  };
+
+  const toggleSelectDebt = (id) => {
+    setSelectedDebts(prev => prev.includes(id) ? prev.filter(d => d !== id) : [...prev, id]);
+  };
+
+  const toggleSelectAll = () => {
+    const pendingDebts = debts.filter(d => d.status === 'pending').map(d => d.id);
+    if (selectedDebts.length === pendingDebts.length) {
+      setSelectedDebts([]);
+    } else {
+      setSelectedDebts(pendingDebts);
     }
   };
 
@@ -253,12 +303,32 @@ const ExpenseDetail = ({ expenseId, onBack }) => {
         )}
       </div>
 
-      <h4 style={{ marginBottom: '1.5rem' }}>Estado de los Alumnos</h4>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
+        <h4 style={{ margin: 0 }}>Estado de los Alumnos</h4>
+        {selectedDebts.length > 0 && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', backgroundColor: 'rgba(99,102,241,0.1)', padding: '0.5rem 1rem', borderRadius: 'var(--radius-md)' }}>
+            <span style={{ color: 'var(--primary)', fontWeight: 'bold' }}>{selectedDebts.length} seleccionados</span>
+            <div style={{ borderLeft: '1px solid rgba(255,255,255,0.2)', height: '20px' }}></div>
+            <span style={{ fontSize: '0.9rem' }}>Marcar como pagado por:</span>
+            <button onClick={() => handleBulkPayment('cash')} className="btn btn-primary" style={{ padding: '0.4rem 1rem', fontSize: '0.85rem' }}>Efectivo</button>
+            <button onClick={() => handleBulkPayment('transfer')} className="btn btn-outline" style={{ padding: '0.4rem 1rem', fontSize: '0.85rem', color: 'var(--primary)', borderColor: 'var(--primary)' }}>Transferencia</button>
+          </div>
+        )}
+      </div>
 
       <div className="glass-panel" style={{ overflowX: 'auto' }}>
         <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
           <thead>
             <tr style={{ borderBottom: '1px solid var(--border-color)', backgroundColor: 'rgba(255,255,255,0.03)' }}>
+              <th style={{ padding: '1rem', width: '40px' }}>
+                <input 
+                  type="checkbox" 
+                  onChange={toggleSelectAll}
+                  checked={debts.filter(d => d.status === 'pending').length > 0 && selectedDebts.length === debts.filter(d => d.status === 'pending').length}
+                  disabled={debts.filter(d => d.status === 'pending').length === 0}
+                  style={{ cursor: 'pointer' }}
+                />
+              </th>
               <th style={{ padding: '1rem' }}>Alumno</th>
               <th style={{ padding: '1rem' }}>Apoderado</th>
               <th style={{ padding: '1rem' }}>Estado</th>
@@ -269,7 +339,17 @@ const ExpenseDetail = ({ expenseId, onBack }) => {
           </thead>
           <tbody>
             {debts.map(debt => (
-              <tr key={debt.id} style={{ borderBottom: '1px solid var(--border-color)' }}>
+              <tr key={debt.id} style={{ borderBottom: '1px solid var(--border-color)', backgroundColor: selectedDebts.includes(debt.id) ? 'rgba(99,102,241,0.05)' : 'transparent' }}>
+                <td style={{ padding: '1rem' }}>
+                  {debt.status === 'pending' && (
+                    <input 
+                      type="checkbox" 
+                      checked={selectedDebts.includes(debt.id)}
+                      onChange={() => toggleSelectDebt(debt.id)}
+                      style={{ cursor: 'pointer' }}
+                    />
+                  )}
+                </td>
                 <td style={{ padding: '1rem', fontWeight: '500' }}>{debt.studentName}</td>
                 <td style={{ padding: '1rem', color: 'var(--text-muted)' }}>{debt.apoderadoEmail || 'Sin apoderado'}</td>
                 
