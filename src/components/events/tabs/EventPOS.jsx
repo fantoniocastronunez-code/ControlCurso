@@ -17,6 +17,11 @@ const EventPOS = ({ event }) => {
   const [saleNote, setSaleNote] = useState('');
   const [paymentMethod, setPaymentMethod] = useState('cash'); // cash, transfer
   
+  // Subproducts Modal State
+  const [showSubproductModal, setShowSubproductModal] = useState(false);
+  const [selectedItemForSubproducts, setSelectedItemForSubproducts] = useState(null);
+  const [selectedSubproducts, setSelectedSubproducts] = useState([]);
+  
   // Printing State
   const [lastSale, setLastSale] = useState(null);
 
@@ -48,19 +53,44 @@ const EventPOS = ({ event }) => {
     }
   };
 
-  const addToCart = (item) => {
-    setCart(prev => {
-      const existing = prev.find(c => c.id === item.id);
-      if (existing) {
-        return prev.map(c => c.id === item.id ? { ...c, quantity: c.quantity + 1 } : c);
-      }
-      return [...prev, { ...item, quantity: 1 }];
-    });
+  const handleItemClick = (item) => {
+    if (item.subproducts && item.subproducts.length > 0) {
+      setSelectedItemForSubproducts(item);
+      setSelectedSubproducts([]);
+      setShowSubproductModal(true);
+    } else {
+      addToCart(item, []);
+    }
   };
 
-  const updateQuantity = (id, delta) => {
+  const addToCart = (item, selectedSp) => {
+    const spIds = selectedSp.map(sp => sp.name).sort().join('_');
+    const cartItemId = `${item.id}_${spIds}`;
+    
+    setCart(prev => {
+      const existing = prev.find(c => c.cartItemId === cartItemId);
+      if (existing) {
+        return prev.map(c => c.cartItemId === cartItemId ? { ...c, quantity: c.quantity + 1 } : c);
+      }
+      
+      const spTotal = selectedSp.reduce((sum, sp) => sum + parseFloat(sp.price || 0), 0);
+      return [...prev, { 
+        ...item, 
+        cartItemId,
+        selectedSubproducts: selectedSp,
+        unitPrice: item.price + spTotal,
+        quantity: 1 
+      }];
+    });
+    
+    setShowSubproductModal(false);
+    setSelectedItemForSubproducts(null);
+    setSelectedSubproducts([]);
+  };
+
+  const updateQuantity = (cartItemId, delta) => {
     setCart(prev => prev.map(c => {
-      if (c.id === id) {
+      if (c.cartItemId === cartItemId) {
         const newQ = c.quantity + delta;
         return newQ > 0 ? { ...c, quantity: newQ } : c;
       }
@@ -68,11 +98,11 @@ const EventPOS = ({ event }) => {
     }));
   };
 
-  const removeFromCart = (id) => {
-    setCart(prev => prev.filter(c => c.id !== id));
+  const removeFromCart = (cartItemId) => {
+    setCart(prev => prev.filter(c => c.cartItemId !== cartItemId));
   };
 
-  const cartTotal = cart.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+  const cartTotal = cart.reduce((sum, item) => sum + (item.unitPrice * item.quantity), 0);
 
   const handleCompleteSale = async () => {
     if (cart.length === 0) return;
@@ -138,7 +168,76 @@ const EventPOS = ({ event }) => {
   if (loading) return <div>Cargando Punto de Venta...</div>;
 
   return (
-    <div style={{ display: 'flex', gap: '2rem', flexWrap: 'wrap' }}>
+    <div style={{ display: 'flex', gap: '2rem', flexWrap: 'wrap', position: 'relative' }}>
+      
+      {/* Modal Subproductos */}
+      {showSubproductModal && selectedItemForSubproducts && (
+        <div style={{
+          position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+          backgroundColor: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          zIndex: 1000
+        }}>
+          <div className="glass-panel" style={{ width: '90%', maxWidth: '400px', padding: '2rem' }}>
+            <h3 style={{ marginBottom: '0.5rem' }}>Opciones para {selectedItemForSubproducts.name}</h3>
+            <p style={{ color: 'var(--text-muted)', marginBottom: '1.5rem', fontSize: '0.9rem' }}>
+              Precio base: {formatMoney(selectedItemForSubproducts.price)}
+            </p>
+            
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', marginBottom: '2rem' }}>
+              {selectedItemForSubproducts.subproducts.map((sp, idx) => {
+                const isSelected = selectedSubproducts.some(s => s.name === sp.name);
+                return (
+                  <label key={idx} style={{ 
+                    display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                    padding: '0.75rem', backgroundColor: isSelected ? 'rgba(99,102,241,0.1)' : 'rgba(255,255,255,0.05)',
+                    borderRadius: 'var(--radius-md)', cursor: 'pointer', border: isSelected ? '1px solid var(--primary)' : '1px solid transparent'
+                  }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                      <input 
+                        type="checkbox"
+                        checked={isSelected}
+                        onChange={(e) => {
+                          if (e.target.checked) {
+                            setSelectedSubproducts([...selectedSubproducts, sp]);
+                          } else {
+                            setSelectedSubproducts(selectedSubproducts.filter(s => s.name !== sp.name));
+                          }
+                        }}
+                        style={{ accentColor: 'var(--primary)' }}
+                      />
+                      <span>{sp.name}</span>
+                    </div>
+                    <span style={{ color: 'var(--primary)' }}>+{formatMoney(sp.price)}</span>
+                  </label>
+                );
+              })}
+            </div>
+            
+            <div style={{ display: 'flex', gap: '1rem' }}>
+              <button 
+                className="btn btn-outline" 
+                style={{ flex: 1 }}
+                onClick={() => {
+                  setShowSubproductModal(false);
+                  setSelectedItemForSubproducts(null);
+                  setSelectedSubproducts([]);
+                }}
+              >
+                Cancelar
+              </button>
+              <button 
+                className="btn btn-primary" 
+                style={{ flex: 1 }}
+                onClick={() => addToCart(selectedItemForSubproducts, selectedSubproducts)}
+              >
+                Agregar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Impresión oculta */}
       <ThermalReceipt sale={lastSale} eventName={event.name} />
 
@@ -152,7 +251,7 @@ const EventPOS = ({ event }) => {
             {items.map(item => (
               <div 
                 key={item.id} 
-                onClick={() => addToCart(item)}
+                onClick={() => handleItemClick(item)}
                 style={{ 
                   backgroundColor: 'rgba(99,102,241,0.1)', 
                   border: '1px solid var(--primary)', 
@@ -187,27 +286,37 @@ const EventPOS = ({ event }) => {
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
               {cart.map(item => (
-                <div key={item.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid rgba(255,255,255,0.1)', paddingBottom: '0.5rem' }}>
+                <div key={item.cartItemId} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', borderBottom: '1px solid rgba(255,255,255,0.1)', paddingBottom: '0.5rem' }}>
                   <div style={{ flex: 1 }}>
                     <strong style={{ display: 'block' }}>{item.name}</strong>
-                    <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>{formatMoney(item.price)} c/u</span>
+                    {item.selectedSubproducts && item.selectedSubproducts.length > 0 && (
+                      <div style={{ paddingLeft: '0.5rem', fontSize: '0.85rem', color: 'var(--text-muted)' }}>
+                        {item.selectedSubproducts.map((sp, idx) => (
+                          <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', paddingRight: '1rem' }}>
+                            <span>+ {sp.name}</span>
+                            <span>{formatMoney(sp.price)}</span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                    <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)', display: 'block', marginTop: '0.25rem' }}>{formatMoney(item.unitPrice)} c/u (total)</span>
                   </div>
                   
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                    <button onClick={() => updateQuantity(item.id, -1)} className="btn btn-outline" style={{ padding: '0.2rem' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginTop: '0.25rem' }}>
+                    <button onClick={() => updateQuantity(item.cartItemId, -1)} className="btn btn-outline" style={{ padding: '0.2rem' }}>
                       <Minus size={14} />
                     </button>
                     <span style={{ width: '20px', textAlign: 'center' }}>{item.quantity}</span>
-                    <button onClick={() => updateQuantity(item.id, 1)} className="btn btn-outline" style={{ padding: '0.2rem' }}>
+                    <button onClick={() => updateQuantity(item.cartItemId, 1)} className="btn btn-outline" style={{ padding: '0.2rem' }}>
                       <Plus size={14} />
                     </button>
                   </div>
                   
-                  <div style={{ width: '80px', textAlign: 'right', fontWeight: 'bold' }}>
-                    {formatMoney(item.price * item.quantity)}
+                  <div style={{ width: '80px', textAlign: 'right', fontWeight: 'bold', marginTop: '0.25rem' }}>
+                    {formatMoney(item.unitPrice * item.quantity)}
                   </div>
                   
-                  <button onClick={() => removeFromCart(item.id)} style={{ background: 'none', border: 'none', color: 'var(--danger)', cursor: 'pointer', marginLeft: '0.5rem' }}>
+                  <button onClick={() => removeFromCart(item.cartItemId)} style={{ background: 'none', border: 'none', color: 'var(--danger)', cursor: 'pointer', marginLeft: '0.5rem', marginTop: '0.25rem' }}>
                     <Trash2 size={16} />
                   </button>
                 </div>

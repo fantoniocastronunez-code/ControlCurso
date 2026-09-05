@@ -11,6 +11,8 @@ const EventMenu = ({ event }) => {
 
   const [newItemName, setNewItemName] = useState('');
   const [newItemPrice, setNewItemPrice] = useState('');
+  const [hasSubproducts, setHasSubproducts] = useState(false);
+  const [subproducts, setSubproducts] = useState([{ name: '', price: '' }]);
 
   useEffect(() => {
     fetchItems();
@@ -40,7 +42,11 @@ const EventMenu = ({ event }) => {
       const item = {
         eventId: event.id,
         name: newItemName.trim(),
-        price: parseFloat(newItemPrice)
+        price: parseFloat(newItemPrice),
+        subproducts: hasSubproducts ? subproducts.filter(sp => sp.name.trim() !== '').map(sp => ({
+          name: sp.name.trim(),
+          price: parseFloat(sp.price || 0)
+        })) : []
       };
       
       await setDoc(doc(db, 'eventItems', id), item);
@@ -48,6 +54,8 @@ const EventMenu = ({ event }) => {
       
       setNewItemName('');
       setNewItemPrice('');
+      setHasSubproducts(false);
+      setSubproducts([{ name: '', price: '' }]);
     } catch (error) {
       console.error("Error adding item:", error);
       showAlert("Hubo un error al agregar el ítem.");
@@ -99,6 +107,72 @@ const EventMenu = ({ event }) => {
         <button type="submit" className="btn btn-primary" style={{ padding: '0.65rem 1.5rem', marginBottom: '1rem' }}>
           <Plus size={18} /> Agregar
         </button>
+
+        <div style={{ width: '100%', marginTop: '0.5rem' }}>
+          <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer' }}>
+            <input 
+              type="checkbox"
+              checked={hasSubproducts}
+              onChange={(e) => setHasSubproducts(e.target.checked)}
+            />
+            Este producto tiene opciones o agregados (ej. Palta, Bebida)
+          </label>
+        </div>
+
+        {hasSubproducts && (
+          <div style={{ width: '100%', padding: '1rem', backgroundColor: 'rgba(255,255,255,0.05)', borderRadius: 'var(--radius-md)', marginTop: '0.5rem' }}>
+            <h4 style={{ marginBottom: '1rem' }}>Opciones / Agregados</h4>
+            {subproducts.map((sp, idx) => (
+              <div key={idx} style={{ display: 'flex', gap: '1rem', marginBottom: '0.5rem' }}>
+                <div className="input-group" style={{ flex: 2 }}>
+                  <input 
+                    type="text"
+                    placeholder="Nombre (ej. Palta)"
+                    className="input-field"
+                    value={sp.name}
+                    onChange={(e) => {
+                      const newSp = [...subproducts];
+                      newSp[idx].name = e.target.value;
+                      setSubproducts(newSp);
+                    }}
+                  />
+                </div>
+                <div className="input-group" style={{ flex: 1 }}>
+                  <input 
+                    type="number"
+                    min="0"
+                    placeholder="Precio extra ($)"
+                    className="input-field"
+                    value={sp.price}
+                    onChange={(e) => {
+                      const newSp = [...subproducts];
+                      newSp[idx].price = e.target.value;
+                      setSubproducts(newSp);
+                    }}
+                  />
+                </div>
+                {subproducts.length > 1 && (
+                  <button 
+                    type="button"
+                    className="btn btn-outline"
+                    style={{ padding: '0 0.5rem', color: 'var(--danger)', borderColor: 'var(--danger)' }}
+                    onClick={() => setSubproducts(subproducts.filter((_, i) => i !== idx))}
+                  >
+                    <Trash2 size={16} />
+                  </button>
+                )}
+              </div>
+            ))}
+            <button 
+              type="button" 
+              className="btn btn-outline" 
+              style={{ marginTop: '0.5rem', fontSize: '0.85rem' }}
+              onClick={() => setSubproducts([...subproducts, { name: '', price: '' }])}
+            >
+              + Añadir otra opción
+            </button>
+          </div>
+        )}
       </form>
 
       {items.length === 0 ? (
@@ -110,6 +184,11 @@ const EventMenu = ({ event }) => {
               <div>
                 <strong style={{ display: 'block', fontSize: '1.1rem' }}>{item.name}</strong>
                 <span style={{ color: 'var(--primary)', fontWeight: 'bold' }}>{formatMoney(item.price)}</span>
+                {item.subproducts && item.subproducts.length > 0 && (
+                  <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginTop: '0.25rem' }}>
+                    Agregados: {item.subproducts.map(sp => `${sp.name} (+${sp.price})`).join(', ')}
+                  </div>
+                )}
               </div>
               <button 
                 onClick={() => handleDeleteItem(item.id)}
