@@ -3,6 +3,7 @@ import { useAuth } from '../context/AuthContext';
 import { LogOut, Users, DollarSign, Activity, FileText, RefreshCw } from 'lucide-react';
 import { db } from '../firebase/config';
 import { collection, getDocs, query, where, orderBy } from 'firebase/firestore';
+import { useNavigate } from 'react-router-dom';
 
 import UserManagement from '../components/UserManagement';
 import StudentManagement from '../components/StudentManagement';
@@ -14,6 +15,7 @@ import FundManagement from '../components/FundManagement';
 
 const AdminDashboard = () => {
   const { user, role, logout } = useAuth();
+  const navigate = useNavigate();
   const [currentView, setCurrentView] = useState('dashboard');
   const [selectedExpenseId, setSelectedExpenseId] = useState(null);
 
@@ -176,7 +178,10 @@ const AdminDashboard = () => {
           <h2>Panel de Administración</h2>
           <p style={{ color: 'var(--text-muted)' }}>Bienvenido, {user?.displayName} ({role})</p>
         </div>
-        <div style={{ display: 'flex', gap: '1rem' }}>
+        <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>
+          <button onClick={() => navigate('/apoderado')} className="btn btn-outline" style={{ borderColor: 'var(--success)', color: 'var(--success)' }} title="Ver cómo se ve la app para un apoderado">
+            Vista Apoderado
+          </button>
           <button onClick={() => window.location.reload()} className="btn btn-outline" style={{ borderColor: 'var(--primary)', color: 'var(--primary)' }} title="Forzar recarga de la página">
             <RefreshCw size={18} />
             Actualizar

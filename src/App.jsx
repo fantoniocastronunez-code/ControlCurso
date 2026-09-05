@@ -52,7 +52,7 @@ const AppRoutes = () => {
       <Route 
         path="/apoderado/*" 
         element={
-          <ProtectedRoute allowedRoles={['apoderado']}>
+          <ProtectedRoute allowedRoles={['apoderado', 'admin', 'superadmin']}>
             <ApoderadoDashboard />
           </ProtectedRoute>
         } 

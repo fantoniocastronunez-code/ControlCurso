@@ -4,9 +4,11 @@ import { LogOut, CheckCircle, Clock, Search, UserPlus, Upload, AlertCircle } fro
 import { db, storage } from '../firebase/config';
 import { collection, query, where, getDocs, getDoc, doc, updateDoc, setDoc } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
+import { useNavigate } from 'react-router-dom';
 
 const ApoderadoDashboard = () => {
-  const { user, logout } = useAuth();
+  const { user, role, logout } = useAuth();
+  const navigate = useNavigate();
   
   const [myStudents, setMyStudents] = useState([]);
   const [debts, setDebts] = useState([]);
@@ -170,10 +172,17 @@ const ApoderadoDashboard = () => {
           <h2>Mi Portal</h2>
           <p style={{ color: 'var(--text-muted)' }}>Bienvenido, {user?.displayName || user?.email}</p>
         </div>
-        <button onClick={logout} className="btn btn-outline">
-          <LogOut size={18} />
-          Salir
-        </button>
+        <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>
+          {(role === 'admin' || role === 'superadmin') && (
+            <button onClick={() => navigate('/admin')} className="btn btn-outline" style={{ borderColor: 'var(--primary)', color: 'var(--primary)' }}>
+              Volver a Panel Admin
+            </button>
+          )}
+          <button onClick={logout} className="btn btn-outline">
+            <LogOut size={18} />
+            Salir
+          </button>
+        </div>
       </header>
 
       {/* BANNER URGENTE */}
