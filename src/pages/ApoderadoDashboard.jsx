@@ -309,9 +309,9 @@ const ApoderadoDashboard = () => {
               <div style={{ display: 'grid', gap: '1rem' }}>
                 <h4 style={{ color: 'var(--text-muted)', marginBottom: '0.5rem' }}>Resultados encontrados:</h4>
                 {searchResults.map(s => (
-                  <div key={s.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '1rem', backgroundColor: 'rgba(255,255,255,0.03)', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-color)' }}>
-                    <div>
-                      <p style={{ fontWeight: '500', fontSize: '1.1rem' }}>{s.name}</p>
+                  <div key={s.id} style={{ display: 'flex', flexWrap: 'wrap', gap: '1rem', justifyContent: 'space-between', alignItems: 'center', padding: '1rem', backgroundColor: 'rgba(255,255,255,0.03)', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-color)' }}>
+                    <div style={{ flex: '1 1 auto', minWidth: '200px' }}>
+                      <p style={{ fontWeight: '500', fontSize: '1.1rem', wordBreak: 'break-word' }}>{s.name}</p>
                       <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>
                         {s.apoderadoEmail ? `(Ya vinculado a ${s.apoderadoEmail})` : 'Sin apoderado vinculado'}
                       </p>
@@ -319,7 +319,7 @@ const ApoderadoDashboard = () => {
                     <button 
                       onClick={() => handleLinkStudent(s.id)}
                       className="btn btn-outline" 
-                      style={{ color: 'var(--success)', borderColor: 'rgba(16,185,129,0.3)' }}
+                      style={{ color: 'var(--success)', borderColor: 'rgba(16,185,129,0.3)', flex: '0 0 auto', whiteSpace: 'nowrap' }}
                     >
                       <UserPlus size={18} /> Soy su apoderado
                     </button>

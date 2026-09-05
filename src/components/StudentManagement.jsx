@@ -10,7 +10,6 @@ const StudentManagement = ({ onBack }) => {
   const [message, setMessage] = useState('');
   
   const [newName, setNewName] = useState('');
-  const [newRut, setNewRut] = useState('');
   const [newApoderadoEmail, setNewApoderadoEmail] = useState('');
   const [newListNumber, setNewListNumber] = useState('');
   const [newBalance, setNewBalance] = useState('');
@@ -19,7 +18,7 @@ const StudentManagement = ({ onBack }) => {
 
   // Estados para edición
   const [editingId, setEditingId] = useState(null);
-  const [editData, setEditData] = useState({ name: '', rut: '', apoderadoEmail: '', listNumber: '', balance: '' });
+  const [editData, setEditData] = useState({ name: '', apoderadoEmail: '', listNumber: '', balance: '' });
 
   useEffect(() => {
     fetchStudents();
@@ -57,7 +56,6 @@ const StudentManagement = ({ onBack }) => {
       
       const newStudent = {
         name: newName,
-        rut: newRut,
         apoderadoEmail: newApoderadoEmail.toLowerCase().trim(),
         listNumber: newListNumber,
         balance: Number(newBalance) || 0,
@@ -72,7 +70,6 @@ const StudentManagement = ({ onBack }) => {
         return aNum - bNum;
       }));
       setNewName('');
-      setNewRut('');
       setNewApoderadoEmail('');
       setNewListNumber('');
       setNewBalance('');
@@ -102,7 +99,6 @@ const StudentManagement = ({ onBack }) => {
     setEditingId(student.id);
     setEditData({
       name: student.name || '',
-      rut: student.rut || '',
       apoderadoEmail: student.apoderadoEmail || '',
       listNumber: student.listNumber || '',
       balance: student.balance || 0
@@ -111,7 +107,7 @@ const StudentManagement = ({ onBack }) => {
 
   const cancelEditing = () => {
     setEditingId(null);
-    setEditData({ name: '', rut: '', apoderadoEmail: '', listNumber: '', balance: '' });
+    setEditData({ name: '', apoderadoEmail: '', listNumber: '', balance: '' });
   };
 
   const handleSaveEdit = async () => {
@@ -120,7 +116,6 @@ const StudentManagement = ({ onBack }) => {
       const studentRef = doc(db, 'students', editingId);
       await updateDoc(studentRef, {
         name: editData.name,
-        rut: editData.rut,
         apoderadoEmail: editData.apoderadoEmail.toLowerCase().trim(),
         listNumber: editData.listNumber,
         balance: Number(editData.balance) || 0
@@ -219,16 +214,6 @@ const StudentManagement = ({ onBack }) => {
               onChange={(e) => setNewListNumber(e.target.value)}
             />
           </div>
-          <div className="input-group" style={{ flex: '1', minWidth: '150px', marginBottom: 0 }}>
-            <label className="input-label">RUT (Opcional)</label>
-            <input 
-              type="text" 
-              className="input-field" 
-              placeholder="12.345.678-9"
-              value={newRut}
-              onChange={(e) => setNewRut(e.target.value)}
-            />
-          </div>
           <div className="input-group" style={{ flex: '2', minWidth: '200px', marginBottom: 0 }}>
             <label className="input-label">Email Apoderado</label>
             <input 
@@ -261,7 +246,6 @@ const StudentManagement = ({ onBack }) => {
             <tr style={{ borderBottom: '1px solid var(--border-color)', backgroundColor: 'rgba(255,255,255,0.03)' }}>
               <th style={{ padding: '1rem', width: '80px' }}>N°</th>
               <th style={{ padding: '1rem' }}>Nombre Alumno</th>
-              <th style={{ padding: '1rem' }}>RUT</th>
               <th style={{ padding: '1rem' }}>Apoderado</th>
               <th style={{ padding: '1rem' }}>Saldo a Favor</th>
               <th style={{ padding: '1rem' }}>Acciones</th>
@@ -287,15 +271,6 @@ const StudentManagement = ({ onBack }) => {
                         className="input-field" 
                         value={editData.name} 
                         onChange={(e) => setEditData({...editData, name: e.target.value})}
-                        style={{ padding: '0.4rem' }}
-                      />
-                    </td>
-                    <td style={{ padding: '1rem' }}>
-                      <input 
-                        type="text" 
-                        className="input-field" 
-                        value={editData.rut} 
-                        onChange={(e) => setEditData({...editData, rut: e.target.value})}
                         style={{ padding: '0.4rem' }}
                       />
                     </td>
@@ -332,7 +307,6 @@ const StudentManagement = ({ onBack }) => {
                   <>
                     <td style={{ padding: '1rem', color: 'var(--text-muted)' }}>{s.listNumber || '-'}</td>
                     <td style={{ padding: '1rem', fontWeight: '500' }}>{s.name}</td>
-                    <td style={{ padding: '1rem', color: 'var(--text-muted)' }}>{s.rut || '-'}</td>
                     <td style={{ padding: '1rem', color: 'var(--text-muted)' }}>{s.apoderadoEmail || 'Sin apoderado'}</td>
                     <td style={{ padding: '1rem' }}>
                       {s.balance > 0 ? (
