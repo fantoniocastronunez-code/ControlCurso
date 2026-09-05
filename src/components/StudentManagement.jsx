@@ -1,7 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import { db } from '../firebase/config';
 import { collection, getDocs, doc, setDoc, deleteDoc, updateDoc } from 'firebase/firestore';
-import { ArrowLeft, UserPlus, CheckCircle, Trash2, Edit2, X, Save } from 'lucide-react';
+import { ArrowLeft, UserPlus, CheckCircle, Trash2, Edit2, X, Save, Image as ImageIcon } from 'lucide-react';
+import BulkImport from './BulkImport';
 
 const StudentManagement = ({ onBack }) => {
   const [students, setStudents] = useState([]);
@@ -12,6 +13,8 @@ const StudentManagement = ({ onBack }) => {
   const [newRut, setNewRut] = useState('');
   const [newApoderadoEmail, setNewApoderadoEmail] = useState('');
   const [newListNumber, setNewListNumber] = useState('');
+  
+  const [showBulkImport, setShowBulkImport] = useState(false);
 
   // Estados para edición
   const [editingId, setEditingId] = useState(null);
@@ -142,13 +145,36 @@ const StudentManagement = ({ onBack }) => {
     return <div style={{ textAlign: 'center', padding: '2rem' }}>Cargando alumnos...</div>;
   }
 
+  if (showBulkImport) {
+    return (
+      <BulkImport 
+        onBack={() => setShowBulkImport(false)} 
+        onImportComplete={() => {
+          setShowBulkImport(false);
+          setLoading(true);
+          fetchStudents();
+        }} 
+      />
+    );
+  }
+
   return (
     <div className="animate-fade-in">
-      <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginBottom: '2rem' }}>
-        <button onClick={onBack} className="btn btn-outline" style={{ padding: '0.5rem' }}>
-          <ArrowLeft size={18} />
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+          <button onClick={onBack} className="btn btn-outline" style={{ padding: '0.5rem' }}>
+            <ArrowLeft size={18} />
+          </button>
+          <h3 style={{ margin: 0 }}>Gestión de Alumnos</h3>
+        </div>
+        
+        <button 
+          onClick={() => setShowBulkImport(true)} 
+          className="btn btn-primary" 
+          style={{ backgroundColor: 'var(--primary)', gap: '0.5rem', display: 'flex', alignItems: 'center' }}
+        >
+          <ImageIcon size={18} /> Importar por Foto (IA)
         </button>
-        <h3 style={{ margin: 0 }}>Gestión de Alumnos</h3>
       </div>
 
       {message && (
