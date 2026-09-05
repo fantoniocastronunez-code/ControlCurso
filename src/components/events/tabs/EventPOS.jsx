@@ -34,9 +34,10 @@ const EventPOS = ({ event }) => {
       setItems(itemsList);
 
       // Fetch past sales for correlative and history
-      const qSales = query(collection(db, 'eventSales'), where('eventId', '==', event.id), orderBy('correlative', 'desc'));
+      const qSales = query(collection(db, 'eventSales'), where('eventId', '==', event.id));
       const snapSales = await getDocs(qSales);
       const salesList = snapSales.docs.map(d => ({ id: d.id, ...d.data() }));
+      salesList.sort((a, b) => b.correlative - a.correlative); // Local sort to avoid requiring composite index
       setSales(salesList);
 
     } catch (error) {
@@ -96,7 +97,7 @@ const EventPOS = ({ event }) => {
 
       // 2. Ingresar el dinero automáticamente al Fondo del evento (como Ingreso Extra)
       const incomeId = 'inc_' + Date.now();
-      await setDoc(doc(db, 'incomes'), { // Wait, collection with auto-id needs addDoc or specify id. We specify id.
+      await setDoc(doc(db, 'incomes', incomeId), {
         title: `Venta #${nextCorrelative} - ${event.name}`,
         date: new Date().toISOString().split('T')[0],
         amount: cartTotal,
