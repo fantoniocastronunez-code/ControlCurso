@@ -1,7 +1,7 @@
 import React from 'react';
 import { createPortal } from 'react-dom';
 
-const ThermalClosureReceipt = ({ event, stats, itemsSummary }) => {
+const ThermalClosureReceipt = ({ event, stats, itemsSummary, expensesSummary }) => {
   if (!event || !stats) return null;
 
   const formatMoney = (amount) => {
@@ -60,6 +60,30 @@ const ThermalClosureReceipt = ({ event, stats, itemsSummary }) => {
           </table>
         ) : (
           <div style={{ textAlign: 'center', fontSize: '10px' }}>No hay ventas registradas</div>
+        )}
+      </div>
+
+      <div style={{ fontSize: '12px', fontFamily: 'monospace', marginBottom: '10px' }}>
+        <div style={{ fontWeight: 'bold', textAlign: 'center', marginBottom: '5px', borderBottom: '1px dashed black', paddingBottom: '3px' }}>DETALLE DE GASTOS</div>
+        {expensesSummary && expensesSummary.length > 0 ? (
+          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+            <thead>
+              <tr style={{ textAlign: 'left', fontSize: '10px' }}>
+                <th style={{ width: '65%' }}>Descripción</th>
+                <th style={{ width: '35%', textAlign: 'right' }}>Monto</th>
+              </tr>
+            </thead>
+            <tbody>
+              {expensesSummary.map((exp, idx) => (
+                <tr key={idx} style={{ fontSize: '11px' }}>
+                  <td style={{ wordBreak: 'break-word', paddingRight: '5px' }}>{exp.title}</td>
+                  <td style={{ textAlign: 'right' }}>{formatMoney(exp.amount)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        ) : (
+          <div style={{ textAlign: 'center', fontSize: '10px' }}>No hay gastos registrados</div>
         )}
       </div>
       

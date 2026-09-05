@@ -13,6 +13,7 @@ const EventSummary = ({ event }) => {
     netProfit: 0
   });
   const [itemsSummary, setItemsSummary] = useState([]);
+  const [expensesSummary, setExpensesSummary] = useState([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -68,9 +69,16 @@ const EventSummary = ({ event }) => {
       const qOutcomes = query(collection(db, 'outcomes'), where('fundId', '==', event.fundId));
       const snapOutcomes = await getDocs(qOutcomes);
       let expT = 0;
+      const expensesList = [];
       snapOutcomes.forEach(d => {
-        expT += d.data().amount || 0;
+        const data = d.data();
+        expT += data.amount || 0;
+        expensesList.push({
+          title: data.title,
+          amount: data.amount
+        });
       });
+      setExpensesSummary(expensesList);
 
       setStats({
         totalQuotas: totalQ,
@@ -95,7 +103,7 @@ const EventSummary = ({ event }) => {
 
   return (
     <div style={{ position: 'relative' }}>
-      <ThermalClosureReceipt event={event} stats={stats} itemsSummary={itemsSummary} />
+      <ThermalClosureReceipt event={event} stats={stats} itemsSummary={itemsSummary} expensesSummary={expensesSummary} />
       
       <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '1.5rem' }}>
         <button 
