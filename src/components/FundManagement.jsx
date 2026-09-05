@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { db } from '../firebase/config';
 import { collection, getDocs, doc, setDoc, deleteDoc, addDoc } from 'firebase/firestore';
-import { ArrowLeft, CheckCircle, Trash2, Wallet, Plus, ArrowRightRight, DollarSign } from 'lucide-react';
+import { ArrowLeft, CheckCircle, Trash2, Wallet, Plus, ArrowRightLeft, DollarSign } from 'lucide-react';
 
 const FundManagement = ({ onBack }) => {
   const [funds, setFunds] = useState([]);
@@ -229,7 +229,7 @@ const FundManagement = ({ onBack }) => {
         {/* Panel de Transferencia entre Fondos */}
         <div className="glass-panel" style={{ padding: '1.5rem' }}>
           <h4 style={{ marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '0.5rem', color: 'var(--warning)' }}>
-            <ArrowRightRight size={18} /> Repartir Fondos
+            <ArrowRightLeft size={18} /> Repartir Fondos
           </h4>
           <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', marginBottom: '1rem' }}>Mueve saldo contable de un fondo a otro sin afectar la caja física ni el banco.</p>
           <form onSubmit={handleTransfer} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
