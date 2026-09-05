@@ -87,6 +87,7 @@ const ThermalReceipt = ({ sale, eventName }) => {
           }
           @page {
             margin: 0;
+            size: 58mm auto;
           }
         }
       `}</style>

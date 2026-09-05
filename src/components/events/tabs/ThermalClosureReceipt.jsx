@@ -83,6 +83,7 @@ const ThermalClosureReceipt = ({ event, stats, itemsSummary }) => {
           }
           @page {
             margin: 0;
+            size: 58mm auto;
           }
         }
       `}</style>
