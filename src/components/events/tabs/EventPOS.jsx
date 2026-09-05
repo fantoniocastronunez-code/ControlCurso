@@ -132,7 +132,7 @@ const EventPOS = ({ event }) => {
 
   const handleCompleteSale = async () => {
     if (cart.length === 0) return;
-    if (!(await showConfirm('¿Completar esta venta y generar ticket?'))) return;
+    if (!window.confirm('¿Completar esta venta y generar ticket?')) return;
 
     try {
       // Generate next correlative
