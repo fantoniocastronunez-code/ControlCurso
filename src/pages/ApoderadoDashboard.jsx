@@ -168,9 +168,17 @@ const ApoderadoDashboard = () => {
   return (
     <div className="container animate-fade-in">
       <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem' }}>
-        <div>
-          <h2>Mi Portal</h2>
-          <p style={{ color: 'var(--text-muted)' }}>Bienvenido, {user?.displayName || user?.email}</p>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+          <img 
+            src="/logocolegio.jpg" 
+            alt="Logo" 
+            style={{ width: '50px', height: '50px', borderRadius: '50%', objectFit: 'contain', border: '1px solid rgba(255,255,255,0.1)' }} 
+            onError={(e) => e.target.style.display = 'none'}
+          />
+          <div>
+            <h2 style={{ margin: 0 }}>Mi Portal</h2>
+            <p style={{ color: 'var(--text-muted)', margin: 0 }}>Bienvenido, {user?.displayName || user?.email}</p>
+          </div>
         </div>
         <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>
           {(role === 'admin' || role === 'superadmin') && (

@@ -174,9 +174,17 @@ const AdminDashboard = () => {
   return (
     <div className="container animate-fade-in">
       <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem', flexWrap: 'wrap', gap: '1rem' }}>
-        <div>
-          <h2>Panel de Administración</h2>
-          <p style={{ color: 'var(--text-muted)' }}>Bienvenido, {user?.displayName} ({role})</p>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+          <img 
+            src="/logocolegio.jpg" 
+            alt="Logo" 
+            style={{ width: '50px', height: '50px', borderRadius: '50%', objectFit: 'contain', border: '1px solid rgba(255,255,255,0.1)' }} 
+            onError={(e) => e.target.style.display = 'none'}
+          />
+          <div>
+            <h2 style={{ margin: 0 }}>Panel de Administración</h2>
+            <p style={{ color: 'var(--text-muted)', margin: 0 }}>Bienvenido, {user?.displayName} ({role})</p>
+          </div>
         </div>
         <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>
           <button onClick={() => navigate('/apoderado')} className="btn btn-outline" style={{ borderColor: 'var(--success)', color: 'var(--success)' }} title="Ver cómo se ve la app para un apoderado">
