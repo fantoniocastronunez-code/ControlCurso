@@ -11,6 +11,7 @@ const ExpenseManagement = ({ onBack }) => {
   const [title, setTitle] = useState('');
   const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
   const [totalAmount, setTotalAmount] = useState('');
+  const [calculationMode, setCalculationMode] = useState('divide');
   const [selectedStudents, setSelectedStudents] = useState(new Set());
 
   useEffect(() => {
@@ -63,8 +64,17 @@ const ExpenseManagement = ({ onBack }) => {
 
     setLoading(true);
     try {
-      const amount = parseFloat(totalAmount);
-      const amountPerStudent = Math.round(amount / selectedStudents.size);
+      const inputAmount = parseFloat(totalAmount);
+      let amountPerStudent;
+      let finalTotalAmount;
+
+      if (calculationMode === 'divide') {
+        amountPerStudent = Math.round(inputAmount / selectedStudents.size);
+        finalTotalAmount = inputAmount;
+      } else {
+        amountPerStudent = inputAmount;
+        finalTotalAmount = inputAmount * selectedStudents.size;
+      }
       
       const expenseId = 'exp_' + Date.now().toString();
       const expenseRef = doc(db, 'expenses', expenseId);
@@ -72,7 +82,7 @@ const ExpenseManagement = ({ onBack }) => {
       const newExpense = {
         title,
         date,
-        totalAmount: amount,
+        totalAmount: finalTotalAmount,
         amountPerStudent,
         studentsCount: selectedStudents.size,
         paidCount: 0,
@@ -151,7 +161,21 @@ const ExpenseManagement = ({ onBack }) => {
             </div>
             
             <div className="input-group">
-              <label className="input-label">Monto Total a Dividir ($)</label>
+              <label className="input-label">Modo de Cálculo</label>
+              <select 
+                className="input-field"
+                value={calculationMode}
+                onChange={(e) => setCalculationMode(e.target.value)}
+              >
+                <option value="divide">Monto Total a Dividir</option>
+                <option value="perStudent">Monto Fijo por Alumno</option>
+              </select>
+            </div>
+
+            <div className="input-group">
+              <label className="input-label">
+                {calculationMode === 'divide' ? 'Monto Total a Dividir ($)' : 'Monto por Alumno ($)'}
+              </label>
               <input 
                 type="number" 
                 required
@@ -177,7 +201,12 @@ const ExpenseManagement = ({ onBack }) => {
 
           {totalAmount && selectedStudents.size > 0 && (
             <div style={{ marginTop: '1rem', padding: '1rem', backgroundColor: 'rgba(99, 102, 241, 0.1)', borderRadius: 'var(--radius-md)', border: '1px solid var(--primary)' }}>
-              <strong>Cálculo:</strong> Se cobrará <strong>${Math.round(parseFloat(totalAmount) / selectedStudents.size)}</strong> a cada alumno seleccionado.
+              <strong>Resumen:</strong> 
+              {calculationMode === 'divide' ? (
+                <span> Se cobrará <strong>${Math.round(parseFloat(totalAmount) / selectedStudents.size)}</strong> a cada alumno (Total a recaudar: ${parseFloat(totalAmount)}).</span>
+              ) : (
+                <span> Se cobrará <strong>${parseFloat(totalAmount)}</strong> a cada alumno (Total a recaudar: ${parseFloat(totalAmount) * selectedStudents.size}).</span>
+              )}
             </div>
           )}
         </div>
