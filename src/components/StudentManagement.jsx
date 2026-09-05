@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { db } from '../firebase/config';
-import { collection, getDocs, doc, setDoc, deleteDoc } from 'firebase/firestore';
-import { ArrowLeft, UserPlus, CheckCircle, Trash2 } from 'lucide-react';
+import { collection, getDocs, doc, setDoc, deleteDoc, updateDoc } from 'firebase/firestore';
+import { ArrowLeft, UserPlus, CheckCircle, Trash2, Edit2, X, Save } from 'lucide-react';
 
 const StudentManagement = ({ onBack }) => {
   const [students, setStudents] = useState([]);
@@ -11,6 +11,10 @@ const StudentManagement = ({ onBack }) => {
   const [newName, setNewName] = useState('');
   const [newRut, setNewRut] = useState('');
   const [newApoderadoEmail, setNewApoderadoEmail] = useState('');
+
+  // Estados para edición
+  const [editingId, setEditingId] = useState(null);
+  const [editData, setEditData] = useState({ name: '', rut: '', apoderadoEmail: '' });
 
   useEffect(() => {
     fetchStudents();
@@ -37,7 +41,6 @@ const StudentManagement = ({ onBack }) => {
     if (!newName) return;
 
     try {
-      // Generar un ID simple basado en timestamp o usar autogenerado
       const studentId = 'std_' + Date.now().toString();
       const studentRef = doc(db, 'students', studentId);
       
@@ -73,6 +76,44 @@ const StudentManagement = ({ onBack }) => {
       setTimeout(() => setMessage(''), 3000);
     } catch (error) {
       console.error("Error eliminando:", error);
+    }
+  };
+
+  const startEditing = (student) => {
+    setEditingId(student.id);
+    setEditData({
+      name: student.name || '',
+      rut: student.rut || '',
+      apoderadoEmail: student.apoderadoEmail || ''
+    });
+  };
+
+  const cancelEditing = () => {
+    setEditingId(null);
+    setEditData({ name: '', rut: '', apoderadoEmail: '' });
+  };
+
+  const handleSaveEdit = async () => {
+    if (!editData.name) return;
+    try {
+      const studentRef = doc(db, 'students', editingId);
+      await updateDoc(studentRef, {
+        name: editData.name,
+        rut: editData.rut,
+        apoderadoEmail: editData.apoderadoEmail.toLowerCase().trim()
+      });
+      
+      setStudents(students.map(s => 
+        s.id === editingId ? { ...s, ...editData, apoderadoEmail: editData.apoderadoEmail.toLowerCase().trim() } : s
+      ));
+      
+      setMessage('Alumno modificado correctamente');
+      setTimeout(() => setMessage(''), 3000);
+      cancelEditing();
+    } catch (error) {
+      console.error("Error modificando alumno:", error);
+      setMessage('Error al modificar alumno');
+      setTimeout(() => setMessage(''), 3000);
     }
   };
 
@@ -151,14 +192,63 @@ const StudentManagement = ({ onBack }) => {
           <tbody>
             {students.map(s => (
               <tr key={s.id} style={{ borderBottom: '1px solid var(--border-color)' }}>
-                <td style={{ padding: '1rem', fontWeight: '500' }}>{s.name}</td>
-                <td style={{ padding: '1rem', color: 'var(--text-muted)' }}>{s.rut || '-'}</td>
-                <td style={{ padding: '1rem', color: 'var(--text-muted)' }}>{s.apoderadoEmail || 'Sin apoderado'}</td>
-                <td style={{ padding: '1rem' }}>
-                  <button onClick={() => handleDelete(s.id)} className="btn btn-outline" style={{ padding: '0.4rem 0.75rem', color: 'var(--danger)', borderColor: 'rgba(239, 68, 68, 0.3)', gap: '0.5rem', display: 'flex', alignItems: 'center' }}>
-                    <Trash2 size={16} /> Eliminar
-                  </button>
-                </td>
+                {editingId === s.id ? (
+                  <>
+                    <td style={{ padding: '1rem' }}>
+                      <input 
+                        type="text" 
+                        className="input-field" 
+                        value={editData.name} 
+                        onChange={(e) => setEditData({...editData, name: e.target.value})}
+                        style={{ padding: '0.4rem' }}
+                      />
+                    </td>
+                    <td style={{ padding: '1rem' }}>
+                      <input 
+                        type="text" 
+                        className="input-field" 
+                        value={editData.rut} 
+                        onChange={(e) => setEditData({...editData, rut: e.target.value})}
+                        style={{ padding: '0.4rem' }}
+                      />
+                    </td>
+                    <td style={{ padding: '1rem' }}>
+                      <input 
+                        type="email" 
+                        className="input-field" 
+                        value={editData.apoderadoEmail} 
+                        onChange={(e) => setEditData({...editData, apoderadoEmail: e.target.value})}
+                        style={{ padding: '0.4rem' }}
+                      />
+                    </td>
+                    <td style={{ padding: '1rem' }}>
+                      <div style={{ display: 'flex', gap: '0.5rem' }}>
+                        <button onClick={handleSaveEdit} className="btn btn-outline" style={{ padding: '0.4rem 0.75rem', color: 'var(--success)', borderColor: 'rgba(16, 185, 129, 0.3)', gap: '0.5rem', display: 'flex', alignItems: 'center' }}>
+                          <Save size={16} /> Guardar
+                        </button>
+                        <button onClick={cancelEditing} className="btn btn-outline" style={{ padding: '0.4rem 0.75rem', gap: '0.5rem', display: 'flex', alignItems: 'center' }}>
+                          <X size={16} />
+                        </button>
+                      </div>
+                    </td>
+                  </>
+                ) : (
+                  <>
+                    <td style={{ padding: '1rem', fontWeight: '500' }}>{s.name}</td>
+                    <td style={{ padding: '1rem', color: 'var(--text-muted)' }}>{s.rut || '-'}</td>
+                    <td style={{ padding: '1rem', color: 'var(--text-muted)' }}>{s.apoderadoEmail || 'Sin apoderado'}</td>
+                    <td style={{ padding: '1rem' }}>
+                      <div style={{ display: 'flex', gap: '0.5rem' }}>
+                        <button onClick={() => startEditing(s)} className="btn btn-outline" style={{ padding: '0.4rem 0.75rem', color: 'var(--primary)', borderColor: 'rgba(99, 102, 241, 0.3)', gap: '0.5rem', display: 'flex', alignItems: 'center' }}>
+                          <Edit2 size={16} /> Editar
+                        </button>
+                        <button onClick={() => handleDelete(s.id)} className="btn btn-outline" style={{ padding: '0.4rem 0.75rem', color: 'var(--danger)', borderColor: 'rgba(239, 68, 68, 0.3)', gap: '0.5rem', display: 'flex', alignItems: 'center' }}>
+                          <Trash2 size={16} /> Eliminar
+                        </button>
+                      </div>
+                    </td>
+                  </>
+                )}
               </tr>
             ))}
           </tbody>

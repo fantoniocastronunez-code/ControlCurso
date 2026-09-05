@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { db } from '../firebase/config';
 import { collection, getDocs, doc, updateDoc, setDoc, deleteDoc } from 'firebase/firestore';
 import { useAuth } from '../context/AuthContext';
-import { ArrowLeft, UserCheck, UserPlus, Trash2 } from 'lucide-react';
+import { ArrowLeft, UserCheck, UserPlus, Trash2, Edit2, Save, X } from 'lucide-react';
 
 const UserManagement = ({ onBack }) => {
   const { role } = useAuth();
@@ -13,6 +13,10 @@ const UserManagement = ({ onBack }) => {
   const [newEmail, setNewEmail] = useState('');
   const [newName, setNewName] = useState('');
   const [newRole, setNewRole] = useState('apoderado');
+
+  // Estados para edición
+  const [editingId, setEditingId] = useState(null);
+  const [editName, setEditName] = useState('');
 
   useEffect(() => {
     fetchUsers();
@@ -93,6 +97,37 @@ const UserManagement = ({ onBack }) => {
     }
   };
 
+  const startEditing = (user) => {
+    setEditingId(user.id);
+    setEditName(user.displayName || '');
+  };
+
+  const cancelEditing = () => {
+    setEditingId(null);
+    setEditName('');
+  };
+
+  const handleSaveEdit = async () => {
+    try {
+      const userRef = doc(db, 'users', editingId);
+      await updateDoc(userRef, {
+        displayName: editName
+      });
+      
+      setUsers(users.map(u => 
+        u.id === editingId ? { ...u, displayName: editName } : u
+      ));
+      
+      setMessage('Usuario modificado correctamente');
+      setTimeout(() => setMessage(''), 3000);
+      cancelEditing();
+    } catch (error) {
+      console.error("Error modificando usuario:", error);
+      setMessage('Error al modificar usuario');
+      setTimeout(() => setMessage(''), 3000);
+    }
+  };
+
   if (loading) {
     return <div style={{ textAlign: 'center', padding: '2rem' }}>Cargando usuarios...</div>;
   }
@@ -166,57 +201,105 @@ const UserManagement = ({ onBack }) => {
           <tbody>
             {users.map(u => (
               <tr key={u.id} style={{ borderBottom: '1px solid var(--border-color)' }}>
-                <td style={{ padding: '1rem' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                    {u.photoURL ? (
-                      <img src={u.photoURL} alt={u.displayName} style={{ width: '32px', height: '32px', borderRadius: '50%' }} />
-                    ) : (
-                      <div style={{ width: '32px', height: '32px', borderRadius: '50%', backgroundColor: 'var(--primary)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                        {u.displayName ? u.displayName[0].toUpperCase() : u.email[0].toUpperCase()}
-                      </div>
-                    )}
-                    <span>{u.displayName || 'Sin Nombre'}</span>
-                  </div>
-                </td>
-                <td style={{ padding: '1rem', color: 'var(--text-muted)' }}>{u.email}</td>
-                <td style={{ padding: '1rem' }}>
-                  <span style={{ 
-                    padding: '0.25rem 0.75rem', 
-                    borderRadius: '1rem', 
-                    fontSize: '0.85rem',
-                    backgroundColor: u.role === 'superadmin' ? 'rgba(245, 158, 11, 0.2)' : u.role === 'admin' ? 'rgba(99, 102, 241, 0.2)' : 'rgba(16, 185, 129, 0.2)',
-                    color: u.role === 'superadmin' ? 'var(--warning)' : u.role === 'admin' ? 'var(--primary)' : 'var(--success)'
-                  }}>
-                    {u.role}
-                  </span>
-                </td>
-                <td style={{ padding: '1rem' }}>
-                  {u.uid ? (
-                    <span style={{ color: 'var(--success)', fontSize: '0.85rem' }}>Activo</span>
-                  ) : (
-                    <span style={{ color: 'var(--warning)', fontSize: '0.85rem' }}>Pendiente</span>
-                  )}
-                </td>
-                <td style={{ padding: '1rem' }}>
-                  {role === 'superadmin' && u.role !== 'superadmin' ? (
-                    <div style={{ display: 'flex', gap: '0.5rem' }}>
-                      <select 
+                {editingId === u.id ? (
+                  <>
+                    <td style={{ padding: '1rem' }}>
+                      <input 
+                        type="text" 
                         className="input-field" 
-                        style={{ padding: '0.4rem', fontSize: '0.85rem' }}
-                        value={u.role}
-                        onChange={(e) => handleRoleChange(u.id, e.target.value)}
-                      >
-                        <option value="apoderado">Apoderado</option>
-                        <option value="admin">Admin</option>
-                      </select>
-                      <button onClick={() => handleDeleteUser(u.id)} className="btn btn-outline" style={{ padding: '0.4rem 0.75rem', color: 'var(--danger)', borderColor: 'rgba(239, 68, 68, 0.3)', gap: '0.5rem', display: 'flex', alignItems: 'center' }}>
-                        <Trash2 size={16} /> Eliminar
-                      </button>
-                    </div>
-                  ) : (
-                    <span style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>No modificable</span>
-                  )}
-                </td>
+                        value={editName} 
+                        onChange={(e) => setEditName(e.target.value)}
+                        style={{ padding: '0.4rem' }}
+                      />
+                    </td>
+                    <td style={{ padding: '1rem', color: 'var(--text-muted)' }}>{u.email}</td>
+                    <td style={{ padding: '1rem' }}>
+                      <span style={{ 
+                        padding: '0.25rem 0.75rem', 
+                        borderRadius: '1rem', 
+                        fontSize: '0.85rem',
+                        backgroundColor: u.role === 'superadmin' ? 'rgba(245, 158, 11, 0.2)' : u.role === 'admin' ? 'rgba(99, 102, 241, 0.2)' : 'rgba(16, 185, 129, 0.2)',
+                        color: u.role === 'superadmin' ? 'var(--warning)' : u.role === 'admin' ? 'var(--primary)' : 'var(--success)'
+                      }}>
+                        {u.role}
+                      </span>
+                    </td>
+                    <td style={{ padding: '1rem' }}>
+                      {u.uid ? (
+                        <span style={{ color: 'var(--success)', fontSize: '0.85rem' }}>Activo</span>
+                      ) : (
+                        <span style={{ color: 'var(--warning)', fontSize: '0.85rem' }}>Pendiente</span>
+                      )}
+                    </td>
+                    <td style={{ padding: '1rem' }}>
+                      <div style={{ display: 'flex', gap: '0.5rem' }}>
+                        <button onClick={handleSaveEdit} className="btn btn-outline" style={{ padding: '0.4rem 0.75rem', color: 'var(--success)', borderColor: 'rgba(16, 185, 129, 0.3)', gap: '0.5rem', display: 'flex', alignItems: 'center' }}>
+                          <Save size={16} /> Guardar
+                        </button>
+                        <button onClick={cancelEditing} className="btn btn-outline" style={{ padding: '0.4rem 0.75rem', gap: '0.5rem', display: 'flex', alignItems: 'center' }}>
+                          <X size={16} />
+                        </button>
+                      </div>
+                    </td>
+                  </>
+                ) : (
+                  <>
+                    <td style={{ padding: '1rem' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                        {u.photoURL ? (
+                          <img src={u.photoURL} alt={u.displayName} style={{ width: '32px', height: '32px', borderRadius: '50%' }} />
+                        ) : (
+                          <div style={{ width: '32px', height: '32px', borderRadius: '50%', backgroundColor: 'var(--primary)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                            {u.displayName ? u.displayName[0].toUpperCase() : u.email[0].toUpperCase()}
+                          </div>
+                        )}
+                        <span>{u.displayName || 'Sin Nombre'}</span>
+                      </div>
+                    </td>
+                    <td style={{ padding: '1rem', color: 'var(--text-muted)' }}>{u.email}</td>
+                    <td style={{ padding: '1rem' }}>
+                      <span style={{ 
+                        padding: '0.25rem 0.75rem', 
+                        borderRadius: '1rem', 
+                        fontSize: '0.85rem',
+                        backgroundColor: u.role === 'superadmin' ? 'rgba(245, 158, 11, 0.2)' : u.role === 'admin' ? 'rgba(99, 102, 241, 0.2)' : 'rgba(16, 185, 129, 0.2)',
+                        color: u.role === 'superadmin' ? 'var(--warning)' : u.role === 'admin' ? 'var(--primary)' : 'var(--success)'
+                      }}>
+                        {u.role}
+                      </span>
+                    </td>
+                    <td style={{ padding: '1rem' }}>
+                      {u.uid ? (
+                        <span style={{ color: 'var(--success)', fontSize: '0.85rem' }}>Activo</span>
+                      ) : (
+                        <span style={{ color: 'var(--warning)', fontSize: '0.85rem' }}>Pendiente</span>
+                      )}
+                    </td>
+                    <td style={{ padding: '1rem' }}>
+                      {role === 'superadmin' && u.role !== 'superadmin' ? (
+                        <div style={{ display: 'flex', gap: '0.5rem' }}>
+                          <button onClick={() => startEditing(u)} className="btn btn-outline" style={{ padding: '0.4rem 0.75rem', color: 'var(--primary)', borderColor: 'rgba(99, 102, 241, 0.3)', gap: '0.5rem', display: 'flex', alignItems: 'center' }}>
+                            <Edit2 size={16} /> Editar
+                          </button>
+                          <select 
+                            className="input-field" 
+                            style={{ padding: '0.4rem', fontSize: '0.85rem' }}
+                            value={u.role}
+                            onChange={(e) => handleRoleChange(u.id, e.target.value)}
+                          >
+                            <option value="apoderado">Apoderado</option>
+                            <option value="admin">Admin</option>
+                          </select>
+                          <button onClick={() => handleDeleteUser(u.id)} className="btn btn-outline" style={{ padding: '0.4rem 0.75rem', color: 'var(--danger)', borderColor: 'rgba(239, 68, 68, 0.3)', gap: '0.5rem', display: 'flex', alignItems: 'center' }}>
+                            <Trash2 size={16} />
+                          </button>
+                        </div>
+                      ) : (
+                        <span style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>No modificable</span>
+                      )}
+                    </td>
+                  </>
+                )}
               </tr>
             ))}
           </tbody>
