@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { db } from '../../../firebase/config';
 import { collection, getDocs, query, where } from 'firebase/firestore';
-import { DollarSign, Activity, FileText } from 'lucide-react';
+import { DollarSign, Activity, FileText, Printer } from 'lucide-react';
+import ThermalClosureReceipt from './ThermalClosureReceipt';
 
 const EventSummary = ({ event }) => {
   const [stats, setStats] = useState({
@@ -11,6 +12,7 @@ const EventSummary = ({ event }) => {
     expensesTotal: 0,
     netProfit: 0
   });
+  const [itemsSummary, setItemsSummary] = useState([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -35,9 +37,27 @@ const EventSummary = ({ event }) => {
       const qSales = query(collection(db, 'eventSales'), where('eventId', '==', event.id));
       const snapSales = await getDocs(qSales);
       let salesT = 0;
+      const itemsMap = new Map();
       snapSales.forEach(d => {
-        salesT += d.data().total || 0;
+        const data = d.data();
+        salesT += data.total || 0;
+        
+        if (data.items && Array.isArray(data.items)) {
+          data.items.forEach(item => {
+            const name = item.name;
+            if (!itemsMap.has(name)) {
+              itemsMap.set(name, { name, qty: 0, total: 0 });
+            }
+            const current = itemsMap.get(name);
+            current.qty += item.quantity || 1;
+            const itemTotal = (item.unitPrice || item.price || 0) * (item.quantity || 1);
+            current.total += itemTotal;
+          });
+        }
       });
+      
+      const itemsList = Array.from(itemsMap.values()).sort((a,b) => b.total - a.total);
+      setItemsSummary(itemsList);
 
       // 3. Expenses (outcomes)
       const qOutcomes = query(collection(db, 'outcomes'), where('fundId', '==', event.fundId));
@@ -69,7 +89,20 @@ const EventSummary = ({ event }) => {
   if (loading) return <div>Cargando resumen...</div>;
 
   return (
-    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1.5rem' }}>
+    <div style={{ position: 'relative' }}>
+      <ThermalClosureReceipt event={event} stats={stats} itemsSummary={itemsSummary} />
+      
+      <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '1.5rem' }}>
+        <button 
+          onClick={() => window.print()}
+          className="btn btn-outline"
+          style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: 'var(--primary)', borderColor: 'var(--primary)' }}
+        >
+          <Printer size={18} /> Imprimir Cierre de Evento
+        </button>
+      </div>
+
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1.5rem' }}>
       <div className="glass-panel" style={{ padding: '1.5rem', display: 'flex', alignItems: 'center', gap: '1rem' }}>
         <div style={{ backgroundColor: 'rgba(59,130,246,0.2)', padding: '1rem', borderRadius: '50%', color: '#3b82f6' }}>
           <FileText size={24} />
