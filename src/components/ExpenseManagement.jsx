@@ -288,18 +288,20 @@ const ExpenseManagement = ({ onBack }) => {
           
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(250px, 1fr))', gap: '1rem' }}>
             {students.map(student => (
-              <label key={student.id} style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', padding: '0.75rem', backgroundColor: 'rgba(255,255,255,0.03)', borderRadius: 'var(--radius-sm)', cursor: 'pointer', border: selectedStudents.has(student.id) ? '1px solid var(--primary)' : '1px solid var(--border-color)' }}>
-                <input 
-                  type="checkbox" 
-                  checked={selectedStudents.has(student.id)}
-                  onChange={() => handleToggleStudent(student.id)}
-                  style={{ width: '18px', height: '18px', accentColor: 'var(--primary)' }}
-                />
-                <div>
-                  <span style={{ display: 'block', fontWeight: '500' }}>{student.name}</span>
-                  <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
-                    {student.apoderadoEmails?.length > 0 ? student.apoderadoEmails.join(', ') : (student.apoderadoEmail || 'Sin apoderado')}
-                  </span>
+              <div key={student.id} style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', padding: '0.75rem', backgroundColor: 'rgba(255,255,255,0.03)', borderRadius: 'var(--radius-sm)', border: selectedStudents.has(student.id) ? '1px solid var(--primary)' : '1px solid var(--border-color)' }}>
+                <div onClick={() => handleToggleStudent(student.id)} style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', cursor: 'pointer', flex: 1 }}>
+                  <input 
+                    type="checkbox" 
+                    checked={selectedStudents.has(student.id)}
+                    onChange={() => handleToggleStudent(student.id)}
+                    style={{ width: '18px', height: '18px', accentColor: 'var(--primary)', cursor: 'pointer' }}
+                  />
+                  <div>
+                    <span style={{ display: 'block', fontWeight: '500' }}>{student.name}</span>
+                    <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+                      {student.apoderadoEmails?.length > 0 ? student.apoderadoEmails.join(', ') : (student.apoderadoEmail || 'Sin apoderado')}
+                    </span>
+                  </div>
                 </div>
                 {calculationMode === 'custom' && selectedStudents.has(student.id) && (
                   <input 
@@ -307,13 +309,12 @@ const ExpenseManagement = ({ onBack }) => {
                     min="1"
                     placeholder="Monto $"
                     className="input-field"
-                    style={{ width: '100px', marginLeft: 'auto', padding: '0.25rem 0.5rem' }}
+                    style={{ width: '100px', padding: '0.25rem 0.5rem' }}
                     value={customAmounts[student.id] || ''}
                     onChange={(e) => setCustomAmounts({...customAmounts, [student.id]: e.target.value})}
-                    onClick={(e) => e.stopPropagation()}
                   />
                 )}
-              </label>
+              </div>
             ))}
             {students.length === 0 && (
               <p style={{ color: 'var(--text-muted)' }}>No hay alumnos registrados aún.</p>
