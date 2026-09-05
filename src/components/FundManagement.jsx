@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { db } from '../firebase/config';
-import { collection, getDocs, doc, setDoc, deleteDoc } from 'firebase/firestore';
-import { ArrowLeft, CheckCircle, Trash2, Wallet, Plus } from 'lucide-react';
+import { collection, getDocs, doc, setDoc, deleteDoc, addDoc } from 'firebase/firestore';
+import { ArrowLeft, CheckCircle, Trash2, Wallet, Plus, ArrowRightRight, DollarSign } from 'lucide-react';
 
 const FundManagement = ({ onBack }) => {
   const [funds, setFunds] = useState([]);
@@ -10,6 +10,17 @@ const FundManagement = ({ onBack }) => {
   
   const [newTitle, setNewTitle] = useState('');
   const [newDescription, setNewDescription] = useState('');
+
+  // Ingreso Extra State
+  const [incomeTitle, setIncomeTitle] = useState('');
+  const [incomeAmount, setIncomeAmount] = useState('');
+  const [incomeMethod, setIncomeMethod] = useState('cash');
+  const [incomeFund, setIncomeFund] = useState('');
+
+  // Transferencia de Fondos State
+  const [transferFrom, setTransferFrom] = useState('');
+  const [transferTo, setTransferTo] = useState('');
+  const [transferAmount, setTransferAmount] = useState('');
 
   useEffect(() => {
     fetchFunds();
@@ -74,6 +85,57 @@ const FundManagement = ({ onBack }) => {
     }
   };
 
+  const handleAddIncome = async (e) => {
+    e.preventDefault();
+    if (!incomeTitle || !incomeAmount || !incomeFund) return;
+
+    try {
+      await addDoc(collection(db, 'incomes'), {
+        title: incomeTitle,
+        amount: Number(incomeAmount),
+        paymentMethod: incomeMethod,
+        fundId: incomeFund,
+        createdAt: new Date().toISOString()
+      });
+      setIncomeTitle('');
+      setIncomeAmount('');
+      setMessage('Ingreso registrado correctamente. El saldo ha sido actualizado.');
+      setTimeout(() => setMessage(''), 3000);
+    } catch (error) {
+      console.error("Error registrando ingreso:", error);
+      setMessage('Error al registrar el ingreso.');
+      setTimeout(() => setMessage(''), 3000);
+    }
+  };
+
+  const handleTransfer = async (e) => {
+    e.preventDefault();
+    if (!transferFrom || !transferTo || !transferAmount) return;
+    if (transferFrom === transferTo) {
+      setMessage('El fondo de origen y destino deben ser diferentes.');
+      setTimeout(() => setMessage(''), 3000);
+      return;
+    }
+
+    try {
+      await addDoc(collection(db, 'fund_transfers'), {
+        fromFundId: transferFrom,
+        toFundId: transferTo,
+        amount: Number(transferAmount),
+        createdAt: new Date().toISOString()
+      });
+      setTransferFrom('');
+      setTransferTo('');
+      setTransferAmount('');
+      setMessage('Fondos transferidos correctamente.');
+      setTimeout(() => setMessage(''), 3000);
+    } catch (error) {
+      console.error("Error transfiriendo fondos:", error);
+      setMessage('Error al transferir fondos.');
+      setTimeout(() => setMessage(''), 3000);
+    }
+  };
+
   if (loading) {
     return <div style={{ textAlign: 'center', padding: '2rem' }}>Cargando fondos...</div>;
   }
@@ -127,6 +189,73 @@ const FundManagement = ({ onBack }) => {
             Crear Fondo
           </button>
         </form>
+      </div>
+
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '2rem', marginBottom: '2rem' }}>
+        {/* Panel de Ingreso Extra / Saldo Inicial */}
+        <div className="glass-panel" style={{ padding: '1.5rem' }}>
+          <h4 style={{ marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '0.5rem', color: 'var(--success)' }}>
+            <DollarSign size={18} /> Ingreso Extra / Saldo Inicial
+          </h4>
+          <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', marginBottom: '1rem' }}>Inyecta dinero físico al sistema (ej: plata de un año anterior, bingo, etc).</p>
+          <form onSubmit={handleAddIncome} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+            <div className="input-group" style={{ marginBottom: 0 }}>
+              <label className="input-label">Motivo</label>
+              <input type="text" required className="input-field" placeholder="Ej. Saldo inicial 2025" value={incomeTitle} onChange={(e) => setIncomeTitle(e.target.value)} />
+            </div>
+            <div className="input-group" style={{ marginBottom: 0 }}>
+              <label className="input-label">Monto ($)</label>
+              <input type="number" required className="input-field" placeholder="Ej. 50000" value={incomeAmount} onChange={(e) => setIncomeAmount(e.target.value)} />
+            </div>
+            <div className="input-group" style={{ marginBottom: 0 }}>
+              <label className="input-label">¿Dónde está la plata?</label>
+              <select className="input-field" value={incomeMethod} onChange={(e) => setIncomeMethod(e.target.value)}>
+                <option value="cash">Efectivo (Caja Chica)</option>
+                <option value="transfer">Banco (Transferencia)</option>
+              </select>
+            </div>
+            <div className="input-group" style={{ marginBottom: 0 }}>
+              <label className="input-label">¿A qué fondo va?</label>
+              <select required className="input-field" value={incomeFund} onChange={(e) => setIncomeFund(e.target.value)}>
+                <option value="">-- Selecciona un fondo --</option>
+                <option value="general">Fondo General</option>
+                {funds.map(f => <option key={f.id} value={f.id}>{f.name}</option>)}
+              </select>
+            </div>
+            <button type="submit" className="btn btn-primary" style={{ backgroundColor: 'var(--success)' }}>Registrar Ingreso</button>
+          </form>
+        </div>
+
+        {/* Panel de Transferencia entre Fondos */}
+        <div className="glass-panel" style={{ padding: '1.5rem' }}>
+          <h4 style={{ marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '0.5rem', color: 'var(--warning)' }}>
+            <ArrowRightRight size={18} /> Repartir Fondos
+          </h4>
+          <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', marginBottom: '1rem' }}>Mueve saldo contable de un fondo a otro sin afectar la caja física ni el banco.</p>
+          <form onSubmit={handleTransfer} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+            <div className="input-group" style={{ marginBottom: 0 }}>
+              <label className="input-label">Desde el Fondo (Origen)</label>
+              <select required className="input-field" value={transferFrom} onChange={(e) => setTransferFrom(e.target.value)}>
+                <option value="">-- Selecciona un fondo --</option>
+                <option value="general">Fondo General</option>
+                {funds.map(f => <option key={f.id} value={f.id}>{f.name}</option>)}
+              </select>
+            </div>
+            <div className="input-group" style={{ marginBottom: 0 }}>
+              <label className="input-label">Hacia el Fondo (Destino)</label>
+              <select required className="input-field" value={transferTo} onChange={(e) => setTransferTo(e.target.value)}>
+                <option value="">-- Selecciona un fondo --</option>
+                <option value="general">Fondo General</option>
+                {funds.map(f => <option key={f.id} value={f.id}>{f.name}</option>)}
+              </select>
+            </div>
+            <div className="input-group" style={{ marginBottom: 0 }}>
+              <label className="input-label">Monto a mover ($)</label>
+              <input type="number" required className="input-field" placeholder="Ej. 15000" value={transferAmount} onChange={(e) => setTransferAmount(e.target.value)} />
+            </div>
+            <button type="submit" className="btn btn-outline" style={{ borderColor: 'var(--warning)', color: 'var(--warning)' }}>Transferir</button>
+          </form>
+        </div>
       </div>
 
       <div className="glass-panel" style={{ overflowX: 'auto' }}>

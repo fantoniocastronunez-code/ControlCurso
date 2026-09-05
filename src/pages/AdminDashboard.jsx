@@ -81,6 +81,15 @@ const AdminDashboard = () => {
         if (data.paymentMethod === 'transfer') transferOut += amt;
       });
 
+      // 4.5 Ingresos Manuales (Saldos Iniciales/Extras)
+      const incomesSnap = await getDocs(collection(db, 'incomes'));
+      incomesSnap.forEach(doc => {
+        const data = doc.data();
+        const amt = data.amount || 0;
+        if (data.paymentMethod === 'cash') cashIn += amt;
+        if (data.paymentMethod === 'transfer') transferIn += amt;
+      });
+
       // 5. Fondos (Categorías)
       const fundsSnap = await getDocs(collection(db, 'funds'));
       const fundsMap = new Map(); // id -> { name, balance }
@@ -109,6 +118,29 @@ const AdminDashboard = () => {
           fundsMap.set(fundId, { id: fundId, name: fundId === 'general' ? 'Fondo General' : 'Fondo Desconocido', balance: 0 });
         }
         fundsMap.get(fundId).balance -= amt;
+      });
+
+      incomesSnap.forEach(doc => {
+        const data = doc.data();
+        const amt = data.amount || 0;
+        const fundId = data.fundId || 'general';
+        
+        if (!fundsMap.has(fundId)) {
+          fundsMap.set(fundId, { id: fundId, name: fundId === 'general' ? 'Fondo General' : 'Fondo Desconocido', balance: 0 });
+        }
+        fundsMap.get(fundId).balance += amt;
+      });
+
+      // Transferencias entre fondos
+      const transfersSnap = await getDocs(collection(db, 'fund_transfers'));
+      transfersSnap.forEach(doc => {
+        const data = doc.data();
+        const amt = data.amount || 0;
+        const fromId = data.fromFundId;
+        const toId = data.toFundId;
+
+        if (fromId && fundsMap.has(fromId)) fundsMap.get(fromId).balance -= amt;
+        if (toId && fundsMap.has(toId)) fundsMap.get(toId).balance += amt;
       });
 
       const fundsBalances = Array.from(fundsMap.values());
