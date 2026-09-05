@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { LogOut, Users, DollarSign, Activity, FileText, RefreshCw } from 'lucide-react';
+import { LogOut, Users, DollarSign, Activity, FileText, RefreshCw, Calendar } from 'lucide-react';
 import { db } from '../firebase/config';
 import { collection, getDocs, query, where, orderBy } from 'firebase/firestore';
 import { useNavigate } from 'react-router-dom';
@@ -12,6 +12,7 @@ import ExpenseDetail from '../components/ExpenseDetail';
 import DebtorsManagement from '../components/DebtorsManagement';
 import OutcomeManagement from '../components/OutcomeManagement';
 import FundManagement from '../components/FundManagement';
+import EventManagement from '../components/events/EventManagement';
 
 const AdminDashboard = () => {
   const { user, role, logout } = useAuth();
@@ -283,6 +284,9 @@ const AdminDashboard = () => {
                   <button onClick={() => setCurrentView('funds')} className="btn btn-outline">
                     Administrar Fondos
                   </button>
+                  <button onClick={() => setCurrentView('events')} className="btn btn-outline" style={{ color: 'var(--success)', borderColor: 'rgba(16, 185, 129, 0.3)' }}>
+                    Eventos y Ventas
+                  </button>
                   {role === 'superadmin' && (
                      <button 
                        onClick={() => setCurrentView('users')}
@@ -347,6 +351,8 @@ const AdminDashboard = () => {
         <OutcomeManagement onBack={() => setCurrentView('dashboard')} />
       ) : currentView === 'funds' ? (
         <FundManagement onBack={() => setCurrentView('dashboard')} />
+      ) : currentView === 'events' ? (
+        <EventManagement onBack={() => setCurrentView('dashboard')} />
       ) : currentView === 'expense_detail' && selectedExpenseId ? (
         <ExpenseDetail expenseId={selectedExpenseId} onBack={() => setCurrentView('dashboard')} />
       ) : null}
