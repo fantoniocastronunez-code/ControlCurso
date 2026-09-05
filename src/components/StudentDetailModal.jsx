@@ -1,15 +1,17 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { db } from '../firebase/config';
-import { collection, query, where, getDocs, addDoc } from 'firebase/firestore';
-import { X, User, AlertCircle, CheckCircle, Clock, Share2 } from 'lucide-react';
+import { collection, query, where, getDocs } from 'firebase/firestore';
+import { X, User, AlertCircle, CheckCircle, Clock, Share2, Download } from 'lucide-react';
 import { formatStudentName } from '../utils/nameUtils';
 import { useModal } from '../context/ModalContext';
+import html2canvas from 'html2canvas';
 
 const StudentDetailModal = ({ student, usersMap, onClose }) => {
-  const { showAlert, showConfirm } = useModal();
+  const { showAlert } = useModal();
   const [debts, setDebts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [sharing, setSharing] = useState(false);
+  const detailRef = useRef(null);
 
   useEffect(() => {
     fetchDebts();
@@ -39,43 +41,42 @@ const StudentDetailModal = ({ student, usersMap, onClose }) => {
   const emails = student.apoderadoEmails || (student.apoderadoEmail ? [student.apoderadoEmail] : []);
 
   const handleShare = async () => {
-    if (emails.length === 0) {
-      await showAlert("No hay correos vinculados a este alumno para enviar la información.");
-      return;
-    }
-    
-    if (!(await showConfirm("¿Deseas enviar un correo a los apoderados con este historial?"))) return;
-    
     setSharing(true);
     try {
-      const htmlContent = `
-        <h2>Historial de Cuenta: ${formatStudentName(student)}</h2>
-        <p>A continuación se detalla el estado actual de cobros y pagos asociados al alumno.</p>
-        
-        <h3 style="color: #d97706;">Pendientes / En Revisión</h3>
-        <ul>
-          ${pendingDebts.length > 0 ? pendingDebts.map(d => `<li><strong>${d.title}</strong>: ${formatMoney(d.amount)} (${d.status === 'review' ? 'Comprobante en revisión' : 'Pendiente'})</li>`).join('') : '<li>No hay deudas pendientes</li>'}
-        </ul>
+      if (!detailRef.current) return;
+      
+      // Ocultar botones temporalmente para la captura
+      const actionsDiv = document.getElementById(`actions-${student.id}`);
+      if (actionsDiv) actionsDiv.style.display = 'none';
 
-        <h3 style="color: #10b981;">Pagos Realizados</h3>
-        <ul>
-          ${paidDebts.length > 0 ? paidDebts.map(d => `<li><strong>${d.title}</strong>: ${formatMoney(d.amount)}</li>`).join('') : '<li>No hay pagos registrados</li>'}
-        </ul>
-        <br/>
-        <p><em>Este es un correo automático. Por favor, revisa la aplicación para más detalles.</em></p>
-      `;
-
-      await addDoc(collection(db, 'mail'), {
-        to: emails,
-        message: {
-          subject: `Historial de Cuenta - ${student.name}`,
-          html: htmlContent
-        }
+      const canvas = await html2canvas(detailRef.current, {
+        backgroundColor: '#111827', // fondo oscuro base
+        scale: 2
       });
-      await showAlert("Historial enviado correctamente por correo a los apoderados.");
+      
+      if (actionsDiv) actionsDiv.style.display = 'flex';
+
+      const image = canvas.toDataURL("image/png");
+      const res = await fetch(image);
+      const blob = await res.blob();
+      const file = new File([blob], `historial_${student.name.replace(/ /g, '_')}.png`, { type: 'image/png' });
+
+      if (navigator.canShare && navigator.canShare({ files: [file] })) {
+        await navigator.share({
+          files: [file],
+          title: `Historial de ${formatStudentName(student)}`,
+          text: 'Historial de pagos y deudas.'
+        });
+      } else {
+        const link = document.createElement('a');
+        link.href = image;
+        link.download = `historial_${student.name.replace(/ /g, '_')}.png`;
+        link.click();
+        await showAlert("Imagen descargada. Ahora puedes compartirla por WhatsApp.");
+      }
     } catch (error) {
-      console.error("Error al enviar correo:", error);
-      await showAlert("Hubo un error al intentar enviar el correo.");
+      console.error("Error al generar imagen:", error);
+      await showAlert("Hubo un error al generar la imagen.");
     } finally {
       setSharing(false);
     }
@@ -83,15 +84,15 @@ const StudentDetailModal = ({ student, usersMap, onClose }) => {
 
   return (
     <div style={{ padding: '1rem', borderTop: 'none', borderBottom: '1px solid var(--border-color)', backgroundColor: 'rgba(0,0,0,0.2)' }}>
-      <div className="glass-panel animate-fade-in" style={{ width: '100%', padding: '2rem', backgroundColor: 'var(--bg-main)' }}>
+      <div ref={detailRef} className="glass-panel animate-fade-in" style={{ width: '100%', padding: '2rem', backgroundColor: 'var(--bg-main)' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '2rem', borderBottom: '1px solid var(--border-color)', paddingBottom: '1rem' }}>
           <div>
             <h2 style={{ margin: '0 0 0.5rem 0', color: 'var(--primary)' }}>{formatStudentName(student)}</h2>
             <p style={{ margin: 0, color: 'var(--text-muted)' }}>Número de Lista: {student.listNumber || '-'}</p>
           </div>
-          <div style={{ display: 'flex', gap: '0.5rem' }}>
-            <button onClick={handleShare} disabled={sharing} className="btn btn-outline" style={{ padding: '0.5rem 1rem', display: 'flex', alignItems: 'center', gap: '0.5rem', borderColor: 'var(--primary)', color: 'var(--primary)' }}>
-              <Share2 size={18} /> {sharing ? 'Enviando...' : 'Compartir Info'}
+          <div id={`actions-${student.id}`} style={{ display: 'flex', gap: '0.5rem' }}>
+            <button onClick={handleShare} disabled={sharing} className="btn btn-outline" style={{ padding: '0.5rem 1rem', display: 'flex', alignItems: 'center', gap: '0.5rem', borderColor: '#25D366', color: '#25D366' }}>
+              <Download size={18} /> {sharing ? 'Generando...' : 'Guardar/Compartir'}
             </button>
             <button onClick={onClose} className="btn btn-outline" style={{ padding: '0.5rem' }} title="Cerrar Ficha">
               <X size={20} />
