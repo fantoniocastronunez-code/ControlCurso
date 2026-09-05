@@ -383,6 +383,8 @@ const ApoderadoDashboard = () => {
           </div>
         </>
       )}
+        </>
+      )}
 
       <div className="glass-panel" style={{ padding: '2rem' }}>
         <h3>Información del Curso</h3>
