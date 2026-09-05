@@ -177,7 +177,7 @@ const AdminDashboard = () => {
       <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem', flexWrap: 'wrap', gap: '1rem' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
           <img 
-            src="/LOGOAPPCURSO.JPG" 
+            src="/LOGOAPPCURSO.jpg" 
             alt="Logo" 
             style={{ width: '50px', height: '50px', borderRadius: '50%', objectFit: 'contain', border: '1px solid rgba(255,255,255,0.1)' }} 
             onError={(e) => e.target.style.display = 'none'}

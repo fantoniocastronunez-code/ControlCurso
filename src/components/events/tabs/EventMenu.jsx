@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { db } from '../../../firebase/config';
-import { collection, getDocs, doc, setDoc, query, where, deleteDoc } from 'firebase/firestore';
+import { collection, getDocs, doc, setDoc, updateDoc, query, where, deleteDoc } from 'firebase/firestore';
 import { Plus, Trash2, Edit2 } from 'lucide-react';
 import { useModal } from '../../../context/ModalContext';
 
@@ -13,6 +13,7 @@ const EventMenu = ({ event }) => {
   const [newItemPrice, setNewItemPrice] = useState('');
   const [hasSubproducts, setHasSubproducts] = useState(false);
   const [subproducts, setSubproducts] = useState([{ name: '', price: '' }]);
+  const [editingItemId, setEditingItemId] = useState(null);
 
   useEffect(() => {
     fetchItems();
@@ -35,10 +36,9 @@ const EventMenu = ({ event }) => {
 
   const handleAddItem = async (e) => {
     e.preventDefault();
-    if (!newItemName || !newItemPrice) return;
+    if (!newItemName || newItemPrice === '') return;
 
     try {
-      const id = 'item_' + Date.now();
       const item = {
         eventId: event.id,
         name: newItemName.trim(),
@@ -49,17 +49,39 @@ const EventMenu = ({ event }) => {
         })) : []
       };
       
-      await setDoc(doc(db, 'eventItems', id), item);
-      setItems([...items, { id, ...item }].sort((a, b) => a.name.localeCompare(b.name)));
+      if (editingItemId) {
+        await updateDoc(doc(db, 'eventItems', editingItemId), item);
+        setItems(items.map(i => i.id === editingItemId ? { ...i, ...item } : i).sort((a, b) => a.name.localeCompare(b.name)));
+        setEditingItemId(null);
+        showAlert("Producto actualizado exitosamente");
+      } else {
+        const id = 'item_' + Date.now();
+        await setDoc(doc(db, 'eventItems', id), item);
+        setItems([...items, { id, ...item }].sort((a, b) => a.name.localeCompare(b.name)));
+      }
       
       setNewItemName('');
       setNewItemPrice('');
       setHasSubproducts(false);
       setSubproducts([{ name: '', price: '' }]);
     } catch (error) {
-      console.error("Error adding item:", error);
-      showAlert("Hubo un error al agregar el ítem.");
+      console.error("Error adding/updating item:", error);
+      showAlert("Hubo un error al guardar el ítem.");
     }
+  };
+
+  const handleEditClick = (item) => {
+    setEditingItemId(item.id);
+    setNewItemName(item.name);
+    setNewItemPrice(item.price.toString());
+    if (item.subproducts && item.subproducts.length > 0) {
+      setHasSubproducts(true);
+      setSubproducts(item.subproducts);
+    } else {
+      setHasSubproducts(false);
+      setSubproducts([{ name: '', price: '' }]);
+    }
+    window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
   const handleDeleteItem = async (id) => {
@@ -97,16 +119,35 @@ const EventMenu = ({ event }) => {
           <label className="input-label">Precio de Venta ($)</label>
           <input 
             type="number"
-            min="1"
+            min="0"
             required
             className="input-field"
             value={newItemPrice}
             onChange={(e) => setNewItemPrice(e.target.value)}
           />
         </div>
-        <button type="submit" className="btn btn-primary" style={{ padding: '0.65rem 1.5rem', marginBottom: '1rem' }}>
-          <Plus size={18} /> Agregar
-        </button>
+        <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1rem' }}>
+          <button type="submit" className="btn btn-primary" style={{ padding: '0.65rem 1.5rem' }}>
+            {editingItemId ? <><Edit2 size={18} /> Actualizar</> : <><Plus size={18} /> Agregar</>}
+          </button>
+          
+          {editingItemId && (
+            <button 
+              type="button"
+              className="btn btn-outline" 
+              style={{ padding: '0.65rem 1.5rem' }}
+              onClick={() => {
+                setEditingItemId(null);
+                setNewItemName('');
+                setNewItemPrice('');
+                setHasSubproducts(false);
+                setSubproducts([{ name: '', price: '' }]);
+              }}
+            >
+              Cancelar
+            </button>
+          )}
+        </div>
 
         <div style={{ width: '100%', marginTop: '0.5rem' }}>
           <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer' }}>
@@ -123,8 +164,8 @@ const EventMenu = ({ event }) => {
           <div style={{ width: '100%', padding: '1rem', backgroundColor: 'rgba(255,255,255,0.05)', borderRadius: 'var(--radius-md)', marginTop: '0.5rem' }}>
             <h4 style={{ marginBottom: '1rem' }}>Opciones / Agregados</h4>
             {subproducts.map((sp, idx) => (
-              <div key={idx} style={{ display: 'flex', gap: '1rem', marginBottom: '0.5rem' }}>
-                <div className="input-group" style={{ flex: 2 }}>
+              <div key={idx} style={{ display: 'flex', gap: '0.5rem', marginBottom: '0.5rem', flexWrap: 'wrap', alignItems: 'center' }}>
+                <div className="input-group" style={{ flex: '1 1 140px', marginBottom: 0 }}>
                   <input 
                     type="text"
                     placeholder="Nombre (ej. Palta)"
@@ -137,7 +178,7 @@ const EventMenu = ({ event }) => {
                     }}
                   />
                 </div>
-                <div className="input-group" style={{ flex: 1 }}>
+                <div className="input-group" style={{ flex: '1 1 100px', marginBottom: 0 }}>
                   <input 
                     type="number"
                     min="0"
@@ -155,7 +196,7 @@ const EventMenu = ({ event }) => {
                   <button 
                     type="button"
                     className="btn btn-outline"
-                    style={{ padding: '0 0.5rem', color: 'var(--danger)', borderColor: 'var(--danger)' }}
+                    style={{ padding: '0.65rem 0.75rem', color: 'var(--danger)', borderColor: 'var(--danger)', flex: '0 0 auto' }}
                     onClick={() => setSubproducts(subproducts.filter((_, i) => i !== idx))}
                   >
                     <Trash2 size={16} />
@@ -190,12 +231,22 @@ const EventMenu = ({ event }) => {
                   </div>
                 )}
               </div>
-              <button 
-                onClick={() => handleDeleteItem(item.id)}
-                style={{ background: 'none', border: 'none', color: 'var(--danger)', cursor: 'pointer', padding: '0.5rem' }}
-              >
-                <Trash2 size={18} />
-              </button>
+              <div style={{ display: 'flex', gap: '0.5rem' }}>
+                <button 
+                  onClick={() => handleEditClick(item)}
+                  style={{ background: 'none', border: 'none', color: 'var(--primary)', cursor: 'pointer', padding: '0.5rem' }}
+                  title="Editar producto"
+                >
+                  <Edit2 size={18} />
+                </button>
+                <button 
+                  onClick={() => handleDeleteItem(item.id)}
+                  style={{ background: 'none', border: 'none', color: 'var(--danger)', cursor: 'pointer', padding: '0.5rem' }}
+                  title="Eliminar producto"
+                >
+                  <Trash2 size={18} />
+                </button>
+              </div>
             </div>
           ))}
         </div>
