@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { db } from '../firebase/config';
-import { collection, query, where, getDocs, doc, getDoc, updateDoc, deleteDoc } from 'firebase/firestore';
+import { collection, query, where, getDocs, doc, getDoc, updateDoc, deleteDoc, setDoc } from 'firebase/firestore';
 import { ArrowLeft, CheckCircle, Clock, XCircle, FileText, Download, Trash2, Edit2, Save, X } from 'lucide-react';
 
 const ExpenseDetail = ({ expenseId, onBack }) => {
@@ -60,55 +60,76 @@ const ExpenseDetail = ({ expenseId, onBack }) => {
     }
   };
 
-  const handleApprovePayment = async (debtId) => {
-    try {
-      // 1. Actualizar deuda a 'paid'
-      const debtRef = doc(db, 'debts', debtId);
-      await updateDoc(debtRef, {
-        status: 'paid',
-        paymentMethod: 'transfer',
-        approvedAt: new Date().toISOString()
-      });
-
-      // 2. Aumentar el contador del gasto
-      const expenseRef = doc(db, 'expenses', expenseId);
-      const currentPaidCount = expense.paidCount || 0;
-      await updateDoc(expenseRef, {
-        paidCount: currentPaidCount + 1
-      });
-
-      // Recargar datos para mostrar los cambios
-      fetchDetail();
-    } catch (error) {
-      console.error("Error al aprobar pago:", error);
-      alert("Hubo un error al aprobar el pago.");
+  const processPayment = async (debtId, method, defaultAmount, isApproval = false) => {
+    const debtToPay = debts.find(d => d.id === debtId);
+    const amountStr = window.prompt(
+      `Confirma el monto ${isApproval ? 'aprobado' : 'pagado en ' + (method === 'cash' ? 'Efectivo' : 'Transferencia')}:`, 
+      defaultAmount
+    );
+    
+    if (amountStr === null) return;
+    
+    const amountPaid = parseFloat(amountStr);
+    if (isNaN(amountPaid) || amountPaid <= 0) {
+      alert("Monto inválido.");
+      return;
     }
-  };
 
-  const handleManualPayment = async (debtId, method) => {
-    if(!window.confirm(`¿Registrar pago manual en ${method === 'cash' ? 'Efectivo' : 'Transferencia'}?`)) return;
     try {
       const debtRef = doc(db, 'debts', debtId);
-      const debtToPay = debts.find(d => d.id === debtId);
       
+      let creatingRemainder = false;
+      if (amountPaid < debtToPay.amount) {
+        const confirmSplit = window.confirm(`El monto pagado ($${amountPaid}) es menor a la deuda ($${debtToPay.amount}).\n\n¿Deseas registrar este pago parcial y generar automáticamente una NUEVA deuda por la diferencia ($${debtToPay.amount - amountPaid})?`);
+        
+        if (confirmSplit) {
+          creatingRemainder = true;
+          // Crear nueva deuda por la diferencia
+          const newDebtRef = doc(collection(db, 'debts'));
+          const { id, ...debtData } = debtToPay;
+          await setDoc(newDebtRef, {
+            ...debtData,
+            amount: debtToPay.amount - amountPaid,
+            paidAmount: 0,
+            status: 'pending',
+            paymentMethod: null,
+            approvedAt: null,
+            receiptUrl: null,
+            title: `${debtToPay.title} (Saldo Restante)`
+          });
+        }
+      }
+
       await updateDoc(debtRef, {
         status: 'paid',
-        paidAmount: debtToPay.amount,
+        paidAmount: amountPaid,
         paymentMethod: method,
         approvedAt: new Date().toISOString()
       });
 
       const expenseRef = doc(db, 'expenses', expenseId);
       const currentPaidCount = expense.paidCount || 0;
+      // Si creamos un remanente, el paidCount no debería incrementar, porque la cuota original se dividió y una parte sigue pendiente. 
+      // O si incrementamos paidCount, significa que "un pago se realizó". Es mejor incrementarlo para reflejar que esta fracción ya se pagó.
       await updateDoc(expenseRef, {
         paidCount: currentPaidCount + 1
       });
 
       fetchDetail();
     } catch (error) {
-      console.error("Error al registrar pago manual:", error);
-      alert("Error al registrar el pago.");
+      console.error("Error al procesar pago:", error);
+      alert("Hubo un error al procesar el pago.");
     }
+  };
+
+  const handleApprovePayment = async (debtId) => {
+    const debtToPay = debts.find(d => d.id === debtId);
+    await processPayment(debtId, 'transfer', debtToPay.paidAmount || debtToPay.amount, true);
+  };
+
+  const handleManualPayment = async (debtId, method) => {
+    const debtToPay = debts.find(d => d.id === debtId);
+    await processPayment(debtId, method, debtToPay.amount, false);
   };
 
   const handleBulkPayment = async (method) => {
