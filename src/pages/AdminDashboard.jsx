@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { LogOut, Users, DollarSign, Activity, FileText, RefreshCw } from 'lucide-react';
-import { db } from '../firebase/config';
-import { collection, getDocs, query, where, orderBy } from 'firebase/firestore';
+import { db, dbDefault } from '../firebase/config';
+import { collection, getDocs, query, where, orderBy, setDoc, doc } from 'firebase/firestore';
 import { useNavigate } from 'react-router-dom';
 
 import UserManagement from '../components/UserManagement';
@@ -37,6 +37,32 @@ const AdminDashboard = () => {
       fetchDashboardData();
     }
   }, [currentView]);
+
+  const handleMigrateData = async () => {
+    if (!window.confirm("¿Seguro que deseas copiar TODOS los datos de la base de datos (default) a controlcurso2? Esto podría tomar unos segundos.")) return;
+    setLoading(true);
+    try {
+      const collectionsToMigrate = ['users', 'students', 'debts', 'expenses', 'incomes', 'outcomes', 'funds', 'fund_transfers'];
+      let totalCopied = 0;
+
+      for (const collName of collectionsToMigrate) {
+        console.log(`Copiando colección: ${collName}...`);
+        const snapshot = await getDocs(collection(dbDefault, collName));
+        for (const document of snapshot.docs) {
+          await setDoc(doc(db, collName, document.id), document.data());
+          totalCopied++;
+        }
+      }
+      
+      alert(`¡Migración exitosa! Se copiaron ${totalCopied} documentos en total a controlcurso2.`);
+      window.location.reload();
+    } catch (error) {
+      console.error("Error en la migración:", error);
+      alert("Hubo un error al migrar los datos: " + error.message);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const fetchDashboardData = async () => {
     setLoading(true);
@@ -187,6 +213,9 @@ const AdminDashboard = () => {
           </div>
         </div>
         <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>
+          <button onClick={handleMigrateData} className="btn btn-primary" style={{ backgroundColor: '#8b5cf6' }}>
+            MIGRAR DATOS (Click aquí)
+          </button>
           <button onClick={() => navigate('/apoderado')} className="btn btn-outline" style={{ borderColor: 'var(--success)', color: 'var(--success)' }} title="Ver cómo se ve la app para un apoderado">
             Vista Apoderado
           </button>

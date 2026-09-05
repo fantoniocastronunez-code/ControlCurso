@@ -16,5 +16,6 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 export const auth = getAuth(app);
 export const db = getFirestore(app, "controlcurso2");
+export const dbDefault = getFirestore(app); // Temporary for migration
 export const storage = getStorage(app);
 export const googleProvider = new GoogleAuthProvider();
