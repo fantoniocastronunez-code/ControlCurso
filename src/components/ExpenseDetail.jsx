@@ -122,6 +122,32 @@ const ExpenseDetail = ({ expenseId, onBack }) => {
     }
   };
 
+  const handleEditDebtAmount = async (debtId) => {
+    const debtToEdit = debts.find(d => d.id === debtId);
+    if (!debtToEdit) return;
+
+    const newAmountStr = window.prompt("Ingresa el NUEVO Monto a Cobrar para este alumno:", debtToEdit.amount);
+    if (newAmountStr === null) return;
+    
+    const newAmount = parseFloat(newAmountStr);
+    if (isNaN(newAmount) || newAmount <= 0) {
+      alert("Monto inválido.");
+      return;
+    }
+
+    setLoading(true);
+    try {
+      await updateDoc(doc(db, 'debts', debtId), {
+        amount: newAmount
+      });
+      fetchDetail();
+    } catch (error) {
+      console.error("Error modificando deuda:", error);
+      alert("Error al modificar el monto.");
+      setLoading(false);
+    }
+  };
+
   const handleApprovePayment = async (debtId) => {
     const debtToPay = debts.find(d => d.id === debtId);
     await processPayment(debtId, 'transfer', debtToPay.paidAmount || debtToPay.amount, true);
@@ -485,7 +511,18 @@ const ExpenseDetail = ({ expenseId, onBack }) => {
                 </td>
 
                 <td style={{ padding: '1rem', fontWeight: 'bold' }}>
-                  {formatMoney(debt.amount)}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                    {formatMoney(debt.amount)}
+                    {(debt.status === 'pending' || debt.status === 'partial') && (
+                      <button 
+                        onClick={() => handleEditDebtAmount(debt.id)}
+                        style={{ background: 'none', border: 'none', color: 'var(--primary)', cursor: 'pointer', padding: '0.2rem' }}
+                        title="Modificar Monto"
+                      >
+                        <Edit2 size={14} />
+                      </button>
+                    )}
+                  </div>
                 </td>
                 
                 <td style={{ padding: '1rem', color: 'var(--success)' }}>
