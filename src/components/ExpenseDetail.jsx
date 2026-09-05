@@ -148,6 +148,32 @@ const ExpenseDetail = ({ expenseId, onBack }) => {
     }
   };
 
+  const handleEditPaidAmount = async (debtId) => {
+    const debtToEdit = debts.find(d => d.id === debtId);
+    if (!debtToEdit) return;
+
+    const newAmountStr = window.prompt("Ingresa el NUEVO Monto Informado (Pagado) para este alumno:", debtToEdit.paidAmount || 0);
+    if (newAmountStr === null) return;
+    
+    const newAmount = parseFloat(newAmountStr);
+    if (isNaN(newAmount) || newAmount < 0) {
+      alert("Monto inválido.");
+      return;
+    }
+
+    setLoading(true);
+    try {
+      await updateDoc(doc(db, 'debts', debtId), {
+        paidAmount: newAmount
+      });
+      fetchDetail();
+    } catch (error) {
+      console.error("Error modificando pago:", error);
+      alert("Error al modificar el monto pagado.");
+      setLoading(false);
+    }
+  };
+
   const handleApprovePayment = async (debtId) => {
     const debtToPay = debts.find(d => d.id === debtId);
     await processPayment(debtId, 'transfer', debtToPay.paidAmount || debtToPay.amount, true);
@@ -513,20 +539,29 @@ const ExpenseDetail = ({ expenseId, onBack }) => {
                 <td style={{ padding: '1rem', fontWeight: 'bold' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                     {formatMoney(debt.amount)}
-                    {(debt.status === 'pending' || debt.status === 'partial') && (
+                    <button 
+                      onClick={() => handleEditDebtAmount(debt.id)}
+                      style={{ background: 'none', border: 'none', color: 'var(--primary)', cursor: 'pointer', padding: '0.2rem' }}
+                      title="Modificar Monto A Cobrar"
+                    >
+                      <Edit2 size={14} />
+                    </button>
+                  </div>
+                </td>
+                
+                <td style={{ padding: '1rem', color: 'var(--success)' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                    {debt.paidAmount ? `+${formatMoney(debt.paidAmount)}` : '-'}
+                    {(debt.status === 'paid' || debt.status === 'partial' || debt.status === 'review') && (
                       <button 
-                        onClick={() => handleEditDebtAmount(debt.id)}
-                        style={{ background: 'none', border: 'none', color: 'var(--primary)', cursor: 'pointer', padding: '0.2rem' }}
-                        title="Modificar Monto"
+                        onClick={() => handleEditPaidAmount(debt.id)}
+                        style={{ background: 'none', border: 'none', color: 'var(--success)', cursor: 'pointer', padding: '0.2rem' }}
+                        title="Modificar Monto Informado"
                       >
                         <Edit2 size={14} />
                       </button>
                     )}
                   </div>
-                </td>
-                
-                <td style={{ padding: '1rem', color: 'var(--success)' }}>
-                  {debt.paidAmount ? `+${formatMoney(debt.paidAmount)}` : '-'}
                 </td>
 
                 <td style={{ padding: '1rem' }}>
