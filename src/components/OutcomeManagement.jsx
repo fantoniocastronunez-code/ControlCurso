@@ -112,7 +112,7 @@ const OutcomeManagement = ({ onBack }) => {
         <button onClick={onBack} className="btn btn-outline" style={{ padding: '0.5rem' }}>
           <ArrowLeft size={18} />
         </button>
-        <h3 style={{ margin: 0 }}>Registro de Gastos (Egresos)</h3>
+        <h3 style={{ margin: 0 }}>Historial y Registro de Gastos</h3>
       </div>
 
       <p style={{ color: 'var(--text-muted)', marginBottom: '2rem' }}>

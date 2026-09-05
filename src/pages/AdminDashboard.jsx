@@ -272,7 +272,7 @@ const AdminDashboard = () => {
                     Cobrar Cuota
                   </button>
                   <button onClick={() => setCurrentView('outcomes')} className="btn btn-outline" style={{ color: 'var(--danger)', borderColor: 'rgba(239, 68, 68, 0.3)' }}>
-                    Registrar Gasto
+                    Historial de Gastos
                   </button>
                   <button onClick={() => setCurrentView('debtors')} className="btn btn-outline" style={{ color: 'var(--warning)', borderColor: 'rgba(245, 158, 11, 0.3)' }}>
                     Apoderados en Deuda
