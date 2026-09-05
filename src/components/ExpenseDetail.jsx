@@ -1,0 +1,240 @@
+import React, { useState, useEffect } from 'react';
+import { db } from '../firebase/config';
+import { collection, query, where, getDocs, doc, getDoc, updateDoc } from 'firebase/firestore';
+import { ArrowLeft, CheckCircle, Clock, XCircle, FileText, Download } from 'lucide-react';
+
+const ExpenseDetail = ({ expenseId, onBack }) => {
+  const [expense, setExpense] = useState(null);
+  const [debts, setDebts] = useState([]);
+  const [loading, setLoading] = useState(true);
+  
+  // Para ver imagen en grande
+  const [selectedReceipt, setSelectedReceipt] = useState(null);
+
+  useEffect(() => {
+    fetchDetail();
+  }, [expenseId]);
+
+  const fetchDetail = async () => {
+    setLoading(true);
+    try {
+      // Obtener el gasto
+      const expenseRef = doc(db, 'expenses', expenseId);
+      const expenseSnap = await getDoc(expenseRef);
+      if (expenseSnap.exists()) {
+        setExpense({ id: expenseSnap.id, ...expenseSnap.data() });
+      }
+
+      // Obtener las deudas de este gasto
+      const q = query(collection(db, 'debts'), where('expenseId', '==', expenseId));
+      const debtSnap = await getDocs(q);
+      const debtsData = debtSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+      
+      // Ordenar: En revisión primero, luego pendientes, luego pagados
+      debtsData.sort((a, b) => {
+        if (a.status === 'review' && b.status !== 'review') return -1;
+        if (a.status !== 'review' && b.status === 'review') return 1;
+        if (a.status === 'pending' && b.status === 'paid') return -1;
+        if (a.status === 'paid' && b.status === 'pending') return 1;
+        return 0;
+      });
+      
+      setDebts(debtsData);
+    } catch (error) {
+      console.error("Error fetching expense details:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleApprovePayment = async (debtId) => {
+    try {
+      // 1. Actualizar deuda a 'paid'
+      const debtRef = doc(db, 'debts', debtId);
+      await updateDoc(debtRef, {
+        status: 'paid',
+        approvedAt: new Date().toISOString()
+      });
+
+      // 2. Aumentar el contador del gasto
+      const expenseRef = doc(db, 'expenses', expenseId);
+      const currentPaidCount = expense.paidCount || 0;
+      await updateDoc(expenseRef, {
+        paidCount: currentPaidCount + 1
+      });
+
+      // Recargar datos para mostrar los cambios
+      fetchDetail();
+    } catch (error) {
+      console.error("Error al aprobar pago:", error);
+      alert("Hubo un error al aprobar el pago.");
+    }
+  };
+
+  const handleRejectPayment = async (debtId) => {
+    if(!window.confirm('¿Seguro que deseas rechazar este comprobante? El apoderado tendrá que subir uno nuevo.')) return;
+    try {
+      const debtRef = doc(db, 'debts', debtId);
+      await updateDoc(debtRef, {
+        status: 'pending',
+        receiptUrl: null, // Borramos la ref al comprobante (opcional, pero útil)
+        paidAmount: 0
+      });
+      fetchDetail();
+    } catch (error) {
+      console.error("Error al rechazar pago:", error);
+    }
+  };
+
+  const formatMoney = (amount) => {
+    return new Intl.NumberFormat('es-CL', { style: 'currency', currency: 'CLP' }).format(amount);
+  };
+
+  if (loading) {
+    return <div style={{ textAlign: 'center', padding: '2rem' }}>Cargando detalle...</div>;
+  }
+
+  if (!expense) {
+    return (
+      <div style={{ textAlign: 'center', padding: '2rem' }}>
+        <p>No se encontró la cuota.</p>
+        <button onClick={onBack} className="btn btn-outline">Volver</button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="animate-fade-in">
+      {/* Modal de Imagen */}
+      {selectedReceipt && (
+        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.9)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: '2rem', flexDirection: 'column' }}>
+           <img 
+             src={selectedReceipt} 
+             alt="Comprobante" 
+             style={{ maxWidth: '100%', maxHeight: '80vh', objectFit: 'contain', borderRadius: 'var(--radius-sm)' }} 
+           />
+           <div style={{ marginTop: '2rem', display: 'flex', gap: '1rem' }}>
+              <a href={selectedReceipt} target="_blank" rel="noopener noreferrer" className="btn btn-primary">
+                <Download size={18} /> Abrir Original
+              </a>
+              <button onClick={() => setSelectedReceipt(null)} className="btn btn-outline">Cerrar</button>
+           </div>
+        </div>
+      )}
+
+      <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginBottom: '2rem' }}>
+        <button onClick={onBack} className="btn btn-outline" style={{ padding: '0.5rem' }}>
+          <ArrowLeft size={18} />
+        </button>
+        <h3 style={{ margin: 0 }}>Detalle de Cuota</h3>
+      </div>
+
+      {/* Resumen del Gasto */}
+      <div className="glass-panel" style={{ padding: '2rem', marginBottom: '2rem', display: 'flex', justifyContent: 'space-between', flexWrap: 'wrap', gap: '2rem' }}>
+        <div>
+          <h2 style={{ color: 'var(--primary)', marginBottom: '0.5rem' }}>{expense.title}</h2>
+          <p style={{ color: 'var(--text-muted)' }}>Emitido el: {expense.date}</p>
+        </div>
+        <div style={{ textAlign: 'right' }}>
+          <p style={{ fontSize: '1.25rem', fontWeight: 'bold' }}>Total a recaudar: {formatMoney(expense.totalAmount)}</p>
+          <p style={{ fontSize: '1.1rem', color: expense.paidCount === expense.studentsCount ? 'var(--success)' : 'var(--warning)' }}>
+            {expense.paidCount || 0} de {expense.studentsCount} cuotas pagadas
+          </p>
+        </div>
+      </div>
+
+      <h4 style={{ marginBottom: '1.5rem' }}>Estado de los Alumnos</h4>
+
+      <div className="glass-panel" style={{ overflowX: 'auto' }}>
+        <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
+          <thead>
+            <tr style={{ borderBottom: '1px solid var(--border-color)', backgroundColor: 'rgba(255,255,255,0.03)' }}>
+              <th style={{ padding: '1rem' }}>Alumno</th>
+              <th style={{ padding: '1rem' }}>Apoderado</th>
+              <th style={{ padding: '1rem' }}>Estado</th>
+              <th style={{ padding: '1rem' }}>Monto Informado</th>
+              <th style={{ padding: '1rem' }}>Comprobante</th>
+              <th style={{ padding: '1rem' }}>Acciones</th>
+            </tr>
+          </thead>
+          <tbody>
+            {debts.map(debt => (
+              <tr key={debt.id} style={{ borderBottom: '1px solid var(--border-color)' }}>
+                <td style={{ padding: '1rem', fontWeight: '500' }}>{debt.studentName}</td>
+                <td style={{ padding: '1rem', color: 'var(--text-muted)' }}>{debt.apoderadoEmail || 'Sin apoderado'}</td>
+                
+                <td style={{ padding: '1rem' }}>
+                  {debt.status === 'paid' && (
+                    <span style={{ padding: '0.25rem 0.75rem', borderRadius: '1rem', fontSize: '0.85rem', backgroundColor: 'rgba(16, 185, 129, 0.2)', color: 'var(--success)', display: 'inline-flex', alignItems: 'center', gap: '0.3rem' }}>
+                      <CheckCircle size={14}/> Pagado
+                    </span>
+                  )}
+                  {debt.status === 'review' && (
+                    <span style={{ padding: '0.25rem 0.75rem', borderRadius: '1rem', fontSize: '0.85rem', backgroundColor: 'rgba(245, 158, 11, 0.2)', color: 'var(--warning)', display: 'inline-flex', alignItems: 'center', gap: '0.3rem' }}>
+                      <Clock size={14}/> En Revisión
+                    </span>
+                  )}
+                  {debt.status === 'pending' && (
+                    <span style={{ padding: '0.25rem 0.75rem', borderRadius: '1rem', fontSize: '0.85rem', backgroundColor: 'rgba(239, 68, 68, 0.2)', color: 'var(--danger)', display: 'inline-flex', alignItems: 'center', gap: '0.3rem' }}>
+                      <XCircle size={14}/> Pendiente
+                    </span>
+                  )}
+                </td>
+
+                <td style={{ padding: '1rem' }}>
+                  {debt.paidAmount ? formatMoney(debt.paidAmount) : '-'}
+                </td>
+
+                <td style={{ padding: '1rem' }}>
+                  {debt.receiptUrl ? (
+                    <button 
+                      onClick={() => setSelectedReceipt(debt.receiptUrl)} 
+                      className="btn btn-outline" 
+                      style={{ padding: '0.3rem 0.6rem', fontSize: '0.85rem' }}
+                    >
+                      <FileText size={14}/> Ver Archivo
+                    </button>
+                  ) : '-'}
+                </td>
+
+                <td style={{ padding: '1rem' }}>
+                  {debt.status === 'review' ? (
+                    <div style={{ display: 'flex', gap: '0.5rem' }}>
+                      <button 
+                        onClick={() => handleApprovePayment(debt.id)}
+                        className="btn btn-primary" 
+                        style={{ padding: '0.3rem 0.6rem', fontSize: '0.85rem', backgroundColor: 'var(--success)' }}
+                        title="Aprobar Pago"
+                      >
+                        <CheckCircle size={16} /> Aprobar
+                      </button>
+                      <button 
+                        onClick={() => handleRejectPayment(debt.id)}
+                        className="btn btn-outline" 
+                        style={{ padding: '0.3rem 0.6rem', fontSize: '0.85rem', color: 'var(--danger)', borderColor: 'rgba(239, 68, 68, 0.3)' }}
+                        title="Rechazar Comprobante"
+                      >
+                        <XCircle size={16} /> Rechazar
+                      </button>
+                    </div>
+                  ) : (
+                    <span style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>
+                       {debt.status === 'paid' ? 'Procesado' : 'Esperando pago'}
+                    </span>
+                  )}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+        {debts.length === 0 && (
+          <div style={{ padding: '2rem', textAlign: 'center', color: 'var(--text-muted)' }}>
+            No hay detalles para mostrar.
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};
+
+export default ExpenseDetail;

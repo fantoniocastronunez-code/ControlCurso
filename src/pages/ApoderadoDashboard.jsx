@@ -1,37 +1,56 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { LogOut, CheckCircle, Clock, Search, UserPlus } from 'lucide-react';
-import { db } from '../firebase/config';
+import { LogOut, CheckCircle, Clock, Search, UserPlus, Upload, AlertCircle } from 'lucide-react';
+import { db, storage } from '../firebase/config';
 import { collection, query, where, getDocs, doc, updateDoc } from 'firebase/firestore';
+import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 
 const ApoderadoDashboard = () => {
   const { user, logout } = useAuth();
   
   const [myStudents, setMyStudents] = useState([]);
+  const [debts, setDebts] = useState([]);
   const [loading, setLoading] = useState(true);
   
   // States for search
   const [lastNameSearch, setLastNameSearch] = useState('');
   const [searchResults, setSearchResults] = useState([]);
   const [hasSearched, setHasSearched] = useState(false);
-  const [searchMessage, setSearchMessage] = useState('');
+  
+  // Payment Modal States
+  const [payingDebt, setPayingDebt] = useState(null);
+  const [paidAmount, setPaidAmount] = useState('');
+  const [receiptFile, setReceiptFile] = useState(null);
+  const [uploading, setUploading] = useState(false);
 
   useEffect(() => {
-    fetchMyStudents();
+    fetchData();
   }, [user]);
 
-  const fetchMyStudents = async () => {
+  const fetchData = async () => {
     setLoading(true);
     try {
-      const q = query(
-        collection(db, 'students'), 
-        where('apoderadoEmail', '==', user.email)
-      );
-      const snapshot = await getDocs(q);
-      const students = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      // 1. Fetch Students
+      const qStudents = query(collection(db, 'students'), where('apoderadoEmail', '==', user.email));
+      const snapStudents = await getDocs(qStudents);
+      const students = snapStudents.docs.map(doc => ({ id: doc.id, ...doc.data() }));
       setMyStudents(students);
+
+      // 2. Fetch Debts
+      if (students.length > 0) {
+        const qDebts = query(collection(db, 'debts'), where('apoderadoEmail', '==', user.email));
+        const snapDebts = await getDocs(qDebts);
+        const fetchedDebts = snapDebts.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        // Ordenar: pendientes primero
+        fetchedDebts.sort((a, b) => {
+          if (a.status === 'pending' && b.status !== 'pending') return -1;
+          if (a.status !== 'pending' && b.status === 'pending') return 1;
+          return new Date(b.createdAt) - new Date(a.createdAt);
+        });
+        setDebts(fetchedDebts);
+      }
     } catch (error) {
-      console.error("Error fetching my students:", error);
+      console.error("Error fetching data:", error);
     } finally {
       setLoading(false);
     }
@@ -42,50 +61,70 @@ const ApoderadoDashboard = () => {
     if (!lastNameSearch.trim()) return;
     
     setHasSearched(true);
-    setSearchMessage('Buscando...');
-    
     try {
-      // Firebase no soporta una busqueda 'LIKE' de SQL facilmente para substrings en medio del nombre.
-      // Para un curso con poca gente, es totalmente seguro traer todos y filtrar en el frontend.
       const snapshot = await getDocs(collection(db, 'students'));
       const allStudents = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-      
       const term = lastNameSearch.toLowerCase().trim();
       
-      const filtered = allStudents.filter(s => {
-        // Filtrar aquellos cuyo nombre contenga el texto buscado y que no tengan un apoderado aún
-        // (Opcional: permitir reclamar si ya tiene apoderado? Mejor no por ahora, o sí si queremos sobreescribir)
-        // Para este caso, mostraremos todos los que coincidan con el apellido
-        return s.name.toLowerCase().includes(term);
-      });
-      
+      const filtered = allStudents.filter(s => s.name.toLowerCase().includes(term));
       setSearchResults(filtered);
-      if (filtered.length === 0) {
-        setSearchMessage('No se encontraron alumnos con ese apellido.');
-      } else {
-        setSearchMessage('');
-      }
     } catch (error) {
       console.error("Error searching students:", error);
-      setSearchMessage('Hubo un error al buscar.');
     }
   };
 
   const handleLinkStudent = async (studentId) => {
     try {
       const studentRef = doc(db, 'students', studentId);
-      await updateDoc(studentRef, {
-        apoderadoEmail: user.email
-      });
-      // Refrescar mis alumnos
-      fetchMyStudents();
-      // Limpiar búsqueda
+      await updateDoc(studentRef, { apoderadoEmail: user.email });
+      fetchData();
       setLastNameSearch('');
       setSearchResults([]);
       setHasSearched(false);
     } catch (error) {
       console.error("Error linking student:", error);
       alert('Hubo un error al vincular el alumno.');
+    }
+  };
+
+  const handlePaymentSubmit = async (e) => {
+    e.preventDefault();
+    if (!receiptFile || !paidAmount) {
+      alert("Debes ingresar el monto y adjuntar un comprobante.");
+      return;
+    }
+
+    setUploading(true);
+    try {
+      // Subir archivo a Storage
+      const fileExt = receiptFile.name.split('.').pop();
+      const fileName = `receipts/${payingDebt.id}_${Date.now()}.${fileExt}`;
+      const storageRef = ref(storage, fileName);
+      
+      await uploadBytes(storageRef, receiptFile);
+      const downloadURL = await getDownloadURL(storageRef);
+
+      // Actualizar la deuda en Firestore
+      const debtRef = doc(db, 'debts', payingDebt.id);
+      await updateDoc(debtRef, {
+        status: 'review', // Pasa a revisión del admin
+        paidAmount: parseFloat(paidAmount),
+        receiptUrl: downloadURL,
+        paidAt: new Date().toISOString()
+      });
+
+      // Refrescar localmente
+      alert("Comprobante enviado con éxito. Está pendiente de revisión por el administrador.");
+      setPayingDebt(null);
+      setReceiptFile(null);
+      setPaidAmount('');
+      fetchData();
+
+    } catch (error) {
+      console.error("Error al subir comprobante:", error);
+      alert("Hubo un error al procesar tu pago. Asegúrate de que las reglas de Firebase Storage permitan subidas.");
+    } finally {
+      setUploading(false);
     }
   };
 
@@ -105,6 +144,55 @@ const ApoderadoDashboard = () => {
           Salir
         </button>
       </header>
+
+      {/* MODAL DE PAGO */}
+      {payingDebt && (
+        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.7)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: '1rem' }}>
+          <div className="glass-panel" style={{ width: '100%', maxWidth: '500px', padding: '2rem', backgroundColor: 'var(--bg-main)' }}>
+            <h3 style={{ marginBottom: '1rem' }}>Informar Pago</h3>
+            <p style={{ color: 'var(--text-muted)', marginBottom: '1.5rem' }}>
+              Estás reportando el pago para <strong>{payingDebt.title}</strong> del alumno <strong>{payingDebt.studentName}</strong>. 
+              El monto esperado es de <strong>${payingDebt.amount}</strong>.
+            </p>
+
+            <form onSubmit={handlePaymentSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+              <div className="input-group" style={{ marginBottom: 0 }}>
+                <label className="input-label">Monto Transferido ($)</label>
+                <input 
+                  type="number" 
+                  required
+                  min="1"
+                  className="input-field" 
+                  value={paidAmount}
+                  onChange={(e) => setPaidAmount(e.target.value)}
+                  placeholder="Ej. 15000"
+                />
+              </div>
+
+              <div className="input-group" style={{ marginBottom: 0 }}>
+                <label className="input-label">Comprobante (Imagen o PDF)</label>
+                <input 
+                  type="file" 
+                  required
+                  accept="image/*,.pdf"
+                  className="input-field" 
+                  style={{ padding: '0.5rem' }}
+                  onChange={(e) => setReceiptFile(e.target.files[0])}
+                />
+              </div>
+
+              <div style={{ display: 'flex', gap: '1rem', marginTop: '1rem' }}>
+                <button type="button" onClick={() => setPayingDebt(null)} className="btn btn-outline" style={{ flex: 1 }}>
+                  Cancelar
+                </button>
+                <button type="submit" disabled={uploading} className="btn btn-primary" style={{ flex: 1 }}>
+                  {uploading ? 'Subiendo...' : 'Enviar Comprobante'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
 
       {myStudents.length === 0 ? (
         <div className="glass-panel" style={{ padding: '2rem', marginBottom: '2rem', textAlign: 'center' }}>
@@ -130,74 +218,95 @@ const ApoderadoDashboard = () => {
 
           {hasSearched && (
             <div style={{ marginTop: '2rem', textAlign: 'left' }}>
-              {searchMessage ? (
-                <p style={{ color: 'var(--text-muted)', textAlign: 'center' }}>{searchMessage}</p>
-              ) : (
-                <div style={{ display: 'grid', gap: '1rem' }}>
-                  <h4 style={{ color: 'var(--text-muted)', marginBottom: '0.5rem' }}>Resultados encontrados:</h4>
-                  {searchResults.map(s => (
-                    <div key={s.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '1rem', backgroundColor: 'rgba(255,255,255,0.03)', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-color)' }}>
-                      <div>
-                        <p style={{ fontWeight: '500', fontSize: '1.1rem' }}>{s.name}</p>
-                        <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>
-                          {s.apoderadoEmail ? `(Ya vinculado a ${s.apoderadoEmail})` : 'Sin apoderado vinculado'}
-                        </p>
-                      </div>
-                      <button 
-                        onClick={() => handleLinkStudent(s.id)}
-                        className="btn btn-outline" 
-                        style={{ color: 'var(--success)', borderColor: 'rgba(16,185,129,0.3)' }}
-                      >
-                        <UserPlus size={18} />
-                        Soy su apoderado
-                      </button>
+              <div style={{ display: 'grid', gap: '1rem' }}>
+                <h4 style={{ color: 'var(--text-muted)', marginBottom: '0.5rem' }}>Resultados encontrados:</h4>
+                {searchResults.map(s => (
+                  <div key={s.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '1rem', backgroundColor: 'rgba(255,255,255,0.03)', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-color)' }}>
+                    <div>
+                      <p style={{ fontWeight: '500', fontSize: '1.1rem' }}>{s.name}</p>
+                      <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>
+                        {s.apoderadoEmail ? `(Ya vinculado a ${s.apoderadoEmail})` : 'Sin apoderado vinculado'}
+                      </p>
                     </div>
-                  ))}
-                </div>
-              )}
+                    <button 
+                      onClick={() => handleLinkStudent(s.id)}
+                      className="btn btn-outline" 
+                      style={{ color: 'var(--success)', borderColor: 'rgba(16,185,129,0.3)' }}
+                    >
+                      <UserPlus size={18} /> Soy su apoderado
+                    </button>
+                  </div>
+                ))}
+                {searchResults.length === 0 && <p>No se encontraron alumnos.</p>}
+              </div>
             </div>
           )}
         </div>
       ) : (
         <>
-          {myStudents.map(student => (
-            <div key={student.id} className="glass-panel" style={{ padding: '2rem', marginBottom: '2rem' }}>
-              <h3 style={{ marginBottom: '1.5rem', color: 'var(--primary)' }}>Estado de Pagos: {student.name}</h3>
-              
-              <div style={{ display: 'grid', gap: '1rem' }}>
-                {/* Por ahora estos datos son fijos como demostración del diseño */}
-                {/* Pago Completado */}
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '1rem', backgroundColor: 'rgba(255,255,255,0.03)', borderRadius: 'var(--radius-md)', borderLeft: '4px solid var(--success)' }}>
-                  <div>
-                    <p style={{ fontWeight: '500' }}>Cuota Septiembre (Mock)</p>
-                    <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>Pagado el 02 de Septiembre, 2026</p>
+          {myStudents.map(student => {
+            const studentDebts = debts.filter(d => d.studentId === student.id);
+            
+            return (
+              <div key={student.id} className="glass-panel" style={{ padding: '2rem', marginBottom: '2rem' }}>
+                <h3 style={{ marginBottom: '1.5rem', color: 'var(--primary)' }}>Estado de Pagos: {student.name}</h3>
+                
+                {studentDebts.length === 0 ? (
+                  <p style={{ color: 'var(--text-muted)' }}>No hay cobros registrados para este alumno.</p>
+                ) : (
+                  <div style={{ display: 'grid', gap: '1rem' }}>
+                    {studentDebts.map(debt => (
+                      <div key={debt.id} style={{ 
+                        display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '1rem', padding: '1rem', backgroundColor: 'rgba(255,255,255,0.03)', borderRadius: 'var(--radius-md)', 
+                        borderLeft: `4px solid ${debt.status === 'paid' ? 'var(--success)' : debt.status === 'review' ? 'var(--warning)' : 'var(--danger)'}` 
+                      }}>
+                        <div>
+                          <p style={{ fontWeight: '500', fontSize: '1.1rem', marginBottom: '0.2rem' }}>{debt.title}</p>
+                          <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>
+                            Monto de la cuota: <strong>${debt.amount}</strong> • Emitida: {debt.date}
+                          </p>
+                        </div>
+                        
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+                          {debt.status === 'pending' && (
+                            <>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: 'var(--danger)', fontWeight: '500' }}>
+                                <AlertCircle size={18} /> Por Pagar
+                              </div>
+                              <button 
+                                onClick={() => {
+                                  setPayingDebt(debt);
+                                  setPaidAmount(debt.amount.toString());
+                                }} 
+                                className="btn btn-primary" style={{ padding: '0.5rem 1rem' }}
+                              >
+                                <Upload size={16} /> Subir Comprobante
+                              </button>
+                            </>
+                          )}
+                          
+                          {debt.status === 'review' && (
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: 'var(--warning)', fontWeight: '500', padding: '0.5rem 1rem', backgroundColor: 'rgba(245, 158, 11, 0.1)', borderRadius: 'var(--radius-sm)' }}>
+                              <Clock size={18} /> En revisión (Comprobante enviado)
+                            </div>
+                          )}
+                          
+                          {debt.status === 'paid' && (
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: 'var(--success)', fontWeight: '500', padding: '0.5rem 1rem', backgroundColor: 'rgba(16, 185, 129, 0.1)', borderRadius: 'var(--radius-sm)' }}>
+                              <CheckCircle size={18} /> Pagado
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    ))}
                   </div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: 'var(--success)' }}>
-                    <CheckCircle size={18} />
-                    <span style={{ fontWeight: '500' }}>Al día</span>
-                  </div>
-                </div>
-
-                {/* Pago Pendiente */}
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '1rem', backgroundColor: 'rgba(255,255,255,0.03)', borderRadius: 'var(--radius-md)', borderLeft: '4px solid var(--warning)' }}>
-                  <div>
-                    <p style={{ fontWeight: '500' }}>Cuota Octubre (Mock)</p>
-                    <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>Vence el 05 de Octubre, 2026</p>
-                  </div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: 'var(--warning)' }}>
-                    <Clock size={18} />
-                    <span style={{ fontWeight: '500' }}>Pendiente</span>
-                  </div>
-                </div>
+                )}
               </div>
-            </div>
-          ))}
+            );
+          })}
 
-          {/* Botón para vincular a otro hijo si tienen más de uno */}
           <div style={{ textAlign: 'center', marginBottom: '2rem' }}>
-             <button onClick={() => {
-                setMyStudents([]); // Truco temporal para forzar la vista de búsqueda
-             }} className="btn btn-outline" style={{ fontSize: '0.85rem' }}>
+             <button onClick={() => setMyStudents([])} className="btn btn-outline" style={{ fontSize: '0.85rem' }}>
                Vincular a otro alumno
              </button>
           </div>
