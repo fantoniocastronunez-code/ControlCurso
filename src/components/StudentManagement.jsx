@@ -340,71 +340,90 @@ const StudentManagement = ({ onBack }) => {
                 <tr style={{ borderBottom: '1px solid var(--border-color)', backgroundColor: selectedStudent?.id === s.id ? 'rgba(99, 102, 241, 0.05)' : 'transparent' }}>
                   {editingId === s.id ? (
                   <>
-                    <td style={{ padding: '1rem' }}>
+                    <td style={{ padding: '1rem', verticalAlign: 'top' }}>
+                      <label style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>N° Lista</label>
                       <input 
                         type="number" 
                         className="input-field" 
                         value={editData.listNumber} 
                         onChange={(e) => setEditData({...editData, listNumber: e.target.value})}
-                        style={{ padding: '0.4rem', width: '60px' }}
+                        style={{ padding: '0.4rem', width: '60px', marginTop: '0.2rem' }}
                       />
                     </td>
-                    <td style={{ padding: '1rem', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                      <input 
-                        type="text" 
-                        className="input-field" 
-                        placeholder="Nombres"
-                        value={editData.firstName} 
-                        onChange={(e) => setEditData({...editData, firstName: e.target.value})}
-                        style={{ padding: '0.4rem' }}
-                      />
-                      <input 
-                        type="text" 
-                        className="input-field" 
-                        placeholder="A. Paterno"
-                        value={editData.lastNamePaternal} 
-                        onChange={(e) => setEditData({...editData, lastNamePaternal: e.target.value})}
-                        style={{ padding: '0.4rem' }}
-                      />
-                      <input 
-                        type="text" 
-                        className="input-field" 
-                        placeholder="A. Materno"
-                        value={editData.lastNameMaternal} 
-                        onChange={(e) => setEditData({...editData, lastNameMaternal: e.target.value})}
-                        style={{ padding: '0.4rem' }}
-                      />
+                    <td style={{ padding: '1rem', display: 'flex', flexDirection: 'column', gap: '0.5rem', verticalAlign: 'top' }}>
+                      <div>
+                        <label style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Nombres</label>
+                        <input 
+                          type="text" 
+                          className="input-field" 
+                          placeholder="Nombres"
+                          value={editData.firstName} 
+                          onChange={(e) => setEditData({...editData, firstName: e.target.value})}
+                          style={{ padding: '0.4rem', marginTop: '0.2rem', width: '100%' }}
+                        />
+                      </div>
+                      <div>
+                        <label style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>A. Paterno</label>
+                        <input 
+                          type="text" 
+                          className="input-field" 
+                          placeholder="A. Paterno"
+                          value={editData.lastNamePaternal} 
+                          onChange={(e) => setEditData({...editData, lastNamePaternal: e.target.value})}
+                          style={{ padding: '0.4rem', marginTop: '0.2rem', width: '100%' }}
+                        />
+                      </div>
+                      <div>
+                        <label style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>A. Materno</label>
+                        <input 
+                          type="text" 
+                          className="input-field" 
+                          placeholder="A. Materno"
+                          value={editData.lastNameMaternal} 
+                          onChange={(e) => setEditData({...editData, lastNameMaternal: e.target.value})}
+                          style={{ padding: '0.4rem', marginTop: '0.2rem', width: '100%' }}
+                        />
+                      </div>
                     </td>
-                    <td style={{ padding: '1rem', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                      <input 
-                        type="email" 
-                        className="input-field" 
-                        placeholder="Email 1"
-                        value={editData.apoderadoEmail1} 
-                        onChange={(e) => setEditData({...editData, apoderadoEmail1: e.target.value})}
-                        style={{ padding: '0.4rem' }}
-                      />
-                      <input 
-                        type="email" 
-                        className="input-field" 
-                        placeholder="Email 2"
-                        value={editData.apoderadoEmail2} 
-                        onChange={(e) => setEditData({...editData, apoderadoEmail2: e.target.value})}
-                        style={{ padding: '0.4rem' }}
-                      />
+                    <td style={{ padding: '1rem', verticalAlign: 'top' }}>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                        <div>
+                          <label style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Email Apdo. 1</label>
+                          <input 
+                            type="email" 
+                            className="input-field" 
+                            placeholder="Email 1"
+                            value={editData.apoderadoEmail1} 
+                            onChange={(e) => setEditData({...editData, apoderadoEmail1: e.target.value})}
+                            style={{ padding: '0.4rem', marginTop: '0.2rem', width: '100%' }}
+                          />
+                        </div>
+                        <div>
+                          <label style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Email Apdo. 2</label>
+                          <input 
+                            type="email" 
+                            className="input-field" 
+                            placeholder="Email 2"
+                            value={editData.apoderadoEmail2} 
+                            onChange={(e) => setEditData({...editData, apoderadoEmail2: e.target.value})}
+                            style={{ padding: '0.4rem', marginTop: '0.2rem', width: '100%' }}
+                          />
+                        </div>
+                      </div>
                     </td>
-                    <td style={{ padding: '1rem' }}>
+                    <td style={{ padding: '1rem', verticalAlign: 'top' }}>
+                      <label style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Saldo a Favor ($)</label>
                       <input 
                         type="number" 
                         className="input-field" 
                         value={editData.balance} 
                         onChange={(e) => setEditData({...editData, balance: e.target.value})}
-                        style={{ padding: '0.4rem', width: '100px' }}
+                        style={{ padding: '0.4rem', width: '100px', marginTop: '0.2rem' }}
                       />
                     </td>
-                    <td style={{ padding: '1rem' }}>
-                      <div style={{ display: 'flex', gap: '0.5rem' }}>
-                        <button onClick={handleSaveEdit} className="btn btn-outline" style={{ padding: '0.4rem 0.75rem', color: 'var(--success)', borderColor: 'rgba(16, 185, 129, 0.3)', gap: '0.5rem', display: 'flex', alignItems: 'center' }}>
+                    <td style={{ padding: '1rem', verticalAlign: 'top' }}>
+                      <div style={{ display: 'flex', gap: '0.5rem', marginTop: '1.2rem' }}>
+                        <button onClick={handleSaveEdit} className="btn btn-primary" style={{ padding: '0.4rem 0.75rem', gap: '0.5rem', display: 'flex', alignItems: 'center' }}>
                           <Save size={16} /> Guardar
                         </button>
                         <button onClick={cancelEditing} className="btn btn-outline" style={{ padding: '0.4rem 0.75rem', gap: '0.5rem', display: 'flex', alignItems: 'center' }}>

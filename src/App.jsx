@@ -11,7 +11,12 @@ import './App.css';
 const ProtectedRoute = ({ children, allowedRoles }) => {
   const { user, role, loading } = useAuth();
   
-  if (loading) return <div className="loading-screen">Cargando...</div>;
+  if (loading) return (
+    <div className="loading-screen" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100vh', backgroundColor: 'var(--bg-color)' }}>
+      <img src="/LOGOAPPCURSO.JPG" alt="Cargando" style={{ width: '120px', height: '120px', borderRadius: '50%', marginBottom: '1rem', objectFit: 'cover' }} className="animate-pulse" />
+      <h2 style={{ color: 'var(--primary)', margin: 0 }}>Cargando App...</h2>
+    </div>
+  );
   
   if (!user) return <Navigate to="/login" replace />;
   

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { db } from '../firebase/config';
-import { collection, getDocs, doc, setDoc } from 'firebase/firestore';
+import { collection, getDocs, doc, setDoc, updateDoc } from 'firebase/firestore';
 import { ArrowLeft, PlusCircle, CheckCircle } from 'lucide-react';
 import { useModal } from '../context/ModalContext';
 import { formatStudentName } from '../utils/nameUtils';
@@ -17,6 +17,7 @@ const ExpenseManagement = ({ onBack }) => {
   const [calculationMode, setCalculationMode] = useState('divide');
   const [selectedStudents, setSelectedStudents] = useState(new Set());
   const [customAmounts, setCustomAmounts] = useState({});
+  const [balanceToUse, setBalanceToUse] = useState({});
   
   const [funds, setFunds] = useState([]);
   const [selectedFundId, setSelectedFundId] = useState('');
@@ -142,18 +143,67 @@ const ExpenseManagement = ({ onBack }) => {
         
         const finalStudentAmount = calculationMode === 'custom' ? parseFloat(customAmounts[studentId]) : amountPerStudent;
         
+        let status = 'pending';
+        let paidAmount = 0;
+        let paymentMethod = null;
+        let approvedAt = null;
+
+        const requestedBalance = parseFloat(balanceToUse[studentId]) || 0;
+        if (requestedBalance > 0 && student.balance > 0) {
+            // Cap the balance used to the final debt amount, and to what the student actually has
+            const amountToUse = Math.min(requestedBalance, finalStudentAmount, student.balance);
+            if (amountToUse > 0) {
+                paidAmount = amountToUse;
+                paymentMethod = 'balance';
+                approvedAt = new Date().toISOString();
+                
+                if (amountToUse >= finalStudentAmount) {
+                    status = 'paid';
+                } else {
+                    status = 'partial';
+                }
+
+                // Deduct from student
+                const studentRef = doc(db, 'students', student.id);
+                await updateDoc(studentRef, {
+                    balance: student.balance - amountToUse
+                });
+            }
+        }
+        
         await setDoc(debtRef, {
           expenseId,
           studentId,
           studentName: student.name,
           apoderadoEmails: student.apoderadoEmails || (student.apoderadoEmail ? [student.apoderadoEmail] : []),
           amount: finalStudentAmount,
-          status: 'pending', // pending, review, paid
+          status, // pending, review, paid, partial
+          paidAmount,
+          paymentMethod,
+          approvedAt,
           title,
           date,
           fundId: selectedFundId,
           createdAt: new Date().toISOString()
         });
+      }
+
+      // Re-calculate how many were fully paid to update the expense record
+      let fullyPaidCount = 0;
+      for (const studentId of selectedStudents) {
+          const finalStudentAmount = calculationMode === 'custom' ? parseFloat(customAmounts[studentId]) : amountPerStudent;
+          const requestedBalance = parseFloat(balanceToUse[studentId]) || 0;
+          const student = students.find(s => s.id === studentId);
+          if (requestedBalance > 0 && student && student.balance > 0) {
+              const amountToUse = Math.min(requestedBalance, finalStudentAmount, student.balance);
+              if (amountToUse >= finalStudentAmount) fullyPaidCount++;
+          }
+      }
+      
+      if (fullyPaidCount > 0) {
+          await updateDoc(expenseRef, {
+              paidCount: fullyPaidCount
+          });
       }
 
       setMessage('Cuota generada y enviada a los apoderados con éxito.');
@@ -323,6 +373,30 @@ const ExpenseManagement = ({ onBack }) => {
                   />
                 )}
               </div>
+              {selectedStudents.has(student.id) && student.balance > 0 && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginTop: '0.5rem', marginLeft: '2.5rem', backgroundColor: 'rgba(16, 185, 129, 0.05)', padding: '0.5rem', borderRadius: 'var(--radius-sm)' }}>
+                  <span style={{ fontSize: '0.8rem', color: 'var(--success)' }}>Saldo a favor: <strong>${student.balance}</strong></span>
+                  <div style={{ height: '15px', width: '1px', backgroundColor: 'rgba(255,255,255,0.1)' }}></div>
+                  <label style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Usar para pagar:</label>
+                  <input 
+                    type="number"
+                    min="0"
+                    max={student.balance}
+                    className="input-field"
+                    placeholder="$"
+                    style={{ width: '80px', padding: '0.2rem 0.5rem', fontSize: '0.85rem' }}
+                    value={balanceToUse[student.id] || ''}
+                    onChange={(e) => {
+                        const val = Math.min(Number(e.target.value), student.balance);
+                        setBalanceToUse({...balanceToUse, [student.id]: val || ''});
+                    }}
+                  />
+                  <button type="button" onClick={() => setBalanceToUse({...balanceToUse, [student.id]: student.balance})} className="btn btn-outline" style={{ padding: '0.2rem 0.5rem', fontSize: '0.75rem', borderColor: 'var(--success)', color: 'var(--success)' }}>
+                    Todo
+                  </button>
+                </div>
+              )}
+            </div>
             ))}
             {students.length === 0 && (
               <p style={{ color: 'var(--text-muted)' }}>No hay alumnos registrados aún.</p>

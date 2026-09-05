@@ -58,7 +58,7 @@ const Login = () => {
         
         <div style={{ marginBottom: '2rem' }}>
           <img 
-            src="/logocolegio.jpg" 
+            src="/LOGOAPPCURSO.JPG" 
             alt="Logo Colegio" 
             style={{ 
               width: '100px', 

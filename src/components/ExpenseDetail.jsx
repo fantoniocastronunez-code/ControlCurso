@@ -66,32 +66,55 @@ const ExpenseDetail = ({ expenseId, onBack }) => {
   const processPayment = async (debtId, method, defaultAmount, isApproval = false) => {
     const debtToPay = debts.find(d => d.id === debtId);
     
-    // Suggested amount: If manual, default to the full amount. If approval, use what the apoderado reported.
-    const suggestedAmount = isApproval ? (debtToPay.paidAmount || debtToPay.amount) : debtToPay.amount;
+    let finalTotalPaid = 0;
 
-    const amountStr = await showPrompt(
-      `Confirma el MONTO TOTAL PAGADO HASTA AHORA por este alumno:\n(Monto total a cobrar: $${debtToPay.amount})`, 
-      suggestedAmount
-    );
-    
-    if (amountStr === null) return;
-    
-    const totalPaid = parseFloat(amountStr);
-    if (isNaN(totalPaid) || totalPaid <= 0) {
-      await showAlert("Monto inválido.");
-      return;
+    if (isApproval) {
+      // En aprobaciones, el apoderado ya subió un comprobante y reportó un monto que reemplaza al actual (o es el primero).
+      const suggestedAmount = debtToPay.paidAmount || debtToPay.amount;
+      const amountStr = await showPrompt(
+        `Confirma el MONTO TOTAL PAGADO en este comprobante:\n(Monto a cobrar: $${debtToPay.amount})`, 
+        suggestedAmount
+      );
+      if (amountStr === null) return;
+      const approvedAmount = parseFloat(amountStr);
+      if (isNaN(approvedAmount) || approvedAmount <= 0) {
+        await showAlert("Monto inválido.");
+        return;
+      }
+      finalTotalPaid = approvedAmount;
+    } else {
+      // Pago manual (Efectivo/Transferencia) reportado por el admin.
+      const currentPaid = debtToPay.paidAmount || 0;
+      const remaining = debtToPay.amount - currentPaid;
+      
+      const amountStr = await showPrompt(
+        currentPaid > 0 
+          ? `Este alumno ya ha pagado $${currentPaid}.\nIngresa el MONTO A SUMAR (Restante para el total: $${remaining}):`
+          : `Ingresa el monto pagado (Total a cobrar: $${debtToPay.amount}):`, 
+        remaining > 0 ? remaining : 0
+      );
+      
+      if (amountStr === null) return;
+      const addedAmount = parseFloat(amountStr);
+      if (isNaN(addedAmount) || addedAmount <= 0) {
+        await showAlert("Monto inválido. Debe ser mayor a 0.");
+        return;
+      }
+      
+      // Sumamos al monto ya pagado
+      finalTotalPaid = currentPaid + addedAmount;
     }
 
     try {
       const debtRef = doc(db, 'debts', debtId);
       
       let newStatus = 'pending';
-      if (totalPaid >= debtToPay.amount) newStatus = 'paid';
-      else if (totalPaid > 0) newStatus = 'partial';
+      if (finalTotalPaid >= debtToPay.amount) newStatus = 'paid';
+      else if (finalTotalPaid > 0) newStatus = 'partial';
 
       await updateDoc(debtRef, {
         status: newStatus,
-        paidAmount: totalPaid,
+        paidAmount: finalTotalPaid,
         paymentMethod: method,
         approvedAt: new Date().toISOString()
       });
@@ -213,12 +236,15 @@ const ExpenseDetail = ({ expenseId, onBack }) => {
     const debtToPay = debts.find(d => d.id === debtId);
     const student = students.find(s => s.name === debtToPay.studentName);
     
-    if (!student || !student.balance || student.balance < debtToPay.amount) {
-      await showAlert("El alumno no tiene saldo suficiente a favor.");
+    const currentPaid = debtToPay.paidAmount || 0;
+    const remaining = debtToPay.amount - currentPaid;
+
+    if (!student || !student.balance || student.balance < remaining) {
+      await showAlert(`El alumno no tiene saldo suficiente a favor. Necesita ${formatMoney(remaining)} pero tiene ${formatMoney(student.balance || 0)}.`);
       return;
     }
 
-    if (!(await showConfirm(`¿Usar ${formatMoney(debtToPay.amount)} del saldo a favor de ${student.name}? Le quedarán ${formatMoney(student.balance - debtToPay.amount)} a favor.`))) return;
+    if (!(await showConfirm(`¿Usar ${formatMoney(remaining)} del saldo a favor de ${student.name}? Le quedarán ${formatMoney(student.balance - remaining)} a favor.`))) return;
     
     setLoading(true);
     try {
@@ -226,7 +252,7 @@ const ExpenseDetail = ({ expenseId, onBack }) => {
       const debtRef = doc(db, 'debts', debtId);
       await updateDoc(debtRef, {
         status: 'paid',
-        paidAmount: debtToPay.amount,
+        paidAmount: debtToPay.amount, // Queda pagada completa
         paymentMethod: 'balance',
         approvedAt: new Date().toISOString()
       });
@@ -234,7 +260,7 @@ const ExpenseDetail = ({ expenseId, onBack }) => {
       // 2. Descontar saldo del estudiante
       const studentRef = doc(db, 'students', student.id);
       await updateDoc(studentRef, {
-        balance: student.balance - debtToPay.amount
+        balance: student.balance - remaining
       });
 
       // 3. Aumentar el contador del gasto
