@@ -61,7 +61,7 @@ const AdminDashboard = () => {
       expensesList.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
 
       // 3. Cobros (Dinero realmente pagado)
-      const debtsSnap = await getDocs(query(collection(db, 'debts'), where('status', '==', 'paid')));
+      const debtsSnap = await getDocs(query(collection(db, 'debts'), where('status', 'in', ['paid', 'partial'])));
       let collected = 0;
       let cashIn = 0;
       let transferIn = 0;
