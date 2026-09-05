@@ -1,6 +1,7 @@
 import React from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
+import { ModalProvider } from './context/ModalContext';
 import Login from './pages/Login';
 import AdminDashboard from './pages/AdminDashboard';
 import ApoderadoDashboard from './pages/ApoderadoDashboard';
@@ -65,11 +66,13 @@ const AppRoutes = () => {
 
 function App() {
   return (
-    <AuthProvider>
-      <BrowserRouter>
-        <AppRoutes />
-      </BrowserRouter>
-    </AuthProvider>
+    <ModalProvider>
+      <AuthProvider>
+        <BrowserRouter>
+          <AppRoutes />
+        </BrowserRouter>
+      </AuthProvider>
+    </ModalProvider>
   );
 }
 

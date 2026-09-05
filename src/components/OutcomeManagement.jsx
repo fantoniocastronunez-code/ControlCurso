@@ -2,8 +2,10 @@ import React, { useEffect, useState } from 'react';
 import { db } from '../firebase/config';
 import { collection, getDocs, doc, setDoc, deleteDoc } from 'firebase/firestore';
 import { ArrowLeft, CheckCircle, Trash2, TrendingDown } from 'lucide-react';
+import { useModal } from '../context/ModalContext';
 
 const OutcomeManagement = ({ onBack }) => {
+  const { showAlert, showConfirm } = useModal();
   const [outcomes, setOutcomes] = useState([]);
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState('');
@@ -53,7 +55,7 @@ const OutcomeManagement = ({ onBack }) => {
   const handleAddOutcome = async (e) => {
     e.preventDefault();
     if (!newTitle || !newAmount || !selectedFundId) {
-       alert("Faltan datos. Asegúrate de tener al menos un fondo creado.");
+       await showAlert("Faltan datos. Asegúrate de tener al menos un fondo creado.");
        return;
     }
 
@@ -87,7 +89,7 @@ const OutcomeManagement = ({ onBack }) => {
   };
 
   const handleDelete = async (id) => {
-    if (!window.confirm('¿Seguro que deseas eliminar este gasto? El dinero volverá a los fondos.')) return;
+    if (!(await showConfirm('¿Seguro que deseas eliminar este gasto? El dinero volverá a los fondos.'))) return;
     try {
       await deleteDoc(doc(db, 'outcomes', id));
       setOutcomes(outcomes.filter(o => o.id !== id));

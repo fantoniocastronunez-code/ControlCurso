@@ -2,8 +2,11 @@ import React, { useState, useEffect } from 'react';
 import { db } from '../firebase/config';
 import { collection, query, where, getDocs, doc, getDoc, updateDoc, deleteDoc, setDoc } from 'firebase/firestore';
 import { ArrowLeft, CheckCircle, Clock, XCircle, FileText, Download, Trash2, Edit2, Save, X } from 'lucide-react';
+import { formatStudentName } from '../utils/nameUtils';
+import { useModal } from '../context/ModalContext';
 
 const ExpenseDetail = ({ expenseId, onBack }) => {
+  const { showAlert, showConfirm, showPrompt } = useModal();
   const [expense, setExpense] = useState(null);
   const [debts, setDebts] = useState([]);
   const [students, setStudents] = useState([]);
@@ -66,7 +69,7 @@ const ExpenseDetail = ({ expenseId, onBack }) => {
     // Suggested amount: If manual, default to the full amount. If approval, use what the apoderado reported.
     const suggestedAmount = isApproval ? (debtToPay.paidAmount || debtToPay.amount) : debtToPay.amount;
 
-    const amountStr = window.prompt(
+    const amountStr = await showPrompt(
       `Confirma el MONTO TOTAL PAGADO HASTA AHORA por este alumno:\n(Monto total a cobrar: $${debtToPay.amount})`, 
       suggestedAmount
     );
@@ -75,7 +78,7 @@ const ExpenseDetail = ({ expenseId, onBack }) => {
     
     const totalPaid = parseFloat(amountStr);
     if (isNaN(totalPaid) || totalPaid <= 0) {
-      alert("Monto inválido.");
+      await showAlert("Monto inválido.");
       return;
     }
 
@@ -106,7 +109,7 @@ const ExpenseDetail = ({ expenseId, onBack }) => {
       fetchDetail();
     } catch (error) {
       console.error("Error al procesar pago:", error);
-      alert("Hubo un error al procesar el pago.");
+      await showAlert("Hubo un error al procesar el pago.");
     }
   };
 
@@ -114,12 +117,12 @@ const ExpenseDetail = ({ expenseId, onBack }) => {
     const debtToEdit = debts.find(d => d.id === debtId);
     if (!debtToEdit) return;
 
-    const newAmountStr = window.prompt("Ingresa el NUEVO Monto a Cobrar para este alumno:", debtToEdit.amount);
+    const newAmountStr = await showPrompt("Ingresa el NUEVO Monto a Cobrar para este alumno:", debtToEdit.amount);
     if (newAmountStr === null) return;
     
     const newAmount = parseFloat(newAmountStr);
     if (isNaN(newAmount) || newAmount <= 0) {
-      alert("Monto inválido.");
+      await showAlert("Monto inválido.");
       return;
     }
 
@@ -131,7 +134,7 @@ const ExpenseDetail = ({ expenseId, onBack }) => {
       fetchDetail();
     } catch (error) {
       console.error("Error modificando deuda:", error);
-      alert("Error al modificar el monto.");
+      await showAlert("Error al modificar el monto.");
       setLoading(false);
     }
   };
@@ -140,12 +143,12 @@ const ExpenseDetail = ({ expenseId, onBack }) => {
     const debtToEdit = debts.find(d => d.id === debtId);
     if (!debtToEdit) return;
 
-    const newAmountStr = window.prompt("Ingresa el NUEVO Monto Informado (Pagado) para este alumno:", debtToEdit.paidAmount || 0);
+    const newAmountStr = await showPrompt("Ingresa el NUEVO Monto Informado (Pagado) para este alumno:", debtToEdit.paidAmount || 0);
     if (newAmountStr === null) return;
     
     const newAmount = parseFloat(newAmountStr);
     if (isNaN(newAmount) || newAmount < 0) {
-      alert("Monto inválido.");
+      await showAlert("Monto inválido.");
       return;
     }
 
@@ -157,7 +160,7 @@ const ExpenseDetail = ({ expenseId, onBack }) => {
       fetchDetail();
     } catch (error) {
       console.error("Error modificando pago:", error);
-      alert("Error al modificar el monto pagado.");
+      await showAlert("Error al modificar el monto pagado.");
       setLoading(false);
     }
   };
@@ -174,7 +177,7 @@ const ExpenseDetail = ({ expenseId, onBack }) => {
 
   const handleBulkPayment = async (method) => {
     if (selectedDebts.length === 0) return;
-    if (!window.confirm(`¿Registrar pago masivo a ${selectedDebts.length} alumnos en ${method === 'cash' ? 'Efectivo' : 'Transferencia'}?`)) return;
+    if (!(await showConfirm(`¿Registrar pago masivo a ${selectedDebts.length} alumnos en ${method === 'cash' ? 'Efectivo' : 'Transferencia'}?`))) return;
     
     setLoading(true);
     try {
@@ -201,7 +204,7 @@ const ExpenseDetail = ({ expenseId, onBack }) => {
       fetchDetail();
     } catch (error) {
       console.error("Error al registrar pago masivo:", error);
-      alert("Error al registrar los pagos.");
+      await showAlert("Error al registrar los pagos.");
       setLoading(false);
     }
   };
@@ -211,11 +214,11 @@ const ExpenseDetail = ({ expenseId, onBack }) => {
     const student = students.find(s => s.name === debtToPay.studentName);
     
     if (!student || !student.balance || student.balance < debtToPay.amount) {
-      alert("El alumno no tiene saldo suficiente a favor.");
+      await showAlert("El alumno no tiene saldo suficiente a favor.");
       return;
     }
 
-    if(!window.confirm(`¿Usar ${formatMoney(debtToPay.amount)} del saldo a favor de ${student.name}? Le quedarán ${formatMoney(student.balance - debtToPay.amount)} a favor.`)) return;
+    if (!(await showConfirm(`¿Usar ${formatMoney(debtToPay.amount)} del saldo a favor de ${student.name}? Le quedarán ${formatMoney(student.balance - debtToPay.amount)} a favor.`))) return;
     
     setLoading(true);
     try {
@@ -244,7 +247,7 @@ const ExpenseDetail = ({ expenseId, onBack }) => {
       fetchDetail();
     } catch (error) {
       console.error("Error al registrar pago con saldo:", error);
-      alert("Error al registrar el pago.");
+      await showAlert("Error al registrar el pago.");
       setLoading(false);
     }
   };
@@ -263,7 +266,7 @@ const ExpenseDetail = ({ expenseId, onBack }) => {
   };
 
   const handleRejectPayment = async (debtId) => {
-    if(!window.confirm('¿Seguro que deseas rechazar este comprobante? El apoderado tendrá que subir uno nuevo.')) return;
+    if (!(await showConfirm('¿Seguro que deseas rechazar este comprobante? El apoderado tendrá que subir uno nuevo.'))) return;
     try {
       const debtRef = doc(db, 'debts', debtId);
       const debtToReject = debts.find(d => d.id === debtId);
@@ -283,7 +286,7 @@ const ExpenseDetail = ({ expenseId, onBack }) => {
   };
 
   const handleDeleteExpense = async () => {
-    if (!window.confirm('¿Seguro que deseas ELIMINAR esta cuota? Se borrarán también todas las deudas de los alumnos y los pagos ya realizados desaparecerán del balance general.')) return;
+    if (!(await showConfirm('¿Seguro que deseas ELIMINAR esta cuota? Se borrarán también todas las deudas de los alumnos y los pagos ya realizados desaparecerán del balance general.'))) return;
     setLoading(true);
     try {
       // 1. Borrar deudas
@@ -293,11 +296,11 @@ const ExpenseDetail = ({ expenseId, onBack }) => {
       // 2. Borrar cuota
       await deleteDoc(doc(db, 'expenses', expenseId));
       
-      alert('Cuota eliminada correctamente.');
+      await showAlert('Cuota eliminada correctamente.');
       onBack();
     } catch (error) {
       console.error("Error eliminando cuota:", error);
-      alert('Hubo un error al eliminar la cuota.');
+      await showAlert('Hubo un error al eliminar la cuota.');
       setLoading(false);
     }
   };
@@ -332,7 +335,7 @@ const ExpenseDetail = ({ expenseId, onBack }) => {
       fetchDetail();
     } catch (error) {
       console.error("Error editando cuota:", error);
-      alert('Hubo un error al editar la cuota.');
+      await showAlert('Hubo un error al editar la cuota.');
       setLoading(false);
     }
   };
@@ -514,7 +517,12 @@ const ExpenseDetail = ({ expenseId, onBack }) => {
                     />
                   )}
                 </td>
-                <td style={{ padding: '1rem', fontWeight: '500' }}>{debt.studentName}</td>
+                <td style={{ padding: '1rem', fontWeight: '500' }}>
+                  {(() => {
+                    const student = students.find(s => s.id === debt.studentId);
+                    return student ? formatStudentName(student) : debt.studentName;
+                  })()}
+                </td>
                 <td style={{ padding: '1rem', color: 'var(--text-muted)' }}>{debt.apoderadoEmail || 'Sin apoderado'}</td>
                 
                 <td style={{ padding: '1rem' }}>

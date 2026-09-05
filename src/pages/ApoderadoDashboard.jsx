@@ -5,8 +5,11 @@ import { db, storage } from '../firebase/config';
 import { collection, query, where, getDocs, getDoc, doc, updateDoc, setDoc, or } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { useNavigate } from 'react-router-dom';
+import { formatStudentName } from '../utils/nameUtils';
+import { useModal } from '../context/ModalContext';
 
 const ApoderadoDashboard = () => {
+  const { showAlert } = useModal();
   const { user, role, logout } = useAuth();
   const navigate = useNavigate();
   
@@ -109,7 +112,7 @@ const ApoderadoDashboard = () => {
         let emails = data.apoderadoEmails || (data.apoderadoEmail ? [data.apoderadoEmail] : []);
         if (!emails.includes(user.email)) {
           if (emails.length >= 2) {
-            alert('Este alumno ya tiene 2 apoderados vinculados.');
+            await showAlert('Este alumno ya tiene 2 apoderados vinculados.');
             return;
           }
           emails.push(user.email);
@@ -122,7 +125,7 @@ const ApoderadoDashboard = () => {
       }
     } catch (error) {
       console.error("Error linking student:", error);
-      alert('Hubo un error al vincular el alumno.');
+      await showAlert('Hubo un error al vincular el alumno.');
     }
   };
 
@@ -136,7 +139,7 @@ const ApoderadoDashboard = () => {
       fetchData(); // Now fetch students and debts
     } catch (error) {
       console.error("Error saving profile:", error);
-      alert('Hubo un error al guardar tu nombre.');
+      await showAlert('Hubo un error al guardar tu nombre.');
     }
   };
 
@@ -144,7 +147,7 @@ const ApoderadoDashboard = () => {
   const handlePaymentSubmit = async (e) => {
     e.preventDefault();
     if (!receiptFile || !paidAmount) {
-      alert("Debes ingresar el monto y adjuntar un comprobante.");
+      await showAlert("Debes ingresar el monto y adjuntar un comprobante.");
       return;
     }
 
@@ -168,7 +171,7 @@ const ApoderadoDashboard = () => {
       });
 
       // Refrescar localmente
-      alert("Comprobante enviado con éxito. Está pendiente de revisión por el administrador.");
+      await showAlert("Comprobante enviado con éxito. Está pendiente de revisión por el administrador.");
       setPayingDebt(null);
       setReceiptFile(null);
       setPaidAmount('');
@@ -176,7 +179,7 @@ const ApoderadoDashboard = () => {
 
     } catch (error) {
       console.error("Error al subir comprobante:", error);
-      alert("Hubo un error al procesar tu pago. Asegúrate de que las reglas de Firebase Storage permitan subidas.");
+      await showAlert("Hubo un error al procesar tu pago. Asegúrate de que las reglas de Firebase Storage permitan subidas.");
     } finally {
       setUploading(false);
     }
@@ -332,7 +335,7 @@ const ApoderadoDashboard = () => {
                 {searchResults.map(s => (
                   <div key={s.id} style={{ display: 'flex', flexWrap: 'wrap', gap: '1rem', justifyContent: 'space-between', alignItems: 'center', padding: '1rem', backgroundColor: 'rgba(255,255,255,0.03)', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-color)' }}>
                     <div style={{ flex: '1 1 auto', minWidth: '200px' }}>
-                      <p style={{ fontWeight: '500', fontSize: '1.1rem', wordBreak: 'break-word' }}>{s.name}</p>
+                      <p style={{ fontWeight: '500', fontSize: '1.1rem', wordBreak: 'break-word' }}>{formatStudentName(s)}</p>
                       <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>
                         {(s.apoderadoEmails?.length > 0) 
                           ? `(Vinculado a: ${s.apoderadoEmails.join(', ')})` 
@@ -360,7 +363,7 @@ const ApoderadoDashboard = () => {
             
             return (
               <div key={student.id} className="glass-panel" style={{ padding: '2rem', marginBottom: '2rem' }}>
-                <h3 style={{ marginBottom: '1.5rem', color: 'var(--primary)' }}>Estado de Pagos: {student.name}</h3>
+                <h3 style={{ marginBottom: '1.5rem', color: 'var(--primary)' }}>Estado de Pagos: {formatStudentName(student)}</h3>
                 
                 {studentDebts.length === 0 ? (
                   <p style={{ color: 'var(--text-muted)' }}>No hay cobros registrados para este alumno.</p>

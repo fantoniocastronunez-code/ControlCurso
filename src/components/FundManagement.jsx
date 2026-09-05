@@ -2,8 +2,10 @@ import React, { useEffect, useState } from 'react';
 import { db } from '../firebase/config';
 import { collection, getDocs, doc, setDoc, deleteDoc, addDoc } from 'firebase/firestore';
 import { ArrowLeft, CheckCircle, Trash2, Wallet, Plus, ArrowRightLeft, DollarSign } from 'lucide-react';
+import { useModal } from '../context/ModalContext';
 
 const FundManagement = ({ onBack }) => {
+  const { showConfirm } = useModal();
   const [funds, setFunds] = useState([]);
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState('');
@@ -74,7 +76,7 @@ const FundManagement = ({ onBack }) => {
   };
 
   const handleDelete = async (id) => {
-    if (!window.confirm('¿Seguro que deseas eliminar este fondo contable? Esto no borra el dinero, solo la categoría.')) return;
+    if (!(await showConfirm('¿Seguro que deseas eliminar este fondo contable? Esto no borra el dinero, solo la categoría.'))) return;
     try {
       await deleteDoc(doc(db, 'funds', id));
       setFunds(funds.filter(f => f.id !== id));

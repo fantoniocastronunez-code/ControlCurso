@@ -2,8 +2,10 @@ import React, { useState, useEffect } from 'react';
 import { db } from '../firebase/config';
 import { collection, query, where, getDocs, doc, updateDoc, addDoc } from 'firebase/firestore';
 import { ArrowLeft, Bell, AlertTriangle, CheckCircle } from 'lucide-react';
+import { useModal } from '../context/ModalContext';
 
 const DebtorsManagement = ({ onBack }) => {
+  const { showAlert } = useModal();
   const [debtors, setDebtors] = useState({});
   const [loading, setLoading] = useState(true);
   const [notifying, setNotifying] = useState(null); // guardará el email del que está siendo notificado
@@ -52,7 +54,7 @@ const DebtorsManagement = ({ onBack }) => {
 
   const handleNotify = async (email, data) => {
     if (email === 'Sin Apoderado') {
-      alert('No puedes notificar a un alumno sin apoderado vinculado.');
+      await showAlert('No puedes notificar a un alumno sin apoderado vinculado.');
       return;
     }
     
@@ -95,7 +97,7 @@ const DebtorsManagement = ({ onBack }) => {
 
     } catch (error) {
       console.error("Error notifying:", error);
-      alert('Hubo un error al enviar la notificación.');
+      await showAlert('Hubo un error al enviar la notificación.');
     } finally {
       setNotifying(null);
     }

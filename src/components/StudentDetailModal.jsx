@@ -2,8 +2,11 @@ import React, { useState, useEffect } from 'react';
 import { db } from '../firebase/config';
 import { collection, query, where, getDocs, addDoc } from 'firebase/firestore';
 import { X, User, AlertCircle, CheckCircle, Clock, Share2 } from 'lucide-react';
+import { formatStudentName } from '../utils/nameUtils';
+import { useModal } from '../context/ModalContext';
 
 const StudentDetailModal = ({ student, usersMap, onClose }) => {
+  const { showAlert, showConfirm } = useModal();
   const [debts, setDebts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [sharing, setSharing] = useState(false);
@@ -37,16 +40,16 @@ const StudentDetailModal = ({ student, usersMap, onClose }) => {
 
   const handleShare = async () => {
     if (emails.length === 0) {
-      alert("No hay correos vinculados a este alumno para enviar la información.");
+      await showAlert("No hay correos vinculados a este alumno para enviar la información.");
       return;
     }
     
-    if (!window.confirm("¿Deseas enviar un correo a los apoderados con este historial?")) return;
+    if (!(await showConfirm("¿Deseas enviar un correo a los apoderados con este historial?"))) return;
     
     setSharing(true);
     try {
       const htmlContent = `
-        <h2>Historial de Cuenta: ${student.name}</h2>
+        <h2>Historial de Cuenta: ${formatStudentName(student)}</h2>
         <p>A continuación se detalla el estado actual de cobros y pagos asociados al alumno.</p>
         
         <h3 style="color: #d97706;">Pendientes / En Revisión</h3>
@@ -69,10 +72,10 @@ const StudentDetailModal = ({ student, usersMap, onClose }) => {
           html: htmlContent
         }
       });
-      alert("Historial enviado correctamente por correo a los apoderados.");
+      await showAlert("Historial enviado correctamente por correo a los apoderados.");
     } catch (error) {
       console.error("Error al enviar correo:", error);
-      alert("Hubo un error al intentar enviar el correo.");
+      await showAlert("Hubo un error al intentar enviar el correo.");
     } finally {
       setSharing(false);
     }
@@ -83,7 +86,7 @@ const StudentDetailModal = ({ student, usersMap, onClose }) => {
       <div className="glass-panel animate-fade-in" style={{ width: '100%', padding: '2rem', backgroundColor: 'var(--bg-main)' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '2rem', borderBottom: '1px solid var(--border-color)', paddingBottom: '1rem' }}>
           <div>
-            <h2 style={{ margin: '0 0 0.5rem 0', color: 'var(--primary)' }}>{student.name}</h2>
+            <h2 style={{ margin: '0 0 0.5rem 0', color: 'var(--primary)' }}>{formatStudentName(student)}</h2>
             <p style={{ margin: 0, color: 'var(--text-muted)' }}>Número de Lista: {student.listNumber || '-'}</p>
           </div>
           <div style={{ display: 'flex', gap: '0.5rem' }}>

@@ -2,8 +2,11 @@ import React, { useState, useEffect } from 'react';
 import { db } from '../firebase/config';
 import { collection, getDocs, doc, setDoc } from 'firebase/firestore';
 import { ArrowLeft, PlusCircle, CheckCircle } from 'lucide-react';
+import { useModal } from '../context/ModalContext';
+import { formatStudentName } from '../utils/nameUtils';
 
 const ExpenseManagement = ({ onBack }) => {
+  const { showAlert } = useModal();
   const [students, setStudents] = useState([]);
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState('');
@@ -74,18 +77,18 @@ const ExpenseManagement = ({ onBack }) => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!title || selectedStudents.size === 0 || !selectedFundId) {
-      alert('Debes ingresar título, seleccionar fondo y al menos un alumno.');
+      await showAlert('Debes ingresar título, seleccionar fondo y al menos un alumno.');
       return;
     }
     if (calculationMode !== 'custom' && !totalAmount) {
-      alert('Debes ingresar el monto.');
+      await showAlert('Debes ingresar el monto.');
       return;
     }
 
     if (calculationMode === 'custom') {
       for (const id of selectedStudents) {
         if (!customAmounts[id] || isNaN(parseFloat(customAmounts[id])) || parseFloat(customAmounts[id]) <= 0) {
-          alert('Debes ingresar un monto válido mayor a 0 para cada alumno seleccionado en modo personalizado.');
+          await showAlert('Debes ingresar un monto válido mayor a 0 para cada alumno seleccionado en modo personalizado.');
           return;
         }
       }
@@ -156,7 +159,7 @@ const ExpenseManagement = ({ onBack }) => {
 
     } catch (error) {
       console.error("Error al generar la cuota:", error);
-      alert('Error al generar la cuota.');
+      await showAlert('Error al generar la cuota.');
     } finally {
       setLoading(false);
     }
@@ -297,7 +300,7 @@ const ExpenseManagement = ({ onBack }) => {
                     style={{ width: '18px', height: '18px', accentColor: 'var(--primary)', cursor: 'pointer' }}
                   />
                   <div>
-                    <span style={{ display: 'block', fontWeight: '500' }}>{student.name}</span>
+                    <span style={{ display: 'block', fontWeight: '500' }}>{formatStudentName(student)}</span>
                     <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
                       {student.apoderadoEmails?.length > 0 ? student.apoderadoEmails.join(', ') : (student.apoderadoEmail || 'Sin apoderado')}
                     </span>

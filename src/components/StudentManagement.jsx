@@ -5,13 +5,19 @@ import { ArrowLeft, UserPlus, CheckCircle, Trash2, Edit2, X, Save, Image as Imag
 import BulkImport from './BulkImport';
 import StudentDetailModal from './StudentDetailModal';
 
+import { formatStudentName } from '../utils/nameUtils';
+import { useModal } from '../context/ModalContext';
+
 const StudentManagement = ({ onBack }) => {
+  const { showConfirm, showAlert } = useModal();
   const [students, setStudents] = useState([]);
   const [usersMap, setUsersMap] = useState({});
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState('');
   
-  const [newName, setNewName] = useState('');
+  const [newFirstName, setNewFirstName] = useState('');
+  const [newLastNamePaternal, setNewLastNamePaternal] = useState('');
+  const [newLastNameMaternal, setNewLastNameMaternal] = useState('');
   const [newApoderadoEmail1, setNewApoderadoEmail1] = useState('');
   const [newApoderadoEmail2, setNewApoderadoEmail2] = useState('');
   const [newListNumber, setNewListNumber] = useState('');
@@ -22,7 +28,7 @@ const StudentManagement = ({ onBack }) => {
 
   // Estados para edición
   const [editingId, setEditingId] = useState(null);
-  const [editData, setEditData] = useState({ name: '', apoderadoEmail1: '', apoderadoEmail2: '', listNumber: '', balance: '' });
+  const [editData, setEditData] = useState({ firstName: '', lastNamePaternal: '', lastNameMaternal: '', apoderadoEmail1: '', apoderadoEmail2: '', listNumber: '', balance: '' });
 
   useEffect(() => {
     fetchData();
@@ -42,6 +48,8 @@ const StudentManagement = ({ onBack }) => {
         const data = doc.data();
         if (data.formalName) {
           map[doc.id] = data.formalName;
+        } else if (data.displayName) {
+          map[doc.id] = data.displayName;
         }
       });
       setUsersMap(map);
@@ -72,7 +80,7 @@ const StudentManagement = ({ onBack }) => {
 
   const handleAddStudent = async (e) => {
     e.preventDefault();
-    if (!newName) return;
+    if (!newFirstName || !newLastNamePaternal) return;
 
     try {
       const studentId = 'std_' + Date.now().toString();
@@ -80,8 +88,13 @@ const StudentManagement = ({ onBack }) => {
       
       const emails = [newApoderadoEmail1.toLowerCase().trim(), newApoderadoEmail2.toLowerCase().trim()].filter(e => e);
       
+      const fullName = `${newFirstName} ${newLastNamePaternal} ${newLastNameMaternal}`.trim();
+
       const newStudent = {
-        name: newName,
+        name: fullName,
+        firstName: newFirstName.trim(),
+        lastNamePaternal: newLastNamePaternal.trim(),
+        lastNameMaternal: newLastNameMaternal.trim(),
         apoderadoEmails: emails,
         listNumber: newListNumber,
         balance: Number(newBalance) || 0,
@@ -95,7 +108,9 @@ const StudentManagement = ({ onBack }) => {
         const bNum = parseInt(b.listNumber) || 999;
         return aNum - bNum;
       }));
-      setNewName('');
+      setNewFirstName('');
+      setNewLastNamePaternal('');
+      setNewLastNameMaternal('');
       setNewApoderadoEmail1('');
       setNewApoderadoEmail2('');
       setNewListNumber('');
@@ -111,7 +126,7 @@ const StudentManagement = ({ onBack }) => {
   };
 
   const handleDelete = async (id) => {
-    if (!window.confirm('¿Seguro que deseas eliminar este alumno?')) return;
+    if (!(await showConfirm('¿Seguro que deseas eliminar este alumno?'))) return;
     try {
       await deleteDoc(doc(db, 'students', id));
       setStudents(students.filter(s => s.id !== id));
@@ -126,7 +141,9 @@ const StudentManagement = ({ onBack }) => {
     setEditingId(student.id);
     const emails = student.apoderadoEmails || (student.apoderadoEmail ? [student.apoderadoEmail] : []);
     setEditData({
-      name: student.name || '',
+      firstName: student.firstName || student.name || '',
+      lastNamePaternal: student.lastNamePaternal || '',
+      lastNameMaternal: student.lastNameMaternal || '',
       apoderadoEmail1: emails[0] || '',
       apoderadoEmail2: emails[1] || '',
       listNumber: student.listNumber || '',
@@ -136,16 +153,21 @@ const StudentManagement = ({ onBack }) => {
 
   const cancelEditing = () => {
     setEditingId(null);
-    setEditData({ name: '', apoderadoEmail1: '', apoderadoEmail2: '', listNumber: '', balance: '' });
+    setEditData({ firstName: '', lastNamePaternal: '', lastNameMaternal: '', apoderadoEmail1: '', apoderadoEmail2: '', listNumber: '', balance: '' });
   };
 
   const handleSaveEdit = async () => {
-    if (!editData.name) return;
+    if (!editData.firstName || !editData.lastNamePaternal) return;
     try {
       const studentRef = doc(db, 'students', editingId);
       const emails = [editData.apoderadoEmail1.toLowerCase().trim(), editData.apoderadoEmail2.toLowerCase().trim()].filter(e => e);
+      const fullName = `${editData.firstName} ${editData.lastNamePaternal} ${editData.lastNameMaternal}`.trim();
+      
       await updateDoc(studentRef, {
-        name: editData.name,
+        name: fullName,
+        firstName: editData.firstName.trim(),
+        lastNamePaternal: editData.lastNamePaternal.trim(),
+        lastNameMaternal: editData.lastNameMaternal.trim(),
         apoderadoEmails: emails,
         listNumber: editData.listNumber,
         balance: Number(editData.balance) || 0
@@ -223,15 +245,36 @@ const StudentManagement = ({ onBack }) => {
           <UserPlus size={18} /> Añadir Alumno
         </h4>
         <form onSubmit={handleAddStudent} style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap', alignItems: 'flex-end' }}>
-          <div className="input-group" style={{ flex: '2', minWidth: '200px', marginBottom: 0 }}>
-            <label className="input-label">Nombre Completo</label>
+          <div className="input-group" style={{ flex: '1', minWidth: '120px', marginBottom: 0 }}>
+            <label className="input-label">Nombres</label>
             <input 
               type="text" 
               required
               className="input-field" 
-              placeholder="Ej. Martín Pérez"
-              value={newName}
-              onChange={(e) => setNewName(e.target.value)}
+              placeholder="Ej. Martín"
+              value={newFirstName}
+              onChange={(e) => setNewFirstName(e.target.value)}
+            />
+          </div>
+          <div className="input-group" style={{ flex: '1', minWidth: '120px', marginBottom: 0 }}>
+            <label className="input-label">A. Paterno</label>
+            <input 
+              type="text" 
+              required
+              className="input-field" 
+              placeholder="Ej. Pérez"
+              value={newLastNamePaternal}
+              onChange={(e) => setNewLastNamePaternal(e.target.value)}
+            />
+          </div>
+          <div className="input-group" style={{ flex: '1', minWidth: '120px', marginBottom: 0 }}>
+            <label className="input-label">A. Materno</label>
+            <input 
+              type="text" 
+              className="input-field" 
+              placeholder="Ej. Gómez"
+              value={newLastNameMaternal}
+              onChange={(e) => setNewLastNameMaternal(e.target.value)}
             />
           </div>
           <div className="input-group" style={{ flex: '0.5', minWidth: '80px', marginBottom: 0 }}>
@@ -306,12 +349,29 @@ const StudentManagement = ({ onBack }) => {
                         style={{ padding: '0.4rem', width: '60px' }}
                       />
                     </td>
-                    <td style={{ padding: '1rem' }}>
+                    <td style={{ padding: '1rem', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
                       <input 
                         type="text" 
                         className="input-field" 
-                        value={editData.name} 
-                        onChange={(e) => setEditData({...editData, name: e.target.value})}
+                        placeholder="Nombres"
+                        value={editData.firstName} 
+                        onChange={(e) => setEditData({...editData, firstName: e.target.value})}
+                        style={{ padding: '0.4rem' }}
+                      />
+                      <input 
+                        type="text" 
+                        className="input-field" 
+                        placeholder="A. Paterno"
+                        value={editData.lastNamePaternal} 
+                        onChange={(e) => setEditData({...editData, lastNamePaternal: e.target.value})}
+                        style={{ padding: '0.4rem' }}
+                      />
+                      <input 
+                        type="text" 
+                        className="input-field" 
+                        placeholder="A. Materno"
+                        value={editData.lastNameMaternal} 
+                        onChange={(e) => setEditData({...editData, lastNameMaternal: e.target.value})}
                         style={{ padding: '0.4rem' }}
                       />
                     </td>
@@ -361,7 +421,7 @@ const StudentManagement = ({ onBack }) => {
                         onClick={() => setSelectedStudent(selectedStudent?.id === s.id ? null : s)}
                         style={{ background: 'none', border: 'none', color: 'var(--primary)', cursor: 'pointer', fontWeight: '500', padding: 0, fontSize: 'inherit', textAlign: 'left', textDecoration: 'underline' }}
                       >
-                        {s.name}
+                        {formatStudentName(s)}
                       </button>
                     </td>
                     <td style={{ padding: '1rem', color: 'var(--text-muted)' }}>

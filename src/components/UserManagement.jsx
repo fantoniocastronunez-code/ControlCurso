@@ -3,8 +3,10 @@ import { db } from '../firebase/config';
 import { collection, getDocs, doc, updateDoc, setDoc, deleteDoc } from 'firebase/firestore';
 import { useAuth } from '../context/AuthContext';
 import { ArrowLeft, UserCheck, UserPlus, Trash2, Edit2, Save, X } from 'lucide-react';
+import { useModal } from '../context/ModalContext';
 
 const UserManagement = ({ onBack }) => {
+  const { showConfirm } = useModal();
   const { role } = useAuth();
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -86,7 +88,7 @@ const UserManagement = ({ onBack }) => {
   };
 
   const handleDeleteUser = async (userId) => {
-    if (!window.confirm('¿Seguro que deseas eliminar este usuario? Si ya había iniciado sesión, perderá el acceso hasta que vuelva a iniciar.')) return;
+    if (!(await showConfirm('¿Seguro que deseas eliminar este usuario? Si ya había iniciado sesión, perderá el acceso hasta que vuelva a iniciar.'))) return;
     try {
       await deleteDoc(doc(db, 'users', userId));
       setUsers(users.filter(u => u.id !== userId));
