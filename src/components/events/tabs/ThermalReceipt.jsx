@@ -79,7 +79,7 @@ const ThermalReceipt = ({ sale, eventName }) => {
           .thermal-receipt {
             display: block !important;
             width: 58mm; /* Standard POS printer width */
-            padding: 0;
+            padding: 0 0 15mm 0;
             margin: 0;
             color: black;
             background: white;
