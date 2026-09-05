@@ -346,57 +346,58 @@ const ExpenseManagement = ({ onBack }) => {
           
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(250px, 1fr))', gap: '1rem' }}>
             {students.map(student => (
-              <div key={student.id} style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', padding: '0.75rem', backgroundColor: 'rgba(255,255,255,0.03)', borderRadius: 'var(--radius-sm)', border: selectedStudents.has(student.id) ? '1px solid var(--primary)' : '1px solid var(--border-color)' }}>
-                <div onClick={() => handleToggleStudent(student.id)} style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', cursor: 'pointer', flex: 1 }}>
-                  <input 
-                    type="checkbox" 
-                    checked={selectedStudents.has(student.id)}
-                    onChange={() => handleToggleStudent(student.id)}
-                    style={{ width: '18px', height: '18px', accentColor: 'var(--primary)', cursor: 'pointer' }}
-                  />
-                  <div>
-                    <span style={{ display: 'block', fontWeight: '500' }}>{student.listNumber || '-'}. {formatStudentName(student)}</span>
-                    <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
-                      {student.apoderadoEmails?.length > 0 ? student.apoderadoEmails.join(', ') : (student.apoderadoEmail || 'Sin apoderado')}
-                    </span>
+              <div key={student.id} style={{ display: 'flex', flexDirection: 'column' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', padding: '0.75rem', backgroundColor: 'rgba(255,255,255,0.03)', borderRadius: 'var(--radius-sm)', border: selectedStudents.has(student.id) ? '1px solid var(--primary)' : '1px solid var(--border-color)' }}>
+                  <div onClick={() => handleToggleStudent(student.id)} style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', cursor: 'pointer', flex: 1 }}>
+                    <input 
+                      type="checkbox" 
+                      checked={selectedStudents.has(student.id)}
+                      onChange={() => handleToggleStudent(student.id)}
+                      style={{ width: '18px', height: '18px', accentColor: 'var(--primary)', cursor: 'pointer' }}
+                    />
+                    <div>
+                      <span style={{ display: 'block', fontWeight: '500' }}>{student.listNumber || '-'}. {formatStudentName(student)}</span>
+                      <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+                        {student.apoderadoEmails?.length > 0 ? student.apoderadoEmails.join(', ') : (student.apoderadoEmail || 'Sin apoderado')}
+                      </span>
+                    </div>
                   </div>
+                  {calculationMode === 'custom' && selectedStudents.has(student.id) && (
+                    <input 
+                      type="number"
+                      min="1"
+                      placeholder="Monto $"
+                      className="input-field"
+                      style={{ width: '100px', padding: '0.25rem 0.5rem' }}
+                      value={customAmounts[student.id] || ''}
+                      onChange={(e) => setCustomAmounts({...customAmounts, [student.id]: e.target.value})}
+                    />
+                  )}
                 </div>
-                {calculationMode === 'custom' && selectedStudents.has(student.id) && (
-                  <input 
-                    type="number"
-                    min="1"
-                    placeholder="Monto $"
-                    className="input-field"
-                    style={{ width: '100px', padding: '0.25rem 0.5rem' }}
-                    value={customAmounts[student.id] || ''}
-                    onChange={(e) => setCustomAmounts({...customAmounts, [student.id]: e.target.value})}
-                  />
+                {selectedStudents.has(student.id) && student.balance > 0 && (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginTop: '0.5rem', marginLeft: '2.5rem', backgroundColor: 'rgba(16, 185, 129, 0.05)', padding: '0.5rem', borderRadius: 'var(--radius-sm)' }}>
+                    <span style={{ fontSize: '0.8rem', color: 'var(--success)' }}>Saldo a favor: <strong>${student.balance}</strong></span>
+                    <div style={{ height: '15px', width: '1px', backgroundColor: 'rgba(255,255,255,0.1)' }}></div>
+                    <label style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Usar para pagar:</label>
+                    <input 
+                      type="number"
+                      min="0"
+                      max={student.balance}
+                      className="input-field"
+                      placeholder="$"
+                      style={{ width: '80px', padding: '0.2rem 0.5rem', fontSize: '0.85rem' }}
+                      value={balanceToUse[student.id] || ''}
+                      onChange={(e) => {
+                          const val = Math.min(Number(e.target.value), student.balance);
+                          setBalanceToUse({...balanceToUse, [student.id]: val || ''});
+                      }}
+                    />
+                    <button type="button" onClick={() => setBalanceToUse({...balanceToUse, [student.id]: student.balance})} className="btn btn-outline" style={{ padding: '0.2rem 0.5rem', fontSize: '0.75rem', borderColor: 'var(--success)', color: 'var(--success)' }}>
+                      Todo
+                    </button>
+                  </div>
                 )}
               </div>
-              {selectedStudents.has(student.id) && student.balance > 0 && (
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginTop: '0.5rem', marginLeft: '2.5rem', backgroundColor: 'rgba(16, 185, 129, 0.05)', padding: '0.5rem', borderRadius: 'var(--radius-sm)' }}>
-                  <span style={{ fontSize: '0.8rem', color: 'var(--success)' }}>Saldo a favor: <strong>${student.balance}</strong></span>
-                  <div style={{ height: '15px', width: '1px', backgroundColor: 'rgba(255,255,255,0.1)' }}></div>
-                  <label style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Usar para pagar:</label>
-                  <input 
-                    type="number"
-                    min="0"
-                    max={student.balance}
-                    className="input-field"
-                    placeholder="$"
-                    style={{ width: '80px', padding: '0.2rem 0.5rem', fontSize: '0.85rem' }}
-                    value={balanceToUse[student.id] || ''}
-                    onChange={(e) => {
-                        const val = Math.min(Number(e.target.value), student.balance);
-                        setBalanceToUse({...balanceToUse, [student.id]: val || ''});
-                    }}
-                  />
-                  <button type="button" onClick={() => setBalanceToUse({...balanceToUse, [student.id]: student.balance})} className="btn btn-outline" style={{ padding: '0.2rem 0.5rem', fontSize: '0.75rem', borderColor: 'var(--success)', color: 'var(--success)' }}>
-                    Todo
-                  </button>
-                </div>
-              )}
-            </div>
             ))}
             {students.length === 0 && (
               <p style={{ color: 'var(--text-muted)' }}>No hay alumnos registrados aún.</p>
