@@ -24,20 +24,22 @@ const DebtorsManagement = ({ onBack }) => {
       
       snapshot.forEach(docSnap => {
         const debt = { id: docSnap.id, ...docSnap.data() };
-        const email = debt.apoderadoEmail || 'Sin Apoderado';
+        const emails = debt.apoderadoEmails || (debt.apoderadoEmail ? [debt.apoderadoEmail] : []);
+        const emailKey = emails.length > 0 ? emails.join(', ') : 'Sin Apoderado';
         
-        if (!grouped[email]) {
-          grouped[email] = {
-            email: email,
+        if (!grouped[emailKey]) {
+          grouped[emailKey] = {
+            email: emailKey,
+            emailsArray: emails,
             totalAmount: 0,
             debts: [],
             students: new Set()
           };
         }
         
-        grouped[email].debts.push(debt);
-        grouped[email].totalAmount += debt.amount;
-        grouped[email].students.add(debt.studentName);
+        grouped[emailKey].debts.push(debt);
+        grouped[emailKey].totalAmount += debt.amount;
+        grouped[emailKey].students.add(debt.studentName);
       });
 
       setDebtors(grouped);
@@ -71,7 +73,7 @@ const DebtorsManagement = ({ onBack }) => {
       const debtsHtmlList = data.debts.map(d => `<li>${d.title} (Alumno: ${d.studentName}): <strong>$${d.amount}</strong></li>`).join('');
       
       await addDoc(collection(db, 'mail'), {
-        to: [email],
+        to: data.emailsArray,
         message: {
           subject: "Aviso Urgente: Cuotas Pendientes - Directiva del Curso",
           text: `Estimado Apoderado, le recordamos que tiene un saldo pendiente de $${data.totalAmount} asociado a los alumnos: ${studentsList}. Por favor, ingrese a la plataforma para regularizar su situación.`,

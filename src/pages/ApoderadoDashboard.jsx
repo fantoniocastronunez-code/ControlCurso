@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { LogOut, CheckCircle, Clock, Search, UserPlus, Upload, AlertCircle } from 'lucide-react';
 import { db, storage } from '../firebase/config';
-import { collection, query, where, getDocs, getDoc, doc, updateDoc, setDoc } from 'firebase/firestore';
+import { collection, query, where, getDocs, getDoc, doc, updateDoc, setDoc, or } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { useNavigate } from 'react-router-dom';
 
@@ -49,14 +49,21 @@ const ApoderadoDashboard = () => {
       }
 
       // 1. Fetch Students
-      const qStudents = query(collection(db, 'students'), where('apoderadoEmail', '==', user.email));
+      const qStudents = query(
+        collection(db, 'students'), 
+        or(
+          where('apoderadoEmail', '==', user.email),
+          where('apoderadoEmails', 'array-contains', user.email)
+        )
+      );
       const snapStudents = await getDocs(qStudents);
       const students = snapStudents.docs.map(doc => ({ id: doc.id, ...doc.data() }));
       setMyStudents(students);
 
       // 2. Fetch Debts
       if (students.length > 0) {
-        const qDebts = query(collection(db, 'debts'), where('apoderadoEmail', '==', user.email));
+        const studentIds = students.map(s => s.id).slice(0, 30); // max 30 for 'in' query
+        const qDebts = query(collection(db, 'debts'), where('studentId', 'in', studentIds));
         const snapDebts = await getDocs(qDebts);
         const fetchedDebts = snapDebts.docs.map(doc => ({ id: doc.id, ...doc.data() }));
         // Ordenar: pendientes primero
@@ -94,11 +101,23 @@ const ApoderadoDashboard = () => {
   const handleLinkStudent = async (studentId) => {
     try {
       const studentRef = doc(db, 'students', studentId);
-      await updateDoc(studentRef, { apoderadoEmail: user.email });
-      fetchData();
-      setLastNameSearch('');
-      setSearchResults([]);
-      setHasSearched(false);
+      const studentSnap = await getDoc(studentRef);
+      if (studentSnap.exists()) {
+        const data = studentSnap.data();
+        let emails = data.apoderadoEmails || (data.apoderadoEmail ? [data.apoderadoEmail] : []);
+        if (!emails.includes(user.email)) {
+          if (emails.length >= 2) {
+            alert('Este alumno ya tiene 2 apoderados vinculados.');
+            return;
+          }
+          emails.push(user.email);
+          await updateDoc(studentRef, { apoderadoEmails: emails });
+        }
+        fetchData();
+        setLastNameSearch('');
+        setSearchResults([]);
+        setHasSearched(false);
+      }
     } catch (error) {
       console.error("Error linking student:", error);
       alert('Hubo un error al vincular el alumno.');
@@ -313,7 +332,9 @@ const ApoderadoDashboard = () => {
                     <div style={{ flex: '1 1 auto', minWidth: '200px' }}>
                       <p style={{ fontWeight: '500', fontSize: '1.1rem', wordBreak: 'break-word' }}>{s.name}</p>
                       <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>
-                        {s.apoderadoEmail ? `(Ya vinculado a ${s.apoderadoEmail})` : 'Sin apoderado vinculado'}
+                        {(s.apoderadoEmails?.length > 0) 
+                          ? `(Vinculado a: ${s.apoderadoEmails.join(', ')})` 
+                          : (s.apoderadoEmail ? `(Vinculado a ${s.apoderadoEmail})` : 'Sin apoderado vinculado')}
                       </p>
                     </div>
                     <button 
@@ -405,9 +426,15 @@ const ApoderadoDashboard = () => {
 
       <div className="glass-panel" style={{ padding: '2rem' }}>
         <h3>Información del Curso</h3>
-        <p style={{ color: 'var(--text-muted)', marginTop: '0.5rem' }}>
+        <p style={{ color: 'var(--text-muted)', marginTop: '0.5rem', marginBottom: '1rem' }}>
           Para cualquier duda respecto a los pagos, por favor contacta a la directiva del curso.
         </p>
+        <div style={{ padding: '1rem', backgroundColor: 'rgba(59, 130, 246, 0.1)', borderRadius: 'var(--radius-md)', borderLeft: '4px solid var(--primary)', display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+          <AlertCircle size={20} style={{ color: 'var(--primary)' }} />
+          <p style={{ margin: 0, color: 'var(--text-main)', fontSize: '0.95rem' }}>
+            <strong>Recuerda:</strong> Si no se ven reflejados tus pagos, actualiza la app o recarga la página.
+          </p>
+        </div>
       </div>
     </div>
   );

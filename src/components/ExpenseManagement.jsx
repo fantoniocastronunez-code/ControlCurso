@@ -117,7 +117,7 @@ const ExpenseManagement = ({ onBack }) => {
           expenseId,
           studentId,
           studentName: student.name,
-          apoderadoEmail: student.apoderadoEmail || '',
+          apoderadoEmails: student.apoderadoEmails || (student.apoderadoEmail ? [student.apoderadoEmail] : []),
           amount: amountPerStudent,
           status: 'pending', // pending, review, paid
           title,

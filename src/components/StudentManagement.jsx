@@ -10,7 +10,8 @@ const StudentManagement = ({ onBack }) => {
   const [message, setMessage] = useState('');
   
   const [newName, setNewName] = useState('');
-  const [newApoderadoEmail, setNewApoderadoEmail] = useState('');
+  const [newApoderadoEmail1, setNewApoderadoEmail1] = useState('');
+  const [newApoderadoEmail2, setNewApoderadoEmail2] = useState('');
   const [newListNumber, setNewListNumber] = useState('');
   const [newBalance, setNewBalance] = useState('');
   
@@ -18,7 +19,7 @@ const StudentManagement = ({ onBack }) => {
 
   // Estados para edición
   const [editingId, setEditingId] = useState(null);
-  const [editData, setEditData] = useState({ name: '', apoderadoEmail: '', listNumber: '', balance: '' });
+  const [editData, setEditData] = useState({ name: '', apoderadoEmail1: '', apoderadoEmail2: '', listNumber: '', balance: '' });
 
   useEffect(() => {
     fetchStudents();
@@ -54,9 +55,11 @@ const StudentManagement = ({ onBack }) => {
       const studentId = 'std_' + Date.now().toString();
       const studentRef = doc(db, 'students', studentId);
       
+      const emails = [newApoderadoEmail1.toLowerCase().trim(), newApoderadoEmail2.toLowerCase().trim()].filter(e => e);
+      
       const newStudent = {
         name: newName,
-        apoderadoEmail: newApoderadoEmail.toLowerCase().trim(),
+        apoderadoEmails: emails,
         listNumber: newListNumber,
         balance: Number(newBalance) || 0,
         createdAt: new Date().toISOString(),
@@ -70,7 +73,8 @@ const StudentManagement = ({ onBack }) => {
         return aNum - bNum;
       }));
       setNewName('');
-      setNewApoderadoEmail('');
+      setNewApoderadoEmail1('');
+      setNewApoderadoEmail2('');
       setNewListNumber('');
       setNewBalance('');
       
@@ -97,9 +101,11 @@ const StudentManagement = ({ onBack }) => {
 
   const startEditing = (student) => {
     setEditingId(student.id);
+    const emails = student.apoderadoEmails || (student.apoderadoEmail ? [student.apoderadoEmail] : []);
     setEditData({
       name: student.name || '',
-      apoderadoEmail: student.apoderadoEmail || '',
+      apoderadoEmail1: emails[0] || '',
+      apoderadoEmail2: emails[1] || '',
       listNumber: student.listNumber || '',
       balance: student.balance || 0
     });
@@ -107,22 +113,23 @@ const StudentManagement = ({ onBack }) => {
 
   const cancelEditing = () => {
     setEditingId(null);
-    setEditData({ name: '', apoderadoEmail: '', listNumber: '', balance: '' });
+    setEditData({ name: '', apoderadoEmail1: '', apoderadoEmail2: '', listNumber: '', balance: '' });
   };
 
   const handleSaveEdit = async () => {
     if (!editData.name) return;
     try {
       const studentRef = doc(db, 'students', editingId);
+      const emails = [editData.apoderadoEmail1.toLowerCase().trim(), editData.apoderadoEmail2.toLowerCase().trim()].filter(e => e);
       await updateDoc(studentRef, {
         name: editData.name,
-        apoderadoEmail: editData.apoderadoEmail.toLowerCase().trim(),
+        apoderadoEmails: emails,
         listNumber: editData.listNumber,
         balance: Number(editData.balance) || 0
       });
       
       let updatedList = students.map(s => 
-        s.id === editingId ? { ...s, ...editData, apoderadoEmail: editData.apoderadoEmail.toLowerCase().trim(), balance: Number(editData.balance) || 0 } : s
+        s.id === editingId ? { ...s, ...editData, apoderadoEmails: emails, balance: Number(editData.balance) || 0 } : s
       );
       updatedList.sort((a, b) => {
         const aNum = parseInt(a.listNumber) || 999;
@@ -214,14 +221,24 @@ const StudentManagement = ({ onBack }) => {
               onChange={(e) => setNewListNumber(e.target.value)}
             />
           </div>
-          <div className="input-group" style={{ flex: '2', minWidth: '200px', marginBottom: 0 }}>
-            <label className="input-label">Email Apoderado</label>
+          <div className="input-group" style={{ flex: '1', minWidth: '150px', marginBottom: 0 }}>
+            <label className="input-label">Email Apoderado 1</label>
             <input 
               type="email" 
               className="input-field" 
-              placeholder="correo@apoderado.com"
-              value={newApoderadoEmail}
-              onChange={(e) => setNewApoderadoEmail(e.target.value)}
+              placeholder="correo1@apoderado.com"
+              value={newApoderadoEmail1}
+              onChange={(e) => setNewApoderadoEmail1(e.target.value)}
+            />
+          </div>
+          <div className="input-group" style={{ flex: '1', minWidth: '150px', marginBottom: 0 }}>
+            <label className="input-label">Email Apoderado 2</label>
+            <input 
+              type="email" 
+              className="input-field" 
+              placeholder="correo2@apoderado.com (Opc.)"
+              value={newApoderadoEmail2}
+              onChange={(e) => setNewApoderadoEmail2(e.target.value)}
             />
           </div>
           <div className="input-group" style={{ flex: '1', minWidth: '120px', marginBottom: 0 }}>
@@ -274,12 +291,21 @@ const StudentManagement = ({ onBack }) => {
                         style={{ padding: '0.4rem' }}
                       />
                     </td>
-                    <td style={{ padding: '1rem' }}>
+                    <td style={{ padding: '1rem', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
                       <input 
                         type="email" 
                         className="input-field" 
-                        value={editData.apoderadoEmail} 
-                        onChange={(e) => setEditData({...editData, apoderadoEmail: e.target.value})}
+                        placeholder="Email 1"
+                        value={editData.apoderadoEmail1} 
+                        onChange={(e) => setEditData({...editData, apoderadoEmail1: e.target.value})}
+                        style={{ padding: '0.4rem' }}
+                      />
+                      <input 
+                        type="email" 
+                        className="input-field" 
+                        placeholder="Email 2"
+                        value={editData.apoderadoEmail2} 
+                        onChange={(e) => setEditData({...editData, apoderadoEmail2: e.target.value})}
                         style={{ padding: '0.4rem' }}
                       />
                     </td>
@@ -307,7 +333,11 @@ const StudentManagement = ({ onBack }) => {
                   <>
                     <td style={{ padding: '1rem', color: 'var(--text-muted)' }}>{s.listNumber || '-'}</td>
                     <td style={{ padding: '1rem', fontWeight: '500' }}>{s.name}</td>
-                    <td style={{ padding: '1rem', color: 'var(--text-muted)' }}>{s.apoderadoEmail || 'Sin apoderado'}</td>
+                    <td style={{ padding: '1rem', color: 'var(--text-muted)' }}>
+                      {s.apoderadoEmails?.length > 0 
+                        ? s.apoderadoEmails.join(', ') 
+                        : (s.apoderadoEmail || 'Sin apoderado')}
+                    </td>
                     <td style={{ padding: '1rem' }}>
                       {s.balance > 0 ? (
                         <span style={{ color: 'var(--success)', fontWeight: 'bold' }}>{formatMoney(s.balance)}</span>
