@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { db } from '../firebase/config';
-import { collection, query, where, getDocs, doc, getDoc, updateDoc } from 'firebase/firestore';
-import { ArrowLeft, CheckCircle, Clock, XCircle, FileText, Download } from 'lucide-react';
+import { collection, query, where, getDocs, doc, getDoc, updateDoc, deleteDoc } from 'firebase/firestore';
+import { ArrowLeft, CheckCircle, Clock, XCircle, FileText, Download, Trash2, Edit2, Save, X } from 'lucide-react';
 
 const ExpenseDetail = ({ expenseId, onBack }) => {
   const [expense, setExpense] = useState(null);
@@ -10,6 +10,10 @@ const ExpenseDetail = ({ expenseId, onBack }) => {
   
   // Para ver imagen en grande
   const [selectedReceipt, setSelectedReceipt] = useState(null);
+
+  // Estados de Edición
+  const [isEditing, setIsEditing] = useState(false);
+  const [editData, setEditData] = useState({ title: '', totalAmount: '' });
 
   useEffect(() => {
     fetchDetail();
@@ -113,6 +117,61 @@ const ExpenseDetail = ({ expenseId, onBack }) => {
     }
   };
 
+  const handleDeleteExpense = async () => {
+    if (!window.confirm('¿Seguro que deseas ELIMINAR esta cuota? Se borrarán también todas las deudas de los alumnos y los pagos ya realizados desaparecerán del balance general.')) return;
+    setLoading(true);
+    try {
+      // 1. Borrar deudas
+      for (const debt of debts) {
+        await deleteDoc(doc(db, 'debts', debt.id));
+      }
+      // 2. Borrar cuota
+      await deleteDoc(doc(db, 'expenses', expenseId));
+      
+      alert('Cuota eliminada correctamente.');
+      onBack();
+    } catch (error) {
+      console.error("Error eliminando cuota:", error);
+      alert('Hubo un error al eliminar la cuota.');
+      setLoading(false);
+    }
+  };
+
+  const handleStartEdit = () => {
+    setEditData({ title: expense.title, totalAmount: expense.totalAmount });
+    setIsEditing(true);
+  };
+
+  const handleSaveEdit = async () => {
+    if (!editData.title || !editData.totalAmount) return;
+    setLoading(true);
+    try {
+      const newAmount = Number(editData.totalAmount);
+      // 1. Actualizar Cuota
+      await updateDoc(doc(db, 'expenses', expenseId), {
+        title: editData.title,
+        totalAmount: newAmount
+      });
+
+      // 2. Actualizar monto en deudas pendientes
+      if (newAmount !== expense.totalAmount) {
+        for (const debt of debts) {
+          if (debt.status === 'pending') {
+            await updateDoc(doc(db, 'debts', debt.id), { amount: newAmount });
+          }
+        }
+      }
+
+      setExpense({ ...expense, title: editData.title, totalAmount: newAmount });
+      setIsEditing(false);
+      fetchDetail();
+    } catch (error) {
+      console.error("Error editando cuota:", error);
+      alert('Hubo un error al editar la cuota.');
+      setLoading(false);
+    }
+  };
+
   const formatMoney = (amount) => {
     return new Intl.NumberFormat('es-CL', { style: 'currency', currency: 'CLP' }).format(amount);
   };
@@ -158,16 +217,40 @@ const ExpenseDetail = ({ expenseId, onBack }) => {
 
       {/* Resumen del Gasto */}
       <div className="glass-panel" style={{ padding: '2rem', marginBottom: '2rem', display: 'flex', justifyContent: 'space-between', flexWrap: 'wrap', gap: '2rem' }}>
-        <div>
-          <h2 style={{ color: 'var(--primary)', marginBottom: '0.5rem' }}>{expense.title}</h2>
-          <p style={{ color: 'var(--text-muted)' }}>Emitido el: {expense.date}</p>
-        </div>
-        <div style={{ textAlign: 'right' }}>
-          <p style={{ fontSize: '1.25rem', fontWeight: 'bold' }}>Total a recaudar: {formatMoney(expense.totalAmount)}</p>
-          <p style={{ fontSize: '1.1rem', color: expense.paidCount === expense.studentsCount ? 'var(--success)' : 'var(--warning)' }}>
-            {expense.paidCount || 0} de {expense.studentsCount} cuotas pagadas
-          </p>
-        </div>
+        {isEditing ? (
+          <div style={{ flex: 1 }}>
+            <div className="input-group">
+              <label className="input-label">Título de la Cuota</label>
+              <input type="text" className="input-field" value={editData.title} onChange={e => setEditData({...editData, title: e.target.value})} />
+            </div>
+            <div className="input-group">
+              <label className="input-label">Monto por Alumno ($)</label>
+              <input type="number" className="input-field" value={editData.totalAmount} onChange={e => setEditData({...editData, totalAmount: e.target.value})} />
+              <small style={{ color: 'var(--text-muted)' }}>Esto solo actualizará el cobro de los alumnos que aún no han pagado.</small>
+            </div>
+            <div style={{ display: 'flex', gap: '1rem' }}>
+              <button onClick={handleSaveEdit} className="btn btn-primary" style={{ backgroundColor: 'var(--success)' }}><Save size={18}/> Guardar Cambios</button>
+              <button onClick={() => setIsEditing(false)} className="btn btn-outline"><X size={18}/> Cancelar</button>
+            </div>
+          </div>
+        ) : (
+          <>
+            <div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginBottom: '0.5rem' }}>
+                <h2 style={{ color: 'var(--primary)', margin: 0 }}>{expense.title}</h2>
+                <button onClick={handleStartEdit} className="btn btn-outline" style={{ padding: '0.3rem', borderColor: 'var(--primary)', color: 'var(--primary)' }} title="Editar Cuota"><Edit2 size={16}/></button>
+                <button onClick={handleDeleteExpense} className="btn btn-outline" style={{ padding: '0.3rem', borderColor: 'rgba(239, 68, 68, 0.3)', color: 'var(--danger)' }} title="Eliminar Cuota"><Trash2 size={16}/></button>
+              </div>
+              <p style={{ color: 'var(--text-muted)' }}>Emitido el: {expense.date}</p>
+            </div>
+            <div style={{ textAlign: 'right' }}>
+              <p style={{ fontSize: '1.25rem', fontWeight: 'bold' }}>Total a recaudar: {formatMoney(expense.totalAmount)}</p>
+              <p style={{ fontSize: '1.1rem', color: expense.paidCount === expense.studentsCount ? 'var(--success)' : 'var(--warning)' }}>
+                {expense.paidCount || 0} de {expense.studentsCount} cuotas pagadas
+              </p>
+            </div>
+          </>
+        )}
       </div>
 
       <h4 style={{ marginBottom: '1.5rem' }}>Estado de los Alumnos</h4>
