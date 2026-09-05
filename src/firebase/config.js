@@ -4,16 +4,17 @@ import { getFirestore } from "firebase/firestore";
 import { getStorage } from "firebase/storage";
 
 const firebaseConfig = {
-  apiKey: "AIzaSyBwlZjUSPcaAoudUoYrztUe7qRWgjZSAPA",
-  authDomain: "control-curso-1f25e.firebaseapp.com",
-  projectId: "control-curso-1f25e",
-  storageBucket: "control-curso-1f25e.firebasestorage.app",
-  messagingSenderId: "504493943595",
-  appId: "1:504493943595:web:997993b06bd7275cac736e"
+  apiKey: "AIzaSyAGlTuOnaPDfsT1C8S8cbjhXkbzfM-wgrA",
+  authDomain: "brewcontrol-app.firebaseapp.com",
+  projectId: "brewcontrol-app",
+  storageBucket: "brewcontrol-app.firebasestorage.app",
+  messagingSenderId: "684520597229",
+  appId: "1:684520597229:web:310a2aacecca3d54d7cee4",
+  measurementId: "G-07ECP6SLP2"
 };
 
 const app = initializeApp(firebaseConfig);
 export const auth = getAuth(app);
-export const db = getFirestore(app);
+export const db = getFirestore(app, "controlcurso2");
 export const storage = getStorage(app);
 export const googleProvider = new GoogleAuthProvider();
