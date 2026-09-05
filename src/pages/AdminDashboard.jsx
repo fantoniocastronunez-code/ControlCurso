@@ -8,6 +8,7 @@ import UserManagement from '../components/UserManagement';
 import StudentManagement from '../components/StudentManagement';
 import ExpenseManagement from '../components/ExpenseManagement';
 import ExpenseDetail from '../components/ExpenseDetail';
+import DebtorsManagement from '../components/DebtorsManagement';
 
 const AdminDashboard = () => {
   const { user, role, logout } = useAuth();
@@ -136,6 +137,9 @@ const AdminDashboard = () => {
                   <button onClick={() => setCurrentView('expenses_add')} className="btn btn-primary">
                     Cobrar Cuota
                   </button>
+                  <button onClick={() => setCurrentView('debtors')} className="btn btn-outline" style={{ color: 'var(--danger)', borderColor: 'rgba(239, 68, 68, 0.3)' }}>
+                    Apoderados en Deuda
+                  </button>
                   <button onClick={() => setCurrentView('students')} className="btn btn-outline">
                     Gestionar Alumnos
                   </button>
@@ -197,6 +201,8 @@ const AdminDashboard = () => {
         <StudentManagement onBack={() => setCurrentView('dashboard')} />
       ) : currentView === 'expenses_add' ? (
         <ExpenseManagement onBack={() => setCurrentView('dashboard')} />
+      ) : currentView === 'debtors' ? (
+        <DebtorsManagement onBack={() => setCurrentView('dashboard')} />
       ) : currentView === 'expense_detail' && selectedExpenseId ? (
         <ExpenseDetail expenseId={selectedExpenseId} onBack={() => setCurrentView('dashboard')} />
       ) : null}

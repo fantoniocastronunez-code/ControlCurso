@@ -117,19 +117,6 @@ const ApoderadoDashboard = () => {
     }
   };
 
-  const handleSaveProfile = async (e) => {
-    e.preventDefault();
-    if (!formalName.trim()) return;
-    try {
-      const userDocRef = doc(db, 'users', user.email);
-      await updateDoc(userDocRef, { formalName: formalName.trim() });
-      setIsProfileComplete(true);
-      fetchData(); // Now fetch students and debts
-    } catch (error) {
-      console.error("Error saving profile:", error);
-      alert('Hubo un error al guardar tu nombre.');
-    }
-  };
 
   const handlePaymentSubmit = async (e) => {
     e.preventDefault();
@@ -188,6 +175,17 @@ const ApoderadoDashboard = () => {
           Salir
         </button>
       </header>
+
+      {/* BANNER URGENTE */}
+      {isProfileComplete && debts.some(d => d.urgentNotice && d.status === 'pending') && (
+        <div className="glass-panel" style={{ backgroundColor: 'rgba(239, 68, 68, 0.1)', border: '1px solid var(--danger)', padding: '1rem', marginBottom: '2rem', display: 'flex', alignItems: 'center', gap: '1rem', color: 'var(--danger)' }}>
+          <AlertCircle size={24} />
+          <div>
+            <h4 style={{ margin: 0, fontWeight: 'bold' }}>¡Aviso Urgente de la Directiva!</h4>
+            <p style={{ margin: 0, fontSize: '0.9rem' }}>Tienes cuotas pendientes que requieren tu atención inmediata. Por favor, regulariza tu situación subiendo los comprobantes correspondientes.</p>
+          </div>
+        </div>
+      )}
 
       {!isProfileComplete ? (
         <div className="glass-panel" style={{ padding: '3rem 2rem', textAlign: 'center', maxWidth: '500px', margin: '0 auto' }}>
