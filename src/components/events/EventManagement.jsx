@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { db } from '../../firebase/config';
-import { collection, getDocs, doc, setDoc, query, orderBy } from 'firebase/firestore';
-import { ArrowLeft, PlusCircle, CheckCircle, Calendar, X, Save } from 'lucide-react';
+import { collection, getDocs, doc, setDoc, query, orderBy, deleteDoc, where } from 'firebase/firestore';
+import { ArrowLeft, PlusCircle, CheckCircle, Calendar, X, Save, Trash2 } from 'lucide-react';
 import { useModal } from '../../context/ModalContext';
 import EventDetail from './EventDetail';
 
@@ -129,6 +129,41 @@ const EventManagement = ({ onBack }) => {
     }
   };
 
+  const handleDeleteEvent = async (e, eventToDelete) => {
+    e.stopPropagation();
+    if (!(await showConfirm(`¿Estás seguro de ELIMINAR el evento "${eventToDelete.name}" y todos sus registros asociados? Esta acción no se puede deshacer.`))) return;
+    
+    setLoading(true);
+    try {
+      await deleteDoc(doc(db, 'events', eventToDelete.id));
+      await deleteDoc(doc(db, 'funds', eventToDelete.fundId));
+      await deleteDoc(doc(db, 'expenses', `exp_evt_${eventToDelete.id}`));
+
+      const queries = [
+        query(collection(db, 'debts'), where('eventId', '==', eventToDelete.id)),
+        query(collection(db, 'eventItems'), where('eventId', '==', eventToDelete.id)),
+        query(collection(db, 'eventSales'), where('eventId', '==', eventToDelete.id)),
+        query(collection(db, 'incomes'), where('eventId', '==', eventToDelete.id)),
+        query(collection(db, 'outcomes'), where('eventId', '==', eventToDelete.id))
+      ];
+
+      for (const q of queries) {
+        const snap = await getDocs(q);
+        for (const d of snap.docs) {
+          await deleteDoc(d.ref);
+        }
+      }
+
+      setMessage('Evento eliminado con éxito.');
+      fetchEvents();
+      setTimeout(() => setMessage(''), 3000);
+    } catch (error) {
+      console.error("Error eliminando evento:", error);
+      await showAlert('Hubo un error al eliminar el evento.');
+      setLoading(false); // only set false on error because fetchEvents will set false on success
+    }
+  };
+
   const formatMoney = (amount) => {
     return new Intl.NumberFormat('es-CL', { style: 'currency', currency: 'CLP' }).format(amount);
   };
@@ -182,14 +217,25 @@ const EventManagement = ({ onBack }) => {
               onMouseOver={(e) => e.currentTarget.style.borderColor = 'var(--primary)'}
               onMouseOut={(e) => e.currentTarget.style.borderColor = 'transparent'}
             >
-              <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginBottom: '1rem' }}>
-                <div style={{ backgroundColor: 'rgba(99,102,241,0.1)', padding: '1rem', borderRadius: '50%', color: 'var(--primary)' }}>
-                  <Calendar size={24} />
+              <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: '1rem' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+                  <div style={{ backgroundColor: 'rgba(99,102,241,0.1)', padding: '1rem', borderRadius: '50%', color: 'var(--primary)' }}>
+                    <Calendar size={24} />
+                  </div>
+                  <div>
+                    <h4 style={{ margin: 0, fontSize: '1.1rem' }}>{event.name}</h4>
+                    <p style={{ margin: 0, fontSize: '0.85rem', color: 'var(--text-muted)' }}>{new Date(event.date).toLocaleDateString('es-CL')}</p>
+                  </div>
                 </div>
-                <div>
-                  <h4 style={{ margin: 0, fontSize: '1.1rem' }}>{event.name}</h4>
-                  <p style={{ margin: 0, fontSize: '0.85rem', color: 'var(--text-muted)' }}>{new Date(event.date).toLocaleDateString('es-CL')}</p>
-                </div>
+                <button 
+                  onClick={(e) => handleDeleteEvent(e, event)}
+                  style={{ background: 'none', border: 'none', color: 'var(--danger)', cursor: 'pointer', padding: '0.5rem', opacity: 0.7 }}
+                  onMouseOver={(e) => e.currentTarget.style.opacity = 1}
+                  onMouseOut={(e) => e.currentTarget.style.opacity = 0.7}
+                  title="Eliminar Evento"
+                >
+                  <Trash2 size={18} />
+                </button>
               </div>
               <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.9rem', color: 'var(--text-muted)', borderTop: '1px solid rgba(255,255,255,0.1)', paddingTop: '1rem' }}>
                 <div>

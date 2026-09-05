@@ -14,6 +14,7 @@ const EventPOS = ({ event }) => {
   // POS State
   const [cart, setCart] = useState([]);
   const [clientName, setClientName] = useState('');
+  const [saleNote, setSaleNote] = useState('');
   const [paymentMethod, setPaymentMethod] = useState('cash'); // cash, transfer
   
   // Printing State
@@ -86,6 +87,7 @@ const EventPOS = ({ event }) => {
         eventId: event.id,
         correlative: nextCorrelative,
         clientName: clientName.trim(),
+        saleNote: saleNote.trim(),
         paymentMethod,
         items: cart,
         total: cartTotal,
@@ -115,6 +117,7 @@ const EventPOS = ({ event }) => {
       // Limpiar carrito
       setCart([]);
       setClientName('');
+      setSaleNote('');
       setPaymentMethod('cash');
 
       // Disparar impresión
@@ -222,6 +225,17 @@ const EventPOS = ({ event }) => {
               placeholder="Ej. Familia Pérez"
               value={clientName}
               onChange={(e) => setClientName(e.target.value)}
+            />
+          </div>
+
+          <div className="input-group" style={{ marginBottom: '1rem' }}>
+            <label className="input-label">Detalle a Imprimir (Opcional)</label>
+            <input 
+              type="text" 
+              className="input-field" 
+              placeholder="Ej. Retira en puerta 2, Sin mayo..."
+              value={saleNote}
+              onChange={(e) => setSaleNote(e.target.value)}
             />
           </div>
           
