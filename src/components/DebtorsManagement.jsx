@@ -7,16 +7,40 @@ import { useModal } from '../context/ModalContext';
 const DebtorsManagement = ({ onBack }) => {
   const { showAlert } = useModal();
   const [debtors, setDebtors] = useState({});
+  const [usersMap, setUsersMap] = useState({});
   const [loading, setLoading] = useState(true);
   const [notifying, setNotifying] = useState(null); // guardará el email del que está siendo notificado
   const [message, setMessage] = useState('');
 
   useEffect(() => {
-    fetchDebts();
+    fetchData();
   }, []);
 
-  const fetchDebts = async () => {
+  const fetchData = async () => {
     setLoading(true);
+    await Promise.all([fetchUsers(), fetchDebts()]);
+    setLoading(false);
+  };
+
+  const fetchUsers = async () => {
+    try {
+      const usersSnap = await getDocs(collection(db, 'users'));
+      const map = {};
+      usersSnap.forEach(doc => {
+        const data = doc.data();
+        if (data.formalName) {
+          map[doc.id] = data.formalName;
+        } else if (data.displayName) {
+          map[doc.id] = data.displayName;
+        }
+      });
+      setUsersMap(map);
+    } catch (error) {
+      console.error("Error fetching users:", error);
+    }
+  };
+
+  const fetchDebts = async () => {
     try {
       // 1. Traer todas las deudas pendientes
       const q = query(collection(db, 'debts'), where('status', '==', 'pending'));
@@ -47,8 +71,6 @@ const DebtorsManagement = ({ onBack }) => {
       setDebtors(grouped);
     } catch (error) {
       console.error("Error fetching debts:", error);
-    } finally {
-      setLoading(false);
     }
   };
 
@@ -142,8 +164,17 @@ const DebtorsManagement = ({ onBack }) => {
             <div key={idx} className="glass-panel" style={{ padding: '1.5rem', borderLeft: '4px solid var(--danger)' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '1rem' }}>
                 <div>
-                  <h4 style={{ margin: 0, fontSize: '1.2rem', color: 'var(--danger)' }}>{data.email}</h4>
-                  <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem', marginTop: '0.25rem' }}>
+                  <h4 style={{ margin: 0, fontSize: '1.2rem', color: 'var(--danger)' }}>
+                    {data.emailsArray.length > 0 
+                      ? data.emailsArray.map(email => usersMap[email] || email).join(' / ') 
+                      : data.email}
+                  </h4>
+                  {data.email !== 'Sin Apoderado' && (
+                    <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', margin: '0.25rem 0 0 0' }}>
+                      {data.email}
+                    </p>
+                  )}
+                  <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem', marginTop: '0.5rem' }}>
                     Alumnos: {Array.from(data.students).join(', ')}
                   </p>
                   
@@ -172,7 +203,7 @@ const DebtorsManagement = ({ onBack }) => {
                     className="btn btn-outline" 
                     style={{ color: 'var(--warning)', borderColor: 'rgba(245,158,11,0.3)', width: '100%', justifyContent: 'center' }}
                   >
-                    <Bell size={16} /> {notifying === data.email ? 'Enviando...' : 'Notificar Cobro'}
+                    <Bell size={16} /> {notifying === data.email ? 'Enviando...' : 'Notificar Correo y Portal'}
                   </button>
                   {data.email === 'Sin Apoderado' && (
                     <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.5rem' }}>
