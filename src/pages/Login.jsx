@@ -84,14 +84,18 @@ const Login = () => {
           fontSize: '0.85rem',
           color: 'var(--text-main)'
         }}>
-          <h4 style={{ color: 'var(--primary)', marginBottom: '0.5rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-            <UserPlus size={16} /> Nuevos Apoderados
+          <h4 style={{ color: 'var(--primary)', marginBottom: '0.75rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+            <UserPlus size={18} /> ¿Eres un apoderado nuevo?
           </h4>
-          <ol style={{ margin: 0, paddingLeft: '1.5rem', display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
-            <li>Crea una cuenta o ingresa directamente con Google (opción recomendada).</li>
-            <li>Al entrar, busca a tu hijo/a por su apellido.</li>
-            <li>Selecciona "Soy su apoderado" e ingresa su RUT para confirmar.</li>
+          <p style={{ marginBottom: '0.5rem', lineHeight: '1.4' }}>Sigue estos sencillos pasos para vincularte:</p>
+          <ol style={{ margin: 0, paddingLeft: '1.5rem', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+            <li>Crea una cuenta o ingresa más rápido usando Google.</li>
+            <li>Dentro del portal, busca a tu hijo/a por su apellido.</li>
+            <li>Haz clic en "Soy su apoderado" e ingresa su RUT para confirmar.</li>
           </ol>
+          <div style={{ marginTop: '0.75rem', padding: '0.5rem', backgroundColor: 'rgba(59, 130, 246, 0.15)', borderRadius: 'var(--radius-sm)', fontSize: '0.8rem', borderLeft: '3px solid var(--primary)', lineHeight: '1.4' }}>
+            <strong>Nota de Privacidad:</strong> El RUT se solicita como método de seguridad para asegurar que solo los apoderados correspondientes tengan acceso a las finanzas de cada alumno.
+          </div>
         </div>
 
         {error && (
