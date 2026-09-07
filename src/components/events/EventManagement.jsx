@@ -3,6 +3,7 @@ import { db } from '../../firebase/config';
 import { collection, getDocs, doc, setDoc, query, orderBy, deleteDoc, where } from 'firebase/firestore';
 import { ArrowLeft, PlusCircle, CheckCircle, Calendar, X, Save, Trash2 } from 'lucide-react';
 import { useModal } from '../../context/ModalContext';
+import { formatStudentName } from '../../utils/nameUtils';
 import EventDetail from './EventDetail';
 
 const EventManagement = ({ onBack }) => {
