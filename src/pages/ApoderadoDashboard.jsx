@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { LogOut, CheckCircle, Clock, Search, UserPlus, Upload, AlertCircle } from 'lucide-react';
+import { LogOut, CheckCircle, Clock, Search, UserPlus, Upload, AlertCircle, MessageCircle } from 'lucide-react';
 import { db, storage } from '../firebase/config';
 import { collection, query, where, getDocs, getDoc, doc, updateDoc, setDoc, or } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
@@ -33,6 +33,7 @@ const ApoderadoDashboard = () => {
   
   // Settings
   const [transferData, setTransferData] = useState(null);
+  const [whatsappContact, setWhatsappContact] = useState('');
 
   useEffect(() => {
     fetchData();
@@ -60,6 +61,9 @@ const ApoderadoDashboard = () => {
         const data = settingsSnap.data();
         if (data.transferData) {
           setTransferData(data.transferData);
+        }
+        if (data.whatsappContact) {
+          setWhatsappContact(data.whatsappContact);
         }
       }
 
@@ -462,18 +466,26 @@ const ApoderadoDashboard = () => {
             );
           })}
 
-          <div style={{ textAlign: 'center', marginBottom: '2rem' }}>
-             <button onClick={() => setMyStudents([])} className="btn btn-outline" style={{ fontSize: '0.85rem' }}>
-               Vincular a otro alumno
-             </button>
-          </div>
         </>
       )}
         </>
       )}
 
       <div className="glass-panel" style={{ padding: '2rem' }}>
-        <h3>Información del Curso</h3>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem' }}>
+          <h3 style={{ margin: 0 }}>Información del Curso</h3>
+          {whatsappContact && (
+            <a 
+              href={`https://wa.me/${whatsappContact.replace(/\D/g, '')}`} 
+              target="_blank" 
+              rel="noopener noreferrer" 
+              className="btn btn-primary"
+              style={{ backgroundColor: '#25D366', borderColor: '#25D366', padding: '0.5rem 1rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}
+            >
+              <MessageCircle size={18} /> Contactar Tesorería
+            </a>
+          )}
+        </div>
         <p style={{ color: 'var(--text-muted)', marginTop: '0.5rem', marginBottom: '1rem' }}>
           Para cualquier duda respecto a los pagos, por favor contacta a la directiva del curso.
         </p>

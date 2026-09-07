@@ -10,6 +10,7 @@ const SettingsManagement = ({ onBack }) => {
   const [saving, setSaving] = useState(false);
   
   const [accounts, setAccounts] = useState([]);
+  const [whatsappContact, setWhatsappContact] = useState('');
   
   // Modal/Form state
   const [isEditing, setIsEditing] = useState(false);
@@ -41,6 +42,9 @@ const SettingsManagement = ({ onBack }) => {
           // Migration from old single account
           setAccounts([{ ...data.transferData, id: 'acc_legacy', alias: 'Cuenta Principal' }]);
         }
+        if (data.whatsappContact) {
+          setWhatsappContact(data.whatsappContact);
+        }
       }
     } catch (error) {
       console.error("Error fetching settings:", error);
@@ -62,6 +66,17 @@ const SettingsManagement = ({ onBack }) => {
       await showAlert("Error al guardar la configuración.");
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleSaveContact = async () => {
+    try {
+      const docRef = doc(db, 'settings', 'general');
+      await setDoc(docRef, { whatsappContact }, { merge: true });
+      await showAlert("Contacto guardado correctamente.");
+    } catch (error) {
+      console.error("Error saving contact:", error);
+      await showAlert("Error al guardar el contacto.");
     }
   };
 
@@ -136,7 +151,7 @@ const SettingsManagement = ({ onBack }) => {
             Puedes agregar múltiples cuentas bancarias. Al crear una cuota, podrás elegir a cuál de estas cuentas deben transferir los apoderados.
           </p>
 
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: '1rem' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: '1rem', marginBottom: '3rem' }}>
             {accounts.map(acc => (
               <div key={acc.id} style={{ backgroundColor: 'rgba(255,255,255,0.03)', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-color)', padding: '1.5rem' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '1rem' }}>
@@ -164,6 +179,25 @@ const SettingsManagement = ({ onBack }) => {
                 No hay cuentas configuradas.
               </div>
             )}
+          </div>
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: 'var(--primary)', marginBottom: '1.5rem' }}>
+            <h4 style={{ margin: 0 }}>Contacto de la Directiva</h4>
+          </div>
+          <div style={{ display: 'flex', gap: '1rem', alignItems: 'flex-end', flexWrap: 'wrap' }}>
+            <div className="input-group" style={{ marginBottom: 0, flex: 1, minWidth: '250px' }}>
+              <label className="input-label">Número de WhatsApp (Ej: +56912345678)</label>
+              <input 
+                type="text" 
+                className="input-field" 
+                value={whatsappContact} 
+                onChange={e => setWhatsappContact(e.target.value)} 
+                placeholder="+56912345678"
+              />
+            </div>
+            <button onClick={handleSaveContact} className="btn btn-primary" style={{ padding: '0.6rem 1rem' }}>
+              <Save size={18} /> Guardar Contacto
+            </button>
           </div>
         </div>
       ) : (
