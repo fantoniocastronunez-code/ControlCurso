@@ -14,6 +14,7 @@ import OutcomeManagement from '../components/OutcomeManagement';
 import FundManagement from '../components/FundManagement';
 import EventManagement from '../components/events/EventManagement';
 import SettingsManagement from '../components/SettingsManagement';
+import FundHistoryModal from '../components/FundHistoryModal';
 
 const AdminDashboard = () => {
   const { user, role, logout } = useAuth();
@@ -28,8 +29,11 @@ const AdminDashboard = () => {
     totalExpected: 0,
     totalCash: 0,
     totalTransfer: 0,
-    fundsBalances: []
+    fundsBalances: [],
+    allTransactions: []
   });
+  
+  const [selectedFundForHistory, setSelectedFundForHistory] = useState(null);
   
   // Lista de cuotas
   const [expenses, setExpenses] = useState([]);
@@ -104,6 +108,7 @@ const AdminDashboard = () => {
       let collected = 0;
       let cashIn = 0;
       let transferIn = 0;
+      const allTransactions = [];
       debtsSnap.forEach(doc => {
         const data = doc.data();
         const amt = typeof data.paidAmount === 'number' ? data.paidAmount : (data.amount || 0);
@@ -140,7 +145,7 @@ const AdminDashboard = () => {
         fundsMap.set(doc.id, { id: doc.id, name: doc.data().name, balance: 0 });
       });
 
-      // Calcular balances por fondo
+      // Calcular balances por fondo y llenar transacciones
       debtsSnap.forEach(doc => {
         const data = doc.data();
         const amt = typeof data.paidAmount === 'number' ? data.paidAmount : (data.amount || 0);
@@ -158,10 +163,14 @@ const AdminDashboard = () => {
              fundsMap.set('general', { id: 'general', name: 'Fondo General', balance: 0 });
            }
            fundsMap.get('general').balance -= amt;
+           
+           allTransactions.push({ id: doc.id + '_add', fundId: fundId, type: 'debt_payment', amount: amt, description: `Pago de cuota (Saldo a favor)`, date: data.paidAt || data.createdAt });
+           allTransactions.push({ id: doc.id + '_sub', fundId: 'general', type: 'balance_used', amount: -amt, description: `Uso de Saldo a favor`, date: data.paidAt || data.createdAt });
            return;
         }
         
         fundsMap.get(fundId).balance += amt;
+        allTransactions.push({ id: doc.id, fundId: fundId, type: 'debt_payment', amount: amt, description: `Pago de cuota`, date: data.paidAt || data.createdAt });
       });
 
       outcomesSnap.forEach(doc => {
@@ -173,6 +182,7 @@ const AdminDashboard = () => {
           fundsMap.set(fundId, { id: fundId, name: fundId === 'general' ? 'Fondo General' : 'Fondo Desconocido', balance: 0 });
         }
         fundsMap.get(fundId).balance -= amt;
+        allTransactions.push({ id: doc.id, fundId: fundId, type: 'outcome', amount: -amt, description: data.description || 'Gasto', date: data.createdAt });
       });
 
       incomesSnap.forEach(doc => {
@@ -184,6 +194,7 @@ const AdminDashboard = () => {
           fundsMap.set(fundId, { id: fundId, name: fundId === 'general' ? 'Fondo General' : 'Fondo Desconocido', balance: 0 });
         }
         fundsMap.get(fundId).balance += amt;
+        allTransactions.push({ id: doc.id, fundId: fundId, type: 'income', amount: amt, description: data.title || data.description || 'Ingreso', date: data.createdAt });
       });
 
       // Transferencias entre fondos
@@ -194,8 +205,14 @@ const AdminDashboard = () => {
         const fromId = data.fromFundId;
         const toId = data.toFundId;
 
-        if (fromId && fundsMap.has(fromId)) fundsMap.get(fromId).balance -= amt;
-        if (toId && fundsMap.has(toId)) fundsMap.get(toId).balance += amt;
+        if (fromId && fundsMap.has(fromId)) {
+          fundsMap.get(fromId).balance -= amt;
+          allTransactions.push({ id: doc.id + '_out', fundId: fromId, type: 'transfer_out', amount: -amt, description: 'Transferencia saliente', date: data.createdAt });
+        }
+        if (toId && fundsMap.has(toId)) {
+          fundsMap.get(toId).balance += amt;
+          allTransactions.push({ id: doc.id + '_in', fundId: toId, type: 'transfer_in', amount: amt, description: 'Transferencia entrante', date: data.createdAt });
+        }
       });
 
       const fundsBalances = Array.from(fundsMap.values());
@@ -207,7 +224,8 @@ const AdminDashboard = () => {
         totalExpected: expected,
         totalCash: cashIn - cashOut,
         totalTransfer: transferIn - transferOut,
-        fundsBalances
+        fundsBalances,
+        allTransactions
       });
       setExpenses(expensesList);
 
@@ -317,10 +335,15 @@ const AdminDashboard = () => {
                   <h4 style={{ marginBottom: '1rem', color: 'var(--primary)', margin: 0 }}>Distribución por Fondos</h4>
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: '1rem', marginTop: '1rem' }}>
                     {stats.fundsBalances.map(fb => (
-                      <div key={fb.id} style={{ padding: '1rem', backgroundColor: 'rgba(255,255,255,0.03)', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-color)', position: 'relative' }}>
+                      <div 
+                        key={fb.id} 
+                        style={{ padding: '1rem', backgroundColor: 'rgba(255,255,255,0.03)', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-color)', position: 'relative', cursor: 'pointer', transition: 'all 0.2s' }}
+                        onClick={() => setSelectedFundForHistory(fb)}
+                        className="fund-card-hover"
+                      >
                         {fb.id === 'general' && fb.balance !== 0 && (
                           <button 
-                            onClick={() => handleZeroOutGeneral(fb.balance)}
+                            onClick={(e) => { e.stopPropagation(); handleZeroOutGeneral(fb.balance); }}
                             style={{ position: 'absolute', top: '0.5rem', right: '0.5rem', background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', opacity: 0.7 }}
                             title="Borrar fondo (ajustar a $0)"
                           >

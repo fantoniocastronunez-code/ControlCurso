@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { db } from '../firebase/config';
-import { collection, getDocs, doc, setDoc, updateDoc } from 'firebase/firestore';
+import { collection, getDocs, doc, setDoc, updateDoc, getDoc } from 'firebase/firestore';
 import { ArrowLeft, PlusCircle, CheckCircle } from 'lucide-react';
 import { useModal } from '../context/ModalContext';
 import { formatStudentName } from '../utils/nameUtils';
@@ -21,6 +21,7 @@ const ExpenseManagement = ({ onBack }) => {
   
   const [funds, setFunds] = useState([]);
   const [selectedFundId, setSelectedFundId] = useState('');
+  const [createAutoFund, setCreateAutoFund] = useState(false);
   
   const [transferAccounts, setTransferAccounts] = useState([]);
   const [selectedAccountId, setSelectedAccountId] = useState('');
@@ -103,7 +104,7 @@ const ExpenseManagement = ({ onBack }) => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!title || selectedStudents.size === 0 || !selectedFundId) {
+    if (!title || selectedStudents.size === 0 || (!selectedFundId && !createAutoFund)) {
       await showAlert('Debes ingresar título, seleccionar fondo y al menos un alumno.');
       return;
     }
@@ -140,6 +141,17 @@ const ExpenseManagement = ({ onBack }) => {
         finalTotalAmount = Array.from(selectedStudents).reduce((sum, id) => sum + parseFloat(customAmounts[id]), 0);
       }
       
+      let finalFundId = selectedFundId;
+      if (createAutoFund) {
+        finalFundId = 'fund_' + Date.now().toString();
+        const fundRef = doc(db, 'funds', finalFundId);
+        await setDoc(fundRef, {
+          name: title,
+          description: 'Fondo creado automáticamente para la cuota',
+          createdAt: new Date().toISOString()
+        });
+      }
+      
       const expenseId = 'exp_' + Date.now().toString();
       const expenseRef = doc(db, 'expenses', expenseId);
       
@@ -152,7 +164,7 @@ const ExpenseManagement = ({ onBack }) => {
         amountPerStudent,
         studentsCount: selectedStudents.size,
         paidCount: 0,
-        fundId: selectedFundId,
+        fundId: finalFundId,
         transferData: selectedAccount,
         createdAt: new Date().toISOString()
       };
@@ -328,18 +340,28 @@ const ExpenseManagement = ({ onBack }) => {
             </div>
 
             <div className="input-group">
-              <label className="input-label">Fondo Destino</label>
+              <label className="input-label">Fondo al que ingresará el dinero</label>
               <select 
-                className="input-field"
-                value={selectedFundId}
+                className="input-field" 
+                value={selectedFundId} 
                 onChange={(e) => setSelectedFundId(e.target.value)}
-                required
+                disabled={createAutoFund}
               >
-                <option value="" disabled>Selecciona un fondo...</option>
+                <option value="">-- Selecciona un fondo --</option>
+                <option value="general">Fondo General</option>
                 {funds.map(f => (
                   <option key={f.id} value={f.id}>{f.name}</option>
                 ))}
               </select>
+              <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginTop: '0.5rem', cursor: 'pointer', fontSize: '0.85rem' }}>
+                <input 
+                  type="checkbox" 
+                  checked={createAutoFund}
+                  onChange={(e) => setCreateAutoFund(e.target.checked)}
+                  style={{ accentColor: 'var(--primary)' }}
+                />
+                Crear automáticamente un fondo exclusivo para esta cuota
+              </label>
             </div>
 
             <div className="input-group">
