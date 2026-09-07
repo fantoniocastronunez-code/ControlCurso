@@ -17,7 +17,8 @@ const ExpenseDetail = ({ expenseId, onBack }) => {
 
   // Estados de Edición
   const [isEditing, setIsEditing] = useState(false);
-  const [editData, setEditData] = useState({ title: '', totalAmount: '' });
+  const [editData, setEditData] = useState({ title: '', totalAmount: '', accountId: '' });
+  const [transferAccounts, setTransferAccounts] = useState([]);
 
   // Selección Múltiple
   const [selectedDebts, setSelectedDebts] = useState([]);
@@ -40,6 +41,18 @@ const ExpenseDetail = ({ expenseId, onBack }) => {
       const studentsSnap = await getDocs(collection(db, 'students'));
       const studentsData = studentsSnap.docs.map(d => ({ id: d.id, ...d.data() }));
       setStudents(studentsData);
+
+      // Obtener cuentas de transferencia
+      const settingsDocRef = doc(db, 'settings', 'general');
+      const settingsSnap = await getDoc(settingsDocRef);
+      if (settingsSnap.exists()) {
+        const data = settingsSnap.data();
+        if (data.transferAccounts) {
+          setTransferAccounts(data.transferAccounts);
+        } else if (data.transferData) {
+          setTransferAccounts([{ ...data.transferData, id: 'acc_legacy', alias: 'Cuenta Principal' }]);
+        }
+      }
 
       // Obtener las deudas de este gasto
       const q = query(collection(db, 'debts'), where('expenseId', '==', expenseId));
@@ -386,7 +399,11 @@ const ExpenseDetail = ({ expenseId, onBack }) => {
   };
 
   const handleStartEdit = () => {
-    setEditData({ title: expense.title, totalAmount: expense.totalAmount });
+    setEditData({ 
+      title: expense.title, 
+      totalAmount: expense.totalAmount,
+      accountId: expense.transferData ? expense.transferData.id : (expense.transferData?.alias ? 'acc_legacy' : '')
+    });
     setIsEditing(true);
   };
 
@@ -395,22 +412,31 @@ const ExpenseDetail = ({ expenseId, onBack }) => {
     setLoading(true);
     try {
       const newAmount = Number(editData.totalAmount);
+      const selectedAccount = transferAccounts.find(a => a.id === editData.accountId) || null;
+      
       // 1. Actualizar Cuota
       await updateDoc(doc(db, 'expenses', expenseId), {
         title: editData.title,
-        totalAmount: newAmount
+        totalAmount: newAmount,
+        transferData: selectedAccount
       });
 
-      // 2. Actualizar monto en deudas pendientes
-      if (newAmount !== expense.totalAmount) {
-        for (const debt of debts) {
-          if (debt.status === 'pending') {
-            await updateDoc(doc(db, 'debts', debt.id), { amount: newAmount });
+      // 2. Actualizar monto y datos de transferencia en deudas pendientes
+      for (const debt of debts) {
+        if (debt.status === 'pending' || debt.status === 'partial') {
+          const updates = {};
+          if (debt.status === 'pending' && newAmount !== expense.totalAmount) {
+            updates.amount = newAmount;
+          }
+          updates.transferData = selectedAccount;
+          
+          if (Object.keys(updates).length > 0) {
+            await updateDoc(doc(db, 'debts', debt.id), updates);
           }
         }
       }
 
-      setExpense({ ...expense, title: editData.title, totalAmount: newAmount });
+      setExpense({ ...expense, title: editData.title, totalAmount: newAmount, transferData: selectedAccount });
       setIsEditing(false);
       fetchDetail();
     } catch (error) {
@@ -498,6 +524,19 @@ const ExpenseDetail = ({ expenseId, onBack }) => {
               <label className="input-label">Monto por Alumno ($)</label>
               <input type="number" className="input-field" value={editData.totalAmount} onChange={e => setEditData({...editData, totalAmount: e.target.value})} />
               <small style={{ color: 'var(--text-muted)' }}>Esto solo actualizará el cobro de los alumnos que aún no han pagado.</small>
+            </div>
+            <div className="input-group">
+              <label className="input-label">Cuenta para Transferencias</label>
+              <select 
+                className="input-field"
+                value={editData.accountId}
+                onChange={(e) => setEditData({...editData, accountId: e.target.value})}
+              >
+                <option value="">No aplica (Solo efectivo / otro)</option>
+                {transferAccounts.map(acc => (
+                  <option key={acc.id} value={acc.id}>{acc.alias} ({acc.bank})</option>
+                ))}
+              </select>
             </div>
             <div style={{ display: 'flex', gap: '1rem' }}>
               <button onClick={handleSaveEdit} className="btn btn-primary" style={{ backgroundColor: 'var(--success)' }}><Save size={18}/> Guardar Cambios</button>
