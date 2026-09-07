@@ -23,6 +23,7 @@ const AdminDashboard = () => {
 
   const [stats, setStats] = useState({
     activeStudents: 0,
+    registeredApoderados: 0,
     totalCollected: 0,
     totalExpected: 0,
     totalCash: 0,
@@ -47,6 +48,13 @@ const AdminDashboard = () => {
       const studentsSnap = await getDocs(collection(db, 'students'));
       const activeStudentsCount = studentsSnap.size;
 
+      // 1.5 Apoderados registrados
+      let registeredApoderadosCount = 0;
+      if (role === 'superadmin' || role === 'admin') {
+        const usersSnap = await getDocs(query(collection(db, 'users'), where('role', '==', 'apoderado')));
+        registeredApoderadosCount = usersSnap.size;
+      }
+
       // 2. Cuotas / Gastos
       const expensesSnap = await getDocs(collection(db, 'expenses'));
       let expected = 0;
@@ -68,7 +76,7 @@ const AdminDashboard = () => {
       let transferIn = 0;
       debtsSnap.forEach(doc => {
         const data = doc.data();
-        const amt = data.paidAmount || data.amount || 0;
+        const amt = typeof data.paidAmount === 'number' ? data.paidAmount : (data.amount || 0);
         collected += amt;
         if (data.paymentMethod === 'cash') cashIn += amt;
         if (data.paymentMethod === 'transfer') transferIn += amt;
@@ -105,14 +113,24 @@ const AdminDashboard = () => {
       // Calcular balances por fondo
       debtsSnap.forEach(doc => {
         const data = doc.data();
-        if (data.paymentMethod === 'balance') return; // El dinero físico ya debe estar en algún fondo mediante un 'income'
-        
-        const amt = data.paidAmount || data.amount || 0;
+        const amt = typeof data.paidAmount === 'number' ? data.paidAmount : (data.amount || 0);
         const fundId = data.fundId || 'general'; // 'general' para los antiguos
-        
+
         if (!fundsMap.has(fundId)) {
           fundsMap.set(fundId, { id: fundId, name: fundId === 'general' ? 'Fondo General' : 'Fondo Desconocido', balance: 0 });
         }
+        
+        if (data.paymentMethod === 'balance') {
+           // Si se pagó con saldo a favor, el dinero físico ya está en el sistema (usualmente en Fondo General)
+           // Hacemos el traspaso interno para que el fondo de esta cuota reciba el dinero contablemente.
+           fundsMap.get(fundId).balance += amt;
+           if (!fundsMap.has('general')) {
+             fundsMap.set('general', { id: 'general', name: 'Fondo General', balance: 0 });
+           }
+           fundsMap.get('general').balance -= amt;
+           return;
+        }
+        
         fundsMap.get(fundId).balance += amt;
       });
 
@@ -154,6 +172,7 @@ const AdminDashboard = () => {
 
       setStats({
         activeStudents: activeStudentsCount,
+        registeredApoderados: registeredApoderadosCount,
         totalCollected: collected,
         totalExpected: expected,
         totalCash: cashIn - cashOut,
@@ -219,6 +238,18 @@ const AdminDashboard = () => {
                     <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem' }}>Alumnos Activos</p>
                   </div>
                 </div>
+
+                {role === 'superadmin' && (
+                  <div className="glass-panel" style={{ padding: '1.5rem', display: 'flex', alignItems: 'center', gap: '1rem' }}>
+                    <div style={{ backgroundColor: 'rgba(245, 158, 11, 0.2)', padding: '1rem', borderRadius: '50%', color: 'var(--warning)' }}>
+                      <Users size={24} />
+                    </div>
+                    <div>
+                      <h3 style={{ fontSize: '1.5rem', margin: 0 }}>{stats.registeredApoderados}</h3>
+                      <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem' }}>Apoderados Registrados</p>
+                    </div>
+                  </div>
+                )}
 
                 <div className="glass-panel" style={{ padding: '1.5rem', display: 'flex', alignItems: 'center', gap: '1rem' }}>
                   <div style={{ backgroundColor: 'rgba(16,185,129,0.2)', padding: '1rem', borderRadius: '50%', color: 'var(--success)' }}>

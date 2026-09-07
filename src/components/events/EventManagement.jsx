@@ -20,6 +20,7 @@ const EventManagement = ({ onBack }) => {
   const [eventDate, setEventDate] = useState(new Date().toISOString().split('T')[0]);
   const [mandatoryAmount, setMandatoryAmount] = useState('');
   const [noShowAmount, setNoShowAmount] = useState('');
+  const [isTestEvent, setIsTestEvent] = useState(false);
 
   useEffect(() => {
     fetchEvents();
@@ -43,12 +44,12 @@ const EventManagement = ({ onBack }) => {
 
   const handleCreateEvent = async (e) => {
     e.preventDefault();
-    if (!eventName || !mandatoryAmount || !noShowAmount) {
-      await showAlert('Debes ingresar el nombre y ambos montos.');
+    if (!eventName || (!isTestEvent && (!mandatoryAmount || !noShowAmount))) {
+      await showAlert('Debes ingresar el nombre y los montos requeridos.');
       return;
     }
 
-    if (!(await showConfirm(`¿Estás seguro de crear el evento "${eventName}"?\nEsto cobrará automáticamente $${mandatoryAmount} a todos los alumnos.`))) {
+    if (!(await showConfirm(`¿Estás seguro de crear el evento "${eventName}"?${isTestEvent ? '\nES UN EVENTO DE PRUEBA. No se cobrará nada a los alumnos.' : `\nEsto cobrará automáticamente $${mandatoryAmount} a todos los alumnos.`}`))) {
       return;
     }
 
@@ -67,56 +68,60 @@ const EventManagement = ({ onBack }) => {
       const newEvent = {
         name: eventName.trim(),
         date: eventDate,
-        mandatoryAmount: parseFloat(mandatoryAmount),
-        noShowAmount: parseFloat(noShowAmount),
+        mandatoryAmount: isTestEvent ? 0 : parseFloat(mandatoryAmount),
+        noShowAmount: isTestEvent ? 0 : parseFloat(noShowAmount),
         fundId: fundId,
         createdAt: new Date().toISOString(),
-        status: 'active'
+        status: 'active',
+        isTestEvent: isTestEvent
       };
       await setDoc(doc(db, 'events', eventId), newEvent);
 
-      // 3. Crear el Gasto General (Expense)
-      const expenseId = `exp_evt_${eventId}`;
-      
-      // Obtener alumnos activos
-      const studentsSnap = await getDocs(collection(db, 'students'));
-      const studentsList = studentsSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+      if (!isTestEvent) {
+        // 3. Crear el Gasto General (Expense)
+        const expenseId = `exp_evt_${eventId}`;
+        
+        // Obtener alumnos activos
+        const studentsSnap = await getDocs(collection(db, 'students'));
+        const studentsList = studentsSnap.docs.map(d => ({ id: d.id, ...d.data() }));
 
-      await setDoc(doc(db, 'expenses', expenseId), {
-        title: `Cuota Obligatoria: ${eventName.trim()}`,
-        date: eventDate,
-        totalAmount: parseFloat(mandatoryAmount) * studentsList.length,
-        amountPerStudent: parseFloat(mandatoryAmount),
-        studentsCount: studentsList.length,
-        paidCount: 0,
-        fundId: fundId,
-        eventId: eventId,
-        createdAt: new Date().toISOString()
-      });
-
-      // 4. Crear deudas individuales para cada alumno
-      for (const student of studentsList) {
-        const debtId = `debt_${expenseId}_${student.id}`;
-        await setDoc(doc(db, 'debts', debtId), {
-          expenseId,
-          studentId: student.id,
-          studentName: student.name,
-          apoderadoEmails: student.apoderadoEmails || (student.apoderadoEmail ? [student.apoderadoEmail] : []),
-          amount: parseFloat(mandatoryAmount),
-          status: 'pending', // pending, review, paid
+        await setDoc(doc(db, 'expenses', expenseId), {
           title: `Cuota Obligatoria: ${eventName.trim()}`,
           date: eventDate,
+          totalAmount: parseFloat(mandatoryAmount) * studentsList.length,
+          amountPerStudent: parseFloat(mandatoryAmount),
+          studentsCount: studentsList.length,
+          paidCount: 0,
           fundId: fundId,
           eventId: eventId,
           createdAt: new Date().toISOString()
         });
+
+        // 4. Crear deudas individuales para cada alumno
+        for (const student of studentsList) {
+          const debtId = `debt_${expenseId}_${student.id}`;
+          await setDoc(doc(db, 'debts', debtId), {
+            expenseId,
+            studentId: student.id,
+            studentName: student.name,
+            apoderadoEmails: student.apoderadoEmails || (student.apoderadoEmail ? [student.apoderadoEmail] : []),
+            amount: parseFloat(mandatoryAmount),
+            status: 'pending', // pending, review, paid
+            title: `Cuota Obligatoria: ${eventName.trim()}`,
+            date: eventDate,
+            fundId: fundId,
+            eventId: eventId,
+            createdAt: new Date().toISOString()
+          });
+        }
       }
 
-      setMessage('Evento creado y cuotas generadas con éxito.');
+      setMessage(isTestEvent ? 'Evento de prueba creado con éxito.' : 'Evento creado y cuotas generadas con éxito.');
       setShowCreateModal(false);
       setEventName('');
       setMandatoryAmount('');
       setNoShowAmount('');
+      setIsTestEvent(false);
       
       fetchEvents();
       setTimeout(() => setMessage(''), 3000);
@@ -223,7 +228,10 @@ const EventManagement = ({ onBack }) => {
                     <Calendar size={24} />
                   </div>
                   <div>
-                    <h4 style={{ margin: 0, fontSize: '1.1rem' }}>{event.name}</h4>
+                    <h4 style={{ margin: 0, fontSize: '1.1rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                      {event.name}
+                      {event.isTestEvent && <span style={{ fontSize: '0.65rem', padding: '0.2rem 0.5rem', backgroundColor: 'var(--warning)', color: '#000', borderRadius: '1rem', fontWeight: 'bold' }}>PRUEBA</span>}
+                    </h4>
                     <p style={{ margin: 0, fontSize: '0.85rem', color: 'var(--text-muted)' }}>{new Date(event.date).toLocaleDateString('es-CL')}</p>
                   </div>
                 </div>
@@ -238,14 +246,20 @@ const EventManagement = ({ onBack }) => {
                 </button>
               </div>
               <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.9rem', color: 'var(--text-muted)', borderTop: '1px solid rgba(255,255,255,0.1)', paddingTop: '1rem' }}>
-                <div>
-                  <span style={{ display: 'block' }}>Cuota</span>
-                  <strong style={{ color: 'var(--text)' }}>{formatMoney(event.mandatoryAmount)}</strong>
-                </div>
-                <div style={{ textAlign: 'right' }}>
-                  <span style={{ display: 'block' }}>Multa</span>
-                  <strong style={{ color: 'var(--danger)' }}>{formatMoney(event.noShowAmount)}</strong>
-                </div>
+                {event.isTestEvent ? (
+                  <div style={{ width: '100%', textAlign: 'center', color: 'var(--warning)', fontWeight: 'bold', fontSize: '0.85rem' }}>EVENTO DE MUESTRA / PRUEBA</div>
+                ) : (
+                  <>
+                    <div>
+                      <span style={{ display: 'block' }}>Cuota</span>
+                      <strong style={{ color: 'var(--text)' }}>{formatMoney(event.mandatoryAmount)}</strong>
+                    </div>
+                    <div style={{ textAlign: 'right' }}>
+                      <span style={{ display: 'block' }}>Multa</span>
+                      <strong style={{ color: 'var(--danger)' }}>{formatMoney(event.noShowAmount)}</strong>
+                    </div>
+                  </>
+                )}
               </div>
             </div>
           ))}
@@ -288,35 +302,50 @@ const EventManagement = ({ onBack }) => {
                 />
               </div>
               
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
-                <div className="input-group">
-                  <label className="input-label">Monto Obligatorio ($)</label>
-                  <input 
-                    type="number" 
-                    min="1"
-                    required
-                    className="input-field" 
-                    placeholder="Ej. 1500"
-                    value={mandatoryAmount}
-                    onChange={(e) => setMandatoryAmount(e.target.value)}
-                  />
-                  <small style={{ color: 'var(--text-muted)', fontSize: '0.75rem', marginTop: '0.25rem', display: 'block' }}>Se cobrará a todos al crear el evento.</small>
-                </div>
-                
-                <div className="input-group">
-                  <label className="input-label">Monto si NO Asiste ($)</label>
-                  <input 
-                    type="number" 
-                    min="1"
-                    required
-                    className="input-field" 
-                    placeholder="Ej. 3000"
-                    value={noShowAmount}
-                    onChange={(e) => setNoShowAmount(e.target.value)}
-                  />
-                  <small style={{ color: 'var(--text-muted)', fontSize: '0.75rem', marginTop: '0.25rem', display: 'block' }}>Multa aplicable después del evento.</small>
-                </div>
+              <div style={{ margin: '1.5rem 0', display: 'flex', alignItems: 'center', gap: '0.5rem', backgroundColor: 'rgba(245, 158, 11, 0.1)', padding: '1rem', borderRadius: 'var(--radius-md)' }}>
+                <input 
+                  type="checkbox" 
+                  id="isTestEvent"
+                  checked={isTestEvent}
+                  onChange={(e) => setIsTestEvent(e.target.checked)}
+                  style={{ width: '18px', height: '18px', accentColor: 'var(--warning)', cursor: 'pointer' }}
+                />
+                <label htmlFor="isTestEvent" style={{ fontSize: '0.9rem', color: 'var(--warning)', cursor: 'pointer' }}>
+                  Crear como <strong>Evento de Prueba</strong> (No generará cuotas ni deudas reales, ideal para probar el POS)
+                </label>
               </div>
+              
+              {!isTestEvent && (
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                  <div className="input-group">
+                    <label className="input-label">Monto Obligatorio ($)</label>
+                    <input 
+                      type="number" 
+                      min="1"
+                      required={!isTestEvent}
+                      className="input-field" 
+                      placeholder="Ej. 1500"
+                      value={mandatoryAmount}
+                      onChange={(e) => setMandatoryAmount(e.target.value)}
+                    />
+                    <small style={{ color: 'var(--text-muted)', fontSize: '0.75rem', marginTop: '0.25rem', display: 'block' }}>Se cobrará a todos al crear el evento.</small>
+                  </div>
+                  
+                  <div className="input-group">
+                    <label className="input-label">Monto si NO Asiste ($)</label>
+                    <input 
+                      type="number" 
+                      min="1"
+                      required={!isTestEvent}
+                      className="input-field" 
+                      placeholder="Ej. 3000"
+                      value={noShowAmount}
+                      onChange={(e) => setNoShowAmount(e.target.value)}
+                    />
+                    <small style={{ color: 'var(--text-muted)', fontSize: '0.75rem', marginTop: '0.25rem', display: 'block' }}>Multa aplicable después del evento.</small>
+                  </div>
+                </div>
+              )}
               
               <div style={{ marginTop: '2rem', display: 'flex', justifyContent: 'flex-end', gap: '1rem' }}>
                 <button type="button" onClick={() => setShowCreateModal(false)} className="btn btn-outline">
