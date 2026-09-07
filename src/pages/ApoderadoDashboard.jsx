@@ -26,11 +26,13 @@ const ApoderadoDashboard = () => {
   const [searchResults, setSearchResults] = useState([]);
   const [hasSearched, setHasSearched] = useState(false);
   
-  // Payment Modal States
   const [payingDebt, setPayingDebt] = useState(null);
   const [paidAmount, setPaidAmount] = useState('');
   const [receiptFile, setReceiptFile] = useState(null);
   const [uploading, setUploading] = useState(false);
+  
+  // Settings
+  const [transferData, setTransferData] = useState(null);
 
   useEffect(() => {
     fetchData();
@@ -48,6 +50,16 @@ const ApoderadoDashboard = () => {
           setIsProfileComplete(false);
           setLoading(false);
           return; // Stop here if profile is incomplete
+        }
+      }
+
+      // 0.5 Fetch Settings
+      const settingsDocRef = doc(db, 'settings', 'general');
+      const settingsSnap = await getDoc(settingsDocRef);
+      if (settingsSnap.exists()) {
+        const data = settingsSnap.data();
+        if (data.transferData) {
+          setTransferData(data.transferData);
         }
       }
 
@@ -276,6 +288,27 @@ const ApoderadoDashboard = () => {
               Estás reportando el pago para <strong>{payingDebt.title}</strong> del alumno <strong>{payingDebt.studentName}</strong>. 
               El monto esperado es de <strong>${payingDebt.amount}</strong>.
             </p>
+
+            {(() => {
+              const dataToShow = payingDebt.transferData || transferData;
+              if (dataToShow && dataToShow.bank) {
+                return (
+                  <div style={{ backgroundColor: 'rgba(99,102,241,0.05)', padding: '1rem', borderRadius: 'var(--radius-md)', border: '1px solid rgba(99,102,241,0.2)', marginBottom: '1.5rem', fontSize: '0.9rem' }}>
+                    <h4 style={{ margin: '0 0 0.5rem 0', color: 'var(--primary)', fontSize: '0.95rem' }}>Datos de Transferencia</h4>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '0.3rem', color: 'var(--text-main)' }}>
+                      {dataToShow.alias && <div><strong>Alias:</strong> {dataToShow.alias}</div>}
+                      {dataToShow.bank && <div><strong>Banco:</strong> {dataToShow.bank}</div>}
+                      {dataToShow.accountType && <div><strong>Tipo de Cuenta:</strong> {dataToShow.accountType}</div>}
+                      {dataToShow.accountNumber && <div><strong>Número:</strong> {dataToShow.accountNumber}</div>}
+                      {dataToShow.rut && <div><strong>RUT:</strong> {dataToShow.rut}</div>}
+                      {dataToShow.name && <div><strong>Nombre:</strong> {dataToShow.name}</div>}
+                      {dataToShow.email && <div><strong>Correo:</strong> {dataToShow.email}</div>}
+                    </div>
+                  </div>
+                );
+              }
+              return null;
+            })()}
 
             <form onSubmit={handlePaymentSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
               <div className="input-group" style={{ marginBottom: 0 }}>

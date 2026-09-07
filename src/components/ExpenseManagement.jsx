@@ -21,6 +21,9 @@ const ExpenseManagement = ({ onBack }) => {
   
   const [funds, setFunds] = useState([]);
   const [selectedFundId, setSelectedFundId] = useState('');
+  
+  const [transferAccounts, setTransferAccounts] = useState([]);
+  const [selectedAccountId, setSelectedAccountId] = useState('');
 
   useEffect(() => {
     fetchData();
@@ -54,6 +57,24 @@ const ExpenseManagement = ({ onBack }) => {
       setFunds(fundsList);
       if (fundsList.length > 0) {
         setSelectedFundId(fundsList[0].id);
+      }
+
+      // Fetch transfer accounts
+      const settingsDocRef = doc(db, 'settings', 'general');
+      const settingsSnap = await getDoc(settingsDocRef);
+      if (settingsSnap.exists()) {
+        const data = settingsSnap.data();
+        if (data.transferAccounts) {
+          setTransferAccounts(data.transferAccounts);
+          if (data.transferAccounts.length > 0) {
+            setSelectedAccountId(data.transferAccounts[0].id);
+          }
+        } else if (data.transferData) {
+          // Legacy support
+          const legacyAcc = { ...data.transferData, id: 'acc_legacy', alias: 'Cuenta Principal' };
+          setTransferAccounts([legacyAcc]);
+          setSelectedAccountId('acc_legacy');
+        }
       }
     } catch (error) {
       console.error("Error al obtener datos:", error);
@@ -122,6 +143,8 @@ const ExpenseManagement = ({ onBack }) => {
       const expenseId = 'exp_' + Date.now().toString();
       const expenseRef = doc(db, 'expenses', expenseId);
       
+      const selectedAccount = transferAccounts.find(a => a.id === selectedAccountId) || null;
+      
       const newExpense = {
         title,
         date,
@@ -130,6 +153,7 @@ const ExpenseManagement = ({ onBack }) => {
         studentsCount: selectedStudents.size,
         paidCount: 0,
         fundId: selectedFundId,
+        transferData: selectedAccount,
         createdAt: new Date().toISOString()
       };
       
@@ -184,6 +208,7 @@ const ExpenseManagement = ({ onBack }) => {
           title,
           date,
           fundId: selectedFundId,
+          transferData: selectedAccount,
           createdAt: new Date().toISOString()
         });
       }
@@ -313,6 +338,20 @@ const ExpenseManagement = ({ onBack }) => {
                 <option value="" disabled>Selecciona un fondo...</option>
                 {funds.map(f => (
                   <option key={f.id} value={f.id}>{f.name}</option>
+                ))}
+              </select>
+            </div>
+
+            <div className="input-group">
+              <label className="input-label">Cuenta para Transferencias</label>
+              <select 
+                className="input-field"
+                value={selectedAccountId}
+                onChange={(e) => setSelectedAccountId(e.target.value)}
+              >
+                <option value="">No aplica (Solo efectivo / otro)</option>
+                {transferAccounts.map(acc => (
+                  <option key={acc.id} value={acc.id}>{acc.alias} ({acc.bank})</option>
                 ))}
               </select>
             </div>

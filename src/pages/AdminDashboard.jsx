@@ -13,6 +13,7 @@ import DebtorsManagement from '../components/DebtorsManagement';
 import OutcomeManagement from '../components/OutcomeManagement';
 import FundManagement from '../components/FundManagement';
 import EventManagement from '../components/events/EventManagement';
+import SettingsManagement from '../components/SettingsManagement';
 
 const AdminDashboard = () => {
   const { user, role, logout } = useAuth();
@@ -287,6 +288,9 @@ const AdminDashboard = () => {
                   <button onClick={() => setCurrentView('events')} className="btn btn-outline" style={{ color: 'var(--success)', borderColor: 'rgba(16, 185, 129, 0.3)' }}>
                     Eventos y Ventas
                   </button>
+                  <button onClick={() => setCurrentView('settings')} className="btn btn-outline" style={{ color: '#a855f7', borderColor: 'rgba(168, 85, 247, 0.3)' }}>
+                    Configuración del Curso
+                  </button>
                   {role === 'superadmin' && (
                      <button 
                        onClick={() => setCurrentView('users')}
@@ -353,6 +357,8 @@ const AdminDashboard = () => {
         <FundManagement onBack={() => setCurrentView('dashboard')} />
       ) : currentView === 'events' ? (
         <EventManagement onBack={() => setCurrentView('dashboard')} />
+      ) : currentView === 'settings' ? (
+        <SettingsManagement onBack={() => setCurrentView('dashboard')} />
       ) : currentView === 'expense_detail' && selectedExpenseId ? (
         <ExpenseDetail expenseId={selectedExpenseId} onBack={() => setCurrentView('dashboard')} />
       ) : null}
