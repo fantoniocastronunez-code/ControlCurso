@@ -74,6 +74,26 @@ const Login = () => {
           <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem' }}>Portal de control de gastos y cobros</p>
         </div>
 
+        <div style={{ 
+          backgroundColor: 'rgba(59, 130, 246, 0.1)', 
+          border: '1px solid rgba(59, 130, 246, 0.3)', 
+          borderRadius: 'var(--radius-md)', 
+          padding: '1rem', 
+          marginBottom: '1.5rem', 
+          textAlign: 'left',
+          fontSize: '0.85rem',
+          color: 'var(--text-main)'
+        }}>
+          <h4 style={{ color: 'var(--primary)', marginBottom: '0.5rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+            <UserPlus size={16} /> Nuevos Apoderados
+          </h4>
+          <ol style={{ margin: 0, paddingLeft: '1.5rem', display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
+            <li>Crea una cuenta o ingresa directamente con Google (opción recomendada).</li>
+            <li>Al entrar, busca a tu hijo/a por su apellido.</li>
+            <li>Selecciona "Soy su apoderado" e ingresa su RUT para confirmar.</li>
+          </ol>
+        </div>
+
         {error && (
           <div style={{ backgroundColor: 'rgba(239, 68, 68, 0.1)', color: 'var(--danger)', padding: '0.75rem', borderRadius: 'var(--radius-sm)', marginBottom: '1rem', fontSize: '0.9rem' }}>
             {error}
@@ -131,7 +151,7 @@ const Login = () => {
             <path fill="currentColor" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" />
             <path fill="currentColor" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" />
           </svg>
-          Ingresar con Google
+          Ingreso rápido con Google
         </button>
 
         <p style={{ marginTop: '2rem', fontSize: '0.85rem', color: 'var(--text-muted)' }}>

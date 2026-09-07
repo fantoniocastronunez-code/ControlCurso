@@ -35,6 +35,11 @@ const ApoderadoDashboard = () => {
   const [transferData, setTransferData] = useState(null);
   const [whatsappContact, setWhatsappContact] = useState('');
 
+  // RUT linking state
+  const [linkingStudentId, setLinkingStudentId] = useState(null);
+  const [rutInput, setRutInput] = useState('');
+  const [rutError, setRutError] = useState('');
+
   useEffect(() => {
     fetchData();
   }, [user]);
@@ -129,29 +134,54 @@ const ApoderadoDashboard = () => {
     }
   };
 
-  const handleLinkStudent = async (studentId) => {
+  const handleLinkStudent = async (e) => {
+    e.preventDefault();
+    setRutError('');
+    
+    // Basic format validation XX.XXX.XXX-X
+    const rutRegex = /^[0-9]{1,2}\.[0-9]{3}\.[0-9]{3}-[0-9kK]{1}$/;
+    if (!rutRegex.test(rutInput.trim())) {
+      setRutError('Formato de RUT inválido. Use el formato XX.XXX.XXX-X');
+      return;
+    }
+
     try {
-      const studentRef = doc(db, 'students', studentId);
+      const studentRef = doc(db, 'students', linkingStudentId);
       const studentSnap = await getDoc(studentRef);
       if (studentSnap.exists()) {
         const data = studentSnap.data();
+        
+        // Verificamos el RUT
+        if (data.rut && data.rut !== rutInput.trim()) {
+          setRutError('El RUT ingresado no coincide con nuestros registros.');
+          return;
+        }
+
         let emails = data.apoderadoEmails || (data.apoderadoEmail ? [data.apoderadoEmail] : []);
         if (!emails.includes(user.email)) {
           if (emails.length >= 2) {
-            await showAlert('Este alumno ya tiene 2 apoderados vinculados.');
+            setRutError('Este alumno ya tiene 2 apoderados vinculados.');
             return;
           }
           emails.push(user.email);
-          await updateDoc(studentRef, { apoderadoEmails: emails });
+          // Guardar RUT si es la primera vez
+          await updateDoc(studentRef, { 
+            apoderadoEmails: emails,
+            rut: rutInput.trim()
+          });
         }
+        
+        // Éxito
         fetchData();
         setLastNameSearch('');
         setSearchResults([]);
         setHasSearched(false);
+        setLinkingStudentId(null);
+        setRutInput('');
       }
     } catch (error) {
       console.error("Error linking student:", error);
-      await showAlert('Hubo un error al vincular el alumno.');
+      setRutError('Hubo un error al vincular el alumno.');
     }
   };
 
@@ -283,6 +313,44 @@ const ApoderadoDashboard = () => {
         </div>
       ) : (
         <>
+          {/* MODAL RUT */}
+          {linkingStudentId && (
+            <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.7)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: '1rem' }}>
+              <div className="glass-panel animate-fade-in" style={{ width: '100%', maxWidth: '400px', padding: '2rem', backgroundColor: 'var(--bg-main)' }}>
+                <h3 style={{ marginBottom: '1rem' }}>Confirmar Identidad</h3>
+                <p style={{ color: 'var(--text-muted)', marginBottom: '1.5rem', fontSize: '0.9rem' }}>
+                  Para proteger la privacidad de los alumnos, debes ingresar el RUT de tu hijo/a para confirmar que eres su apoderado.
+                </p>
+                {rutError && (
+                  <div style={{ backgroundColor: 'rgba(239, 68, 68, 0.1)', color: 'var(--danger)', padding: '0.75rem', borderRadius: 'var(--radius-sm)', marginBottom: '1rem', fontSize: '0.9rem' }}>
+                    {rutError}
+                  </div>
+                )}
+                <form onSubmit={handleLinkStudent} style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+                  <div className="input-group" style={{ marginBottom: 0 }}>
+                    <label className="input-label">RUT del Alumno</label>
+                    <input 
+                      type="text" 
+                      required
+                      className="input-field" 
+                      value={rutInput}
+                      onChange={(e) => setRutInput(e.target.value)}
+                      placeholder="Ej. 12.345.678-9"
+                    />
+                  </div>
+                  <div style={{ display: 'flex', gap: '1rem', marginTop: '0.5rem' }}>
+                    <button type="button" onClick={() => { setLinkingStudentId(null); setRutInput(''); setRutError(''); }} className="btn btn-outline" style={{ flex: 1 }}>
+                      Cancelar
+                    </button>
+                    <button type="submit" className="btn btn-primary" style={{ flex: 1 }}>
+                      Confirmar
+                    </button>
+                  </div>
+                </form>
+              </div>
+            </div>
+          )}
+
           {/* MODAL DE PAGO */}
       {payingDebt && (
         <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.7)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: '1rem' }}>
@@ -390,7 +458,11 @@ const ApoderadoDashboard = () => {
                       </p>
                     </div>
                     <button 
-                      onClick={() => handleLinkStudent(s.id)}
+                      onClick={() => {
+                        setLinkingStudentId(s.id);
+                        setRutInput('');
+                        setRutError('');
+                      }}
                       className="btn btn-outline" 
                       style={{ color: 'var(--success)', borderColor: 'rgba(16,185,129,0.3)', flex: '0 0 auto', whiteSpace: 'nowrap' }}
                     >

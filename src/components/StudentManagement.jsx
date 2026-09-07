@@ -22,13 +22,14 @@ const StudentManagement = ({ onBack }) => {
   const [newApoderadoEmail2, setNewApoderadoEmail2] = useState('');
   const [newListNumber, setNewListNumber] = useState('');
   const [newBalance, setNewBalance] = useState('');
+  const [newRut, setNewRut] = useState('');
   
   const [showBulkImport, setShowBulkImport] = useState(false);
   const [selectedStudent, setSelectedStudent] = useState(null);
 
   // Estados para edición
   const [editingId, setEditingId] = useState(null);
-  const [editData, setEditData] = useState({ firstName: '', lastNamePaternal: '', lastNameMaternal: '', apoderadoEmail1: '', apoderadoEmail2: '', listNumber: '', balance: '' });
+  const [editData, setEditData] = useState({ firstName: '', lastNamePaternal: '', lastNameMaternal: '', apoderadoEmail1: '', apoderadoEmail2: '', listNumber: '', balance: '', rut: '' });
 
   useEffect(() => {
     fetchData();
@@ -98,6 +99,7 @@ const StudentManagement = ({ onBack }) => {
         apoderadoEmails: emails,
         listNumber: newListNumber,
         balance: Number(newBalance) || 0,
+        rut: newRut.trim(),
         createdAt: new Date().toISOString(),
       };
       
@@ -115,6 +117,7 @@ const StudentManagement = ({ onBack }) => {
       setNewApoderadoEmail2('');
       setNewListNumber('');
       setNewBalance('');
+      setNewRut('');
       
       setMessage('Alumno agregado correctamente');
       setTimeout(() => setMessage(''), 3000);
@@ -147,13 +150,14 @@ const StudentManagement = ({ onBack }) => {
       apoderadoEmail1: emails[0] || '',
       apoderadoEmail2: emails[1] || '',
       listNumber: student.listNumber || '',
-      balance: student.balance || 0
+      balance: student.balance || 0,
+      rut: student.rut || ''
     });
   };
 
   const cancelEditing = () => {
     setEditingId(null);
-    setEditData({ firstName: '', lastNamePaternal: '', lastNameMaternal: '', apoderadoEmail1: '', apoderadoEmail2: '', listNumber: '', balance: '' });
+    setEditData({ firstName: '', lastNamePaternal: '', lastNameMaternal: '', apoderadoEmail1: '', apoderadoEmail2: '', listNumber: '', balance: '', rut: '' });
   };
 
   const handleSaveEdit = async () => {
@@ -170,11 +174,12 @@ const StudentManagement = ({ onBack }) => {
         lastNameMaternal: editData.lastNameMaternal.trim(),
         apoderadoEmails: emails,
         listNumber: editData.listNumber,
-        balance: Number(editData.balance) || 0
+        balance: Number(editData.balance) || 0,
+        rut: editData.rut.trim()
       });
       
       let updatedList = students.map(s => 
-        s.id === editingId ? { ...s, ...editData, apoderadoEmails: emails, balance: Number(editData.balance) || 0 } : s
+        s.id === editingId ? { ...s, ...editData, apoderadoEmails: emails, balance: Number(editData.balance) || 0, rut: editData.rut.trim() } : s
       );
       updatedList.sort((a, b) => {
         const aNum = parseInt(a.listNumber) || 999;
@@ -277,6 +282,16 @@ const StudentManagement = ({ onBack }) => {
               onChange={(e) => setNewLastNameMaternal(e.target.value)}
             />
           </div>
+          <div className="input-group" style={{ flex: '1', minWidth: '130px', marginBottom: 0 }}>
+            <label className="input-label">RUT</label>
+            <input 
+              type="text" 
+              className="input-field" 
+              placeholder="XX.XXX.XXX-X"
+              value={newRut}
+              onChange={(e) => setNewRut(e.target.value)}
+            />
+          </div>
           <div className="input-group" style={{ flex: '0.5', minWidth: '80px', marginBottom: 0 }}>
             <label className="input-label">N° Lista</label>
             <input 
@@ -329,6 +344,7 @@ const StudentManagement = ({ onBack }) => {
             <tr style={{ borderBottom: '1px solid var(--border-color)', backgroundColor: 'rgba(255,255,255,0.03)' }}>
               <th style={{ padding: '1rem', width: '80px' }}>N°</th>
               <th style={{ padding: '1rem' }}>Nombre Alumno</th>
+              <th style={{ padding: '1rem' }}>RUT</th>
               <th style={{ padding: '1rem' }}>Apoderado</th>
               <th style={{ padding: '1rem' }}>Saldo a Favor</th>
               <th style={{ padding: '1rem' }}>Acciones</th>
@@ -384,6 +400,16 @@ const StudentManagement = ({ onBack }) => {
                           style={{ padding: '0.4rem', marginTop: '0.2rem', width: '100%' }}
                         />
                       </div>
+                    </td>
+                    <td style={{ padding: '1rem', verticalAlign: 'top' }}>
+                      <label style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>RUT</label>
+                      <input 
+                        type="text" 
+                        className="input-field" 
+                        value={editData.rut} 
+                        onChange={(e) => setEditData({...editData, rut: e.target.value})}
+                        style={{ padding: '0.4rem', marginTop: '0.2rem', width: '100%' }}
+                      />
                     </td>
                     <td style={{ padding: '1rem', verticalAlign: 'top' }}>
                       <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
@@ -443,6 +469,7 @@ const StudentManagement = ({ onBack }) => {
                         {formatStudentName(s)}
                       </button>
                     </td>
+                    <td style={{ padding: '1rem', color: 'var(--text-muted)' }}>{s.rut || '-'}</td>
                     <td style={{ padding: '1rem', color: 'var(--text-muted)' }}>
                       {s.apoderadoEmails?.length > 0 
                         ? s.apoderadoEmails.map(email => usersMap[email] || email).join(', ') 
@@ -472,7 +499,7 @@ const StudentManagement = ({ onBack }) => {
                 {/* Fila expandible para la ficha del alumno */}
                 {selectedStudent?.id === s.id && (
                   <tr>
-                    <td colSpan="5" style={{ padding: 0 }}>
+                    <td colSpan="6" style={{ padding: 0 }}>
                       <StudentDetailModal 
                         student={selectedStudent} 
                         usersMap={usersMap} 
