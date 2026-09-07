@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { LogOut, Users, DollarSign, Activity, FileText, RefreshCw, Calendar } from 'lucide-react';
+import { LogOut, Users, DollarSign, Activity, FileText, RefreshCw, Calendar, Trash2 } from 'lucide-react';
 import { db } from '../firebase/config';
-import { collection, getDocs, query, where, orderBy } from 'firebase/firestore';
+import { collection, getDocs, query, where, orderBy, addDoc } from 'firebase/firestore';
 import { useNavigate } from 'react-router-dom';
 
 import UserManagement from '../components/UserManagement';
@@ -40,6 +40,36 @@ const AdminDashboard = () => {
       fetchDashboardData();
     }
   }, [currentView]);
+
+  const handleZeroOutGeneral = async (currentBalance) => {
+    if (currentBalance === 0) return;
+    if (!window.confirm(`¿Estás seguro de que quieres ajustar el Fondo General? Se creará un ajuste interno para dejar su saldo en $0.`)) return;
+
+    try {
+      if (currentBalance < 0) {
+        await addDoc(collection(db, 'incomes'), {
+          amount: Math.abs(currentBalance),
+          description: 'Ajuste automático para eliminar Fondo General',
+          paymentMethod: 'cash',
+          fundId: 'general',
+          createdAt: new Date().toISOString()
+        });
+      } else {
+        await addDoc(collection(db, 'outcomes'), {
+          amount: currentBalance,
+          description: 'Ajuste automático para eliminar Fondo General',
+          paymentMethod: 'cash',
+          fundId: 'general',
+          createdAt: new Date().toISOString()
+        });
+      }
+      fetchDashboardData();
+      alert('El Fondo General ha sido ajustado a $0.');
+    } catch (error) {
+      console.error(error);
+      alert('Hubo un error al ajustar el fondo.');
+    }
+  };
 
   const fetchDashboardData = async () => {
     setLoading(true);
@@ -287,8 +317,17 @@ const AdminDashboard = () => {
                   <h4 style={{ marginBottom: '1rem', color: 'var(--primary)', margin: 0 }}>Distribución por Fondos</h4>
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: '1rem', marginTop: '1rem' }}>
                     {stats.fundsBalances.map(fb => (
-                      <div key={fb.id} style={{ padding: '1rem', backgroundColor: 'rgba(255,255,255,0.03)', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-color)' }}>
-                        <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem', margin: '0 0 0.5rem 0' }}>{fb.name}</p>
+                      <div key={fb.id} style={{ padding: '1rem', backgroundColor: 'rgba(255,255,255,0.03)', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-color)', position: 'relative' }}>
+                        {fb.id === 'general' && fb.balance !== 0 && (
+                          <button 
+                            onClick={() => handleZeroOutGeneral(fb.balance)}
+                            style={{ position: 'absolute', top: '0.5rem', right: '0.5rem', background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', opacity: 0.7 }}
+                            title="Borrar fondo (ajustar a $0)"
+                          >
+                            <Trash2 size={16} />
+                          </button>
+                        )}
+                        <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem', margin: '0 0 0.5rem 0', paddingRight: '1.5rem' }}>{fb.name}</p>
                         <h4 style={{ margin: 0 }}>{formatMoney(fb.balance)}</h4>
                       </div>
                     ))}
