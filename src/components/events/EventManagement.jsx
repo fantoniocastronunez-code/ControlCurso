@@ -103,7 +103,7 @@ const EventManagement = ({ onBack }) => {
           await setDoc(doc(db, 'debts', debtId), {
             expenseId,
             studentId: student.id,
-            studentName: student.name,
+            studentName: formatStudentName(student),
             apoderadoEmails: student.apoderadoEmails || (student.apoderadoEmail ? [student.apoderadoEmail] : []),
             amount: parseFloat(mandatoryAmount),
             status: 'pending', // pending, review, paid
