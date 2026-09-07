@@ -6,6 +6,7 @@ import BulkImport from './BulkImport';
 import StudentDetailModal from './StudentDetailModal';
 
 import { formatStudentName } from '../utils/nameUtils';
+import { formatRut } from '../utils/rutUtils';
 import { useModal } from '../context/ModalContext';
 
 const StudentManagement = ({ onBack }) => {
@@ -289,7 +290,7 @@ const StudentManagement = ({ onBack }) => {
               className="input-field" 
               placeholder="XX.XXX.XXX-X"
               value={newRut}
-              onChange={(e) => setNewRut(e.target.value)}
+              onChange={(e) => setNewRut(formatRut(e.target.value))}
             />
           </div>
           <div className="input-group" style={{ flex: '0.5', minWidth: '80px', marginBottom: 0 }}>
@@ -407,7 +408,7 @@ const StudentManagement = ({ onBack }) => {
                         type="text" 
                         className="input-field" 
                         value={editData.rut} 
-                        onChange={(e) => setEditData({...editData, rut: e.target.value})}
+                        onChange={(e) => setEditData({...editData, rut: formatRut(e.target.value)})}
                         style={{ padding: '0.4rem', marginTop: '0.2rem', width: '100%' }}
                       />
                     </td>

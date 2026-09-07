@@ -6,6 +6,7 @@ import { collection, query, where, getDocs, getDoc, doc, updateDoc, setDoc, or }
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { useNavigate } from 'react-router-dom';
 import { formatStudentName } from '../utils/nameUtils';
+import { formatRut } from '../utils/rutUtils';
 import { useModal } from '../context/ModalContext';
 
 const ApoderadoDashboard = () => {
@@ -334,7 +335,7 @@ const ApoderadoDashboard = () => {
                       required
                       className="input-field" 
                       value={rutInput}
-                      onChange={(e) => setRutInput(e.target.value)}
+                      onChange={(e) => setRutInput(formatRut(e.target.value))}
                       placeholder="Ej. 12.345.678-9"
                     />
                   </div>
