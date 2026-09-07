@@ -455,6 +455,12 @@ const AdminDashboard = () => {
       ) : currentView === 'expense_detail' && selectedExpenseId ? (
         <ExpenseDetail expenseId={selectedExpenseId} onBack={() => setCurrentView('dashboard')} />
       ) : null}
+
+      <FundHistoryModal 
+        fund={selectedFundForHistory}
+        transactions={stats.allTransactions || []}
+        onClose={() => setSelectedFundForHistory(null)}
+      />
     </div>
   );
 };
