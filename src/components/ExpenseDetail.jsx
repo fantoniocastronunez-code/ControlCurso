@@ -234,25 +234,32 @@ const ExpenseDetail = ({ expenseId, onBack }) => {
 
   const handlePayWithBalance = async (debtId) => {
     const debtToPay = debts.find(d => d.id === debtId);
-    const student = students.find(s => s.name === debtToPay.studentName);
+    const student = students.find(s => s.id === debtToPay.studentId || s.name === debtToPay.studentName);
     
+    if (!student) return;
+
     const currentPaid = debtToPay.paidAmount || 0;
     const remaining = debtToPay.amount - currentPaid;
 
-    if (!student || !student.balance || student.balance < remaining) {
-      await showAlert(`El alumno no tiene saldo suficiente a favor. Necesita ${formatMoney(remaining)} pero tiene ${formatMoney(student.balance || 0)}.`);
+    if (!student.balance || student.balance <= 0) {
+      await showAlert("El alumno no tiene saldo a favor.");
       return;
     }
 
-    if (!(await showConfirm(`¿Usar ${formatMoney(remaining)} del saldo a favor de ${student.name}? Le quedarán ${formatMoney(student.balance - remaining)} a favor.`))) return;
+    const amountToUse = Math.min(student.balance, remaining);
+    const newBalance = student.balance - amountToUse;
+    const newPaidAmount = currentPaid + amountToUse;
+    const isFullyPaid = newPaidAmount >= debtToPay.amount;
+
+    if (!(await showConfirm(`¿Usar ${formatMoney(amountToUse)} del saldo a favor de ${student.name}? Le quedarán ${formatMoney(newBalance)} a favor.`))) return;
     
     setLoading(true);
     try {
       // 1. Actualizar deuda
       const debtRef = doc(db, 'debts', debtId);
       await updateDoc(debtRef, {
-        status: 'paid',
-        paidAmount: debtToPay.amount, // Queda pagada completa
+        status: isFullyPaid ? 'paid' : 'partial',
+        paidAmount: newPaidAmount,
         paymentMethod: 'balance',
         approvedAt: new Date().toISOString()
       });
@@ -260,15 +267,17 @@ const ExpenseDetail = ({ expenseId, onBack }) => {
       // 2. Descontar saldo del estudiante
       const studentRef = doc(db, 'students', student.id);
       await updateDoc(studentRef, {
-        balance: student.balance - remaining
+        balance: newBalance
       });
 
-      // 3. Aumentar el contador del gasto
-      const expenseRef = doc(db, 'expenses', expenseId);
-      const currentPaidCount = expense.paidCount || 0;
-      await updateDoc(expenseRef, {
-        paidCount: currentPaidCount + 1
-      });
+      // 3. Aumentar el contador del gasto (solo si se completó el pago)
+      if (isFullyPaid && debtToPay.status !== 'paid') {
+        const expenseRef = doc(db, 'expenses', expenseId);
+        const currentPaidCount = expense.paidCount || 0;
+        await updateDoc(expenseRef, {
+          paidCount: currentPaidCount + 1
+        });
+      }
 
       fetchDetail();
     } catch (error) {
@@ -591,7 +600,17 @@ const ExpenseDetail = ({ expenseId, onBack }) => {
                 <td style={{ padding: '1rem', fontWeight: '500' }}>
                   {(() => {
                     const student = students.find(s => s.id === debt.studentId);
-                    return student ? `${student.listNumber || '-'}. ${formatStudentName(student)}` : debt.studentName;
+                    return (
+                      <div>
+                        {student ? `${student.listNumber || '-'}. ${formatStudentName(student)}` : debt.studentName}
+                        {student && student.balance > 0 && (
+                          <div style={{ fontSize: '0.75rem', color: 'var(--success)', marginTop: '0.2rem', display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
+                            <span>💰 Saldo a favor:</span>
+                            <strong>{formatMoney(student.balance)}</strong>
+                          </div>
+                        )}
+                      </div>
+                    );
                   })()}
                 </td>
                 <td style={{ padding: '1rem', color: 'var(--text-muted)' }}>{debt.apoderadoEmail || 'Sin apoderado'}</td>
@@ -698,8 +717,8 @@ const ExpenseDetail = ({ expenseId, onBack }) => {
                          Transf.
                       </button>
                       {(() => {
-                        const student = students.find(s => s.name === debt.studentName);
-                        if (student && student.balance >= debt.amount) {
+                        const student = students.find(s => s.id === debt.studentId || s.name === debt.studentName);
+                        if (student && student.balance > 0) {
                           return (
                             <button 
                               onClick={() => handlePayWithBalance(debt.id)}
