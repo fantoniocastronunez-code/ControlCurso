@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { db } from '../firebase/config';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
-import { ArrowLeft, Save, Landmark, PlusCircle, Trash2, Edit2 } from 'lucide-react';
+import { ArrowLeft, Save, Landmark, PlusCircle, Trash2, Edit2, RefreshCw } from 'lucide-react';
 import { useModal } from '../context/ModalContext';
 
 const SettingsManagement = ({ onBack }) => {
@@ -77,6 +77,18 @@ const SettingsManagement = ({ onBack }) => {
     } catch (error) {
       console.error("Error saving contact:", error);
       await showAlert("Error al guardar el contacto.");
+    }
+  };
+
+  const handleForceUpdate = async () => {
+    if (!(await showConfirm('¿Estás seguro de forzar la recarga de la app en todos los dispositivos activos? Esto hará que cualquier usuario con la app abierta la recargue automáticamente.'))) return;
+    try {
+      const versionRef = doc(db, 'settings', 'version');
+      await setDoc(versionRef, { v: Date.now() });
+      await showAlert("Comando enviado con éxito. Los dispositivos se actualizarán inmediatamente.");
+    } catch (error) {
+      console.error("Error al forzar update:", error);
+      await showAlert("Hubo un error al enviar el comando.");
     }
   };
 
@@ -199,6 +211,24 @@ const SettingsManagement = ({ onBack }) => {
               <Save size={18} /> Guardar Contacto
             </button>
           </div>
+          
+          <hr style={{ border: 'none', borderTop: '1px solid rgba(255,255,255,0.1)', margin: '2rem 0' }} />
+          
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: 'var(--danger)', marginBottom: '1.5rem' }}>
+            <h4 style={{ margin: 0 }}>Actualización del Sistema</h4>
+          </div>
+          <p style={{ color: 'var(--text-muted)', marginBottom: '1.5rem' }}>
+            Si subiste una nueva versión del código de la app, usa este botón para obligar a todos los dispositivos (apoderados) a recargar la página inmediatamente.
+          </p>
+          <button 
+            onClick={handleForceUpdate} 
+            className="btn btn-primary" 
+            style={{ backgroundColor: 'transparent', borderColor: 'var(--danger)', color: 'var(--danger)' }}
+            onMouseOver={(e) => { e.currentTarget.style.backgroundColor = 'rgba(239, 68, 68, 0.1)'; }}
+            onMouseOut={(e) => { e.currentTarget.style.backgroundColor = 'transparent'; }}
+          >
+            <RefreshCw size={18} /> Forzar Actualización en Dispositivos
+          </button>
         </div>
       ) : (
         <div className="glass-panel" style={{ padding: '2rem', maxWidth: '600px' }}>

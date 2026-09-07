@@ -5,6 +5,7 @@ import { ModalProvider } from './context/ModalContext';
 import Login from './pages/Login';
 import AdminDashboard from './pages/AdminDashboard';
 import ApoderadoDashboard from './pages/ApoderadoDashboard';
+import VersionChecker from './components/VersionChecker';
 import './App.css';
 
 // Componente para proteger rutas según rol
@@ -74,6 +75,7 @@ function App() {
     <ModalProvider>
       <AuthProvider>
         <BrowserRouter>
+          <VersionChecker />
           <AppRoutes />
         </BrowserRouter>
       </AuthProvider>
