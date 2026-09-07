@@ -6,9 +6,11 @@ import { useModal } from '../../../context/ModalContext';
 
 const EventAttendance = ({ event }) => {
   const { showAlert } = useModal();
-  const [debts, setDebts] = useState([]);
+  const [localDebts, setLocalDebts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
+  const [hasChanges, setHasChanges] = useState(false);
+  const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     fetchDebts();
@@ -21,7 +23,8 @@ const EventAttendance = ({ event }) => {
       const snap = await getDocs(q);
       const list = snap.docs.map(d => ({ id: d.id, ...d.data() }));
       list.sort((a, b) => a.studentName.localeCompare(b.studentName));
-      setDebts(list);
+      setLocalDebts(list);
+      setHasChanges(false);
     } catch (error) {
       console.error("Error fetching attendance:", error);
     } finally {
@@ -29,9 +32,7 @@ const EventAttendance = ({ event }) => {
     }
   };
 
-  const toggleAttendance = async (debt) => {
-    // Si attended es false o undefined, significa que asistió originalmente (por defecto todos asisten al crearlo)
-    // Usaremos un flag explícito 'notAttended' para saber si se le aplicó la multa.
+  const toggleAttendance = (debt) => {
     const isCurrentlyNotAttended = debt.notAttended === true;
     const willBeNotAttended = !isCurrentlyNotAttended;
     
@@ -40,21 +41,41 @@ const EventAttendance = ({ event }) => {
       ? `Multa Inasistencia: ${event.name}` 
       : `Cuota Obligatoria: ${event.name}`;
 
-    try {
-      await updateDoc(doc(db, 'debts', debt.id), {
-        notAttended: willBeNotAttended,
-        amount: newAmount,
-        title: newTitle
-      });
+    setLocalDebts(prev => prev.map(d => 
+      d.id === debt.id 
+        ? { ...d, notAttended: willBeNotAttended, amount: newAmount, title: newTitle, _modified: true } 
+        : d
+    ));
+    setHasChanges(true);
+  };
 
-      setDebts(prev => prev.map(d => 
-        d.id === debt.id 
-          ? { ...d, notAttended: willBeNotAttended, amount: newAmount, title: newTitle } 
-          : d
-      ));
+  const handleSave = async () => {
+    setSaving(true);
+    try {
+      const modifiedDebts = localDebts.filter(d => d._modified);
+      
+      // Update one by one
+      for (const debt of modifiedDebts) {
+        await updateDoc(doc(db, 'debts', debt.id), {
+          notAttended: debt.notAttended,
+          amount: debt.amount,
+          title: debt.title
+        });
+      }
+      
+      // Clear modified flags
+      setLocalDebts(prev => prev.map(d => {
+        const copy = { ...d };
+        delete copy._modified;
+        return copy;
+      }));
+      setHasChanges(false);
+      await showAlert("Asistencia y cobros actualizados correctamente.");
     } catch (error) {
-      console.error("Error toggling attendance:", error);
-      showAlert("Error al actualizar la asistencia.");
+      console.error("Error saving attendance:", error);
+      await showAlert("Error al actualizar la asistencia.");
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -62,7 +83,7 @@ const EventAttendance = ({ event }) => {
     return new Intl.NumberFormat('es-CL', { style: 'currency', currency: 'CLP' }).format(amount);
   };
 
-  const filteredDebts = debts.filter(d => d.studentName.toLowerCase().includes(searchTerm.toLowerCase()));
+  const filteredDebts = localDebts.filter(d => d.studentName.toLowerCase().includes(searchTerm.toLowerCase()));
 
   if (loading) return <div>Cargando lista de asistencia...</div>;
 
@@ -81,6 +102,17 @@ const EventAttendance = ({ event }) => {
             style={{ width: '100%', padding: '0.5rem', background: 'transparent', border: 'none', color: 'white', outline: 'none' }}
           />
         </div>
+
+        {hasChanges && (
+          <button 
+            onClick={handleSave} 
+            disabled={saving}
+            className="btn btn-primary" 
+            style={{ padding: '0.5rem 1.5rem', fontWeight: 'bold' }}
+          >
+            {saving ? 'Guardando...' : 'Guardar Asistencia y Generar Cobros'}
+          </button>
+        )}
       </div>
 
       <p style={{ color: 'var(--text-muted)', marginBottom: '1.5rem', fontSize: '0.9rem' }}>
