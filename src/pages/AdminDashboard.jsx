@@ -109,6 +109,8 @@ const AdminDashboard = () => {
       let cashIn = 0;
       let transferIn = 0;
       const allTransactions = [];
+      const expenseCollectedMap = {};
+      
       debtsSnap.forEach(doc => {
         const data = doc.data();
         const amt = typeof data.paidAmount === 'number' ? data.paidAmount : (data.amount || 0);
@@ -116,6 +118,17 @@ const AdminDashboard = () => {
         if (data.paymentMethod === 'cash') cashIn += amt;
         if (data.paymentMethod === 'transfer') transferIn += amt;
         // paymentMethod === 'balance' no suma a cashIn/transferIn porque el dinero físico ya fue ingresado manualmente en Incomes
+        
+        // Sumar lo recaudado por cada cuota
+        if (data.expenseId) {
+          if (!expenseCollectedMap[data.expenseId]) expenseCollectedMap[data.expenseId] = 0;
+          expenseCollectedMap[data.expenseId] += amt;
+        }
+      });
+      
+      // Asignar lo recaudado a cada cuota en la lista
+      expensesList.forEach(exp => {
+        exp.collectedAmount = expenseCollectedMap[exp.id] || 0;
       });
 
       // 4. Gastos Directiva (Egresos)
@@ -423,7 +436,7 @@ const AdminDashboard = () => {
                            </div>
                         </div>
                         <div style={{ textAlign: 'right' }}>
-                          <p style={{ fontWeight: 'bold', margin: 0, color: 'var(--primary)' }}>{formatMoney(exp.totalAmount)}</p>
+                          <p style={{ fontWeight: 'bold', margin: 0, color: 'var(--success)' }}>{formatMoney(exp.collectedAmount || 0)}</p>
                           <p style={{ fontSize: '0.85rem', color: exp.paidCount === exp.studentsCount ? 'var(--success)' : 'var(--warning)', margin: 0 }}>
                             {exp.paidCount || 0} de {exp.studentsCount} pagadas
                           </p>
