@@ -179,3 +179,88 @@ h1, h2, h3, h4, h5, h6 {
 ::-webkit-scrollbar-thumb:hover {
   background: #475569;
 }
+
+/* ==========================================================================
+   Mobile Responsive Layout Fixes
+   ========================================================================== */
+@media (max-width: 768px) {
+  /* Prevent horizontal scroll on elements that traditionally cause it */
+  .glass-panel {
+    overflow-x: hidden !important;
+  }
+  
+  /* Target inline styles that set overflowX */
+  div[style*="overflow-x"],
+  div[style*="overflowX"] {
+    overflow-x: hidden !important;
+  }
+  
+  /* 
+   * Convert tables to vertical card layouts on mobile.
+   * This prevents horizontal scrolling and improves readability.
+   */
+  .glass-panel table, 
+  .glass-panel tbody, 
+  .glass-panel tr, 
+  .glass-panel th, 
+  .glass-panel td {
+    display: block;
+    width: 100%;
+  }
+  
+  /* Hide the traditional table headers */
+  .glass-panel thead {
+    display: none;
+  }
+  
+  /* Style each row as a distinct card */
+  .glass-panel tr {
+    margin-bottom: 1rem;
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+    background: rgba(255, 255, 255, 0.03);
+    padding: 0.75rem;
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+  }
+  
+  /* Style individual cells within the card */
+  .glass-panel td {
+    display: flex;
+    flex-direction: column;
+    padding: 0.5rem 0 !important;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+    border-top: none !important;
+    border-left: none !important;
+    border-right: none !important;
+    text-align: left !important;
+  }
+  
+  /* Remove border from the last cell (typically actions) */
+  .glass-panel td:last-child {
+    border-bottom: none;
+    padding-bottom: 0 !important;
+    display: flex !important;
+    flex-direction: row;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    justify-content: flex-start;
+    margin-top: 0.5rem;
+  }
+  
+  /* Ensure inline flex elements span full width in cells */
+  .glass-panel td > div {
+    width: 100%;
+  }
+
+  /* Make action buttons take up more space for easier tapping */
+  .glass-panel td:last-child button {
+    flex: 1 1 auto;
+    justify-content: center;
+    padding: 0.75rem; /* Larger tap target */
+  }
+
+  /* Adjust inputs for mobile data entry forms */
+  .input-field {
+    width: 100% !important;
+  }
+}
