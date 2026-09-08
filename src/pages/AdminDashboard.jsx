@@ -263,12 +263,12 @@ const AdminDashboard = () => {
         
         if (data.paymentMethod === 'balance') {
            fundsMap.get(fundId).balance += amt;
-           allTransactions.push({ id: doc.id + '_add', fundId: fundId, type: 'debt_payment', amount: amt, description: `Pago: ${data.title || 'Cuota'} (Saldo a favor)`, date: data.approvedAt || data.paidAt || data.createdAt });
+           allTransactions.push({ id: doc.id + '_add', fundId: fundId, type: 'debt_payment', amount: amt, paymentMethod: data.paymentMethod, description: `Pago: ${data.title || 'Cuota'} (Saldo a favor)`, date: data.approvedAt || data.paidAt || data.createdAt });
            return;
         }
         
         fundsMap.get(fundId).balance += amt;
-        allTransactions.push({ id: doc.id, fundId: fundId, type: 'debt_payment', amount: amt, description: `Pago: ${data.title || 'Cuota'}`, date: data.approvedAt || data.paidAt || data.createdAt });
+        allTransactions.push({ id: doc.id, fundId: fundId, type: 'debt_payment', amount: amt, paymentMethod: data.paymentMethod, description: `Pago: ${data.title || 'Cuota'}`, date: data.approvedAt || data.paidAt || data.createdAt });
       });
 
       outcomesDocs.forEach(doc => {
@@ -278,7 +278,7 @@ const AdminDashboard = () => {
         
         const amt = data.amount || 0;
         fundsMap.get(fundId).balance -= amt;
-        allTransactions.push({ id: doc.id, fundId: fundId, type: 'outcome', amount: -amt, description: data.title || data.description || 'Gasto', date: data.date || data.createdAt });
+        allTransactions.push({ id: doc.id, fundId: fundId, type: 'outcome', amount: -amt, paymentMethod: data.paymentMethod, description: data.title || data.description || 'Gasto', date: data.date || data.createdAt });
       });
 
       incomesDocs.forEach(doc => {
@@ -288,7 +288,7 @@ const AdminDashboard = () => {
         
         const amt = data.amount || 0;
         fundsMap.get(fundId).balance += amt;
-        allTransactions.push({ id: doc.id, fundId: fundId, type: 'income', amount: amt, description: data.title || data.description || 'Ingreso', date: data.createdAt });
+        allTransactions.push({ id: doc.id, fundId: fundId, type: 'income', amount: amt, paymentMethod: data.paymentMethod, description: data.title || data.description || 'Ingreso', date: data.createdAt });
       });
 
       // Transferencias entre fondos
@@ -428,7 +428,13 @@ const AdminDashboard = () => {
                   </div>
                 </div>
 
-                <div className="glass-panel" style={{ padding: '1.5rem', display: 'flex', alignItems: 'center', gap: '1rem' }}>
+                <div 
+                  className="glass-panel" 
+                  onClick={() => setSelectedFundForHistory({ id: 'cash_history', name: 'Historial de Efectivo (Caja)', balance: stats.cashBalance || 0 })}
+                  style={{ padding: '1.5rem', display: 'flex', alignItems: 'center', gap: '1rem', cursor: 'pointer', transition: 'all 0.2s ease' }}
+                  onMouseOver={(e) => e.currentTarget.style.transform = 'translateY(-2px)'}
+                  onMouseOut={(e) => e.currentTarget.style.transform = 'translateY(0)'}
+                >
                   <div style={{ backgroundColor: 'rgba(16, 185, 129, 0.2)', padding: '1rem', borderRadius: '50%', color: 'var(--success)' }}>
                     <DollarSign size={24} />
                   </div>
@@ -438,7 +444,13 @@ const AdminDashboard = () => {
                   </div>
                 </div>
 
-                <div className="glass-panel" style={{ padding: '1.5rem', display: 'flex', alignItems: 'center', gap: '1rem' }}>
+                <div 
+                  className="glass-panel" 
+                  onClick={() => setSelectedFundForHistory({ id: 'transfer_history', name: 'Historial de Banco (Transferencias)', balance: stats.transferBalance || 0 })}
+                  style={{ padding: '1.5rem', display: 'flex', alignItems: 'center', gap: '1rem', cursor: 'pointer', transition: 'all 0.2s ease' }}
+                  onMouseOver={(e) => e.currentTarget.style.transform = 'translateY(-2px)'}
+                  onMouseOut={(e) => e.currentTarget.style.transform = 'translateY(0)'}
+                >
                   <div style={{ backgroundColor: 'rgba(59, 130, 246, 0.2)', padding: '1rem', borderRadius: '50%', color: '#3b82f6' }}>
                     <CreditCard size={24} />
                   </div>

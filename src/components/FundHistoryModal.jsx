@@ -9,7 +9,18 @@ const FundHistoryModal = ({ fund, transactions, onClose }) => {
   if (!fund) return null;
 
   // Filtrar transacciones para este fondo
-  const fundTransactions = transactions.filter(t => t.fundId === fund.id);
+  let fundTransactions = [];
+  if (fund.id === 'cash_history') {
+    fundTransactions = transactions.filter(t => t.paymentMethod === 'cash');
+  } else if (fund.id === 'transfer_history') {
+    fundTransactions = transactions.filter(t => t.paymentMethod === 'transfer');
+  } else if (fund.id === 'favor_balance') {
+    // Para el fondo virtual "Saldos a favor", evitamos mostrar transacciones regulares si no tienen detalle.
+    // Usaremos el panel personalizado para mostrar los saldos de cada alumno.
+    fundTransactions = transactions.filter(t => t.fundId === fund.id);
+  } else {
+    fundTransactions = transactions.filter(t => t.fundId === fund.id);
+  }
   
   // Ordenar de más reciente a más antiguo
   fundTransactions.sort((a, b) => new Date(b.date) - new Date(a.date));
