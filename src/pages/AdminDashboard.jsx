@@ -193,13 +193,14 @@ const AdminDashboard = () => {
 
       // 4. Cobros (Dinero realmente pagado)
       const debtsSnap = await getDocs(query(collection(db, 'debts'), where('status', 'in', ['paid', 'partial'])));
+      const debtsDocs = debtsSnap.docs;
       let collected = 0;
       let cashIn = 0;
       let transferIn = 0;
       const allTransactions = [];
       const expenseCollectedMap = {};
       
-      debtsSnap.forEach(doc => {
+      debtsDocs.forEach(doc => {
         const data = doc.data();
         let fundId = data.fundId || 'general';
         
@@ -226,9 +227,10 @@ const AdminDashboard = () => {
 
       // 5. Gastos Directiva (Egresos)
       const outcomesSnap = await getDocs(collection(db, 'outcomes'));
+      const outcomesDocs = outcomesSnap.docs;
       let cashOut = 0;
       let transferOut = 0;
-      outcomesSnap.forEach(doc => {
+      outcomesDocs.forEach(doc => {
         const data = doc.data();
         let fundId = data.fundId || 'general';
         if (!fundsMap.has(fundId)) return;
@@ -240,7 +242,8 @@ const AdminDashboard = () => {
 
       // 6. Ingresos Manuales (Saldos Iniciales/Extras)
       const incomesSnap = await getDocs(collection(db, 'incomes'));
-      incomesSnap.forEach(doc => {
+      const incomesDocs = incomesSnap.docs;
+      incomesDocs.forEach(doc => {
         const data = doc.data();
         let fundId = data.fundId || 'general';
         if (!fundsMap.has(fundId)) return;
@@ -251,7 +254,7 @@ const AdminDashboard = () => {
       });
 
       // Calcular balances por fondo y llenar transacciones
-      debtsSnap.forEach(doc => {
+      debtsDocs.forEach(doc => {
         const data = doc.data();
         let fundId = data.fundId || 'general';
         if (!fundsMap.has(fundId)) return;
@@ -260,15 +263,15 @@ const AdminDashboard = () => {
         
         if (data.paymentMethod === 'balance') {
            fundsMap.get(fundId).balance += amt;
-           allTransactions.push({ id: doc.id + '_add', fundId: fundId, type: 'debt_payment', amount: amt, description: `Pago: ${data.title || 'Cuota'} (Saldo a favor)`, date: data.paidAt || data.createdAt });
+           allTransactions.push({ id: doc.id + '_add', fundId: fundId, type: 'debt_payment', amount: amt, description: `Pago: ${data.title || 'Cuota'} (Saldo a favor)`, date: data.approvedAt || data.paidAt || data.createdAt });
            return;
         }
         
         fundsMap.get(fundId).balance += amt;
-        allTransactions.push({ id: doc.id, fundId: fundId, type: 'debt_payment', amount: amt, description: `Pago: ${data.title || 'Cuota'}`, date: data.paidAt || data.createdAt });
+        allTransactions.push({ id: doc.id, fundId: fundId, type: 'debt_payment', amount: amt, description: `Pago: ${data.title || 'Cuota'}`, date: data.approvedAt || data.paidAt || data.createdAt });
       });
 
-      outcomesSnap.forEach(doc => {
+      outcomesDocs.forEach(doc => {
         const data = doc.data();
         let fundId = data.fundId || 'general';
         if (!fundsMap.has(fundId)) return;
@@ -278,7 +281,7 @@ const AdminDashboard = () => {
         allTransactions.push({ id: doc.id, fundId: fundId, type: 'outcome', amount: -amt, description: data.title || data.description || 'Gasto', date: data.date || data.createdAt });
       });
 
-      incomesSnap.forEach(doc => {
+      incomesDocs.forEach(doc => {
         const data = doc.data();
         let fundId = data.fundId || 'general';
         if (!fundsMap.has(fundId)) return;
