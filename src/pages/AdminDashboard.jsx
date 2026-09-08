@@ -30,7 +30,8 @@ const AdminDashboard = () => {
     totalExpected: 0,
     totalAvailable: 0,
     fundsBalances: [],
-    allTransactions: []
+    allTransactions: [],
+    realBankBalance: 0
   });
   
   const [selectedFundForHistory, setSelectedFundForHistory] = useState(null);
@@ -160,6 +161,10 @@ const AdminDashboard = () => {
       // 1. Alumnos Activos
       const studentsSnap = await getDocs(collection(db, 'students'));
       const activeStudentsCount = studentsSnap.size;
+
+      // 1.2 Real Bank Balance
+      const bankInfoSnap = await getDoc(doc(db, 'settings', 'bankInfo'));
+      const realBankBalance = bankInfoSnap.exists() ? bankInfoSnap.data().realBalance || 0 : 0;
 
       // 1.5 Apoderados registrados
       let registeredApoderadosCount = 0;
@@ -385,7 +390,8 @@ const AdminDashboard = () => {
         fundsBalances,
         allTransactions,
         cashBalance: cashIn - cashOut,
-        transferBalance: transferIn - transferOut
+        transferBalance: transferIn - transferOut,
+        realBankBalance
       });
       setExpenses(expensesList);
 
@@ -398,6 +404,27 @@ const AdminDashboard = () => {
 
   const formatMoney = (amount) => {
     return new Intl.NumberFormat('es-CL', { style: 'currency', currency: 'CLP' }).format(amount);
+  };
+
+  const handleUpdateRealBankBalance = async () => {
+    const amountStr = await showPrompt("Ingresa el monto real actual que tienes en la cuenta de banco:", stats.realBankBalance);
+    if (amountStr === null) return;
+    
+    const amount = parseFloat(amountStr);
+    if (isNaN(amount)) {
+      await showAlert("Monto inválido.");
+      return;
+    }
+
+    setLoading(true);
+    try {
+      await setDoc(doc(db, 'settings', 'bankInfo'), { realBalance: amount }, { merge: true });
+      fetchDashboardData();
+    } catch (error) {
+      console.error(error);
+      await showAlert("Error al actualizar el saldo.");
+      setLoading(false);
+    }
   };
 
   return (
@@ -498,6 +525,45 @@ const AdminDashboard = () => {
                   <div>
                     <h3 style={{ fontSize: '1.5rem', margin: 0 }}>{formatMoney(stats.transferBalance || 0)}</h3>
                     <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem' }}>En Banco (Transferencias)</p>
+                  </div>
+                </div>
+
+                <div 
+                  className="glass-panel" 
+                  onClick={handleUpdateRealBankBalance}
+                  style={{ padding: '1.5rem', display: 'flex', alignItems: 'center', gap: '1rem', cursor: 'pointer', transition: 'all 0.2s ease', border: '1px solid rgba(139, 92, 246, 0.3)' }}
+                  onMouseOver={(e) => e.currentTarget.style.transform = 'translateY(-2px)'}
+                  onMouseOut={(e) => e.currentTarget.style.transform = 'translateY(0)'}
+                  title="Haz clic para actualizar tu saldo real del banco"
+                >
+                  <div style={{ backgroundColor: 'rgba(139, 92, 246, 0.2)', padding: '1rem', borderRadius: '50%', color: '#8b5cf6' }}>
+                    <CreditCard size={24} />
+                  </div>
+                  <div>
+                    <h3 style={{ fontSize: '1.5rem', margin: 0 }}>{formatMoney(stats.realBankBalance)}</h3>
+                    <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem' }}>Dinero Real (Banco)</p>
+                  </div>
+                </div>
+
+                <div 
+                  className="glass-panel" 
+                  style={{ 
+                    padding: '1.5rem', display: 'flex', alignItems: 'center', gap: '1rem', 
+                    border: stats.realBankBalance - (stats.transferBalance || 0) === 0 ? '1px solid rgba(16, 185, 129, 0.3)' : '1px solid rgba(245, 158, 11, 0.3)' 
+                  }}
+                >
+                  <div style={{ 
+                    backgroundColor: stats.realBankBalance - (stats.transferBalance || 0) === 0 ? 'rgba(16, 185, 129, 0.2)' : 'rgba(245, 158, 11, 0.2)', 
+                    padding: '1rem', borderRadius: '50%', 
+                    color: stats.realBankBalance - (stats.transferBalance || 0) === 0 ? 'var(--success)' : 'var(--warning)' 
+                  }}>
+                    <Activity size={24} />
+                  </div>
+                  <div>
+                    <h3 style={{ fontSize: '1.5rem', margin: 0 }}>
+                      {formatMoney(stats.realBankBalance - (stats.transferBalance || 0))}
+                    </h3>
+                    <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem' }}>Diferencia a Cuadrar</p>
                   </div>
                 </div>
               </div>
