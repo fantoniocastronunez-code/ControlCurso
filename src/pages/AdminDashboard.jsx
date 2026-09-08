@@ -21,12 +21,15 @@ const AdminDashboard = () => {
   const navigate = useNavigate();
   const [currentView, setCurrentView] = useState('dashboard');
   const [selectedExpenseId, setSelectedExpenseId] = useState(null);
+  const [editMode, setEditMode] = useState({ type: null, value: '' });
 
   const [stats, setStats] = useState({
     activeStudents: 0,
     registeredApoderados: 0,
     totalCollected: 0,
     totalExpected: 0,
+    calculatedCash: 0,
+    calculatedTransfer: 0,
     totalCash: 0,
     totalTransfer: 0,
     fundsBalances: [],
@@ -72,6 +75,27 @@ const AdminDashboard = () => {
     } catch (error) {
       console.error(error);
       alert('Hubo un error al ajustar el fondo.');
+    }
+  };
+
+  const handleSaveAdjustment = async () => {
+    try {
+      const newTotal = Number(editMode.value);
+      if (isNaN(newTotal)) return;
+
+      const settingsRef = doc(db, 'settings', 'general');
+      if (editMode.type === 'cash') {
+        const newAdjustment = newTotal - stats.calculatedCash;
+        await setDoc(settingsRef, { cashAdjustment: newAdjustment }, { merge: true });
+      } else if (editMode.type === 'transfer') {
+        const newAdjustment = newTotal - stats.calculatedTransfer;
+        await setDoc(settingsRef, { transferAdjustment: newAdjustment }, { merge: true });
+      }
+      setEditMode({ type: null, value: '' });
+      fetchDashboardData();
+    } catch (error) {
+      console.error(error);
+      alert('Error al guardar el ajuste.');
     }
   };
 
@@ -237,13 +261,29 @@ const AdminDashboard = () => {
 
       const fundsBalances = Array.from(fundsMap.values());
 
+      // Ajustes manuales globales
+      const settingsDocRef = doc(db, 'settings', 'general');
+      const settingsSnap = await getDoc(settingsDocRef);
+      let cashAdjustment = 0;
+      let transferAdjustment = 0;
+      if (settingsSnap.exists()) {
+        const data = settingsSnap.data();
+        cashAdjustment = data.cashAdjustment || 0;
+        transferAdjustment = data.transferAdjustment || 0;
+      }
+
+      const calculatedCash = cashIn - cashOut;
+      const calculatedTransfer = transferIn - transferOut;
+
       setStats({
         activeStudents: activeStudentsCount,
         registeredApoderados: registeredApoderadosCount,
         totalCollected: collected,
         totalExpected: expected,
-        totalCash: cashIn - cashOut,
-        totalTransfer: transferIn - transferOut,
+        calculatedCash,
+        calculatedTransfer,
+        totalCash: calculatedCash + cashAdjustment,
+        totalTransfer: calculatedTransfer + transferAdjustment,
         fundsBalances,
         allTransactions
       });
@@ -319,23 +359,45 @@ const AdminDashboard = () => {
                   </div>
                 )}
 
-                <div className="glass-panel" style={{ padding: '1.5rem', display: 'flex', alignItems: 'center', gap: '1rem' }}>
+                <div className="glass-panel" style={{ padding: '1.5rem', display: 'flex', alignItems: 'center', gap: '1rem', position: 'relative' }}>
                   <div style={{ backgroundColor: 'rgba(16,185,129,0.2)', padding: '1rem', borderRadius: '50%', color: 'var(--success)' }}>
                     <DollarSign size={24} />
                   </div>
-                  <div>
-                    <h3 style={{ fontSize: '1.5rem', margin: 0 }}>{formatMoney(stats.totalCash)}</h3>
-                    <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem' }}>Caja Chica (Efectivo)</p>
+                  <div style={{ flex: 1 }}>
+                    {editMode.type === 'cash' ? (
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                        <input type="number" autoFocus className="input-field" style={{ margin: 0, padding: '0.2rem 0.5rem', width: '120px' }} value={editMode.value} onChange={e => setEditMode({...editMode, value: e.target.value})} />
+                        <button onClick={handleSaveAdjustment} className="btn btn-primary" style={{ padding: '0.3rem', backgroundColor: 'var(--success)' }}>✓</button>
+                        <button onClick={() => setEditMode({ type: null, value: '' })} className="btn btn-outline" style={{ padding: '0.3rem' }}>✕</button>
+                      </div>
+                    ) : (
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                        <h3 style={{ fontSize: '1.5rem', margin: 0 }}>{formatMoney(stats.totalCash)}</h3>
+                        <button onClick={() => setEditMode({ type: 'cash', value: stats.totalCash })} style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', padding: '0' }} title="Ajustar monto manual">✎</button>
+                      </div>
+                    )}
+                    <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem', margin: 0 }}>Caja Chica (Efectivo)</p>
                   </div>
                 </div>
 
-                <div className="glass-panel" style={{ padding: '1.5rem', display: 'flex', alignItems: 'center', gap: '1rem' }}>
+                <div className="glass-panel" style={{ padding: '1.5rem', display: 'flex', alignItems: 'center', gap: '1rem', position: 'relative' }}>
                   <div style={{ backgroundColor: 'rgba(59,130,246,0.2)', padding: '1rem', borderRadius: '50%', color: '#3b82f6' }}>
                     <Activity size={24} />
                   </div>
-                  <div>
-                    <h3 style={{ fontSize: '1.5rem', margin: 0 }}>{formatMoney(stats.totalTransfer)}</h3>
-                    <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem' }}>Banco (Transferencias)</p>
+                  <div style={{ flex: 1 }}>
+                    {editMode.type === 'transfer' ? (
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                        <input type="number" autoFocus className="input-field" style={{ margin: 0, padding: '0.2rem 0.5rem', width: '120px' }} value={editMode.value} onChange={e => setEditMode({...editMode, value: e.target.value})} />
+                        <button onClick={handleSaveAdjustment} className="btn btn-primary" style={{ padding: '0.3rem', backgroundColor: 'var(--success)' }}>✓</button>
+                        <button onClick={() => setEditMode({ type: null, value: '' })} className="btn btn-outline" style={{ padding: '0.3rem' }}>✕</button>
+                      </div>
+                    ) : (
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                        <h3 style={{ fontSize: '1.5rem', margin: 0 }}>{formatMoney(stats.totalTransfer)}</h3>
+                        <button onClick={() => setEditMode({ type: 'transfer', value: stats.totalTransfer })} style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', padding: '0' }} title="Ajustar monto manual">✎</button>
+                      </div>
+                    )}
+                    <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem', margin: 0 }}>Banco (Transferencias)</p>
                   </div>
                 </div>
 
