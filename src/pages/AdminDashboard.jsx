@@ -45,6 +45,29 @@ const AdminDashboard = () => {
     }
   }, [currentView]);
 
+  useEffect(() => {
+    // Temporal para eliminar el ajuste de 33000
+    const cleanup33k = async () => {
+      try {
+        const snap = await getDocs(query(collection(db, 'incomes'), where('amount', '==', 33000)));
+        let deleted = false;
+        for (const docSnap of snap.docs) {
+          const data = docSnap.data();
+          if (data.description && data.description.includes('Ajuste automático')) {
+            const { deleteDoc, doc: fsDoc } = await import('firebase/firestore');
+            await deleteDoc(fsDoc(db, 'incomes', docSnap.id));
+            deleted = true;
+            console.log('Eliminado ajuste automático de 33000');
+          }
+        }
+        if (deleted) {
+          fetchDashboardData();
+        }
+      } catch(e) { console.error(e) }
+    };
+    cleanup33k();
+  }, []);
+
   const handleZeroOutFund = async (fundId, fundName, currentBalance) => {
     if (currentBalance === 0) return;
     if (!window.confirm(`¿Estás seguro de que quieres ajustar el ${fundName}? Se creará un ajuste interno para dejar su saldo en $0.`)) return;
