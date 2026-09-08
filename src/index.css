@@ -263,4 +263,34 @@ h1, h2, h3, h4, h5, h6 {
   .input-field {
     width: 100% !important;
   }
+  
+  /* 
+   * Mobile Accordion functionality for data rows
+   */
+  .glass-panel table.mobile-accordion tr {
+    cursor: pointer;
+    transition: background-color 0.2s ease;
+  }
+  
+  /* When collapsed (not expanded), hide everything except Student Name (col 2) and Status (col 4) */
+  .glass-panel table.mobile-accordion tr:not(.expanded) td:not(:nth-child(2)):not(:nth-child(4)) {
+    display: none !important;
+  }
+  
+  /* Style the collapsed row to show Student and Status side-by-side */
+  .glass-panel table.mobile-accordion tr:not(.expanded) {
+    display: flex;
+    flex-direction: row;
+    justify-content: space-between;
+    align-items: center;
+    padding: 1rem;
+  }
+  
+  /* Clean up the visible cells in collapsed mode */
+  .glass-panel table.mobile-accordion tr:not(.expanded) td {
+    padding: 0 !important;
+    border: none !important;
+    margin: 0 !important;
+    width: auto !important;
+  }
 }

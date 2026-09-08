@@ -24,6 +24,9 @@ const ExpenseDetail = ({ expenseId, onBack }) => {
   // Selección Múltiple
   const [selectedDebts, setSelectedDebts] = useState([]);
 
+  // Acordeón para Mobile
+  const [expandedDebts, setExpandedDebts] = useState([]);
+
   // Gestión de Alumnos
   const [isManagingStudents, setIsManagingStudents] = useState(false);
   const [selectedManageStudents, setSelectedManageStudents] = useState([]);
@@ -176,6 +179,20 @@ const ExpenseDetail = ({ expenseId, onBack }) => {
     }
   };
 
+  const handleRemoveStudent = async (debtId) => {
+    if (!(await showConfirm('¿Estás seguro de que quieres eliminar a este alumno de este cobro?'))) return;
+    
+    setLoading(true);
+    try {
+      await deleteDoc(doc(db, 'debts', debtId));
+      fetchDetail();
+      setManageStudentsSearch('');
+    } catch (error) {
+      console.error(error);
+      await showAlert("Error al eliminar el alumno del gasto.");
+    }
+  };
+
   const handleEditDebtAmount = async (debtId) => {
     const debtToEdit = debts.find(d => d.id === debtId);
     if (!debtToEdit) return;
@@ -226,6 +243,12 @@ const ExpenseDetail = ({ expenseId, onBack }) => {
       await showAlert("Error al modificar el monto pagado.");
       setLoading(false);
     }
+  };
+
+  const toggleAccordionRow = (id, e) => {
+    // Evitar que el acordeón se active si se clickea un botón o checkbox interno
+    if (e.target.tagName === 'BUTTON' || e.target.tagName === 'INPUT' || e.target.closest('button')) return;
+    setExpandedDebts(prev => prev.includes(id) ? prev.filter(r => r !== id) : [...prev, id]);
   };
 
   const handleApprovePayment = async (debtId) => {
@@ -770,7 +793,7 @@ const ExpenseDetail = ({ expenseId, onBack }) => {
       </div>
 
       <div className="glass-panel" style={{ overflowX: 'auto' }}>
-        <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
+        <table className="mobile-accordion" style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
           <thead>
             <tr style={{ borderBottom: '1px solid var(--border-color)', backgroundColor: 'rgba(255,255,255,0.03)' }}>
               <th style={{ padding: '1rem', width: '40px' }}>
@@ -793,18 +816,24 @@ const ExpenseDetail = ({ expenseId, onBack }) => {
           </thead>
           <tbody>
             {debts.filter(d => !d.title.includes('(Saldo Restante)')).map(debt => {
+              const isExpanded = expandedDebts.includes(debt.id);
               const rowBgColor = selectedDebts.includes(debt.id) 
                 ? 'rgba(99,102,241,0.1)' 
                 : debt.status === 'paid' 
-                  ? 'rgba(16, 185, 129, 0.08)' // Verde suave
+                  ? (isExpanded ? 'rgba(16, 185, 129, 0.08)' : 'rgba(16, 185, 129, 0.35)') // Verde más fuerte cerrado
                   : debt.status === 'partial' 
-                    ? 'rgba(234, 179, 8, 0.08)'  // Amarillo suave
+                    ? (isExpanded ? 'rgba(234, 179, 8, 0.08)' : 'rgba(234, 179, 8, 0.35)')  // Amarillo más fuerte cerrado
                     : debt.status === 'pending'
-                      ? 'rgba(239, 68, 68, 0.08)' // Rojo suave
+                      ? (isExpanded ? 'rgba(239, 68, 68, 0.08)' : 'rgba(239, 68, 68, 0.35)') // Rojo más fuerte cerrado
                       : 'transparent';
 
               return (
-              <tr key={debt.id} style={{ borderBottom: '1px solid var(--border-color)', backgroundColor: rowBgColor }}>
+              <tr 
+                key={debt.id} 
+                onClick={(e) => toggleAccordionRow(debt.id, e)}
+                className={isExpanded ? 'expanded' : ''}
+                style={{ borderBottom: '1px solid var(--border-color)', backgroundColor: rowBgColor, transition: 'background-color 0.2s' }}
+              >
                 <td style={{ padding: '1rem' }}>
                   {(debt.status === 'pending' || debt.status === 'partial') && (
                     <input 
