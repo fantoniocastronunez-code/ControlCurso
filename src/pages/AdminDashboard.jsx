@@ -314,15 +314,22 @@ const AdminDashboard = () => {
 
       // Calcular Fondo Saldos a Favor
       let totalFavorBalance = 0;
+      const studentsWithBalance = [];
       studentsSnap.forEach(doc => {
         const data = doc.data();
-        if (data.balance) {
-          totalFavorBalance += (parseFloat(data.balance) || 0);
+        if (data.balance && parseFloat(data.balance) > 0) {
+          totalFavorBalance += parseFloat(data.balance);
+          studentsWithBalance.push({ name: data.name, balance: parseFloat(data.balance) });
         }
       });
       
       if (totalFavorBalance > 0) {
-        fundsMap.set('favor_balance', { id: 'favor_balance', name: 'Saldos a Favor (Alumnos)', balance: totalFavorBalance });
+        fundsMap.set('favor_balance', { 
+          id: 'favor_balance', 
+          name: 'Saldos a Favor (Alumnos)', 
+          balance: totalFavorBalance,
+          studentsWithBalance
+        });
       }
 
       const fundsBalances = Array.from(fundsMap.values());

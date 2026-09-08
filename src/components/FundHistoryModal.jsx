@@ -33,7 +33,48 @@ const FundHistoryModal = ({ fund, transactions, onClose }) => {
 
         {/* Body */}
         <div style={{ padding: '1.5rem', overflowY: 'auto', flex: 1 }}>
-          {fundTransactions.length === 0 ? (
+          {fund.id === 'favor_balance' ? (
+            fund.studentsWithBalance && fund.studentsWithBalance.length > 0 ? (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                <p style={{ color: 'var(--text-muted)', marginBottom: '0.5rem', fontSize: '0.875rem' }}>
+                  Alumnos con saldo a favor disponible:
+                </p>
+                {fund.studentsWithBalance.map((student, idx) => (
+                  <div key={idx} style={{ 
+                    display: 'flex', 
+                    alignItems: 'center', 
+                    justifyContent: 'space-between', 
+                    padding: '1rem', 
+                    backgroundColor: 'rgba(255,255,255,0.03)', 
+                    borderRadius: 'var(--radius-md)',
+                    border: '1px solid var(--border-color)'
+                  }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+                      <div style={{ 
+                        width: '40px', height: '40px', 
+                        borderRadius: '50%', 
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        backgroundColor: 'rgba(16, 185, 129, 0.15)',
+                        color: 'var(--success)'
+                      }}>
+                        <DollarSign size={20} />
+                      </div>
+                      <div>
+                        <p style={{ margin: 0, fontWeight: '500', color: 'var(--text-primary)' }}>{student.name}</p>
+                      </div>
+                    </div>
+                    <div style={{ fontWeight: '600', color: 'var(--success)' }}>
+                      {formatMoney(student.balance)}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div style={{ textAlign: 'center', color: 'var(--text-muted)', padding: '2rem 0' }}>
+                No hay alumnos con saldo a favor.
+              </div>
+            )
+          ) : fundTransactions.length === 0 ? (
             <div style={{ textAlign: 'center', color: 'var(--text-muted)', padding: '2rem 0' }}>
               No hay movimientos registrados en este fondo.
             </div>

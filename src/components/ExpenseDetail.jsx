@@ -134,6 +134,18 @@ const ExpenseDetail = ({ expenseId, onBack }) => {
     }
 
     try {
+      const fundId = debtToPay.fundId || expense.fundId || 'general';
+      const relatedFund = funds.find(f => f.id === fundId);
+      
+      if (relatedFund && relatedFund.isLocked) {
+        const unlock = await showConfirm(`El fondo "${relatedFund.name}" asociado a esta cuota está bloqueado. ¿Quieres desbloquearlo para poder registrar el pago?`);
+        if (!unlock) return; // Cancelar el pago
+        
+        // Desbloquear el fondo
+        await updateDoc(doc(db, 'funds', relatedFund.id), { isLocked: false });
+        setFunds(funds.map(f => f.id === relatedFund.id ? { ...f, isLocked: false } : f));
+      }
+
       const debtRef = doc(db, 'debts', debtId);
       
       let newStatus = 'pending';
