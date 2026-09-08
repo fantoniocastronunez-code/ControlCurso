@@ -272,18 +272,24 @@ h1, h2, h3, h4, h5, h6 {
     transition: background-color 0.2s ease;
   }
   
-  /* When collapsed (not expanded), hide everything except Student Name (col 2) and Status (col 4) */
-  .glass-panel table.mobile-accordion tr:not(.expanded) td:not(:nth-child(2)):not(:nth-child(4)) {
+  /* When collapsed (not expanded), hide everything except Student Name and Status in standard mode */
+  .glass-panel table.mobile-accordion:not(.audit-mode) tr:not(.expanded) td:not(:nth-child(2)):not(:nth-child(4)) {
     display: none !important;
   }
   
-  /* Style the collapsed row to show Student and Status side-by-side */
+  /* When collapsed in Audit Mode, show Tick (col 1), Student Name (col 2), and Manual Input (col 5) */
+  .glass-panel table.mobile-accordion.audit-mode tr:not(.expanded) td:not(:nth-child(1)):not(:nth-child(2)):not(:nth-child(5)) {
+    display: none !important;
+  }
+
+  /* Style the collapsed row to show elements side-by-side */
   .glass-panel table.mobile-accordion tr:not(.expanded) {
     display: flex;
     flex-direction: row;
     justify-content: space-between;
     align-items: center;
-    padding: 1rem;
+    gap: 0.5rem;
+    padding: 0.85rem 1rem;
   }
   
   /* Clean up the visible cells in collapsed mode */
@@ -293,4 +299,12 @@ h1, h2, h3, h4, h5, h6 {
     margin: 0 !important;
     width: auto !important;
   }
+
+  /* Ensure audit input is compact on mobile collapsed cards */
+  .glass-panel table.mobile-accordion.audit-mode tr:not(.expanded) td:nth-child(5) input {
+    max-width: 100px !important;
+    padding: 0.35rem 0.5rem !important;
+    font-size: 0.85rem !important;
+  }
 }
+
