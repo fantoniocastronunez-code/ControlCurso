@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { db } from '../../../firebase/config';
-import { collection, getDocs, doc, setDoc, query, where, orderBy } from 'firebase/firestore';
+import { collection, getDocs, doc, setDoc, query, where, orderBy, updateDoc, deleteDoc } from 'firebase/firestore';
 import { ShoppingCart, Plus, Minus, Trash2, Printer, Maximize, Minimize } from 'lucide-react';
 import { useModal } from '../../../context/ModalContext';
 import ThermalReceipt from './ThermalReceipt';
@@ -196,6 +196,32 @@ const EventPOS = ({ event }) => {
     } catch (error) {
       console.error("Error al completar venta:", error);
       showAlert("Ocurrió un error al registrar la venta.");
+    }
+  };
+
+  const handleDeleteSale = async (sale) => {
+    if (sale.status === 'cancelled') return;
+    const confirm = await showConfirm(`¿Estás seguro que deseas anular la venta #${sale.correlative}? Esta acción no se puede deshacer.`);
+    if (!confirm) return;
+    
+    try {
+      // 1. Marcar venta como anulada
+      await updateDoc(doc(db, 'eventSales', sale.id), { status: 'cancelled' });
+      
+      // 2. Eliminar el ingreso asociado en la colección incomes
+      const qIncome = query(collection(db, 'incomes'), where('saleId', '==', sale.id));
+      const snapIncome = await getDocs(qIncome);
+      for (const docSnap of snapIncome.docs) {
+        await deleteDoc(doc(db, 'incomes', docSnap.id));
+      }
+      
+      // 3. Actualizar estado local
+      setSales(prev => prev.map(s => s.id === sale.id ? { ...s, status: 'cancelled' } : s));
+      
+      await showAlert(`Venta #${sale.correlative} anulada correctamente.`);
+    } catch (error) {
+      console.error("Error al anular venta:", error);
+      await showAlert("Ocurrió un error al anular la venta.");
     }
   };
 
@@ -533,28 +559,47 @@ const EventPOS = ({ event }) => {
                 </tr>
               </thead>
               <tbody>
-                {sales.slice(0, 10).map(sale => (
-                  <tr key={sale.id} style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
-                    <td style={{ padding: '0.5rem' }}>{sale.correlative}</td>
-                    <td style={{ padding: '0.5rem' }}>{new Date(sale.createdAt).toLocaleTimeString('es-CL')}</td>
-                    <td style={{ padding: '0.5rem' }}>{sale.clientName || 'General'}</td>
-                    <td style={{ padding: '0.5rem', color: 'var(--text-muted)' }}>
-                      {sale.items.map(i => `${i.quantity}x ${i.name}`).join(', ')}
-                    </td>
-                    <td style={{ padding: '0.5rem', textAlign: 'right', fontWeight: 'bold', color: 'var(--success)' }}>
-                      {formatMoney(sale.total)}
-                    </td>
-                    <td style={{ padding: '0.5rem', textAlign: 'center' }}>
-                      <button 
-                        onClick={() => { setLastSale(sale); setTimeout(() => window.print(), 200); }} 
-                        className="btn btn-outline"
-                        style={{ padding: '0.25rem 0.5rem', fontSize: '0.75rem' }}
-                      >
-                        Reimprimir
-                      </button>
-                    </td>
-                  </tr>
-                ))}
+                {sales.slice(0, 10).map(sale => {
+                  const isCancelled = sale.status === 'cancelled';
+                  return (
+                    <tr key={sale.id} style={{ borderBottom: '1px solid rgba(255,255,255,0.05)', opacity: isCancelled ? 0.5 : 1 }}>
+                      <td style={{ padding: '0.5rem', textDecoration: isCancelled ? 'line-through' : 'none' }}>{sale.correlative}</td>
+                      <td style={{ padding: '0.5rem', textDecoration: isCancelled ? 'line-through' : 'none' }}>{new Date(sale.createdAt).toLocaleTimeString('es-CL')}</td>
+                      <td style={{ padding: '0.5rem', textDecoration: isCancelled ? 'line-through' : 'none' }}>
+                        {sale.clientName || 'General'}
+                        {isCancelled && <span style={{ marginLeft: '0.5rem', fontSize: '0.7rem', backgroundColor: 'var(--danger)', color: 'white', padding: '2px 4px', borderRadius: '4px' }}>ANULADA</span>}
+                      </td>
+                      <td style={{ padding: '0.5rem', color: 'var(--text-muted)', textDecoration: isCancelled ? 'line-through' : 'none' }}>
+                        {sale.items.map(i => `${i.quantity}x ${i.name}`).join(', ')}
+                      </td>
+                      <td style={{ padding: '0.5rem', textAlign: 'right', fontWeight: 'bold', color: isCancelled ? 'var(--text-muted)' : 'var(--success)', textDecoration: isCancelled ? 'line-through' : 'none' }}>
+                        {formatMoney(sale.total)}
+                      </td>
+                      <td style={{ padding: '0.5rem', textAlign: 'center' }}>
+                        {!isCancelled && (
+                          <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'center' }}>
+                            <button 
+                              onClick={() => { setLastSale(sale); setTimeout(() => window.print(), 200); }} 
+                              className="btn btn-outline"
+                              style={{ padding: '0.25rem 0.5rem', fontSize: '0.75rem' }}
+                              title="Reimprimir"
+                            >
+                              <Printer size={14} />
+                            </button>
+                            <button 
+                              onClick={() => handleDeleteSale(sale)} 
+                              className="btn btn-outline"
+                              style={{ padding: '0.25rem 0.5rem', fontSize: '0.75rem', borderColor: 'rgba(239, 68, 68, 0.3)', color: 'var(--danger)' }}
+                              title="Anular Venta"
+                            >
+                              <Trash2 size={14} />
+                            </button>
+                          </div>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
