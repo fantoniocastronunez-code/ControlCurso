@@ -685,43 +685,50 @@ const ExpenseDetail = ({ expenseId, onBack }) => {
     setAuditManualAmounts({});
   };
 
-  const handleAcceptAudit = async (debtId) => {
-    const manualAmtStr = auditManualAmounts[debtId];
-    if (manualAmtStr === undefined || manualAmtStr === '') {
-      await showAlert("Ingresa un monto manual antes de aceptar.");
-      return;
-    }
+  const handleAcceptAllAudit = async () => {
+    const debtIdsWithManualAmt = Object.keys(auditManualAmounts).filter(id => auditManualAmounts[id] !== undefined && auditManualAmounts[id] !== '');
     
-    const manualAmt = parseFloat(manualAmtStr);
-    if (isNaN(manualAmt) || manualAmt < 0) {
-      await showAlert("El monto ingresado no es válido.");
+    if (debtIdsWithManualAmt.length === 0) {
+      await showAlert("No hay montos manuales ingresados para aceptar.");
       return;
     }
 
-    const debtToUpdate = debts.find(d => d.id === debtId);
-    if (!debtToUpdate) return;
-
-    if (!(await showConfirm(`¿Estás seguro de reemplazar el monto en sistema por ${formatMoney(manualAmt)}?`))) return;
+    if (!(await showConfirm(`¿Estás seguro de reemplazar los montos en sistema por las sumas manuales auditadas?\nEsta acción actualizará ${debtIdsWithManualAmt.length} registro(s) y no se puede deshacer.`))) return;
 
     setLoading(true);
     try {
-      let newStatus = 'pending';
-      if (manualAmt >= debtToUpdate.amount) newStatus = 'paid';
-      else if (manualAmt > 0) newStatus = 'partial';
+      let updatedCount = 0;
+      for (const debtId of debtIdsWithManualAmt) {
+        const manualAmt = parseFloat(auditManualAmounts[debtId]);
+        if (isNaN(manualAmt) || manualAmt < 0) continue; // skip invalid
 
-      await updateDoc(doc(db, 'debts', debtId), {
-        paidAmount: manualAmt,
-        status: newStatus,
-        paymentMethod: debtToUpdate.paymentMethod || 'cash', // Default to cash if it was pending
-        approvedAt: debtToUpdate.approvedAt || new Date().toISOString()
-      });
+        const debtToUpdate = debts.find(d => d.id === debtId);
+        if (!debtToUpdate) continue;
 
-      // Si marcamos como paid, actualizamos count de expense si es necesario
-      // For simplicity, re-fetch detail and recalculate in backend, though we can do it later.
+        let newStatus = 'pending';
+        if (manualAmt >= debtToUpdate.amount) newStatus = 'paid';
+        else if (manualAmt > 0) newStatus = 'partial';
+
+        await updateDoc(doc(db, 'debts', debtId), {
+          paidAmount: manualAmt,
+          status: newStatus,
+          paymentMethod: debtToUpdate.paymentMethod || 'cash',
+          approvedAt: debtToUpdate.approvedAt || new Date().toISOString()
+        });
+        
+        updatedCount++;
+      }
+
+      await showAlert(`Se han actualizado ${updatedCount} registros con éxito.`);
+      
+      // Limpiar auditoría tras aplicar
+      setAuditChecks({});
+      setAuditManualAmounts({});
+      
       fetchDetail();
     } catch (error) {
-      console.error("Error al actualizar monto de auditoría:", error);
-      await showAlert("Error al guardar el monto auditado.");
+      console.error("Error al actualizar montos de auditoría masivos:", error);
+      await showAlert("Error al guardar los montos auditados.");
       setLoading(false);
     }
   };
@@ -968,6 +975,16 @@ const ExpenseDetail = ({ expenseId, onBack }) => {
               >
                 <RotateCcw size={15} />
                 Limpiar
+              </button>
+              <button 
+                onClick={handleAcceptAllAudit}
+                className="btn btn-primary"
+                style={{ padding: '0.45rem 0.85rem', fontSize: '0.85rem', backgroundColor: '#8b5cf6', border: 'none', display: 'flex', alignItems: 'center', gap: '0.3rem', fontWeight: 'bold' }}
+                title="Aceptar suma auditada y reemplazar la registrada en sistema"
+                disabled={Object.keys(auditManualAmounts).length === 0}
+              >
+                <Save size={15} />
+                Aceptar Suma Auditada
               </button>
             </div>
           </div>
@@ -1242,23 +1259,13 @@ const ExpenseDetail = ({ expenseId, onBack }) => {
                       ) : '-'}
                     </td>
 
-                    <td style={{ padding: '1rem', display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+                    <td style={{ padding: '1rem' }}>
                       <button
                         onClick={(e) => { e.stopPropagation(); handleToggleAuditCheck(debt.id); }}
                         className="btn btn-outline"
                         style={{ padding: '0.3rem 0.6rem', fontSize: '0.8rem', borderColor: isAudited ? 'var(--success)' : '#8b5cf6', color: isAudited ? 'var(--success)' : '#c4b5fd' }}
                       >
                         {isAudited ? '✔ Listo' : 'Verificar'}
-                      </button>
-                      
-                      <button
-                        onClick={(e) => { e.stopPropagation(); handleAcceptAudit(debt.id); }}
-                        className="btn btn-primary"
-                        style={{ padding: '0.3rem 0.6rem', fontSize: '0.8rem', backgroundColor: '#8b5cf6', border: 'none', display: 'flex', alignItems: 'center', gap: '0.3rem' }}
-                        title="Reemplazar monto de sistema por el ingresado manualmente"
-                        disabled={auditManualAmounts[debt.id] === undefined || auditManualAmounts[debt.id] === ''}
-                      >
-                        <Save size={13}/> Aceptar
                       </button>
                     </td>
                   </>
