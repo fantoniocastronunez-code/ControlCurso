@@ -686,40 +686,51 @@ const ExpenseDetail = ({ expenseId, onBack }) => {
   };
 
   const handleAcceptAllAudit = async () => {
-    const debtIdsWithManualAmt = Object.keys(auditManualAmounts).filter(id => auditManualAmounts[id] !== undefined && auditManualAmounts[id] !== '');
-    
-    if (debtIdsWithManualAmt.length === 0) {
-      await showAlert("No hay montos manuales ingresados para aceptar.");
+    if (Object.keys(auditManualAmounts).length === 0) {
+      await showAlert("No hay montos manuales ingresados. Ingresa al menos uno o usa 'Copiar del Sistema'.");
       return;
     }
 
-    if (!(await showConfirm(`¿Estás seguro de reemplazar los montos en sistema por las sumas manuales auditadas?\nEsta acción actualizará ${debtIdsWithManualAmt.length} registro(s) y no se puede deshacer.`))) return;
+    if (!(await showConfirm(`¿Estás seguro de reemplazar TODOS los montos en sistema por las sumas manuales auditadas?\n\n⚠️ ATENCIÓN: Cualquier alumno que NO tenga un monto manual ingresado quedará en $0 (Pendiente). La Suma Registrada en Sistema pasará a ser exactamente la Suma Manual Auditada.`))) return;
 
     setLoading(true);
     try {
       let updatedCount = 0;
-      for (const debtId of debtIdsWithManualAmt) {
-        const manualAmt = parseFloat(auditManualAmounts[debtId]);
-        if (isNaN(manualAmt) || manualAmt < 0) continue; // skip invalid
-
-        const debtToUpdate = debts.find(d => d.id === debtId);
-        if (!debtToUpdate) continue;
+      for (const debt of debts) {
+        const manualAmtStr = auditManualAmounts[debt.id];
+        
+        let manualAmt = 0;
+        if (manualAmtStr !== undefined && manualAmtStr !== '') {
+          manualAmt = parseFloat(manualAmtStr);
+          if (isNaN(manualAmt) || manualAmt < 0) manualAmt = 0;
+        }
 
         let newStatus = 'pending';
-        if (manualAmt >= debtToUpdate.amount) newStatus = 'paid';
+        if (manualAmt >= debt.amount) newStatus = 'paid';
         else if (manualAmt > 0) newStatus = 'partial';
 
-        await updateDoc(doc(db, 'debts', debtId), {
+        await updateDoc(doc(db, 'debts', debt.id), {
           paidAmount: manualAmt,
           status: newStatus,
-          paymentMethod: debtToUpdate.paymentMethod || 'cash',
-          approvedAt: debtToUpdate.approvedAt || new Date().toISOString()
+          paymentMethod: manualAmt > 0 ? (debt.paymentMethod || 'cash') : null,
+          approvedAt: manualAmt > 0 ? (debt.approvedAt || new Date().toISOString()) : null
         });
         
         updatedCount++;
       }
+      
+      // Actualizamos el contador general de pagados en la cuota
+      const fullyPaidCount = debts.filter(d => {
+        const amtStr = auditManualAmounts[d.id];
+        const amt = (amtStr !== undefined && amtStr !== '') ? parseFloat(amtStr) : 0;
+        return amt >= d.amount;
+      }).length;
 
-      await showAlert(`Se han actualizado ${updatedCount} registros con éxito.`);
+      await updateDoc(doc(db, 'expenses', expenseId), {
+        paidCount: fullyPaidCount
+      });
+
+      await showAlert(`Se ha reemplazado la suma del sistema con éxito. ${updatedCount} registros actualizados.`);
       
       // Limpiar auditoría tras aplicar
       setAuditChecks({});
