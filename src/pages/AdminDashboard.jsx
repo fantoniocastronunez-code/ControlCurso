@@ -210,10 +210,18 @@ const AdminDashboard = () => {
         if (!fundsMap.has(fundId)) return;
 
         const amt = typeof data.paidAmount === 'number' ? data.paidAmount : (data.amount || 0);
+        const expected = data.amount || 0;
+        
+        const baseAmt = Math.min(amt, expected);
+        const overpayAmt = Math.max(0, amt - expected);
+        
         collected += amt;
         
-        if (data.paymentMethod === 'cash') cashIn += amt;
-        if (data.paymentMethod === 'transfer') transferIn += amt;
+        if (data.paymentMethod === 'cash') cashIn += baseAmt;
+        if (data.paymentMethod === 'transfer') transferIn += baseAmt;
+        
+        // El usuario solicitó que todo el saldo a favor (overpay) se cuente como transferencia
+        transferIn += overpayAmt;
         
         // Sumar lo recaudado por cada cuota
         if (data.expenseId) {
