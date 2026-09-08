@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { LogOut, Users, DollarSign, Activity, FileText, RefreshCw, Calendar, Trash2 } from 'lucide-react';
 import { db } from '../firebase/config';
-import { collection, getDocs, query, where, orderBy, addDoc } from 'firebase/firestore';
+import { collection, getDocs, query, where, orderBy, addDoc, doc, setDoc, getDoc } from 'firebase/firestore';
 import { useNavigate } from 'react-router-dom';
 
 import UserManagement from '../components/UserManagement';
