@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { db } from '../firebase/config';
-import { collection, getDocs, doc, setDoc, deleteDoc } from 'firebase/firestore';
-import { ArrowLeft, CheckCircle, Trash2, TrendingDown } from 'lucide-react';
+import { collection, getDocs, doc, setDoc, deleteDoc, updateDoc } from 'firebase/firestore';
+import { ArrowLeft, CheckCircle, Trash2, TrendingDown, Edit2 } from 'lucide-react';
 import { useModal } from '../context/ModalContext';
 
 const OutcomeManagement = ({ onBack }) => {
@@ -16,6 +16,13 @@ const OutcomeManagement = ({ onBack }) => {
   const [selectedFundId, setSelectedFundId] = useState('general');
   const [newDate, setNewDate] = useState('');
   
+  const [editingOutcomeId, setEditingOutcomeId] = useState(null);
+  const [editOutcomeTitle, setEditOutcomeTitle] = useState('');
+  const [editOutcomeAmount, setEditOutcomeAmount] = useState('');
+  const [editOutcomeDate, setEditOutcomeDate] = useState('');
+  const [editOutcomeMethod, setEditOutcomeMethod] = useState('cash');
+  const [editOutcomeFund, setEditOutcomeFund] = useState('general');
+
   const [funds, setFunds] = useState([]);
 
   useEffect(() => {
@@ -85,6 +92,28 @@ const OutcomeManagement = ({ onBack }) => {
       console.error("Error registrando gasto:", error);
       setMessage('Error al registrar el gasto');
       setTimeout(() => setMessage(''), 3000);
+    }
+  };
+
+  const handleSaveEdit = async (id) => {
+    if (!editOutcomeTitle || !editOutcomeAmount) return;
+    try {
+      const updatedData = {
+        title: editOutcomeTitle,
+        amount: parseFloat(editOutcomeAmount),
+        date: editOutcomeDate || new Date().toISOString().split('T')[0],
+        paymentMethod: editOutcomeMethod,
+        fundId: editOutcomeFund
+      };
+      
+      await updateDoc(doc(db, 'outcomes', id), updatedData);
+      
+      setOutcomes(outcomes.map(o => o.id === id ? { ...o, ...updatedData } : o).sort((a, b) => new Date(b.date) - new Date(a.date)));
+      setEditingOutcomeId(null);
+      setMessage('Gasto actualizado correctamente');
+      setTimeout(() => setMessage(''), 3000);
+    } catch (error) {
+      console.error("Error actualizando gasto:", error);
     }
   };
 
@@ -211,18 +240,66 @@ const OutcomeManagement = ({ onBack }) => {
               const f = funds.find(fund => fund.id === o.fundId);
               return (
                 <tr key={o.id} style={{ borderBottom: '1px solid var(--border-color)' }}>
-                  <td style={{ padding: '1rem', color: 'var(--text-muted)' }}>{o.date}</td>
-                  <td style={{ padding: '1rem', fontWeight: '500' }}>{o.title}</td>
-                  <td style={{ padding: '1rem', color: 'var(--danger)', fontWeight: 'bold' }}>- {formatMoney(o.amount)}</td>
-                  <td style={{ padding: '1rem' }}>
-                    <div style={{ fontSize: '0.9rem' }}>{o.paymentMethod === 'cash' ? '💵 Efectivo' : '🏦 Transferencia'}</div>
-                    <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>{f ? f.name : 'Fondo General'}</div>
-                  </td>
-                  <td style={{ padding: '1rem' }}>
-                    <button onClick={() => handleDelete(o.id)} className="btn btn-outline" style={{ padding: '0.4rem 0.75rem', color: 'var(--danger)', borderColor: 'rgba(239, 68, 68, 0.3)', gap: '0.5rem', display: 'flex', alignItems: 'center' }}>
-                      <Trash2 size={16} /> Eliminar
-                    </button>
-                  </td>
+                  {editingOutcomeId === o.id ? (
+                    <>
+                      <td style={{ padding: '1rem' }}>
+                        <input type="date" className="input-field" value={editOutcomeDate} onChange={e => setEditOutcomeDate(e.target.value)} style={{ margin: 0, padding: '0.4rem 0.5rem', minWidth: '120px' }} />
+                      </td>
+                      <td style={{ padding: '1rem' }}>
+                        <input type="text" className="input-field" value={editOutcomeTitle} onChange={e => setEditOutcomeTitle(e.target.value)} style={{ margin: 0, padding: '0.4rem 0.5rem' }} />
+                      </td>
+                      <td style={{ padding: '1rem' }}>
+                        <input type="number" className="input-field" value={editOutcomeAmount} onChange={e => setEditOutcomeAmount(e.target.value)} style={{ margin: 0, padding: '0.4rem 0.5rem', width: '100px' }} />
+                      </td>
+                      <td style={{ padding: '1rem' }}>
+                        <select className="input-field" value={editOutcomeMethod} onChange={e => setEditOutcomeMethod(e.target.value)} style={{ margin: '0 0 0.5rem 0', padding: '0.4rem 0.5rem' }}>
+                          <option value="cash">Efectivo</option>
+                          <option value="transfer">Transferencia</option>
+                        </select>
+                        <select className="input-field" value={editOutcomeFund} onChange={e => setEditOutcomeFund(e.target.value)} style={{ margin: 0, padding: '0.4rem 0.5rem' }}>
+                          <option value="general">Fondo General</option>
+                          {funds.filter(fd => !fd.isLocked && fd.id !== 'general').map(fd => (
+                            <option key={fd.id} value={fd.id}>{fd.name}</option>
+                          ))}
+                        </select>
+                      </td>
+                      <td style={{ padding: '1rem' }}>
+                        <div style={{ display: 'flex', gap: '0.5rem' }}>
+                          <button onClick={() => handleSaveEdit(o.id)} className="btn btn-primary" style={{ padding: '0.4rem 0.75rem', backgroundColor: 'var(--success)' }}>
+                            <CheckCircle size={16} /> Guardar
+                          </button>
+                          <button onClick={() => setEditingOutcomeId(null)} className="btn btn-outline" style={{ padding: '0.4rem 0.75rem' }}>Cancelar</button>
+                        </div>
+                      </td>
+                    </>
+                  ) : (
+                    <>
+                      <td style={{ padding: '1rem', color: 'var(--text-muted)' }}>{o.date}</td>
+                      <td style={{ padding: '1rem', fontWeight: '500' }}>{o.title}</td>
+                      <td style={{ padding: '1rem', color: 'var(--danger)', fontWeight: 'bold' }}>- {formatMoney(o.amount)}</td>
+                      <td style={{ padding: '1rem' }}>
+                        <div style={{ fontSize: '0.9rem' }}>{o.paymentMethod === 'cash' ? '💵 Efectivo' : '🏦 Transferencia'}</div>
+                        <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>{f ? f.name : 'Fondo General'}</div>
+                      </td>
+                      <td style={{ padding: '1rem' }}>
+                        <div style={{ display: 'flex', gap: '0.5rem' }}>
+                          <button onClick={() => { 
+                            setEditingOutcomeId(o.id); 
+                            setEditOutcomeTitle(o.title); 
+                            setEditOutcomeAmount(o.amount); 
+                            setEditOutcomeDate(o.date); 
+                            setEditOutcomeMethod(o.paymentMethod || 'cash'); 
+                            setEditOutcomeFund(o.fundId || 'general'); 
+                          }} className="btn btn-outline" style={{ padding: '0.4rem 0.75rem', gap: '0.5rem', display: 'flex', alignItems: 'center' }}>
+                            <Edit2 size={16} /> Editar
+                          </button>
+                          <button onClick={() => handleDelete(o.id)} className="btn btn-outline" style={{ padding: '0.4rem 0.75rem', color: 'var(--danger)', borderColor: 'rgba(239, 68, 68, 0.3)', gap: '0.5rem', display: 'flex', alignItems: 'center' }}>
+                            <Trash2 size={16} /> Eliminar
+                          </button>
+                        </div>
+                      </td>
+                    </>
+                  )}
                 </tr>
               );
             })}
