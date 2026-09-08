@@ -4,7 +4,7 @@ import { LogOut, CheckCircle, Clock, Search, UserPlus, Upload, AlertCircle, Mess
 import { db, storage } from '../firebase/config';
 import { collection, query, where, getDocs, getDoc, doc, updateDoc, setDoc, or } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { formatStudentName } from '../utils/nameUtils';
 import { formatRut } from '../utils/rutUtils';
 import { useModal } from '../context/ModalContext';
@@ -13,6 +13,8 @@ const ApoderadoDashboard = () => {
   const { showAlert } = useModal();
   const { user, role, logout } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
+  const impersonateStudentId = location.state?.impersonateStudentId;
   
   const [myStudents, setMyStudents] = useState([]);
   const [debts, setDebts] = useState([]);
@@ -49,15 +51,19 @@ const ApoderadoDashboard = () => {
     setLoading(true);
     try {
       // 0. Check Profile Completion
-      const userDocRef = doc(db, 'users', user.email);
-      const userSnap = await getDoc(userDocRef);
-      if (userSnap.exists()) {
-        const userData = userSnap.data();
-        if (!userData.formalName) {
-          setIsProfileComplete(false);
-          setLoading(false);
-          return; // Stop here if profile is incomplete
+      if (!impersonateStudentId) {
+        const userDocRef = doc(db, 'users', user.email);
+        const userSnap = await getDoc(userDocRef);
+        if (userSnap.exists()) {
+          const userData = userSnap.data();
+          if (!userData.formalName) {
+            setIsProfileComplete(false);
+            setLoading(false);
+            return; // Stop here if profile is incomplete
+          }
         }
+      } else {
+        setIsProfileComplete(true);
       }
 
       // 0.5 Fetch Settings
@@ -74,15 +80,23 @@ const ApoderadoDashboard = () => {
       }
 
       // 1. Fetch Students
-      const qStudents = query(
-        collection(db, 'students'), 
-        or(
-          where('apoderadoEmail', '==', user.email),
-          where('apoderadoEmails', 'array-contains', user.email)
-        )
-      );
-      const snapStudents = await getDocs(qStudents);
-      const students = snapStudents.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      let students = [];
+      if (impersonateStudentId && (role === 'admin' || role === 'superadmin')) {
+        const snap = await getDoc(doc(db, 'students', impersonateStudentId));
+        if (snap.exists()) {
+          students = [{ id: snap.id, ...snap.data() }];
+        }
+      } else {
+        const qStudents = query(
+          collection(db, 'students'), 
+          or(
+            where('apoderadoEmail', '==', user.email),
+            where('apoderadoEmails', 'array-contains', user.email)
+          )
+        );
+        const snapStudents = await getDocs(qStudents);
+        students = snapStudents.docs.map(d => ({ id: d.id, ...d.data() }));
+      }
       students.sort((a, b) => {
         const aNum = parseInt(a.listNumber) || 999;
         const bNum = parseInt(b.listNumber) || 999;
