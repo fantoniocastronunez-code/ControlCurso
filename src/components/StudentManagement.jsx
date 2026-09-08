@@ -9,6 +9,7 @@ import { useNavigate } from 'react-router-dom';
 import { formatStudentName } from '../utils/nameUtils';
 import { formatRut } from '../utils/rutUtils';
 import { useModal } from '../context/ModalContext';
+import { useAuth } from '../context/AuthContext';
 
 const StudentManagement = ({ onBack }) => {
   const { showConfirm, showAlert } = useModal();
