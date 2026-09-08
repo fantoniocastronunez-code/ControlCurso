@@ -76,8 +76,12 @@ const AdminDashboard = () => {
   };
 
   const handleQuickIncome = async () => {
-    const amountStr = await showPrompt("Monto a sumar al Fondo Total (Caja Chica):", "");
+    const titleStr = await showPrompt("Nombre para este ingreso (Ej: Aporte anónimo, Bingo, etc):", "Ingreso Rápido");
+    if (!titleStr) return;
+    
+    const amountStr = await showPrompt(`Monto a sumar para "${titleStr}":`, "");
     if (!amountStr) return;
+    
     const amount = parseFloat(amountStr);
     if (isNaN(amount) || amount <= 0) {
       await showAlert("Monto inválido.");
@@ -88,14 +92,14 @@ const AdminDashboard = () => {
     try {
       await addDoc(collection(db, 'incomes'), {
         amount: amount,
-        title: 'Ingreso Rápido',
+        title: titleStr,
         description: 'Monto agregado mediante ingreso rápido',
         paymentMethod: 'cash',
         fundId: 'general',
         createdAt: new Date().toISOString()
       });
       fetchDashboardData();
-      await showAlert("Dinero agregado correctamente a Caja Chica (Fondo General).");
+      await showAlert(`Ingreso "${titleStr}" agregado correctamente al Fondo General.`);
     } catch (error) {
       console.error(error);
       await showAlert("Hubo un error al agregar el dinero.");
