@@ -40,8 +40,18 @@ const FundManagement = ({ onBack }) => {
         id: doc.id,
         ...doc.data()
       }));
-      // Ordenar por nombre
-      list.sort((a, b) => a.name.localeCompare(b.name));
+      
+      // Asegurar que exista el Fondo General en la vista
+      if (!list.find(f => f.id === 'general')) {
+        list.push({ id: 'general', name: 'Fondo General', description: 'Fondo principal base del curso', isLocked: false });
+      }
+
+      // Ordenar por nombre, pero manteniendo el Fondo General arriba
+      list.sort((a, b) => {
+        if (a.id === 'general') return -1;
+        if (b.id === 'general') return 1;
+        return a.name.localeCompare(b.name);
+      });
       setFunds(list);
     } catch (error) {
       console.error("Error al obtener fondos:", error);
@@ -81,7 +91,12 @@ const FundManagement = ({ onBack }) => {
   };
 
   const handleDelete = async (id) => {
-    if (!(await showConfirm('¿Seguro que deseas eliminar este fondo contable? El dinero pasará automáticamente al Fondo General.'))) return;
+    if (id === 'general') {
+      setMessage('El Fondo principal no se puede eliminar.');
+      setTimeout(() => setMessage(''), 3000);
+      return;
+    }
+    if (!(await showConfirm('¿Seguro que deseas eliminar este fondo contable? El dinero pasará automáticamente al Fondo principal.'))) return;
     try {
       await deleteDoc(doc(db, 'funds', id));
       setFunds(funds.filter(f => f.id !== id));
@@ -95,8 +110,12 @@ const FundManagement = ({ onBack }) => {
   const handleSaveEdit = async (id) => {
     if (!editFundName) return;
     try {
-      await updateDoc(doc(db, 'funds', id), { name: editFundName, description: editFundDescription });
-      setFunds(funds.map(f => f.id === id ? { ...f, name: editFundName, description: editFundDescription } : f).sort((a, b) => a.name.localeCompare(b.name)));
+      await setDoc(doc(db, 'funds', id), { name: editFundName, description: editFundDescription }, { merge: true });
+      setFunds(funds.map(f => f.id === id ? { ...f, name: editFundName, description: editFundDescription } : f).sort((a, b) => {
+        if (a.id === 'general') return -1;
+        if (b.id === 'general') return 1;
+        return a.name.localeCompare(b.name);
+      }));
       setEditingFundId(null);
       setMessage('Fondo actualizado correctamente');
       setTimeout(() => setMessage(''), 3000);
@@ -333,7 +352,7 @@ const FundManagement = ({ onBack }) => {
                         <button onClick={() => handleToggleLock(f.id, f.isLocked)} className="btn btn-outline" style={{ padding: '0.4rem 0.75rem', gap: '0.5rem', display: 'flex', alignItems: 'center' }}>
                           {f.isLocked ? <><Unlock size={16} /> Desbloquear</> : <><Lock size={16} /> Bloquear</>}
                         </button>
-                        <button onClick={() => handleDelete(f.id)} className="btn btn-outline" style={{ padding: '0.4rem 0.75rem', color: 'var(--danger)', borderColor: 'rgba(239, 68, 68, 0.3)', gap: '0.5rem', display: 'flex', alignItems: 'center' }}>
+                        <button onClick={() => handleDelete(f.id)} className="btn btn-outline" style={{ padding: '0.4rem 0.75rem', color: f.id === 'general' ? 'var(--text-muted)' : 'var(--danger)', borderColor: f.id === 'general' ? 'var(--border-color)' : 'rgba(239, 68, 68, 0.3)', gap: '0.5rem', display: 'flex', alignItems: 'center' }} disabled={f.id === 'general'}>
                           <Trash2 size={16} /> Eliminar
                         </button>
                       </div>
