@@ -59,15 +59,8 @@ const Login = () => {
         <div style={{ marginBottom: '2rem' }}>
           <img 
             src="/LOGOAPPCURSO.jpg" 
-            alt="Logo Colegio" 
-            style={{ 
-              width: '100px', 
-              height: '100px', 
-              objectFit: 'contain', 
-              borderRadius: '50%', 
-              marginBottom: '1rem', 
-              border: '2px solid rgba(255,255,255,0.1)' 
-            }} 
+            alt="Logo Curso" 
+            style={{ width: '120px', height: '120px', borderRadius: '50%', marginBottom: '1.5rem', objectFit: 'cover', backgroundColor: 'white', padding: 0 }} 
             onError={(e) => e.target.style.display = 'none'}
           />
           <h1 className="text-gradient" style={{ fontSize: '2rem', marginBottom: '0.5rem' }}>AppCurso</h1>

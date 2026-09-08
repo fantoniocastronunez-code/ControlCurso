@@ -253,7 +253,7 @@ const ApoderadoDashboard = () => {
           <img 
             src="/LOGOAPPCURSO.jpg" 
             alt="Logo" 
-            style={{ width: '75px', height: '75px', borderRadius: '8px', objectFit: 'contain', backgroundColor: 'white', padding: '4px', border: '1px solid rgba(255,255,255,0.1)' }} 
+            style={{ width: '75px', height: '75px', borderRadius: '8px', objectFit: 'cover', backgroundColor: 'white', padding: 0, border: '1px solid rgba(255,255,255,0.1)' }} 
             onError={(e) => e.target.style.display = 'none'}
           />
           <div>
@@ -484,6 +484,16 @@ const ApoderadoDashboard = () => {
             return (
               <div key={student.id} className="glass-panel" style={{ padding: '2rem', marginBottom: '2rem' }}>
                 <h3 style={{ marginBottom: '1.5rem', color: 'var(--primary)' }}>Estado de Pagos: {formatStudentName(student)}</h3>
+                
+                {parseFloat(student.balance) > 0 && (
+                  <div style={{ padding: '1rem', marginBottom: '1.5rem', backgroundColor: 'rgba(16, 185, 129, 0.1)', color: 'var(--success)', borderRadius: 'var(--radius-md)', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                    <CheckCircle size={18} /> 
+                    <span>
+                      Tienes un saldo a favor de <strong>{new Intl.NumberFormat('es-CL', { style: 'currency', currency: 'CLP' }).format(student.balance)}</strong>. 
+                      <span style={{ fontSize: '0.85rem', display: 'block', marginTop: '0.2rem', opacity: 0.8 }}>Este dinero puede ser utilizado por la directiva para descontar futuras cuotas.</span>
+                    </span>
+                  </div>
+                )}
                 
                 {studentDebts.length === 0 ? (
                   <p style={{ color: 'var(--text-muted)' }}>No hay cobros registrados para este alumno.</p>

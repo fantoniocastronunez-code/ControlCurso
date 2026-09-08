@@ -1,9 +1,10 @@
 import React, { useEffect, useState } from 'react';
 import { db } from '../firebase/config';
 import { collection, getDocs, doc, setDoc, deleteDoc, updateDoc } from 'firebase/firestore';
-import { ArrowLeft, UserPlus, CheckCircle, Trash2, Edit2, X, Save, Image as ImageIcon } from 'lucide-react';
+import { ArrowLeft, UserPlus, CheckCircle, Trash2, Edit2, X, Save, Image as ImageIcon, Eye } from 'lucide-react';
 import BulkImport from './BulkImport';
 import StudentDetailModal from './StudentDetailModal';
+import { useNavigate } from 'react-router-dom';
 
 import { formatStudentName } from '../utils/nameUtils';
 import { formatRut } from '../utils/rutUtils';
@@ -11,6 +12,8 @@ import { useModal } from '../context/ModalContext';
 
 const StudentManagement = ({ onBack }) => {
   const { showConfirm, showAlert } = useModal();
+  const { role } = useAuth();
+  const navigate = useNavigate();
   const [students, setStudents] = useState([]);
   const [usersMap, setUsersMap] = useState({});
   const [loading, setLoading] = useState(true);
@@ -485,6 +488,16 @@ const StudentManagement = ({ onBack }) => {
                     </td>
                     <td style={{ padding: '1rem' }}>
                       <div style={{ display: 'flex', gap: '0.5rem' }}>
+                        {role === 'superadmin' && (
+                          <button 
+                            onClick={() => navigate('/apoderado', { state: { impersonateStudentId: s.id } })}
+                            className="btn btn-outline" 
+                            style={{ padding: '0.4rem 0.75rem', color: 'var(--success)', borderColor: 'rgba(16, 185, 129, 0.3)', gap: '0.5rem', display: 'flex', alignItems: 'center' }}
+                            title="Ver portal como apoderado"
+                          >
+                            <Eye size={16} /> Portal
+                          </button>
+                        )}
                         <button onClick={() => startEditing(s)} className="btn btn-outline" style={{ padding: '0.4rem 0.75rem', color: 'var(--primary)', borderColor: 'rgba(99, 102, 241, 0.3)', gap: '0.5rem', display: 'flex', alignItems: 'center' }}>
                           <Edit2 size={16} /> Editar
                         </button>

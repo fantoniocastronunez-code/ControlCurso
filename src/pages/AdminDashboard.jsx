@@ -260,10 +260,7 @@ const AdminDashboard = () => {
         
         if (data.paymentMethod === 'balance') {
            fundsMap.get(fundId).balance += amt;
-           fundsMap.get('general').balance -= amt;
-           
            allTransactions.push({ id: doc.id + '_add', fundId: fundId, type: 'debt_payment', amount: amt, description: `Pago: ${data.title || 'Cuota'} (Saldo a favor)`, date: data.paidAt || data.createdAt });
-           allTransactions.push({ id: doc.id + '_sub', fundId: 'general', type: 'balance_used', amount: -amt, description: `Uso Saldo a favor: ${data.title || 'Cuota'}`, date: data.paidAt || data.createdAt });
            return;
         }
         
@@ -312,6 +309,19 @@ const AdminDashboard = () => {
         }
       });
 
+      // Calcular Fondo Saldos a Favor
+      let totalFavorBalance = 0;
+      studentsSnap.forEach(doc => {
+        const data = doc.data();
+        if (data.balance) {
+          totalFavorBalance += (parseFloat(data.balance) || 0);
+        }
+      });
+      
+      if (totalFavorBalance > 0) {
+        fundsMap.set('favor_balance', { id: 'favor_balance', name: 'Saldos a Favor (Alumnos)', balance: totalFavorBalance });
+      }
+
       const fundsBalances = Array.from(fundsMap.values());
       const totalAvailable = fundsBalances.reduce((sum, fund) => sum + fund.balance, 0);
 
@@ -344,7 +354,7 @@ const AdminDashboard = () => {
           <img 
             src="/LOGOAPPCURSO.jpg" 
             alt="Logo" 
-            style={{ width: '75px', height: '75px', borderRadius: '8px', objectFit: 'contain', backgroundColor: 'white', padding: '4px', border: '1px solid rgba(255,255,255,0.1)' }} 
+            style={{ width: '75px', height: '75px', borderRadius: '8px', objectFit: 'cover', backgroundColor: 'white', padding: 0, border: '1px solid rgba(255,255,255,0.1)' }} 
             onError={(e) => e.target.style.display = 'none'}
           />
           <div>
