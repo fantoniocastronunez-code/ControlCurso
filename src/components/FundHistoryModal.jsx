@@ -1,5 +1,5 @@
 import React from 'react';
-import { X, ArrowDownRight, ArrowUpRight, DollarSign, Activity } from 'lucide-react';
+import { X, ArrowDownRight, ArrowUpRight, DollarSign, Activity, Download } from 'lucide-react';
 
 const formatMoney = (amount) => {
   return new Intl.NumberFormat('es-CL', { style: 'currency', currency: 'CLP' }).format(amount);
@@ -22,8 +22,51 @@ const FundHistoryModal = ({ fund, transactions, onClose }) => {
     fundTransactions = transactions.filter(t => t.fundId === fund.id);
   }
   
-  // Ordenar de más reciente a más antiguo
+  // Ordenar de más reciente a más antiguo por defecto para la vista
   fundTransactions.sort((a, b) => new Date(b.date) - new Date(a.date));
+
+  const handleDownloadExcel = () => {
+    // Extraer alumno y motivo para poder ordenar como solicitó el usuario
+    const parsedTransactions = fundTransactions.map(tx => {
+      let alumno = "-";
+      let motivo = tx.description;
+      
+      const match = tx.description.match(/Pago(?: de (.*?))?:\s*(.*)/);
+      if (match) {
+         alumno = match[1] ? match[1].trim() : "-";
+         motivo = match[2].trim();
+      }
+      return { ...tx, alumno, motivo };
+    });
+
+    // Ordenar por alumno, motivo y monto
+    parsedTransactions.sort((a, b) => {
+      if (a.alumno !== b.alumno) return a.alumno.localeCompare(b.alumno);
+      if (a.motivo !== b.motivo) return a.motivo.localeCompare(b.motivo);
+      return b.amount - a.amount; // de mayor a menor monto
+    });
+
+    let csvContent = '\uFEFF'; // BOM para que Excel detecte UTF-8 y muestre tildes
+    csvContent += "Fecha,Alumno,Motivo,Tipo,Monto\n";
+
+    parsedTransactions.forEach(tx => {
+      const date = new Date(tx.date).toLocaleDateString('es-CL', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' });
+      const alumno = `"${tx.alumno.replace(/"/g, '""')}"`;
+      const motivo = `"${tx.motivo.replace(/"/g, '""')}"`;
+      const tipo = tx.amount >= 0 ? 'Ingreso' : 'Egreso';
+      const monto = tx.amount;
+      csvContent += `${date},${alumno},${motivo},${tipo},${monto}\n`;
+    });
+
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.setAttribute("href", url);
+    link.setAttribute("download", `Detalle_${fund.name.replace(/\s+/g, '_')}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
 
   return (
     <div className="modal-overlay" onClick={onClose} style={{ zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(5px)' }}>
@@ -37,9 +80,15 @@ const FundHistoryModal = ({ fund, transactions, onClose }) => {
               Saldo actual: <strong style={{ color: fund.balance >= 0 ? 'var(--success)' : 'var(--danger)' }}>{formatMoney(fund.balance)}</strong>
             </p>
           </div>
-          <button onClick={onClose} className="btn btn-outline" style={{ border: 'none', padding: '0.5rem' }}>
-            <X size={20} />
-          </button>
+          <div style={{ display: 'flex', gap: '0.5rem' }}>
+            <button onClick={handleDownloadExcel} className="btn btn-outline" style={{ border: '1px solid var(--primary)', color: 'var(--primary)', padding: '0.5rem 1rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }} title="Descargar ordenado por alumno a Excel">
+              <Download size={16} />
+              <span style={{ fontSize: '0.875rem', fontWeight: '500' }}>Descargar Excel</span>
+            </button>
+            <button onClick={onClose} className="btn btn-outline" style={{ border: 'none', padding: '0.5rem' }}>
+              <X size={20} />
+            </button>
+          </div>
         </div>
 
         {/* Body */}
