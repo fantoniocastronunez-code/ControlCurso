@@ -130,13 +130,16 @@ const MeetingReport = ({ onBack }) => {
   }, [funds]);
 
   // Calculate totals and fund balances
-  const { totalCollected, totalOutcomes, totalIncomes, cashIn, transferIn, cashOut, transferOut } = useMemo(() => {
+  const { totalCollected, totalOutcomes, totalIncomes, cashIn, transferIn, cashOut, transferOut, finalFundsMap } = useMemo(() => {
     let collected = 0;
     let cIn = 0;
     let tIn = 0;
     let cOut = 0;
     let tOut = 0;
     let incTotal = 0;
+
+    // Deep clone fundsMap to avoid mutating a React dependency (which causes doubling in Strict Mode)
+    const currentFunds = JSON.parse(JSON.stringify(fundsMap));
 
     // From Debts (Pagos recibidos)
     debts.forEach(d => {
@@ -152,8 +155,8 @@ const MeetingReport = ({ onBack }) => {
         tIn += overpayAmt;
 
         const fundId = d.fundId || 'general';
-        if (fundsMap[fundId]) {
-          fundsMap[fundId].totalIn += amt;
+        if (currentFunds[fundId]) {
+          currentFunds[fundId].totalIn += amt;
         }
       }
     });
@@ -166,8 +169,8 @@ const MeetingReport = ({ onBack }) => {
       if (inc.paymentMethod === 'transfer') tIn += amt;
 
       const fundId = inc.fundId || 'general';
-      if (fundsMap[fundId]) {
-        fundsMap[fundId].totalIn += amt;
+      if (currentFunds[fundId]) {
+        currentFunds[fundId].totalIn += amt;
       }
     });
 
@@ -178,13 +181,13 @@ const MeetingReport = ({ onBack }) => {
       if (out.paymentMethod === 'transfer') tOut += amt;
 
       const fundId = out.fundId || 'general';
-      if (fundsMap[fundId]) {
-        fundsMap[fundId].totalOut += amt;
+      if (currentFunds[fundId]) {
+        currentFunds[fundId].totalOut += amt;
       }
     });
 
     // Calculate balance per fund
-    Object.values(fundsMap).forEach(f => {
+    Object.values(currentFunds).forEach(f => {
       f.balance = f.totalIn - f.totalOut;
     });
 
@@ -197,7 +200,8 @@ const MeetingReport = ({ onBack }) => {
       cashIn: cIn,
       transferIn: tIn,
       cashOut: cOut,
-      transferOut: tOut
+      transferOut: tOut,
+      finalFundsMap: currentFunds
     };
   }, [debts, incomes, outcomes, fundsMap]);
 
@@ -417,7 +421,7 @@ const MeetingReport = ({ onBack }) => {
       doc.text('Saldo Actual', pageWidth - 18, y + 5, { align: 'right' });
       y += 8;
 
-      Object.values(fundsMap).forEach((f) => {
+      Object.values(finalFundsMap).forEach((f) => {
         doc.setFont('helvetica', 'normal');
         doc.setFontSize(8.5);
         doc.setTextColor(textMain[0], textMain[1], textMain[2]);
@@ -471,7 +475,7 @@ const MeetingReport = ({ onBack }) => {
           y += 8;
         }
 
-        const fundName = fundsMap[o.fundId]?.name || 'General';
+        const fundName = finalFundsMap[o.fundId]?.name || 'General';
         doc.setFont('helvetica', 'normal');
         doc.setFontSize(8);
         doc.setTextColor(textMain[0], textMain[1], textMain[2]);
@@ -902,7 +906,7 @@ const MeetingReport = ({ onBack }) => {
               fontSize: '0.9rem'
             }}
           >
-            📊 Fondos de Curso ({Object.keys(fundsMap).length})
+            📊 Fondos de Curso ({Object.keys(finalFundsMap).length})
           </button>
           <button 
             onClick={() => setActiveTab('gastos')}
@@ -945,9 +949,11 @@ const MeetingReport = ({ onBack }) => {
         {/* Tab 1: Fondos de Curso */}
         {activeTab === 'resumen' && (
           <div className="glass-panel" style={{ padding: '1.75rem' }}>
-            <h3 style={{ margin: '0 0 1.25rem 0', color: 'var(--primary)' }}>Distribución y Balances por Fondo</h3>
+            <h3 style={{ fontSize: '1.25rem', marginBottom: '1rem', color: '#c4b5fd' }}>
+              📊 Fondos de Curso ({Object.keys(finalFundsMap).length})
+            </h3>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: '1rem' }}>
-              {Object.values(fundsMap).map(f => (
+              {Object.values(finalFundsMap).map(f => (
                 <div 
                   key={f.id}
                   style={{
@@ -1040,7 +1046,7 @@ const MeetingReport = ({ onBack }) => {
             ) : (
               <div style={{ display: 'grid', gap: '0.75rem' }}>
                 {filteredOutcomes.map(o => {
-                  const fundName = fundsMap[o.fundId]?.name || 'General';
+                  const fundName = finalFundsMap[o.fundId]?.name || 'General';
                   const methodLabel = o.paymentMethod === 'transfer' ? 'Transferencia (Banco)' : 'Efectivo (Caja)';
 
                   return (
