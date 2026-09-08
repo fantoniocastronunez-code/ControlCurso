@@ -72,6 +72,7 @@ const AdminDashboard = () => {
     } catch (error) {
       console.error(error);
       alert('Hubo un error al ajustar el fondo.');
+    }
   };
 
   const handleQuickIncome = async () => {
