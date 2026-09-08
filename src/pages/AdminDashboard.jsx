@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { LogOut, Users, DollarSign, Activity, FileText, RefreshCw, Calendar, Trash2, CreditCard } from 'lucide-react';
+import { LogOut, Users, DollarSign, Activity, FileText, RefreshCw, Calendar, Trash2, CreditCard, Search } from 'lucide-react';
 import { db } from '../firebase/config';
 import { collection, getDocs, query, where, orderBy, addDoc, doc, setDoc, getDoc } from 'firebase/firestore';
 import { useNavigate } from 'react-router-dom';
@@ -16,6 +16,8 @@ import FundManagement from '../components/FundManagement';
 import EventManagement from '../components/events/EventManagement';
 import SettingsManagement from '../components/SettingsManagement';
 import FundHistoryModal from '../components/FundHistoryModal';
+import StudentSearchModal from '../components/StudentSearchModal';
+import MeetingReport from '../components/MeetingReport';
 
 const AdminDashboard = () => {
   const { user, role, logout } = useAuth();
@@ -23,6 +25,7 @@ const AdminDashboard = () => {
   const navigate = useNavigate();
   const [currentView, setCurrentView] = useState('dashboard');
   const [selectedExpenseId, setSelectedExpenseId] = useState(null);
+  const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [stats, setStats] = useState({
     activeStudents: 0,
     registeredApoderados: 0,
@@ -442,7 +445,40 @@ const AdminDashboard = () => {
             <p style={{ color: 'var(--text-muted)', margin: 0 }}>Bienvenido, {user?.displayName} ({role})</p>
           </div>
         </div>
-        <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>
+        <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap', alignItems: 'center' }}>
+          {/* Barra de búsqueda interactiva */}
+          <div 
+            onClick={() => setIsSearchOpen(true)}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '0.6rem',
+              backgroundColor: 'rgba(255, 255, 255, 0.05)',
+              border: '1px solid rgba(99, 102, 241, 0.4)',
+              borderRadius: 'var(--radius-md)',
+              padding: '0.55rem 1rem',
+              cursor: 'pointer',
+              color: 'var(--text-muted)',
+              transition: 'all 0.2s ease',
+              minWidth: '240px'
+            }}
+            onMouseOver={(e) => {
+              e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.09)';
+              e.currentTarget.style.borderColor = 'var(--primary)';
+            }}
+            onMouseOut={(e) => {
+              e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.05)';
+              e.currentTarget.style.borderColor = 'rgba(99, 102, 241, 0.4)';
+            }}
+          >
+            <Search size={17} style={{ color: 'var(--primary)' }} />
+            <span style={{ fontSize: '0.9rem', color: 'var(--text-main)', opacity: 0.8 }}>Buscar alumno o apoderado...</span>
+          </div>
+
+          <button onClick={() => setCurrentView('meeting_report')} className="btn btn-outline" style={{ borderColor: '#8b5cf6', color: '#8b5cf6', display: 'flex', alignItems: 'center', gap: '0.4rem' }} title="Generar informe y PDF para la reunión de apoderados">
+            <FileText size={17} />
+            Reunión Apoderados
+          </button>
           <button onClick={() => navigate('/apoderado')} className="btn btn-outline" style={{ borderColor: 'var(--success)', color: 'var(--success)' }} title="Ver cómo se ve la app para un apoderado">
             Vista Apoderado
           </button>
@@ -601,6 +637,12 @@ const AdminDashboard = () => {
                 <p style={{ color: 'var(--text-muted)', marginBottom: '1.5rem' }}>Selecciona una acción para administrar el curso.</p>
                 
                 <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>
+                  <button onClick={() => setCurrentView('meeting_report')} className="btn btn-primary" style={{ backgroundColor: '#8b5cf6', borderColor: '#8b5cf6', boxShadow: '0 4px 14px 0 rgba(139, 92, 246, 0.4)', gap: '0.5rem' }}>
+                    <FileText size={18} /> Informe Reunión Apoderados
+                  </button>
+                  <button onClick={() => setIsSearchOpen(true)} className="btn btn-primary" style={{ backgroundColor: 'var(--primary)', boxShadow: '0 4px 14px 0 rgba(99, 102, 241, 0.4)' }}>
+                    <Search size={18} /> Buscar Alumno / Pagos
+                  </button>
                   <button onClick={handleQuickIncome} className="btn btn-primary" style={{ backgroundColor: 'var(--success)' }}>
                     + Ingreso Rápido
                   </button>
@@ -696,6 +738,8 @@ const AdminDashboard = () => {
         <EventManagement onBack={() => setCurrentView('dashboard')} />
       ) : currentView === 'settings' ? (
         <SettingsManagement onBack={() => setCurrentView('dashboard')} />
+      ) : currentView === 'meeting_report' ? (
+        <MeetingReport onBack={() => setCurrentView('dashboard')} />
       ) : currentView === 'expense_detail' && selectedExpenseId ? (
         <ExpenseDetail expenseId={selectedExpenseId} onBack={() => setCurrentView('dashboard')} />
       ) : null}
@@ -704,6 +748,11 @@ const AdminDashboard = () => {
         fund={selectedFundForHistory}
         transactions={stats.allTransactions || []}
         onClose={() => setSelectedFundForHistory(null)}
+      />
+
+      <StudentSearchModal 
+        isOpen={isSearchOpen}
+        onClose={() => setIsSearchOpen(false)}
       />
     </div>
   );

@@ -1,7 +1,7 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import { db } from '../firebase/config';
 import { collection, getDocs, doc, setDoc, deleteDoc, updateDoc } from 'firebase/firestore';
-import { ArrowLeft, UserPlus, CheckCircle, Trash2, Edit2, X, Save, Image as ImageIcon, Eye } from 'lucide-react';
+import { ArrowLeft, UserPlus, CheckCircle, Trash2, Edit2, X, Save, Image as ImageIcon, Eye, Search } from 'lucide-react';
 import BulkImport from './BulkImport';
 import StudentDetailModal from './StudentDetailModal';
 import { useNavigate } from 'react-router-dom';
@@ -19,6 +19,7 @@ const StudentManagement = ({ onBack }) => {
   const [usersMap, setUsersMap] = useState({});
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState('');
+  const [tableSearch, setTableSearch] = useState('');
   
   const [newFirstName, setNewFirstName] = useState('');
   const [newLastNamePaternal, setNewLastNamePaternal] = useState('');
@@ -211,41 +212,38 @@ const StudentManagement = ({ onBack }) => {
     return <div style={{ textAlign: 'center', padding: '2rem' }}>Cargando alumnos...</div>;
   }
 
-  if (showBulkImport) {
-    return (
-      <BulkImport 
-        onBack={() => setShowBulkImport(false)} 
-        onImportComplete={() => {
-          setShowBulkImport(false);
-          setLoading(true);
-          fetchStudents();
-        }} 
-      />
-    );
-  }
-
   return (
-    <div className="animate-fade-in">
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-          <button onClick={onBack} className="btn btn-outline" style={{ padding: '0.5rem' }}>
-            <ArrowLeft size={18} />
-          </button>
-          <h3 style={{ margin: 0 }}>Gestión de Alumnos</h3>
-        </div>
-        
-        <button 
-          onClick={() => setShowBulkImport(true)} 
-          className="btn btn-primary" 
-          style={{ backgroundColor: 'var(--primary)', gap: '0.5rem', display: 'flex', alignItems: 'center' }}
-        >
-          <ImageIcon size={18} /> Importar por Foto (IA)
+    <div className="container animate-fade-in">
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem', flexWrap: 'wrap', gap: '1rem' }}>
+        <button onClick={onBack} className="btn btn-outline" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+          <ArrowLeft size={18} /> Volver al Panel
         </button>
+        <div style={{ display: 'flex', gap: '1rem' }}>
+          <button 
+            onClick={() => setShowBulkImport(!showBulkImport)} 
+            className="btn btn-outline"
+            style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', borderColor: 'var(--primary)', color: 'var(--primary)' }}
+          >
+            {showBulkImport ? 'Ocultar Carga Masiva' : 'Carga Masiva Excel/Texto'}
+          </button>
+        </div>
       </div>
 
       {message && (
-        <div style={{ backgroundColor: 'rgba(16,185,129,0.2)', color: 'var(--success)', padding: '1rem', borderRadius: 'var(--radius-md)', marginBottom: '1.5rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+        <div style={{ padding: '1rem', backgroundColor: 'rgba(16, 185, 129, 0.2)', color: 'var(--success)', borderRadius: 'var(--radius-md)', marginBottom: '1.5rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
           <CheckCircle size={18} /> {message}
+        </div>
+      )}
+
+      {showBulkImport && (
+        <div style={{ marginBottom: '2rem' }}>
+          <BulkImport 
+            onBack={() => setShowBulkImport(false)} 
+            onImportSuccess={() => {
+              setShowBulkImport(false);
+              fetchStudents();
+            }} 
+          />
         </div>
       )}
 
@@ -343,6 +341,32 @@ const StudentManagement = ({ onBack }) => {
         </form>
       </div>
 
+      {/* Buscador de Alumnos en la tabla */}
+      <div style={{ marginBottom: '1rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '1rem', flexWrap: 'wrap' }}>
+        <div style={{ position: 'relative', flex: '1', maxWidth: '400px' }}>
+          <input 
+            type="text" 
+            className="input-field" 
+            placeholder="Buscar por nombre, RUT, apoderado o N° lista..." 
+            value={tableSearch}
+            onChange={(e) => setTableSearch(e.target.value)}
+            style={{ width: '100%', paddingLeft: '2.5rem' }}
+          />
+          <Search size={16} style={{ position: 'absolute', left: '0.85rem', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
+          {tableSearch && (
+            <button
+              onClick={() => setTableSearch('')}
+              style={{ position: 'absolute', right: '0.75rem', top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer' }}
+            >
+              <X size={16} />
+            </button>
+          )}
+        </div>
+        <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>
+          {filteredStudents.length} de {students.length} alumnos
+        </span>
+      </div>
+
       <div className="glass-panel" style={{ overflowX: 'auto' }}>
         <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
           <thead>
@@ -356,7 +380,7 @@ const StudentManagement = ({ onBack }) => {
             </tr>
           </thead>
           <tbody>
-            {students.map(s => (
+            {filteredStudents.map(s => (
               <React.Fragment key={s.id}>
                 <tr style={{ borderBottom: '1px solid var(--border-color)', backgroundColor: selectedStudent?.id === s.id ? 'rgba(99, 102, 241, 0.05)' : 'transparent' }}>
                   {editingId === s.id ? (
@@ -527,7 +551,7 @@ const StudentManagement = ({ onBack }) => {
             ))}
           </tbody>
         </table>
-        {students.length === 0 && (
+        {filteredStudents.length === 0 && (
           <div style={{ padding: '2rem', textAlign: 'center', color: 'var(--text-muted)' }}>
             No se encontraron alumnos.
           </div>
