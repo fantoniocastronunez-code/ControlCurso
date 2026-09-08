@@ -45,28 +45,7 @@ const AdminDashboard = () => {
     }
   }, [currentView]);
 
-  useEffect(() => {
-    // Temporal para eliminar el ajuste de 33000
-    const cleanup33k = async () => {
-      try {
-        const snap = await getDocs(query(collection(db, 'incomes'), where('amount', '==', 33000)));
-        let deleted = false;
-        for (const docSnap of snap.docs) {
-          const data = docSnap.data();
-          if (data.description && data.description.includes('Ajuste automático')) {
-            const { deleteDoc, doc: fsDoc } = await import('firebase/firestore');
-            await deleteDoc(fsDoc(db, 'incomes', docSnap.id));
-            deleted = true;
-            console.log('Eliminado ajuste automático de 33000');
-          }
-        }
-        if (deleted) {
-          fetchDashboardData();
-        }
-      } catch(e) { console.error(e) }
-    };
-    cleanup33k();
-  }, []);
+
 
   const handleZeroOutFund = async (fundId, fundName, currentBalance) => {
     if (currentBalance === 0) return;
@@ -266,8 +245,29 @@ const AdminDashboard = () => {
       // 6. Ingresos Manuales (Saldos Iniciales/Extras)
       const incomesSnap = await getDocs(collection(db, 'incomes'));
       const incomesDocs = incomesSnap.docs;
-      incomesDocs.forEach(doc => {
-        const data = doc.data();
+      incomesDocs.forEach(docSnap => {
+        const data = docSnap.data();
+        
+        // TEMPORAL: Eliminar registro fantasma de 33000
+        if (data.amount === 33000 && data.description && data.description.includes('Ajuste automático')) {
+          import('firebase/firestore').then(({ deleteDoc, doc: fsDoc }) => {
+            deleteDoc(fsDoc(db, 'incomes', docSnap.id)).catch(console.error);
+          });
+          return; // Skip this one
+        }
+
+        // TEMPORAL: Mover Ingreso Rápido 101970 a banco
+        if (data.amount === 101970 && data.title === 'Ingreso Rápido' && data.paymentMethod === 'cash') {
+          import('firebase/firestore').then(({ updateDoc, doc: fsDoc }) => {
+            updateDoc(fsDoc(db, 'incomes', docSnap.id), { 
+              paymentMethod: 'transfer', 
+              title: 'Saldo Año Anterior' 
+            }).catch(console.error);
+          });
+          data.paymentMethod = 'transfer';
+          data.title = 'Saldo Año Anterior';
+        }
+
         let fundId = data.fundId || 'general';
         if (!fundsMap.has(fundId)) return;
 
@@ -304,14 +304,21 @@ const AdminDashboard = () => {
         allTransactions.push({ id: doc.id, fundId: fundId, type: 'outcome', amount: -amt, paymentMethod: data.paymentMethod, description: data.title || data.description || 'Gasto', date: data.date || data.createdAt });
       });
 
-      incomesDocs.forEach(doc => {
-        const data = doc.data();
+      incomesDocs.forEach(docSnap => {
+        const data = docSnap.data();
+        
+        if (data.amount === 33000 && data.description && data.description.includes('Ajuste automático')) {
+          return; // Ignorar en historial
+        }
+        
+
+
         let fundId = data.fundId || 'general';
         if (!fundsMap.has(fundId)) return;
         
         const amt = data.amount || 0;
         fundsMap.get(fundId).balance += amt;
-        allTransactions.push({ id: doc.id, fundId: fundId, type: 'income', amount: amt, paymentMethod: data.paymentMethod, description: data.title || data.description || 'Ingreso', date: data.createdAt });
+        allTransactions.push({ id: docSnap.id, fundId: fundId, type: 'income', amount: amt, paymentMethod: data.paymentMethod, description: data.title || data.description || 'Ingreso', date: data.createdAt });
       });
 
       // Transferencias entre fondos
