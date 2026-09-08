@@ -361,6 +361,9 @@ const AdminDashboard = () => {
         }
       });
       
+      // El usuario solicitó que todo el saldo a favor manual esté físicamente en Transferencias
+      transferIn += totalFavorBalance;
+      
       if (totalFavorBalance > 0) {
         fundsMap.set('favor_balance', { 
           id: 'favor_balance', 
