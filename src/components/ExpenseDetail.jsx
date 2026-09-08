@@ -24,6 +24,11 @@ const ExpenseDetail = ({ expenseId, onBack }) => {
   // Selección Múltiple
   const [selectedDebts, setSelectedDebts] = useState([]);
 
+  // Gestión de Alumnos
+  const [isManagingStudents, setIsManagingStudents] = useState(false);
+  const [selectedManageStudents, setSelectedManageStudents] = useState([]);
+  const [manageStudentsSearch, setManageStudentsSearch] = useState('');
+
   useEffect(() => {
     fetchDetail();
   }, [expenseId]);
@@ -461,6 +466,82 @@ const ExpenseDetail = ({ expenseId, onBack }) => {
     }
   };
 
+  const handleStartManageStudents = () => {
+    setSelectedManageStudents(debts.map(d => d.studentId));
+    setIsManagingStudents(true);
+  };
+
+  const handleSaveManageStudents = async () => {
+    setLoading(true);
+    try {
+      const currentStudentIds = debts.map(d => d.studentId);
+      const addedIds = selectedManageStudents.filter(id => !currentStudentIds.includes(id));
+      const removedIds = currentStudentIds.filter(id => !selectedManageStudents.includes(id));
+
+      // Validación para no borrar alumnos que ya pagaron
+      for (const id of removedIds) {
+        const debtToRemove = debts.find(d => d.studentId === id);
+        if (debtToRemove && (debtToRemove.paidAmount > 0 || debtToRemove.status === 'paid' || debtToRemove.status === 'review')) {
+          await showAlert(`No puedes quitar al alumno ${debtToRemove.studentName} porque ya tiene pagos registrados o en revisión.`);
+          setLoading(false);
+          return;
+        }
+      }
+
+      // Eliminar alumnos
+      let removedAmount = 0;
+      for (const id of removedIds) {
+        const debtToRemove = debts.find(d => d.studentId === id);
+        if (debtToRemove) {
+          removedAmount += debtToRemove.amount;
+          await deleteDoc(doc(db, 'debts', debtToRemove.id));
+        }
+      }
+
+      // Agregar alumnos
+      let addedAmount = 0;
+      const defaultAmount = typeof expense.amountPerStudent === 'number' ? expense.amountPerStudent : 0;
+      for (const studentId of addedIds) {
+        const student = students.find(s => s.id === studentId);
+        const debtId = `debt_${expenseId}_${studentId}`;
+        await setDoc(doc(db, 'debts', debtId), {
+          expenseId,
+          studentId,
+          studentName: student.name,
+          apoderadoEmails: student.apoderadoEmails || (student.apoderadoEmail ? [student.apoderadoEmail] : []),
+          amount: defaultAmount,
+          status: 'pending',
+          paidAmount: 0,
+          paymentMethod: null,
+          approvedAt: null,
+          title: expense.title,
+          date: expense.date,
+          fundId: expense.fundId || 'general',
+          transferData: expense.transferData || null,
+          createdAt: new Date().toISOString()
+        });
+        addedAmount += defaultAmount;
+      }
+
+      // Actualizar total y conteo en expense
+      const newTotalAmount = (expense.totalAmount || 0) - removedAmount + addedAmount;
+      const newStudentsCount = (expense.studentsCount || currentStudentIds.length) - removedIds.length + addedIds.length;
+
+      await updateDoc(doc(db, 'expenses', expenseId), {
+        totalAmount: newTotalAmount,
+        studentsCount: newStudentsCount
+      });
+
+      setIsManagingStudents(false);
+      fetchDetail();
+      await showAlert('Alumnos gestionados correctamente.');
+    } catch (error) {
+      console.error("Error al gestionar alumnos:", error);
+      await showAlert('Hubo un error al guardar los cambios.');
+      setLoading(false);
+    }
+  };
+
   const formatMoney = (amount) => {
     return new Intl.NumberFormat('es-CL', { style: 'currency', currency: 'CLP' }).format(amount);
   };
@@ -571,12 +652,70 @@ const ExpenseDetail = ({ expenseId, onBack }) => {
               <button onClick={() => setIsEditing(false)} className="btn btn-outline"><X size={18}/> Cancelar</button>
             </div>
           </div>
+        ) : isManagingStudents ? (
+          <div style={{ flex: 1 }}>
+            <h4 style={{ color: 'var(--primary)', marginBottom: '1rem' }}>Agregar o Quitar Alumnos</h4>
+            <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', marginBottom: '1rem' }}>Selecciona los alumnos que deben pagar esta cuota. Los alumnos que ya tienen pagos registrados no pueden ser quitados.</p>
+            
+            <div style={{ marginBottom: '1rem', display: 'flex', gap: '1rem', alignItems: 'center' }}>
+              <input 
+                type="text" 
+                className="input-field" 
+                placeholder="Buscar alumno..." 
+                value={manageStudentsSearch}
+                onChange={e => setManageStudentsSearch(e.target.value)}
+                style={{ flex: 1, marginBottom: 0 }}
+              />
+              <button 
+                type="button" 
+                className="btn btn-outline" 
+                onClick={() => {
+                  if (selectedManageStudents.length === students.length) setSelectedManageStudents([]);
+                  else setSelectedManageStudents(students.map(s => s.id));
+                }}
+              >
+                {selectedManageStudents.length === students.length ? 'Deseleccionar Todos' : 'Seleccionar Todos'}
+              </button>
+            </div>
+
+            <div style={{ maxHeight: '300px', overflowY: 'auto', border: '1px solid var(--border-color)', borderRadius: 'var(--radius-md)', padding: '0.5rem', marginBottom: '1.5rem', backgroundColor: 'rgba(0,0,0,0.1)' }}>
+              {students.filter(s => s.name.toLowerCase().includes(manageStudentsSearch.toLowerCase())).map(s => {
+                const existingDebt = debts.find(d => d.studentId === s.id);
+                const cannotRemove = existingDebt && (existingDebt.paidAmount > 0 || existingDebt.status === 'paid' || existingDebt.status === 'review');
+                
+                return (
+                  <label key={s.id} style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', padding: '0.5rem', cursor: cannotRemove ? 'not-allowed' : 'pointer', borderBottom: '1px solid rgba(255,255,255,0.05)', opacity: cannotRemove && !selectedManageStudents.includes(s.id) ? 0.5 : 1 }}>
+                    <input 
+                      type="checkbox"
+                      checked={selectedManageStudents.includes(s.id)}
+                      disabled={cannotRemove}
+                      onChange={(e) => {
+                        if (e.target.checked) setSelectedManageStudents([...selectedManageStudents, s.id]);
+                        else setSelectedManageStudents(selectedManageStudents.filter(id => id !== s.id));
+                      }}
+                      style={{ accentColor: 'var(--primary)', width: '16px', height: '16px' }}
+                    />
+                    <div>
+                      <span>{s.listNumber || '-'}. {formatStudentName(s)}</span>
+                      {cannotRemove && <span style={{ fontSize: '0.75rem', color: 'var(--warning)', marginLeft: '0.5rem' }}>(Tiene pagos)</span>}
+                    </div>
+                  </label>
+                );
+              })}
+            </div>
+
+            <div style={{ display: 'flex', gap: '1rem' }}>
+              <button onClick={handleSaveManageStudents} className="btn btn-primary" style={{ backgroundColor: 'var(--success)' }}><Save size={18}/> Guardar Alumnos</button>
+              <button onClick={() => setIsManagingStudents(false)} className="btn btn-outline"><X size={18}/> Cancelar</button>
+            </div>
+          </div>
         ) : (
           <>
             <div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginBottom: '0.5rem' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginBottom: '0.5rem', flexWrap: 'wrap' }}>
                 <h2 style={{ color: 'var(--primary)', margin: 0 }}>{expense.title}</h2>
                 <button onClick={handleStartEdit} className="btn btn-outline" style={{ padding: '0.3rem', borderColor: 'var(--primary)', color: 'var(--primary)' }} title="Editar Cuota"><Edit2 size={16}/></button>
+                <button onClick={handleStartManageStudents} className="btn btn-outline" style={{ padding: '0.3rem', color: 'var(--text)' }} title="Agregar/Quitar Alumnos"><FileText size={16}/></button>
                 <button onClick={handleDeleteExpense} className="btn btn-outline" style={{ padding: '0.3rem', borderColor: 'rgba(239, 68, 68, 0.3)', color: 'var(--danger)' }} title="Eliminar Cuota"><Trash2 size={16}/></button>
               </div>
               <p style={{ color: 'var(--text-muted)' }}>Emitido el: {expense.date}</p>
