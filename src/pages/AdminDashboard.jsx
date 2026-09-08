@@ -107,6 +107,51 @@ const AdminDashboard = () => {
     }
   };
 
+  const handleQuickOutcome = async () => {
+    const titleStr = await showPrompt("Motivo del gasto (Ej: Cartulinas, Fotocopias, etc):", "Gasto Rápido");
+    if (!titleStr) return;
+    
+    const amountStr = await showPrompt(`Monto gastado en "${titleStr}":`, "");
+    if (!amountStr) return;
+    
+    const amount = parseFloat(amountStr);
+    if (isNaN(amount) || amount <= 0) {
+      await showAlert("Monto inválido.");
+      return;
+    }
+
+    const dateStr = await showPrompt("Fecha del gasto (Opcional, formato AAAA-MM-DD o déjalo en blanco para hoy):", "");
+    let finalDate = new Date().toISOString().split('T')[0];
+    
+    if (dateStr) {
+      const parsed = new Date(dateStr);
+      if (!isNaN(parsed.getTime())) {
+        finalDate = parsed.toISOString().split('T')[0];
+      } else {
+        await showAlert("Formato de fecha no válido. Se usará la fecha de hoy.");
+      }
+    }
+    
+    setLoading(true);
+    try {
+      await addDoc(collection(db, 'outcomes'), {
+        amount: amount,
+        title: titleStr,
+        description: 'Gasto registrado rápidamente',
+        paymentMethod: 'cash',
+        fundId: 'general',
+        date: finalDate,
+        createdAt: new Date().toISOString()
+      });
+      fetchDashboardData();
+      await showAlert(`Gasto "${titleStr}" registrado correctamente descontado del Fondo General.`);
+    } catch (error) {
+      console.error(error);
+      await showAlert("Hubo un error al registrar el gasto.");
+      setLoading(false);
+    }
+  };
+
   const fetchDashboardData = async () => {
     setLoading(true);
     try {
@@ -398,7 +443,7 @@ const AdminDashboard = () => {
                   <button onClick={handleQuickIncome} className="btn btn-primary" style={{ backgroundColor: 'var(--success)' }}>
                     + Ingreso Rápido
                   </button>
-                  <button onClick={() => setCurrentView('outcomes')} className="btn btn-primary" style={{ backgroundColor: 'var(--danger)' }}>
+                  <button onClick={handleQuickOutcome} className="btn btn-primary" style={{ backgroundColor: 'var(--danger)' }}>
                     - Anotar Gasto
                   </button>
                   <button onClick={() => setCurrentView('expenses_add')} className="btn btn-primary">

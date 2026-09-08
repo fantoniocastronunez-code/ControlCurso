@@ -14,6 +14,7 @@ const OutcomeManagement = ({ onBack }) => {
   const [newAmount, setNewAmount] = useState('');
   const [newMethod, setNewMethod] = useState('cash');
   const [selectedFundId, setSelectedFundId] = useState('general');
+  const [newDate, setNewDate] = useState('');
   
   const [funds, setFunds] = useState([]);
 
@@ -66,7 +67,7 @@ const OutcomeManagement = ({ onBack }) => {
         amount: parseFloat(newAmount),
         paymentMethod: newMethod,
         fundId: selectedFundId || 'general',
-        date: new Date().toISOString().split('T')[0],
+        date: newDate || new Date().toISOString().split('T')[0],
         createdAt: new Date().toISOString()
       };
       
@@ -76,6 +77,7 @@ const OutcomeManagement = ({ onBack }) => {
       setNewTitle('');
       setNewAmount('');
       setNewMethod('cash');
+      setNewDate('');
       
       setMessage('Gasto registrado correctamente');
       setTimeout(() => setMessage(''), 3000);
@@ -140,6 +142,15 @@ const OutcomeManagement = ({ onBack }) => {
               placeholder="Ej. Compra de cartulinas"
               value={newTitle}
               onChange={(e) => setNewTitle(e.target.value)}
+            />
+          </div>
+          <div className="input-group" style={{ flex: '1', minWidth: '150px', marginBottom: 0 }}>
+            <label className="input-label">Fecha (Opcional)</label>
+            <input 
+              type="date" 
+              className="input-field" 
+              value={newDate}
+              onChange={(e) => setNewDate(e.target.value)}
             />
           </div>
           <div className="input-group" style={{ flex: '1', minWidth: '150px', marginBottom: 0 }}>
