@@ -294,12 +294,12 @@ const AdminDashboard = () => {
         
         if (data.paymentMethod === 'balance') {
            fundsMap.get(fundId).balance += amt;
-           allTransactions.push({ id: doc.id + '_add', fundId: fundId, type: 'debt_payment', amount: amt, paymentMethod: data.paymentMethod, description: `Pago: ${data.title || 'Cuota'} (Saldo a favor)`, date: data.approvedAt || data.paidAt || data.createdAt });
+           allTransactions.push({ id: doc.id + '_add', fundId: fundId, type: 'debt_payment', amount: amt, paymentMethod: data.paymentMethod, description: `Pago ${data.studentName ? 'de ' + data.studentName : ''}: ${data.title || 'Cuota'} (Saldo a favor)`, date: data.approvedAt || data.paidAt || data.createdAt });
            return;
         }
         
         fundsMap.get(fundId).balance += amt;
-        allTransactions.push({ id: doc.id, fundId: fundId, type: 'debt_payment', amount: amt, paymentMethod: data.paymentMethod, description: `Pago: ${data.title || 'Cuota'}`, date: data.approvedAt || data.paidAt || data.createdAt });
+        allTransactions.push({ id: doc.id, fundId: fundId, type: 'debt_payment', amount: amt, paymentMethod: data.paymentMethod, description: `Pago ${data.studentName ? 'de ' + data.studentName : ''}: ${data.title || 'Cuota'}`, date: data.approvedAt || data.paidAt || data.createdAt });
       });
 
       outcomesDocs.forEach(doc => {
