@@ -347,7 +347,7 @@ const AdminDashboard = () => {
                 <div className="glass-panel" style={{ padding: '1.5rem', marginBottom: '2rem' }}>
                   <h4 style={{ marginBottom: '1rem', color: 'var(--primary)', margin: 0 }}>Distribución por Fondos</h4>
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: '1rem', marginTop: '1rem' }}>
-                    {stats.fundsBalances.map(fb => (
+                    {stats.fundsBalances.filter(fb => !(fb.name === 'Fondo Desconocido' && fb.balance === 0)).map(fb => (
                       <div 
                         key={fb.id} 
                         style={{ padding: '1rem', backgroundColor: 'rgba(255,255,255,0.03)', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-color)', position: 'relative', cursor: 'pointer', transition: 'all 0.2s' }}
