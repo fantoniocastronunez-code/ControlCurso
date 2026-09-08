@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { LogOut, Users, DollarSign, Activity, FileText, RefreshCw, Calendar, Trash2 } from 'lucide-react';
+import { LogOut, Users, DollarSign, Activity, FileText, RefreshCw, Calendar, Trash2, CreditCard } from 'lucide-react';
 import { db } from '../firebase/config';
 import { collection, getDocs, query, where, orderBy, addDoc, doc, setDoc, getDoc } from 'firebase/firestore';
 import { useNavigate } from 'react-router-dom';
@@ -342,7 +342,9 @@ const AdminDashboard = () => {
         totalExpected: expected,
         totalAvailable,
         fundsBalances,
-        allTransactions
+        allTransactions,
+        cashBalance: cashIn - cashOut,
+        transferBalance: transferIn - transferOut
       });
       setExpenses(expensesList);
 
@@ -423,6 +425,26 @@ const AdminDashboard = () => {
                   <div>
                     <h3 style={{ fontSize: '2rem', margin: 0 }}>{formatMoney(stats.totalAvailable)}</h3>
                     <p style={{ color: 'var(--text-muted)', fontSize: '1rem', margin: 0 }}>Fondo Total Disponible (Suma de todos los fondos)</p>
+                  </div>
+                </div>
+
+                <div className="glass-panel" style={{ padding: '1.5rem', display: 'flex', alignItems: 'center', gap: '1rem' }}>
+                  <div style={{ backgroundColor: 'rgba(16, 185, 129, 0.2)', padding: '1rem', borderRadius: '50%', color: 'var(--success)' }}>
+                    <DollarSign size={24} />
+                  </div>
+                  <div>
+                    <h3 style={{ fontSize: '1.5rem', margin: 0 }}>{formatMoney(stats.cashBalance || 0)}</h3>
+                    <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem' }}>En Efectivo (Caja)</p>
+                  </div>
+                </div>
+
+                <div className="glass-panel" style={{ padding: '1.5rem', display: 'flex', alignItems: 'center', gap: '1rem' }}>
+                  <div style={{ backgroundColor: 'rgba(59, 130, 246, 0.2)', padding: '1rem', borderRadius: '50%', color: '#3b82f6' }}>
+                    <CreditCard size={24} />
+                  </div>
+                  <div>
+                    <h3 style={{ fontSize: '1.5rem', margin: 0 }}>{formatMoney(stats.transferBalance || 0)}</h3>
+                    <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem' }}>En Banco (Transferencias)</p>
                   </div>
                 </div>
               </div>
