@@ -45,30 +45,30 @@ const AdminDashboard = () => {
     }
   }, [currentView]);
 
-  const handleZeroOutGeneral = async (currentBalance) => {
+  const handleZeroOutFund = async (fundId, fundName, currentBalance) => {
     if (currentBalance === 0) return;
-    if (!window.confirm(`¿Estás seguro de que quieres ajustar el Fondo General? Se creará un ajuste interno para dejar su saldo en $0.`)) return;
+    if (!window.confirm(`¿Estás seguro de que quieres ajustar el ${fundName}? Se creará un ajuste interno para dejar su saldo en $0.`)) return;
 
     try {
       if (currentBalance < 0) {
         await addDoc(collection(db, 'incomes'), {
           amount: Math.abs(currentBalance),
-          description: 'Ajuste automático para eliminar Fondo General',
+          description: `Ajuste automático para balancear ${fundName}`,
           paymentMethod: 'cash',
-          fundId: 'general',
+          fundId: fundId,
           createdAt: new Date().toISOString()
         });
       } else {
         await addDoc(collection(db, 'outcomes'), {
           amount: currentBalance,
-          description: 'Ajuste automático para eliminar Fondo General',
+          description: `Ajuste automático para balancear ${fundName}`,
           paymentMethod: 'cash',
-          fundId: 'general',
+          fundId: fundId,
           createdAt: new Date().toISOString()
         });
       }
       fetchDashboardData();
-      alert('El Fondo General ha sido ajustado a $0.');
+      alert(`El ${fundName} ha sido ajustado a $0.`);
     } catch (error) {
       console.error(error);
       alert('Hubo un error al ajustar el fondo.');
@@ -354,9 +354,9 @@ const AdminDashboard = () => {
                         onClick={() => setSelectedFundForHistory(fb)}
                         className="fund-card-hover"
                       >
-                        {fb.id === 'general' && fb.balance !== 0 && (
+                        {(fb.id === 'general' || fb.name === 'Fondo Desconocido') && fb.balance !== 0 && (
                           <button 
-                            onClick={(e) => { e.stopPropagation(); handleZeroOutGeneral(fb.balance); }}
+                            onClick={(e) => { e.stopPropagation(); handleZeroOutFund(fb.id, fb.name, fb.balance); }}
                             style={{ position: 'absolute', top: '0.5rem', right: '0.5rem', background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', opacity: 0.7 }}
                             title="Borrar fondo (ajustar a $0)"
                           >
