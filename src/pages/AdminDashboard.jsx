@@ -275,7 +275,7 @@ const AdminDashboard = () => {
         
         const amt = data.amount || 0;
         fundsMap.get(fundId).balance -= amt;
-        allTransactions.push({ id: doc.id, fundId: fundId, type: 'outcome', amount: -amt, description: data.description || 'Gasto', date: data.createdAt });
+        allTransactions.push({ id: doc.id, fundId: fundId, type: 'outcome', amount: -amt, description: data.title || data.description || 'Gasto', date: data.date || data.createdAt });
       });
 
       incomesSnap.forEach(doc => {
