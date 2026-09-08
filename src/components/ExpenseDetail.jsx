@@ -17,8 +17,9 @@ const ExpenseDetail = ({ expenseId, onBack }) => {
 
   // Estados de Edición
   const [isEditing, setIsEditing] = useState(false);
-  const [editData, setEditData] = useState({ title: '', totalAmount: '', accountId: '' });
+  const [editData, setEditData] = useState({ title: '', totalAmount: '', accountId: '', fundId: '' });
   const [transferAccounts, setTransferAccounts] = useState([]);
+  const [funds, setFunds] = useState([]);
 
   // Selección Múltiple
   const [selectedDebts, setSelectedDebts] = useState([]);
@@ -53,6 +54,15 @@ const ExpenseDetail = ({ expenseId, onBack }) => {
           setTransferAccounts([{ ...data.transferData, id: 'acc_legacy', alias: 'Cuenta Principal' }]);
         }
       }
+
+      // Obtener fondos
+      const fundsCollection = collection(db, 'funds');
+      const fundsSnapshot = await getDocs(fundsCollection);
+      const fundsList = fundsSnapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      }));
+      setFunds(fundsList);
 
       // Obtener las deudas de este gasto
       const q = query(collection(db, 'debts'), where('expenseId', '==', expenseId));
@@ -402,13 +412,14 @@ const ExpenseDetail = ({ expenseId, onBack }) => {
     setEditData({ 
       title: expense.title, 
       totalAmount: expense.totalAmount,
-      accountId: expense.transferData ? expense.transferData.id : (expense.transferData?.alias ? 'acc_legacy' : '')
+      accountId: expense.transferData ? expense.transferData.id : (expense.transferData?.alias ? 'acc_legacy' : ''),
+      fundId: expense.fundId || 'general'
     });
     setIsEditing(true);
   };
 
   const handleSaveEdit = async () => {
-    if (!editData.title || !editData.totalAmount) return;
+    if (!editData.title || !editData.totalAmount || !editData.fundId) return;
     setLoading(true);
     try {
       const newAmount = Number(editData.totalAmount);
@@ -418,25 +429,29 @@ const ExpenseDetail = ({ expenseId, onBack }) => {
       await updateDoc(doc(db, 'expenses', expenseId), {
         title: editData.title,
         totalAmount: newAmount,
-        transferData: selectedAccount
+        transferData: selectedAccount,
+        fundId: editData.fundId
       });
 
-      // 2. Actualizar monto y datos de transferencia en deudas pendientes
+      // 2. Actualizar monto, datos de transferencia y fondo en deudas
       for (const debt of debts) {
+        const updates = {};
+        if ((debt.status === 'pending' || debt.status === 'partial') && newAmount !== expense.totalAmount) {
+          updates.amount = newAmount;
+        }
         if (debt.status === 'pending' || debt.status === 'partial') {
-          const updates = {};
-          if (debt.status === 'pending' && newAmount !== expense.totalAmount) {
-            updates.amount = newAmount;
-          }
           updates.transferData = selectedAccount;
-          
-          if (Object.keys(updates).length > 0) {
-            await updateDoc(doc(db, 'debts', debt.id), updates);
-          }
+        }
+        if (editData.fundId !== expense.fundId) {
+          updates.fundId = editData.fundId;
+        }
+        
+        if (Object.keys(updates).length > 0) {
+          await updateDoc(doc(db, 'debts', debt.id), updates);
         }
       }
 
-      setExpense({ ...expense, title: editData.title, totalAmount: newAmount, transferData: selectedAccount });
+      setExpense({ ...expense, title: editData.title, totalAmount: newAmount, transferData: selectedAccount, fundId: editData.fundId });
       setIsEditing(false);
       fetchDetail();
     } catch (error) {
@@ -535,6 +550,19 @@ const ExpenseDetail = ({ expenseId, onBack }) => {
                 <option value="">No aplica (Solo efectivo / otro)</option>
                 {transferAccounts.map(acc => (
                   <option key={acc.id} value={acc.id}>{acc.alias} ({acc.bank})</option>
+                ))}
+              </select>
+            </div>
+            <div className="input-group">
+              <label className="input-label">Fondo de Destino</label>
+              <select 
+                className="input-field"
+                value={editData.fundId}
+                onChange={(e) => setEditData({...editData, fundId: e.target.value})}
+              >
+                <option value="general">Fondo General</option>
+                {funds.filter(f => !f.isLocked || f.id === editData.fundId).map(f => (
+                  <option key={f.id} value={f.id}>{f.name}</option>
                 ))}
               </select>
             </div>

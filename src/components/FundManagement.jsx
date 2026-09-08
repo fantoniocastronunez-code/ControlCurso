@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { db } from '../firebase/config';
-import { collection, getDocs, doc, setDoc, deleteDoc, addDoc } from 'firebase/firestore';
-import { ArrowLeft, CheckCircle, Trash2, Wallet, Plus, ArrowRightLeft, DollarSign } from 'lucide-react';
+import { collection, getDocs, doc, setDoc, deleteDoc, addDoc, updateDoc } from 'firebase/firestore';
+import { ArrowLeft, CheckCircle, Trash2, Wallet, Plus, ArrowRightLeft, DollarSign, Lock, Unlock } from 'lucide-react';
 import { useModal } from '../context/ModalContext';
 
 const FundManagement = ({ onBack }) => {
@@ -57,6 +57,7 @@ const FundManagement = ({ onBack }) => {
       const newFund = {
         name: newTitle,
         description: newDescription,
+        isLocked: false,
         createdAt: new Date().toISOString()
       };
       
@@ -76,7 +77,7 @@ const FundManagement = ({ onBack }) => {
   };
 
   const handleDelete = async (id) => {
-    if (!(await showConfirm('¿Seguro que deseas eliminar este fondo contable? Esto no borra el dinero, solo la categoría.'))) return;
+    if (!(await showConfirm('¿Seguro que deseas eliminar este fondo contable? El dinero pasará automáticamente al Fondo General.'))) return;
     try {
       await deleteDoc(doc(db, 'funds', id));
       setFunds(funds.filter(f => f.id !== id));
@@ -84,6 +85,17 @@ const FundManagement = ({ onBack }) => {
       setTimeout(() => setMessage(''), 3000);
     } catch (error) {
       console.error("Error eliminando:", error);
+    }
+  };
+
+  const handleToggleLock = async (id, currentLocked) => {
+    try {
+      await updateDoc(doc(db, 'funds', id), { isLocked: !currentLocked });
+      setFunds(funds.map(f => f.id === id ? { ...f, isLocked: !currentLocked } : f));
+      setMessage(!currentLocked ? 'Fondo bloqueado (ya no se pueden crear transacciones con él)' : 'Fondo desbloqueado');
+      setTimeout(() => setMessage(''), 3000);
+    } catch (error) {
+      console.error("Error cambiando estado:", error);
     }
   };
 
@@ -221,7 +233,7 @@ const FundManagement = ({ onBack }) => {
               <select required className="input-field" value={incomeFund} onChange={(e) => setIncomeFund(e.target.value)}>
                 <option value="">-- Selecciona un fondo --</option>
                 <option value="general">Fondo General</option>
-                {funds.map(f => <option key={f.id} value={f.id}>{f.name}</option>)}
+                {funds.filter(f => !f.isLocked).map(f => <option key={f.id} value={f.id}>{f.name}</option>)}
               </select>
             </div>
             <button type="submit" className="btn btn-primary" style={{ backgroundColor: 'var(--success)' }}>Registrar Ingreso</button>
@@ -240,7 +252,7 @@ const FundManagement = ({ onBack }) => {
               <select required className="input-field" value={transferFrom} onChange={(e) => setTransferFrom(e.target.value)}>
                 <option value="">-- Selecciona un fondo --</option>
                 <option value="general">Fondo General</option>
-                {funds.map(f => <option key={f.id} value={f.id}>{f.name}</option>)}
+                {funds.filter(f => !f.isLocked).map(f => <option key={f.id} value={f.id}>{f.name}</option>)}
               </select>
             </div>
             <div className="input-group" style={{ marginBottom: 0 }}>
@@ -248,7 +260,7 @@ const FundManagement = ({ onBack }) => {
               <select required className="input-field" value={transferTo} onChange={(e) => setTransferTo(e.target.value)}>
                 <option value="">-- Selecciona un fondo --</option>
                 <option value="general">Fondo General</option>
-                {funds.map(f => <option key={f.id} value={f.id}>{f.name}</option>)}
+                {funds.filter(f => !f.isLocked).map(f => <option key={f.id} value={f.id}>{f.name}</option>)}
               </select>
             </div>
             <div className="input-group" style={{ marginBottom: 0 }}>
@@ -272,14 +284,20 @@ const FundManagement = ({ onBack }) => {
           <tbody>
             {funds.map(f => (
               <tr key={f.id} style={{ borderBottom: '1px solid var(--border-color)' }}>
-                <td style={{ padding: '1rem', fontWeight: '500', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                  <Wallet size={16} color="var(--primary)" /> {f.name}
+                <td style={{ padding: '1rem', fontWeight: '500', display: 'flex', alignItems: 'center', gap: '0.5rem', color: f.isLocked ? 'var(--text-muted)' : 'var(--text)' }}>
+                  {f.isLocked ? <Lock size={16} /> : <Wallet size={16} color="var(--primary)" />} 
+                  {f.name} {f.isLocked && <span style={{ fontSize: '0.75rem', backgroundColor: 'rgba(255,255,255,0.1)', padding: '2px 6px', borderRadius: '4px' }}>Bloqueado</span>}
                 </td>
                 <td style={{ padding: '1rem', color: 'var(--text-muted)' }}>{f.description || '-'}</td>
                 <td style={{ padding: '1rem' }}>
-                  <button onClick={() => handleDelete(f.id)} className="btn btn-outline" style={{ padding: '0.4rem 0.75rem', color: 'var(--danger)', borderColor: 'rgba(239, 68, 68, 0.3)', gap: '0.5rem', display: 'flex', alignItems: 'center' }}>
-                    <Trash2 size={16} /> Eliminar
-                  </button>
+                  <div style={{ display: 'flex', gap: '0.5rem' }}>
+                    <button onClick={() => handleToggleLock(f.id, f.isLocked)} className="btn btn-outline" style={{ padding: '0.4rem 0.75rem', gap: '0.5rem', display: 'flex', alignItems: 'center' }}>
+                      {f.isLocked ? <><Unlock size={16} /> Desbloquear</> : <><Lock size={16} /> Bloquear</>}
+                    </button>
+                    <button onClick={() => handleDelete(f.id)} className="btn btn-outline" style={{ padding: '0.4rem 0.75rem', color: 'var(--danger)', borderColor: 'rgba(239, 68, 68, 0.3)', gap: '0.5rem', display: 'flex', alignItems: 'center' }}>
+                      <Trash2 size={16} /> Eliminar
+                    </button>
+                  </div>
                 </td>
               </tr>
             ))}

@@ -349,7 +349,7 @@ const ExpenseManagement = ({ onBack }) => {
               >
                 <option value="">-- Selecciona un fondo --</option>
                 <option value="general">Fondo General</option>
-                {funds.map(f => (
+                {funds.filter(f => !f.isLocked).map(f => (
                   <option key={f.id} value={f.id}>{f.name}</option>
                 ))}
               </select>

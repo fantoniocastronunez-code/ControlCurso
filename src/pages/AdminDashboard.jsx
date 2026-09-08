@@ -103,7 +103,18 @@ const AdminDashboard = () => {
       // Ordenar localmente por fecha descendente
       expensesList.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
 
-      // 3. Cobros (Dinero realmente pagado)
+      // 3. Fondos (Categorías)
+      const fundsSnap = await getDocs(collection(db, 'funds'));
+      const fundsMap = new Map(); // id -> { name, balance }
+      fundsSnap.forEach(doc => {
+        fundsMap.set(doc.id, { id: doc.id, name: doc.data().name, balance: 0 });
+      });
+      // Asegurar que exista el Fondo General
+      if (!fundsMap.has('general')) {
+        fundsMap.set('general', { id: 'general', name: 'Fondo General', balance: 0 });
+      }
+
+      // 4. Cobros (Dinero realmente pagado)
       const debtsSnap = await getDocs(query(collection(db, 'debts'), where('status', 'in', ['paid', 'partial'])));
       let collected = 0;
       let cashIn = 0;
@@ -113,11 +124,16 @@ const AdminDashboard = () => {
       
       debtsSnap.forEach(doc => {
         const data = doc.data();
+        let fundId = data.fundId || 'general';
+        
+        // Si el fondo fue eliminado, ignorar el dinero por completo
+        if (!fundsMap.has(fundId)) return;
+
         const amt = typeof data.paidAmount === 'number' ? data.paidAmount : (data.amount || 0);
         collected += amt;
+        
         if (data.paymentMethod === 'cash') cashIn += amt;
         if (data.paymentMethod === 'transfer') transferIn += amt;
-        // paymentMethod === 'balance' no suma a cashIn/transferIn porque el dinero físico ya fue ingresado manualmente en Incomes
         
         // Sumar lo recaudado por cada cuota
         if (data.expenseId) {
@@ -131,81 +147,69 @@ const AdminDashboard = () => {
         exp.collectedAmount = expenseCollectedMap[exp.id] || 0;
       });
 
-      // 4. Gastos Directiva (Egresos)
+      // 5. Gastos Directiva (Egresos)
       const outcomesSnap = await getDocs(collection(db, 'outcomes'));
       let cashOut = 0;
       let transferOut = 0;
       outcomesSnap.forEach(doc => {
         const data = doc.data();
+        let fundId = data.fundId || 'general';
+        if (!fundsMap.has(fundId)) return;
+
         const amt = data.amount || 0;
         if (data.paymentMethod === 'cash') cashOut += amt;
         if (data.paymentMethod === 'transfer') transferOut += amt;
       });
 
-      // 4.5 Ingresos Manuales (Saldos Iniciales/Extras)
+      // 6. Ingresos Manuales (Saldos Iniciales/Extras)
       const incomesSnap = await getDocs(collection(db, 'incomes'));
       incomesSnap.forEach(doc => {
         const data = doc.data();
+        let fundId = data.fundId || 'general';
+        if (!fundsMap.has(fundId)) return;
+
         const amt = data.amount || 0;
         if (data.paymentMethod === 'cash') cashIn += amt;
         if (data.paymentMethod === 'transfer') transferIn += amt;
       });
 
-      // 5. Fondos (Categorías)
-      const fundsSnap = await getDocs(collection(db, 'funds'));
-      const fundsMap = new Map(); // id -> { name, balance }
-      fundsSnap.forEach(doc => {
-        fundsMap.set(doc.id, { id: doc.id, name: doc.data().name, balance: 0 });
-      });
-
       // Calcular balances por fondo y llenar transacciones
       debtsSnap.forEach(doc => {
         const data = doc.data();
-        const amt = typeof data.paidAmount === 'number' ? data.paidAmount : (data.amount || 0);
-        const fundId = data.fundId || 'general'; // 'general' para los antiguos
+        let fundId = data.fundId || 'general';
+        if (!fundsMap.has(fundId)) return;
 
-        if (!fundsMap.has(fundId)) {
-          fundsMap.set(fundId, { id: fundId, name: fundId === 'general' ? 'Fondo General' : 'Fondo Desconocido', balance: 0 });
-        }
+        const amt = typeof data.paidAmount === 'number' ? data.paidAmount : (data.amount || 0);
         
         if (data.paymentMethod === 'balance') {
-           // Si se pagó con saldo a favor, el dinero físico ya está en el sistema (usualmente en Fondo General)
-           // Hacemos el traspaso interno para que el fondo de esta cuota reciba el dinero contablemente.
            fundsMap.get(fundId).balance += amt;
-           if (!fundsMap.has('general')) {
-             fundsMap.set('general', { id: 'general', name: 'Fondo General', balance: 0 });
-           }
            fundsMap.get('general').balance -= amt;
            
-           allTransactions.push({ id: doc.id + '_add', fundId: fundId, type: 'debt_payment', amount: amt, description: `Pago de cuota (Saldo a favor)`, date: data.paidAt || data.createdAt });
-           allTransactions.push({ id: doc.id + '_sub', fundId: 'general', type: 'balance_used', amount: -amt, description: `Uso de Saldo a favor`, date: data.paidAt || data.createdAt });
+           allTransactions.push({ id: doc.id + '_add', fundId: fundId, type: 'debt_payment', amount: amt, description: `Pago: ${data.title || 'Cuota'} (Saldo a favor)`, date: data.paidAt || data.createdAt });
+           allTransactions.push({ id: doc.id + '_sub', fundId: 'general', type: 'balance_used', amount: -amt, description: `Uso Saldo a favor: ${data.title || 'Cuota'}`, date: data.paidAt || data.createdAt });
            return;
         }
         
         fundsMap.get(fundId).balance += amt;
-        allTransactions.push({ id: doc.id, fundId: fundId, type: 'debt_payment', amount: amt, description: `Pago de cuota`, date: data.paidAt || data.createdAt });
+        allTransactions.push({ id: doc.id, fundId: fundId, type: 'debt_payment', amount: amt, description: `Pago: ${data.title || 'Cuota'}`, date: data.paidAt || data.createdAt });
       });
 
       outcomesSnap.forEach(doc => {
         const data = doc.data();
-        const amt = data.amount || 0;
-        const fundId = data.fundId || 'general';
+        let fundId = data.fundId || 'general';
+        if (!fundsMap.has(fundId)) return;
         
-        if (!fundsMap.has(fundId)) {
-          fundsMap.set(fundId, { id: fundId, name: fundId === 'general' ? 'Fondo General' : 'Fondo Desconocido', balance: 0 });
-        }
+        const amt = data.amount || 0;
         fundsMap.get(fundId).balance -= amt;
         allTransactions.push({ id: doc.id, fundId: fundId, type: 'outcome', amount: -amt, description: data.description || 'Gasto', date: data.createdAt });
       });
 
       incomesSnap.forEach(doc => {
         const data = doc.data();
-        const amt = data.amount || 0;
-        const fundId = data.fundId || 'general';
+        let fundId = data.fundId || 'general';
+        if (!fundsMap.has(fundId)) return;
         
-        if (!fundsMap.has(fundId)) {
-          fundsMap.set(fundId, { id: fundId, name: fundId === 'general' ? 'Fondo General' : 'Fondo Desconocido', balance: 0 });
-        }
+        const amt = data.amount || 0;
         fundsMap.get(fundId).balance += amt;
         allTransactions.push({ id: doc.id, fundId: fundId, type: 'income', amount: amt, description: data.title || data.description || 'Ingreso', date: data.createdAt });
       });
@@ -215,8 +219,11 @@ const AdminDashboard = () => {
       transfersSnap.forEach(doc => {
         const data = doc.data();
         const amt = data.amount || 0;
-        const fromId = data.fromFundId;
-        const toId = data.toFundId;
+        let fromId = data.fromFundId;
+        let toId = data.toFundId;
+
+        if (fromId && !fundsMap.has(fromId)) fromId = 'general';
+        if (toId && !fundsMap.has(toId)) toId = 'general';
 
         if (fromId && fundsMap.has(fromId)) {
           fundsMap.get(fromId).balance -= amt;
@@ -347,14 +354,14 @@ const AdminDashboard = () => {
                 <div className="glass-panel" style={{ padding: '1.5rem', marginBottom: '2rem' }}>
                   <h4 style={{ marginBottom: '1rem', color: 'var(--primary)', margin: 0 }}>Distribución por Fondos</h4>
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: '1rem', marginTop: '1rem' }}>
-                    {stats.fundsBalances.filter(fb => !(fb.name === 'Fondo Desconocido' && fb.balance === 0)).map(fb => (
+                    {stats.fundsBalances.map(fb => (
                       <div 
                         key={fb.id} 
                         style={{ padding: '1rem', backgroundColor: 'rgba(255,255,255,0.03)', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-color)', position: 'relative', cursor: 'pointer', transition: 'all 0.2s' }}
                         onClick={() => setSelectedFundForHistory(fb)}
                         className="fund-card-hover"
                       >
-                        {(fb.id === 'general' || fb.name === 'Fondo Desconocido') && fb.balance !== 0 && (
+                        {fb.id === 'general' && fb.balance !== 0 && (
                           <button 
                             onClick={(e) => { e.stopPropagation(); handleZeroOutFund(fb.id, fb.name, fb.balance); }}
                             style={{ position: 'absolute', top: '0.5rem', right: '0.5rem', background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', opacity: 0.7 }}

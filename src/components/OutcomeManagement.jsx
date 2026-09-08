@@ -176,7 +176,7 @@ const OutcomeManagement = ({ onBack }) => {
               required
             >
               <option value="" disabled>Selecciona un fondo...</option>
-              {funds.map(f => (
+              {funds.filter(f => !f.isLocked).map(f => (
                 <option key={f.id} value={f.id}>{f.name}</option>
               ))}
             </select>
