@@ -398,6 +398,9 @@ const AdminDashboard = () => {
                   <button onClick={handleQuickIncome} className="btn btn-primary" style={{ backgroundColor: 'var(--success)' }}>
                     + Ingreso Rápido
                   </button>
+                  <button onClick={() => setCurrentView('outcomes')} className="btn btn-primary" style={{ backgroundColor: 'var(--danger)' }}>
+                    - Anotar Gasto
+                  </button>
                   <button onClick={() => setCurrentView('expenses_add')} className="btn btn-primary">
                     Cobrar Cuota
                   </button>

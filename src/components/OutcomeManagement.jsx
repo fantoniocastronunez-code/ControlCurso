@@ -13,7 +13,7 @@ const OutcomeManagement = ({ onBack }) => {
   const [newTitle, setNewTitle] = useState('');
   const [newAmount, setNewAmount] = useState('');
   const [newMethod, setNewMethod] = useState('cash');
-  const [selectedFundId, setSelectedFundId] = useState('');
+  const [selectedFundId, setSelectedFundId] = useState('general');
   
   const [funds, setFunds] = useState([]);
 
@@ -42,9 +42,7 @@ const OutcomeManagement = ({ onBack }) => {
         ...doc.data()
       }));
       setFunds(fundsList);
-      if (fundsList.length > 0) {
-        setSelectedFundId(fundsList[0].id);
-      }
+      // Mantener selectedFundId en 'general' o dejar que el usuario elija
     } catch (error) {
       console.error("Error al obtener datos:", error);
     } finally {
@@ -54,8 +52,8 @@ const OutcomeManagement = ({ onBack }) => {
 
   const handleAddOutcome = async (e) => {
     e.preventDefault();
-    if (!newTitle || !newAmount || !selectedFundId) {
-       await showAlert("Faltan datos. Asegúrate de tener al menos un fondo creado.");
+    if (!newTitle || !newAmount) {
+       await showAlert("Faltan datos obligatorios (motivo o monto).");
        return;
     }
 
@@ -67,7 +65,7 @@ const OutcomeManagement = ({ onBack }) => {
         title: newTitle,
         amount: parseFloat(newAmount),
         paymentMethod: newMethod,
-        fundId: selectedFundId,
+        fundId: selectedFundId || 'general',
         date: new Date().toISOString().split('T')[0],
         createdAt: new Date().toISOString()
       };
@@ -168,15 +166,14 @@ const OutcomeManagement = ({ onBack }) => {
             </select>
           </div>
           <div className="input-group" style={{ flex: '1', minWidth: '150px', marginBottom: 0 }}>
-            <label className="input-label">Fondo de Origen</label>
+            <label className="input-label">Fondo de Origen (Opcional)</label>
             <select 
               className="input-field" 
               value={selectedFundId}
               onChange={(e) => setSelectedFundId(e.target.value)}
-              required
             >
-              <option value="" disabled>Selecciona un fondo...</option>
-              {funds.filter(f => !f.isLocked).map(f => (
+              <option value="general">Fondo General</option>
+              {funds.filter(f => !f.isLocked && f.id !== 'general').map(f => (
                 <option key={f.id} value={f.id}>{f.name}</option>
               ))}
             </select>
