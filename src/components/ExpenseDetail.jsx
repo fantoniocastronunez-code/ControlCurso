@@ -1113,7 +1113,17 @@ const ExpenseDetail = ({ expenseId, onBack }) => {
                           <div>
                             {student ? `${student.listNumber || '-'}. ${formatStudentName(student)}` : debt.studentName}
                             <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.15rem' }}>
-                              {debt.apoderadoEmail || 'Sin apoderado'}
+                              {(() => {
+                                const emails = student?.apoderadoEmails?.length > 0 ? student.apoderadoEmails : (student?.apoderadoEmail ? [student.apoderadoEmail] : (debt.apoderadoEmails?.length > 0 ? debt.apoderadoEmails : (debt.apoderadoEmail ? [debt.apoderadoEmail] : [])));
+                                if (!emails || emails.length === 0) return 'Sin apoderado';
+                                return (
+                                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.1rem' }}>
+                                    {emails.map((email, idx) => (
+                                      <span key={idx}>{email}</span>
+                                    ))}
+                                  </div>
+                                );
+                              })()}
                             </div>
                           </div>
                         );
@@ -1259,7 +1269,20 @@ const ExpenseDetail = ({ expenseId, onBack }) => {
                         );
                       })()}
                     </td>
-                    <td style={{ padding: '1rem', color: 'var(--text-muted)' }}>{debt.apoderadoEmail || 'Sin apoderado'}</td>
+                    <td style={{ padding: '1rem', color: 'var(--text-muted)' }}>
+                      {(() => {
+                        const student = students.find(s => s.id === debt.studentId);
+                        const emails = student?.apoderadoEmails?.length > 0 ? student.apoderadoEmails : (student?.apoderadoEmail ? [student.apoderadoEmail] : (debt.apoderadoEmails?.length > 0 ? debt.apoderadoEmails : (debt.apoderadoEmail ? [debt.apoderadoEmail] : [])));
+                        if (!emails || emails.length === 0) return 'Sin apoderado';
+                        return (
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+                            {emails.map((email, idx) => (
+                              <span key={idx} style={{ fontSize: '0.85rem' }}>{email}</span>
+                            ))}
+                          </div>
+                        );
+                      })()}
+                    </td>
                     
                     <td style={{ padding: '1rem' }}>
                       {debt.status === 'paid' && (
