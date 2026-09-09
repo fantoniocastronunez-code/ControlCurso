@@ -37,6 +37,16 @@ const StudentManagement = ({ onBack }) => {
   const [editingId, setEditingId] = useState(null);
   const [editData, setEditData] = useState({ firstName: '', lastNamePaternal: '', lastNameMaternal: '', apoderadoEmail1: '', apoderadoEmail2: '', listNumber: '', balance: '', rut: '' });
 
+  const filteredStudents = useMemo(() => {
+    if (!tableSearch) return students;
+    const term = tableSearch.toLowerCase();
+    return students.filter(s => {
+      const fullName = formatStudentName(s).toLowerCase();
+      const rut = (s.rut || '').toLowerCase();
+      return fullName.includes(term) || rut.includes(term);
+    });
+  }, [students, tableSearch]);
+
   useEffect(() => {
     fetchData();
   }, []);
