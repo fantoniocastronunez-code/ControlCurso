@@ -405,20 +405,20 @@ const ExpenseManagement = ({ onBack }) => {
             </button>
           </div>
           
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(250px, 1fr))', gap: '1rem' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(340px, 1fr))', gap: '1rem' }}>
             {students.map(student => (
               <div key={student.id} style={{ display: 'flex', flexDirection: 'column' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', padding: '0.75rem', backgroundColor: 'rgba(255,255,255,0.03)', borderRadius: 'var(--radius-sm)', border: selectedStudents.has(student.id) ? '1px solid var(--primary)' : '1px solid var(--border-color)' }}>
-                  <div onClick={() => handleToggleStudent(student.id)} style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', cursor: 'pointer', flex: 1 }}>
+                  <div onClick={() => handleToggleStudent(student.id)} style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', cursor: 'pointer', flex: 1, minWidth: 0 }}>
                     <input 
                       type="checkbox" 
                       checked={selectedStudents.has(student.id)}
                       onChange={() => handleToggleStudent(student.id)}
-                      style={{ width: '18px', height: '18px', accentColor: 'var(--primary)', cursor: 'pointer' }}
+                      style={{ width: '18px', height: '18px', accentColor: 'var(--primary)', cursor: 'pointer', flexShrink: 0 }}
                     />
-                    <div>
-                      <span style={{ display: 'block', fontWeight: '500' }}>{student.listNumber || '-'}. {formatStudentName(student)}</span>
-                      <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+                    <div style={{ minWidth: 0, overflow: 'hidden' }}>
+                      <span style={{ display: 'block', fontWeight: '500', wordBreak: 'break-word' }}>{student.listNumber || '-'}. {formatStudentName(student)}</span>
+                      <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)', display: 'block', textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap' }}>
                         {student.apoderadoEmails?.length > 0 ? student.apoderadoEmails.join(', ') : (student.apoderadoEmail || 'Sin apoderado')}
                       </span>
                     </div>
