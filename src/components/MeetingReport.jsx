@@ -607,19 +607,38 @@ const MeetingReport = ({ onBack }) => {
       const emailList = Array.from(allEmails);
       
       if (emailList.length > 0) {
+        const logoUrl = `${window.location.origin}/LOGOAPPCURSO.jpg`;
+        
+        const emailHtml = `
+          <div style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; max-width: 600px; margin: 0 auto; border: 1px solid #eaeaea; border-radius: 8px; overflow: hidden; box-shadow: 0 4px 6px rgba(0,0,0,0.05);">
+            <div style="background-color: #1e1e2f; padding: 20px; text-align: center;">
+              <img src="${logoUrl}" alt="Control Curso" style="max-height: 70px; margin-bottom: 15px; border-radius: 8px; object-fit: cover;" />
+              <h2 style="color: #ffffff; margin: 0; font-size: 20px; letter-spacing: 0.5px;">Informe Financiero Oficial</h2>
+            </div>
+            <div style="padding: 30px; background-color: #ffffff;">
+              <p style="font-size: 16px; color: #333333; margin-top: 0;">Estimados Apoderados,</p>
+              <p style="font-size: 15px; color: #555555; line-height: 1.5;">Adjuntamos a este correo el <strong>informe financiero oficial y estado de cuenta actualizado</strong>, correspondiente a la reunión del <strong>${meetingDate}</strong>.</p>
+              
+              <div style="background-color: #f0fdf4; border: 1px solid #bbf7d0; padding: 15px; border-radius: 6px; margin: 25px 0;">
+                <p style="margin: 0; font-size: 14px; color: #166534; text-align: center;">
+                  Este informe cuenta con las firmas digitales de la Directiva del curso, validando su autenticidad.
+                </p>
+              </div>
+              
+              <p style="font-size: 14px; color: #888888; margin-top: 30px; margin-bottom: 0;">Atentamente,</p>
+              <p style="font-size: 15px; color: #333333; font-weight: bold; margin-top: 5px;">La Tesorería del Curso</p>
+            </div>
+            <div style="background-color: #f8f9fa; padding: 15px; text-align: center; border-top: 1px solid #eaeaea;">
+              <p style="font-size: 12px; color: #999999; margin: 0;">Este es un mensaje automático generado por la plataforma del curso. Por favor no responda a este correo.</p>
+            </div>
+          </div>
+        `;
+
         await addDoc(collection(db, 'mail'), {
           to: emailList,
           message: {
             subject: `Informe Financiero Oficial - Reunión de Apoderados (${meetingDate})`,
-            html: `
-              <h2>Informe Financiero Oficial</h2>
-              <p>Estimados apoderados,</p>
-              <p>Adjuntamos a este correo el informe financiero oficial y estado de cuenta actualizado, correspondiente a la reunión del <strong>${meetingDate}</strong>.</p>
-              <p>Este informe cuenta con las firmas digitales de la Directiva.</p>
-              <br>
-              <p>Atentamente,</p>
-              <p><strong>La Directiva del Curso</strong></p>
-            `,
+            html: emailHtml,
             attachments: [
               {
                 filename: `Informe_Reunion_${meetingDate}.pdf`,

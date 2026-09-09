@@ -72,10 +72,11 @@ const DebtorsManagement = ({ onBack }) => {
         }
         
         const remainingAmount = debt.status === 'partial' ? (debt.amount - (debt.paidAmount || 0)) : debt.amount;
+        const normalizedStudentName = student ? formatStudentName(student) : debt.studentName;
         
-        grouped[emailKey].debts.push({...debt, remainingAmount});
+        grouped[emailKey].debts.push({...debt, remainingAmount, studentName: normalizedStudentName});
         grouped[emailKey].totalAmount += remainingAmount;
-        grouped[emailKey].students.add(student ? formatStudentName(student) : debt.studentName);
+        grouped[emailKey].students.add(normalizedStudentName);
       });
 
       setDebtors(grouped);
@@ -114,22 +115,58 @@ const DebtorsManagement = ({ onBack }) => {
 
       // 2. Generar el correo en la colección `mail` para que Firebase Extension lo envíe
       const studentsList = Array.from(data.students).join(', ');
-      const debtsHtmlList = data.debts.map(d => `<li>${d.title} (Alumno: ${d.studentName}): <strong>$${d.amount}</strong></li>`).join('');
       
+      const debtsHtmlList = data.debts.map(d => {
+        const amountDisplay = d.status === 'partial' 
+          ? `<strong>$${d.remainingAmount}</strong> <span style="font-size:12px; color:#666;">(Saldo Restante)</span>` 
+          : `<strong>$${d.remainingAmount || d.amount}</strong>`;
+        return `<li style="margin-bottom: 8px; padding: 10px; background: #f9f9f9; border-left: 4px solid #f59e0b; border-radius: 4px;">
+          <span style="display:block; font-weight:600; color:#333;">${d.title}</span>
+          <span style="display:block; font-size: 13px; color:#555;">Alumno: ${d.studentName}</span>
+          <span style="display:block; margin-top: 4px; color:#b91c1c;">${amountDisplay}</span>
+        </li>`;
+      }).join('');
+      
+      const logoUrl = `${window.location.origin}/LOGOAPPCURSO.jpg`;
+      
+      const emailHtml = `
+        <div style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; max-width: 600px; margin: 0 auto; border: 1px solid #eaeaea; border-radius: 8px; overflow: hidden; box-shadow: 0 4px 6px rgba(0,0,0,0.05);">
+          <div style="background-color: #1e1e2f; padding: 20px; text-align: center;">
+            <img src="${logoUrl}" alt="Control Curso" style="max-height: 70px; margin-bottom: 15px; border-radius: 8px; object-fit: cover;" />
+            <h2 style="color: #ffffff; margin: 0; font-size: 20px; letter-spacing: 0.5px;">Notificación de Cuotas Pendientes</h2>
+          </div>
+          <div style="padding: 30px; background-color: #ffffff;">
+            <p style="font-size: 16px; color: #333333; margin-top: 0;">Estimado Apoderado,</p>
+            <p style="font-size: 15px; color: #555555; line-height: 1.5;">Le recordamos que actualmente mantiene cuotas pendientes de pago en nuestra plataforma por un monto total de <strong style="color: #b91c1c; font-size: 18px;">$${data.totalAmount}</strong>.</p>
+            
+            <div style="margin: 25px 0;">
+              <h3 style="font-size: 14px; text-transform: uppercase; color: #666666; letter-spacing: 1px; border-bottom: 1px solid #eee; padding-bottom: 8px;">Detalle de las cuotas:</h3>
+              <ul style="list-style-type: none; padding: 0; margin: 0;">
+                ${debtsHtmlList}
+              </ul>
+            </div>
+            
+            <div style="background-color: #f0fdf4; border: 1px solid #bbf7d0; padding: 15px; border-radius: 6px; margin-top: 25px;">
+              <p style="margin: 0; font-size: 14px; color: #166534; text-align: center;">
+                Por favor, ingrese a la <strong>plataforma del curso</strong> para subir su comprobante de transferencia lo antes posible para regularizar su situación.
+              </p>
+            </div>
+            
+            <p style="font-size: 14px; color: #888888; margin-top: 30px; margin-bottom: 0;">Atentamente,</p>
+            <p style="font-size: 15px; color: #333333; font-weight: bold; margin-top: 5px;">La Tesorería del Curso</p>
+          </div>
+          <div style="background-color: #f8f9fa; padding: 15px; text-align: center; border-top: 1px solid #eaeaea;">
+            <p style="font-size: 12px; color: #999999; margin: 0;">Este es un mensaje automático generado por la plataforma del curso.</p>
+          </div>
+        </div>
+      `;
+
       await addDoc(collection(db, 'mail'), {
         to: data.emailsArray,
         message: {
-          subject: "Aviso Urgente: Cuotas Pendientes - Directiva del Curso",
+          subject: "Aviso Urgente: Cuotas Pendientes - Tesorería del Curso",
           text: `Estimado Apoderado, le recordamos que tiene un saldo pendiente de $${data.totalAmount} asociado a los alumnos: ${studentsList}. Por favor, ingrese a la plataforma para regularizar su situación.`,
-          html: `
-            <h2>Aviso de Cobro Pendiente</h2>
-            <p>Estimado Apoderado,</p>
-            <p>Le recordamos que tiene cuotas pendientes de pago por un total de <strong>$${data.totalAmount}</strong>.</p>
-            <p><strong>Detalle de cuotas:</strong></p>
-            <ul>${debtsHtmlList}</ul>
-            <p>Por favor, ingrese a la plataforma del curso para subir su comprobante de transferencia lo antes posible.</p>
-            <p>Atte. <br>La Directiva del Curso</p>
-          `
+          html: emailHtml
         }
       });
 
