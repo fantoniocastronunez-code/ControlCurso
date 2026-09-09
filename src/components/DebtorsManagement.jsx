@@ -175,19 +175,39 @@ const DebtorsManagement = ({ onBack }) => {
                     </p>
                   )}
                   <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem', marginTop: '0.5rem' }}>
-                    Alumnos: {Array.from(data.students).join(', ')}
+                    Alumnos a cargo: {Array.from(data.students).join(', ')}
                   </p>
                   
-                  <div style={{ marginTop: '1rem' }}>
-                    <p style={{ fontSize: '0.85rem', fontWeight: 'bold', marginBottom: '0.5rem' }}>Detalle:</p>
-                    <ul style={{ margin: 0, paddingLeft: '1.2rem', color: 'var(--text-main)', fontSize: '0.85rem' }}>
-                      {data.debts.map(d => (
-                        <li key={d.id} style={{ marginBottom: '0.25rem' }}>
-                          {d.title} ({d.studentName}): <strong>{formatMoney(d.amount)}</strong>
-                          {d.urgentNotice && <span style={{ color: 'var(--warning)', marginLeft: '0.5rem', fontSize: '0.75rem' }}>(Notificado)</span>}
-                        </li>
-                      ))}
-                    </ul>
+                  <div style={{ marginTop: '1.5rem' }}>
+                    <p style={{ fontSize: '0.85rem', fontWeight: 'bold', marginBottom: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--primary)' }}>Detalle por Alumno:</p>
+                    
+                    {(() => {
+                      const debtsByStudent = {};
+                      data.debts.forEach(d => {
+                        if (!debtsByStudent[d.studentName]) debtsByStudent[d.studentName] = [];
+                        debtsByStudent[d.studentName].push(d);
+                      });
+                      
+                      return Object.entries(debtsByStudent).map(([studentName, studentDebts]) => {
+                        const studentTotal = studentDebts.reduce((sum, d) => sum + d.amount, 0);
+                        return (
+                          <div key={studentName} style={{ marginBottom: '1rem', padding: '0.75rem', backgroundColor: 'rgba(255,255,255,0.03)', borderRadius: 'var(--radius-sm)' }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.5rem', alignItems: 'center' }}>
+                              <strong style={{ fontSize: '0.95rem', color: 'var(--text-main)' }}>{studentName}</strong>
+                              <span style={{ fontSize: '0.85rem', fontWeight: 'bold', color: 'var(--danger)' }}>Total: {formatMoney(studentTotal)}</span>
+                            </div>
+                            <ul style={{ margin: 0, paddingLeft: '1.2rem', color: 'var(--text-muted)', fontSize: '0.85rem' }}>
+                              {studentDebts.map(d => (
+                                <li key={d.id} style={{ marginBottom: '0.25rem' }}>
+                                  {d.title}: <strong style={{ color: 'var(--text-main)' }}>{formatMoney(d.amount)}</strong>
+                                  {d.urgentNotice && <span style={{ color: 'var(--warning)', marginLeft: '0.5rem', fontSize: '0.75rem' }}>(Notificado)</span>}
+                                </li>
+                              ))}
+                            </ul>
+                          </div>
+                        );
+                      });
+                    })()}
                   </div>
                 </div>
 
