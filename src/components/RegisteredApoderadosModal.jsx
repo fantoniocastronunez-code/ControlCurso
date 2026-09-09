@@ -40,7 +40,7 @@ const RegisteredApoderadosModal = ({ isOpen, onClose, apoderados }) => {
         width: '100%',
         maxWidth: '500px',
         maxHeight: '85vh',
-        backgroundColor: 'var(--bg-secondary)',
+        backgroundColor: '#1e293b', /* Solid background instead of transparent */
         display: 'flex',
         flexDirection: 'column',
         borderRadius: 'var(--radius-lg)'
