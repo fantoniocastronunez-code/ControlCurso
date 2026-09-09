@@ -109,7 +109,9 @@ const StudentDetailModal = ({ student, usersMap = {}, onClose, isModal = false }
       const safeName = (student.name || 'alumno').replace(/[^a-zA-Z0-9]/g, '_');
       const file = new File([blob], `historial_${safeName}.png`, { type: 'image/png' });
 
-      if (navigator.canShare && navigator.canShare({ files: [file] })) {
+      const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+
+      if (isMobile && navigator.canShare && navigator.canShare({ files: [file] })) {
         await navigator.share({
           files: [file],
           title: `Historial de ${formatStudentName(student)}`,
@@ -120,7 +122,7 @@ const StudentDetailModal = ({ student, usersMap = {}, onClose, isModal = false }
         link.href = image;
         link.download = `historial_${safeName}.png`;
         link.click();
-        await showAlert("Ficha descargada exitosamente. Puedes compartirla por WhatsApp.");
+        await showAlert("Ficha descargada exitosamente.");
       }
       if (actionsDiv) actionsDiv.style.display = 'flex';
     } catch (error) {
