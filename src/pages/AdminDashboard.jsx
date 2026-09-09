@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { LogOut, Users, DollarSign, Activity, FileText, RefreshCw, Trash2, CreditCard, Search } from 'lucide-react';
+import { LogOut, Users, DollarSign, Activity, FileText, RefreshCw, Trash2, CreditCard, Search, Menu, X, PlusCircle, Settings, AlertTriangle } from 'lucide-react';
 import { db } from '../firebase/config';
 import { collection, getDocs, query, where, addDoc, doc, setDoc, getDoc } from 'firebase/firestore';
 import { useNavigate } from 'react-router-dom';
@@ -28,6 +28,7 @@ const AdminDashboard = () => {
   const [currentView, setCurrentView] = useState('dashboard');
   const [selectedExpenseId, setSelectedExpenseId] = useState(null);
   const [isSearchOpen, setIsSearchOpen] = useState(false);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [stats, setStats] = useState({
     activeStudents: 0,
     registeredApoderados: 0,
@@ -378,11 +379,49 @@ const AdminDashboard = () => {
   };
 
   return (
-    <div className="container animate-fade-in">
-      <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem', flexWrap: 'wrap', gap: '1rem' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-          <img 
-            src="/LOGOAPPCURSO.jpg" 
+    <>
+      <div className={`sidebar-overlay ${isSidebarOpen ? 'open' : ''}`} onClick={() => setIsSidebarOpen(false)}></div>
+      <div className={`sidebar ${isSidebarOpen ? 'open' : ''}`}>
+        <button className="sidebar-close-btn" onClick={() => setIsSidebarOpen(false)}>
+          <X size={24} />
+        </button>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginBottom: '2rem' }}>
+          <img src="/LOGOAPPCURSO.jpg" alt="Logo" style={{ width: '50px', height: '50px', borderRadius: '8px', objectFit: 'cover' }} onError={(e) => e.target.style.display = 'none'} />
+          <h3 style={{ margin: 0 }}>Menú</h3>
+        </div>
+        
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+          <button onClick={() => { setCurrentView('dashboard'); setIsSidebarOpen(false); }} className="btn btn-outline" style={{ justifyContent: 'flex-start' }}>
+            <Activity size={18} /> Panel Principal
+          </button>
+          <button onClick={() => { setCurrentView('meeting_report'); setIsSidebarOpen(false); }} className="btn btn-outline" style={{ borderColor: '#8b5cf6', color: '#8b5cf6', justifyContent: 'flex-start' }}>
+            <FileText size={18} /> Informe Reunión
+          </button>
+          <button onClick={() => { setCurrentView('outcomes'); setIsSidebarOpen(false); }} className="btn btn-outline" style={{ borderColor: 'rgba(239, 68, 68, 0.3)', color: 'var(--danger)', justifyContent: 'flex-start' }}>
+            <DollarSign size={18} /> Historial Gastos
+          </button>
+          <button onClick={() => { setCurrentView('funds'); setIsSidebarOpen(false); }} className="btn btn-outline" style={{ justifyContent: 'flex-start' }}>
+            <CreditCard size={18} /> Administrar Fondos
+          </button>
+          <button onClick={() => { setCurrentView('events'); setIsSidebarOpen(false); }} className="btn btn-outline" style={{ borderColor: 'rgba(16, 185, 129, 0.3)', color: 'var(--success)', justifyContent: 'flex-start' }}>
+            <Activity size={18} /> Eventos y Ventas
+          </button>
+          {role === 'superadmin' && (
+            <button onClick={() => { setCurrentView('users'); setIsSidebarOpen(false); }} className="btn btn-outline" style={{ borderColor: 'var(--warning)', color: 'var(--warning)', justifyContent: 'flex-start' }}>
+              <Users size={18} /> Admins
+            </button>
+          )}
+        </div>
+      </div>
+
+      <div className="container animate-fade-in">
+        <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem', flexWrap: 'wrap', gap: '1rem' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+            <button onClick={() => setIsSidebarOpen(true)} className="hamburger-btn">
+              <Menu size={24} />
+            </button>
+            <img 
+              src="/LOGOAPPCURSO.jpg" 
             alt="Logo" 
             style={{ width: '75px', height: '75px', borderRadius: '8px', objectFit: 'cover', backgroundColor: 'white', padding: 0, border: '1px solid rgba(255,255,255,0.1)' }} 
             onError={(e) => e.target.style.display = 'none'}
@@ -587,47 +626,7 @@ const AdminDashboard = () => {
                 </div>
               )}
 
-              <div className="glass-panel" style={{ padding: '2rem', marginBottom: '2rem' }}>
-                <h3>Gestión Rápida</h3>
-                <p style={{ color: 'var(--text-muted)', marginBottom: '1.5rem' }}>Selecciona una acción para administrar el curso.</p>
-                
-                <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>
-                  <button onClick={() => setCurrentView('meeting_report')} className="btn btn-primary" style={{ backgroundColor: '#8b5cf6', borderColor: '#8b5cf6', boxShadow: '0 4px 14px 0 rgba(139, 92, 246, 0.4)', gap: '0.5rem' }}>
-                    <FileText size={18} /> Informe Reunión Apoderados
-                  </button>
 
-                  <button onClick={() => setCurrentView('expenses_add')} className="btn btn-primary">
-                    Cobrar Cuota
-                  </button>
-                  <button onClick={() => setCurrentView('outcomes')} className="btn btn-outline" style={{ color: 'var(--danger)', borderColor: 'rgba(239, 68, 68, 0.3)' }}>
-                    Historial de Gastos
-                  </button>
-                  <button onClick={() => setCurrentView('debtors')} className="btn btn-outline" style={{ color: 'var(--warning)', borderColor: 'rgba(245, 158, 11, 0.3)' }}>
-                    Apoderados en Deuda
-                  </button>
-                  <button onClick={() => setCurrentView('students')} className="btn btn-outline">
-                    Gestionar Alumnos
-                  </button>
-                  <button onClick={() => setCurrentView('funds')} className="btn btn-outline">
-                    Administrar Fondos
-                  </button>
-                  <button onClick={() => setCurrentView('events')} className="btn btn-outline" style={{ color: 'var(--success)', borderColor: 'rgba(16, 185, 129, 0.3)' }}>
-                    Eventos y Ventas
-                  </button>
-                  <button onClick={() => setCurrentView('settings')} className="btn btn-outline" style={{ color: '#a855f7', borderColor: 'rgba(168, 85, 247, 0.3)' }}>
-                    Configuración del Curso
-                  </button>
-                  {role === 'superadmin' && (
-                     <button 
-                       onClick={() => setCurrentView('users')}
-                       className="btn btn-outline" 
-                       style={{ borderColor: 'var(--warning)', color: 'var(--warning)' }}
-                     >
-                       Gestionar Administradores
-                     </button>
-                  )}
-                </div>
-              </div>
 
               <div className="glass-panel" style={{ padding: '2rem' }}>
                 <h3 style={{ marginBottom: '1.5rem' }}>Últimas Cuotas Emitidas</h3>
@@ -711,7 +710,42 @@ const AdminDashboard = () => {
           onClose={() => setIsSearchOpen(false)}
         />
       )}
+
+      {/* Liquid Bottom Navigation */}
+      <nav className="bottom-nav">
+        {(() => {
+          const navItems = [
+            { id: 'expenses_add', icon: PlusCircle, label: 'Crear Cuota' },
+            { id: 'students', icon: Users, label: 'Alumnos' },
+            { id: 'debtors', icon: AlertTriangle, label: 'Deudas' },
+            { id: 'settings', icon: Settings, label: 'Config' }
+          ];
+          
+          const activeIndex = navItems.findIndex(item => item.id === currentView);
+          
+          const indicatorStyle = {
+            left: activeIndex >= 0 ? `calc(${activeIndex * 25}% + 12.5% - 25px)` : '-100px'
+          };
+          
+          return (
+            <>
+              <div className="liquid-indicator" style={indicatorStyle}></div>
+              {navItems.map((item) => (
+                <button
+                  key={item.id}
+                  className={`bottom-nav-item ${currentView === item.id ? 'active' : ''}`}
+                  onClick={() => setCurrentView(item.id)}
+                >
+                  <item.icon size={22} className="nav-icon" />
+                  <span className="nav-text">{item.label}</span>
+                </button>
+              ))}
+            </>
+          );
+        })()}
+      </nav>
     </div>
+    </>
   );
 };
 

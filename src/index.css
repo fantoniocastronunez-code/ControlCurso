@@ -308,3 +308,167 @@ h1, h2, h3, h4, h5, h6 {
   }
 }
 
+/* =========================================
+   Sidebar & Hamburger Menu
+   ========================================= */
+.sidebar-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  background-color: rgba(0, 0, 0, 0.5);
+  backdrop-filter: blur(4px);
+  z-index: 998;
+  opacity: 0;
+  visibility: hidden;
+  transition: all 0.3s ease;
+}
+.sidebar-overlay.open {
+  opacity: 1;
+  visibility: visible;
+}
+
+.sidebar {
+  position: fixed;
+  top: 0;
+  left: -280px; /* Slide from left */
+  width: 280px;
+  height: 100vh;
+  background: var(--bg-card);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border-right: 1px solid var(--border-color);
+  z-index: 999;
+  overflow-y: auto;
+  transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  padding: 2rem 1.5rem;
+  box-shadow: var(--shadow-lg);
+}
+.sidebar.open {
+  transform: translateX(280px);
+}
+
+.sidebar-close-btn {
+  position: absolute;
+  top: 1rem;
+  right: 1rem;
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  padding: 0.5rem;
+  transition: color 0.2s;
+}
+.sidebar-close-btn:hover {
+  color: var(--text-main);
+}
+
+.hamburger-btn {
+  background: none;
+  border: none;
+  color: var(--text-main);
+  cursor: pointer;
+  padding: 0.5rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-right: 0.5rem;
+}
+
+/* =========================================
+   Liquid Bottom Navigation (Mobile Only)
+   ========================================= */
+.bottom-nav {
+  display: none;
+}
+
+@media (max-width: 768px) {
+  /* Prevent content hiding behind bottom nav */
+  body {
+    padding-bottom: 5rem;
+  }
+  
+  .hamburger-btn {
+    display: block;
+  }
+
+  .bottom-nav {
+    display: flex;
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    width: 100%;
+    height: 4.5rem;
+    background: rgba(15, 23, 42, 0.85); /* Glassmorphism background */
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    border-top: 1px solid var(--border-color);
+    z-index: 900;
+    justify-content: space-around;
+    align-items: center;
+    padding: 0 1rem;
+    box-shadow: 0 -4px 30px rgba(0, 0, 0, 0.2);
+  }
+
+  .bottom-nav-item {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    width: 25%;
+    height: 100%;
+    color: var(--text-muted);
+    background: transparent;
+    border: none;
+    z-index: 2;
+    cursor: pointer;
+    transition: all 0.3s ease;
+  }
+  
+  .bottom-nav-item .nav-icon {
+    transition: all 0.3s cubic-bezier(0.68, -0.55, 0.265, 1.55);
+    z-index: 2;
+  }
+  
+  .bottom-nav-item .nav-text {
+    font-size: 0.7rem;
+    font-weight: 500;
+    margin-top: 0.25rem;
+    opacity: 0;
+    transform: translateY(10px);
+    transition: all 0.3s ease;
+    position: absolute;
+    bottom: 8px;
+  }
+
+  .bottom-nav-item.active {
+    color: var(--primary);
+  }
+
+  .bottom-nav-item.active .nav-icon {
+    transform: translateY(-16px);
+    color: white;
+  }
+
+  .bottom-nav-item.active .nav-text {
+    opacity: 1;
+    transform: translateY(0);
+  }
+
+  /* Liquid Drop Indicator */
+  .liquid-indicator {
+    position: absolute;
+    top: -18px;
+    width: 50px;
+    height: 50px;
+    background: var(--primary);
+    border-radius: 50%;
+    border: 6px solid var(--bg-main); /* Matches app background to look like a cutout */
+    transition: left 0.3s cubic-bezier(0.68, -0.55, 0.265, 1.55);
+    z-index: 1;
+    /* Adding subtle glow */
+    box-shadow: 0 4px 14px 0 rgba(99, 102, 241, 0.6);
+  }
+}
