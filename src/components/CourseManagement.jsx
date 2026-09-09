@@ -191,14 +191,14 @@ const CourseManagement = () => {
         </form>
       )}
 
-      <div className="table-responsive">
-        <table className="table">
+      <div className="table-responsive glass-panel" style={{ overflowX: 'auto' }}>
+        <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
           <thead>
-            <tr>
-              <th>Curso</th>
-              <th>Año</th>
-              <th>Código Invitación</th>
-              <th>Acciones</th>
+            <tr style={{ borderBottom: '1px solid var(--border-color)', backgroundColor: 'rgba(255,255,255,0.03)' }}>
+              <th style={{ padding: '1rem' }}>Curso</th>
+              <th style={{ padding: '1rem' }}>Año</th>
+              <th style={{ padding: '1rem' }}>Código Invitación</th>
+              <th style={{ padding: '1rem' }}>Acciones</th>
             </tr>
           </thead>
           <tbody>
@@ -210,13 +210,13 @@ const CourseManagement = () => {
               </tr>
             ) : (
               courses.map(course => (
-                <tr key={course.id}>
-                  <td>
+                <tr key={course.id} style={{ borderBottom: '1px solid var(--border-color)' }}>
+                  <td style={{ padding: '1rem' }}>
                     <strong>{course.name}</strong>
                     {course.grade && <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>{course.grade}</div>}
                   </td>
-                  <td>{course.year}</td>
-                  <td>
+                  <td style={{ padding: '1rem' }}>{course.year}</td>
+                  <td style={{ padding: '1rem' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                       <Key size={14} style={{ color: 'var(--primary)' }} />
                       <span style={{ fontFamily: 'monospace', letterSpacing: '1px', padding: '0.2rem 0.5rem', backgroundColor: 'rgba(99,102,241,0.1)', borderRadius: '4px' }}>
@@ -224,13 +224,13 @@ const CourseManagement = () => {
                       </span>
                     </div>
                   </td>
-                  <td>
+                  <td style={{ padding: '1rem' }}>
                     <div style={{ display: 'flex', gap: '0.5rem' }}>
-                      <button onClick={() => handleEdit(course)} className="btn-icon" title="Editar">
-                        <Edit2 size={18} style={{ color: 'var(--primary)' }} />
+                      <button onClick={() => handleEdit(course)} className="btn-icon" style={{ padding: '0.5rem', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(255,255,255,0.05)', border: '1px solid var(--border-color)', borderRadius: 'var(--radius-sm)', cursor: 'pointer' }} title="Editar">
+                        <Edit2 size={16} style={{ color: 'var(--primary)' }} />
                       </button>
-                      <button onClick={() => handleDelete(course.id)} className="btn-icon" title="Eliminar">
-                        <Trash2 size={18} style={{ color: 'var(--danger)' }} />
+                      <button onClick={() => handleDelete(course.id)} className="btn-icon" style={{ padding: '0.5rem', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(239, 68, 68, 0.05)', border: '1px solid rgba(239, 68, 68, 0.2)', borderRadius: 'var(--radius-sm)', cursor: 'pointer' }} title="Eliminar">
+                        <Trash2 size={16} style={{ color: 'var(--danger)' }} />
                       </button>
                     </div>
                   </td>

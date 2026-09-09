@@ -263,7 +263,7 @@ const ApoderadoDashboard = () => {
       const debtRef = doc(db, 'debts', payingDebt.id);
       await updateDoc(debtRef, {
         status: 'review', // Pasa a revisión del admin
-        paidAmount: parseFloat(paidAmount),
+        paidAmount: (payingDebt.paidAmount || 0) + parseFloat(paidAmount),
         receiptUrl: downloadURL,
         paidAt: new Date().toISOString()
       });
@@ -500,29 +500,29 @@ const ApoderadoDashboard = () => {
                 ) : (
                   <div style={{ display: 'grid', gap: '1rem' }}>
                     {studentDebts.map(debt => {
-                      const remainingAmount = debt.status === 'partial' 
-                        ? Math.max(0, debt.amount - (debt.paidAmount || 0)) 
-                        : debt.amount;
+                      const paidAmt = debt.paidAmount || 0;
+                      const remainingAmount = Math.max(0, debt.amount - paidAmt);
+                      const isPartial = paidAmt > 0 && remainingAmount > 0;
                       
                       return (
                       <div key={debt.id} style={{ 
                         display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '1rem', padding: '1rem', backgroundColor: 'rgba(255,255,255,0.03)', borderRadius: 'var(--radius-md)', 
-                        borderLeft: `4px solid ${debt.status === 'paid' ? 'var(--success)' : debt.status === 'review' ? 'var(--warning)' : debt.status === 'partial' ? '#eab308' : 'var(--danger)'}` 
+                        borderLeft: `4px solid ${debt.status === 'paid' ? 'var(--success)' : debt.status === 'review' ? 'var(--warning)' : (debt.status === 'partial' || isPartial) ? '#eab308' : 'var(--danger)'}` 
                       }}>
                         <div>
                           <p style={{ fontWeight: '500', fontSize: '1.1rem', marginBottom: '0.2rem' }}>{debt.title}</p>
                           <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>
-                            {debt.status === 'partial' ? `Saldo Restante: ` : `Monto de la cuota: `} <strong>${remainingAmount}</strong> 
-                            {debt.status === 'partial' && debt.paidAmount > 0 && <span style={{opacity: 0.7}}> (Pagado: ${debt.paidAmount})</span>}
+                            {isPartial ? `Saldo Restante: ` : `Monto de la cuota: `} <strong>${isPartial ? remainingAmount : debt.amount}</strong> 
+                            {paidAmt > 0 && <span style={{opacity: 0.7}}> (Pagado: ${paidAmt})</span>}
                             <span> • Emitida: {debt.date}</span>
                           </p>
                         </div>
                         
                         <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-                          {(debt.status === 'pending' || debt.status === 'partial') && (
+                          {(debt.status === 'pending' || debt.status === 'partial' || isPartial) && (
                             <>
-                              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: debt.status === 'partial' ? '#eab308' : 'var(--danger)', fontWeight: '500' }}>
-                                <AlertCircle size={18} /> {debt.status === 'partial' ? 'Pago Parcial (Saldo Pendiente)' : 'Por Pagar'}
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: (debt.status === 'partial' || isPartial) ? '#eab308' : 'var(--danger)', fontWeight: '500' }}>
+                                <AlertCircle size={18} /> {(debt.status === 'partial' || isPartial) ? 'Pago Parcial (Saldo Pendiente)' : 'Por Pagar'}
                               </div>
                               <button 
                                 onClick={() => {
