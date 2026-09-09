@@ -510,9 +510,22 @@ const StudentManagement = ({ onBack }) => {
                     </td>
                     <td style={{ padding: '1rem', color: 'var(--text-muted)' }}>{s.rut || '-'}</td>
                     <td style={{ padding: '1rem', color: 'var(--text-muted)' }}>
-                      {s.apoderadoEmails?.length > 0 
-                        ? s.apoderadoEmails.map(email => usersMap[email] || email).join(', ') 
-                        : (s.apoderadoEmail ? (usersMap[s.apoderadoEmail] || s.apoderadoEmail) : 'Sin apoderado')}
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
+                        {(s.apoderadoEmails?.length > 0 ? s.apoderadoEmails : (s.apoderadoEmail ? [s.apoderadoEmail] : [])).length > 0 
+                          ? (s.apoderadoEmails?.length > 0 ? s.apoderadoEmails : [s.apoderadoEmail]).map((email, idx) => (
+                              <div key={idx} style={{ lineHeight: '1.2' }}>
+                                <span style={{ color: 'var(--text-main)', fontWeight: '500' }}>
+                                  {usersMap[email] || 'Apoderado sin nombre'}
+                                </span>
+                                <br />
+                                <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+                                  {email}
+                                </span>
+                              </div>
+                            ))
+                          : 'Sin apoderado'
+                        }
+                      </div>
                     </td>
                     <td style={{ padding: '1rem' }}>
                       {s.balance > 0 ? (
