@@ -710,41 +710,41 @@ const AdminDashboard = () => {
           onClose={() => setIsSearchOpen(false)}
         />
       )}
-
-      {/* Liquid Bottom Navigation */}
-      <nav className="bottom-nav">
-        {(() => {
-          const navItems = [
-            { id: 'expenses_add', icon: PlusCircle, label: 'Crear Cuota' },
-            { id: 'students', icon: Users, label: 'Alumnos' },
-            { id: 'debtors', icon: AlertTriangle, label: 'Deudas' },
-            { id: 'settings', icon: Settings, label: 'Config' }
-          ];
-          
-          const activeIndex = navItems.findIndex(item => item.id === currentView);
-          
-          const indicatorStyle = {
-            left: activeIndex >= 0 ? `calc(${activeIndex * 25}% + 12.5% - 25px)` : '-100px'
-          };
-          
-          return (
-            <>
-              <div className="liquid-indicator" style={indicatorStyle}></div>
-              {navItems.map((item) => (
-                <button
-                  key={item.id}
-                  className={`bottom-nav-item ${currentView === item.id ? 'active' : ''}`}
-                  onClick={() => setCurrentView(item.id)}
-                >
-                  <item.icon size={22} className="nav-icon" />
-                  <span className="nav-text">{item.label}</span>
-                </button>
-              ))}
-            </>
-          );
-        })()}
-      </nav>
     </div>
+
+    {/* Liquid Bottom Navigation */}
+    <nav className="bottom-nav">
+      {(() => {
+        const navItems = [
+          { id: 'expenses_add', icon: PlusCircle, label: 'Crear Cuota' },
+          { id: 'students', icon: Users, label: 'Alumnos' },
+          { id: 'debtors', icon: AlertTriangle, label: 'Deudas' },
+          { id: 'settings', icon: Settings, label: 'Config' }
+        ];
+        
+        const activeIndex = navItems.findIndex(item => item.id === currentView);
+        
+        const indicatorStyle = {
+          left: activeIndex >= 0 ? `calc(${activeIndex * 25}% + 12.5% - 25px)` : '-100px'
+        };
+        
+        return (
+          <>
+            <div className="liquid-indicator" style={indicatorStyle}></div>
+            {navItems.map((item) => (
+              <button
+                key={item.id}
+                className={`bottom-nav-item ${currentView === item.id ? 'active' : ''}`}
+                onClick={() => setCurrentView(item.id)}
+              >
+                <item.icon size={22} className="nav-icon" />
+                <span className="nav-text">{item.label}</span>
+              </button>
+            ))}
+          </>
+        );
+      })()}
+    </nav>
     </>
   );
 };
