@@ -19,6 +19,7 @@ import FundHistoryModal from '../components/FundHistoryModal';
 import StudentSearchModal from '../components/StudentSearchModal';
 import MeetingReport from '../components/MeetingReport';
 import InstallAppGuide from '../components/InstallAppGuide';
+import RegisteredApoderadosModal from '../components/RegisteredApoderadosModal';
 
 const AdminDashboard = () => {
   const { user, role, logout } = useAuth();
@@ -35,10 +36,12 @@ const AdminDashboard = () => {
     totalAvailable: 0,
     fundsBalances: [],
     allTransactions: [],
-    realBankBalance: 0
+    realBankBalance: 0,
+    registeredApoderadosList: []
   });
   
   const [selectedFundForHistory, setSelectedFundForHistory] = useState(null);
+  const [isApoderadosModalOpen, setIsApoderadosModalOpen] = useState(false);
   
   // Lista de cuotas
   const [expenses, setExpenses] = useState([]);
@@ -172,9 +175,13 @@ const AdminDashboard = () => {
 
       // 1.5 Apoderados registrados
       let registeredApoderadosCount = 0;
+      let registeredApoderadosList = [];
       if (role === 'superadmin' || role === 'admin') {
         const usersSnap = await getDocs(query(collection(db, 'users'), where('role', '==', 'apoderado')));
         registeredApoderadosCount = usersSnap.size;
+        usersSnap.forEach(doc => {
+          registeredApoderadosList.push({ id: doc.id, ...doc.data() });
+        });
       }
 
       // 2. Cuotas / Gastos
@@ -398,7 +405,8 @@ const AdminDashboard = () => {
         allTransactions,
         cashBalance: calculatedCashBalance,
         transferBalance: calculatedTransferBalance,
-        realBankBalance
+        realBankBalance,
+        registeredApoderadosList
       });
       setExpenses(expensesList);
 
@@ -516,7 +524,14 @@ const AdminDashboard = () => {
                 </div>
 
                 {role === 'superadmin' && (
-                  <div className="glass-panel" style={{ padding: '1.5rem', display: 'flex', alignItems: 'center', gap: '1rem' }}>
+                  <div 
+                    className="glass-panel" 
+                    style={{ padding: '1.5rem', display: 'flex', alignItems: 'center', gap: '1rem', cursor: 'pointer', transition: 'all 0.2s ease' }}
+                    onClick={() => setIsApoderadosModalOpen(true)}
+                    onMouseOver={(e) => e.currentTarget.style.transform = 'translateY(-2px)'}
+                    onMouseOut={(e) => e.currentTarget.style.transform = 'translateY(0)'}
+                    title="Ver lista de apoderados registrados"
+                  >
                     <div style={{ backgroundColor: 'rgba(245, 158, 11, 0.2)', padding: '1rem', borderRadius: '50%', color: 'var(--warning)' }}>
                       <Users size={24} />
                     </div>
@@ -749,16 +764,26 @@ const AdminDashboard = () => {
         <ExpenseDetail expenseId={selectedExpenseId} onBack={() => setCurrentView('dashboard')} />
       ) : null}
 
-      <FundHistoryModal 
-        fund={selectedFundForHistory}
-        transactions={stats.allTransactions || []}
-        onClose={() => setSelectedFundForHistory(null)}
+      {selectedFundForHistory && (
+        <FundHistoryModal 
+          fund={selectedFundForHistory}
+          transactions={stats.allTransactions}
+          onClose={() => setSelectedFundForHistory(null)}
+        />
+      )}
+
+      <RegisteredApoderadosModal 
+        isOpen={isApoderadosModalOpen}
+        onClose={() => setIsApoderadosModalOpen(false)}
+        apoderados={stats.registeredApoderadosList || []}
       />
 
-      <StudentSearchModal 
-        isOpen={isSearchOpen}
-        onClose={() => setIsSearchOpen(false)}
-      />
+      {isSearchOpen && (
+        <StudentSearchModal 
+          isOpen={isSearchOpen}
+          onClose={() => setIsSearchOpen(false)}
+        />
+      )}
     </div>
   );
 };

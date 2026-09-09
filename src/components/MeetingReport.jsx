@@ -9,8 +9,10 @@ import {
 import { formatStudentName } from '../utils/nameUtils';
 import { useModal } from '../context/ModalContext';
 import StudentDetailModal from './StudentDetailModal';
+import SignaturePad from './SignaturePad';
 import html2canvas from 'html2canvas';
 import { jsPDF } from 'jspdf';
+import { addDoc } from 'firebase/firestore';
 
 const MeetingReport = ({ onBack }) => {
   const { showAlert } = useModal();
@@ -42,6 +44,11 @@ const MeetingReport = ({ onBack }) => {
   // Generating states
   const [generatingPdf, setGeneratingPdf] = useState(false);
   const [generatingImage, setGeneratingImage] = useState(false);
+  const [sendingEmail, setSendingEmail] = useState(false);
+  
+  // Signatures
+  const [sigTreasurer, setSigTreasurer] = useState(null);
+  const [sigPresident, setSigPresident] = useState(null);
 
   const reportRef = useRef(null);
 
@@ -527,14 +534,14 @@ const MeetingReport = ({ onBack }) => {
 
         const expDebts = debts.filter(d => d.expenseId === exp.id);
         const expCollected = expDebts.reduce((sum, d) => sum + (d.status === 'paid' ? (d.amount || 0) : (d.paidAmount || 0)), 0);
-        const expExpected = (exp.amount || 0) * (expDebts.length || students.length || 1);
+        const expExpected = (exp.amountPerStudent || exp.amount || 0) * (expDebts.length || students.length || 1);
         const expPct = expExpected > 0 ? ((expCollected / expExpected) * 100).toFixed(0) : 0;
 
         doc.setFont('helvetica', 'normal');
         doc.setFontSize(8);
         doc.setTextColor(textMain[0], textMain[1], textMain[2]);
         doc.text(exp.title || 'Cuota', 18, y + 4);
-        doc.text(formatMoney(exp.amount), 85, y + 4, { align: 'right' });
+        doc.text(formatMoney(exp.amountPerStudent || exp.amount || 0), 85, y + 4, { align: 'right' });
         doc.text(formatMoney(expCollected), 130, y + 4, { align: 'right' });
         doc.setFont('helvetica', 'bold');
         doc.text(`${expPct}%`, pageWidth - 18, y + 4, { align: 'right' });
@@ -584,14 +591,65 @@ const MeetingReport = ({ onBack }) => {
       doc.text('Firma Tesorero(a)', 52.5, sigY + 5, { align: 'center' });
       doc.text('Firma Presidente(a)', pageWidth - 52.5, sigY + 5, { align: 'center' });
 
-      // Save PDF
+      if (sigTreasurer) {
+        doc.addImage(sigTreasurer, 'PNG', 25, sigY - 20, 55, 18);
+      }
+      if (sigPresident) {
+        doc.addImage(sigPresident, 'PNG', pageWidth - 80, sigY - 20, 55, 18);
+      }
+
+      // 1. Descargar PDF localmente
       doc.save(`Informe_Reunion_Apoderados_${meetingDate}.pdf`);
-      await showAlert("¡PDF Oficial generado y descargado con éxito!");
+      
+      // 2. Preparar el envío automático de correos (Trigger Email)
+      setSendingEmail(true);
+      const pdfBase64 = doc.output('datauristring').split(',')[1];
+      
+      const allEmails = new Set();
+      students.forEach(s => {
+        if (s.apoderadoEmails && s.apoderadoEmails.length > 0) {
+          s.apoderadoEmails.forEach(e => allEmails.add(e));
+        } else if (s.apoderadoEmail) {
+          allEmails.add(s.apoderadoEmail);
+        }
+      });
+      
+      const emailList = Array.from(allEmails);
+      
+      if (emailList.length > 0) {
+        await addDoc(collection(db, 'mail'), {
+          to: emailList,
+          message: {
+            subject: `Informe Financiero Oficial - Reunión de Apoderados (${meetingDate})`,
+            html: `
+              <h2>Informe Financiero Oficial</h2>
+              <p>Estimados apoderados,</p>
+              <p>Adjuntamos a este correo el informe financiero oficial y estado de cuenta actualizado, correspondiente a la reunión del <strong>${meetingDate}</strong>.</p>
+              <p>Este informe cuenta con las firmas digitales de la Directiva.</p>
+              <br>
+              <p>Atentamente,</p>
+              <p><strong>La Directiva del Curso</strong></p>
+            `,
+            attachments: [
+              {
+                filename: `Informe_Reunion_${meetingDate}.pdf`,
+                content: pdfBase64,
+                encoding: 'base64'
+              }
+            ]
+          }
+        });
+        await showAlert("¡PDF Oficial generado, descargado y ENVIADO por correo a todos los apoderados!");
+      } else {
+        await showAlert("¡PDF generado y descargado! No se enviaron correos porque no hay apoderados registrados con email.");
+      }
+      
     } catch (error) {
       console.error("Error al generar PDF:", error);
       await showAlert("Hubo un error al generar el PDF.");
     } finally {
       setGeneratingPdf(false);
+      setSendingEmail(false);
     }
   };
 
@@ -689,12 +747,12 @@ const MeetingReport = ({ onBack }) => {
           {/* Export PDF Button */}
           <button 
             onClick={generatePDFReport}
-            disabled={generatingPdf}
+            disabled={generatingPdf || sendingEmail}
             className="btn btn-primary"
             style={{ backgroundColor: 'var(--primary)', display: 'flex', alignItems: 'center', gap: '0.4rem', boxShadow: '0 4px 14px rgba(99, 102, 241, 0.4)' }}
           >
             <Download size={16} />
-            {generatingPdf ? 'Generando PDF...' : 'Descargar PDF Oficial'}
+            {(generatingPdf || sendingEmail) ? 'Generando y Enviando...' : 'Descargar y Enviar a Apoderados'}
           </button>
         </div>
       </div>
@@ -1114,7 +1172,7 @@ const MeetingReport = ({ onBack }) => {
                   const totalCount = expDebts.length || students.length || 1;
 
                   const collected = expDebts.reduce((sum, d) => sum + (d.status === 'paid' ? (d.amount || 0) : (d.paidAmount || 0)), 0);
-                  const expected = (exp.amount || 0) * totalCount;
+                  const expected = (exp.amountPerStudent || exp.amount || 0) * totalCount;
                   const pct = expected > 0 ? ((collected / expected) * 100).toFixed(0) : 0;
 
                   return (
@@ -1134,7 +1192,7 @@ const MeetingReport = ({ onBack }) => {
                         <div>
                           <h4 style={{ margin: 0, fontSize: '1.1rem' }}>{exp.title}</h4>
                           <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>
-                            Valor Cuota: {formatMoney(exp.amount)} • Emitida: {exp.date || '-'}
+                            Valor Cuota: {formatMoney(exp.amountPerStudent || exp.amount || 0)} • Emitida: {exp.date || '-'}
                           </span>
                         </div>
 
@@ -1279,6 +1337,27 @@ const MeetingReport = ({ onBack }) => {
           </div>
         )}
 
+      </div>
+      
+      {/* Signatures Section at the bottom */}
+      <div className="glass-panel" style={{ padding: '1.75rem', marginTop: '1.5rem', border: '1px solid rgba(99, 102, 241, 0.3)' }}>
+        <h3 style={{ margin: '0 0 1rem 0', color: 'var(--text-main)' }}>Firmas Digitales de la Directiva</h3>
+        <p style={{ margin: '0 0 1.5rem 0', color: 'var(--text-muted)', fontSize: '0.9rem' }}>
+          Firmen en los recuadros a continuación. Estas firmas se adjuntarán automáticamente al final del informe en PDF antes de ser enviado a los apoderados.
+        </p>
+        
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '2rem' }}>
+          <SignaturePad 
+            title="Firma Tesorero(a)" 
+            onSave={(b64) => setSigTreasurer(b64)}
+            onClear={() => setSigTreasurer(null)}
+          />
+          <SignaturePad 
+            title="Firma Presidente(a)" 
+            onSave={(b64) => setSigPresident(b64)}
+            onClear={() => setSigPresident(null)}
+          />
+        </div>
       </div>
 
       {/* Complete Student Payment Detail Modal */}

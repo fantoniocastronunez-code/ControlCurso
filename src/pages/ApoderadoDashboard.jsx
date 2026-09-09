@@ -495,7 +495,17 @@ const ApoderadoDashboard = () => {
       ) : (
         <>
           {myStudents.map(student => {
-            const studentDebts = debts.filter(d => d.studentId === student.id && d.status !== 'partial');
+            const allStudentDebts = debts.filter(d => d.studentId === student.id);
+            const studentDebts = allStudentDebts.filter(d => {
+              if (d.status === 'partial') {
+                const baseTitle = d.title.trim();
+                const hasSpecificSaldoRestante = allStudentDebts.some(other => 
+                  other.title.includes('(Saldo Restante)') && other.title.includes(baseTitle)
+                );
+                if (hasSpecificSaldoRestante) return false;
+              }
+              return true;
+            });
             
             return (
               <div key={student.id} className="glass-panel" style={{ padding: '2rem', marginBottom: '2rem' }}>
