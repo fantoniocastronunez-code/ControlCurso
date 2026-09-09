@@ -1,6 +1,7 @@
 import React from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
+import { CourseProvider } from './context/CourseContext';
 import { ModalProvider } from './context/ModalContext';
 import Login from './pages/Login';
 import AdminDashboard from './pages/AdminDashboard';
@@ -10,7 +11,7 @@ import './App.css';
 
 // Componente para proteger rutas según rol
 const ProtectedRoute = ({ children, allowedRoles }) => {
-  const { user, role, loading } = useAuth();
+  const { user, role, userData, loading } = useAuth();
   
   if (loading) return (
     <div className="loading-screen" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100vh', backgroundColor: 'var(--bg-color)' }}>
@@ -20,6 +21,12 @@ const ProtectedRoute = ({ children, allowedRoles }) => {
   );
   
   if (!user) return <Navigate to="/login" replace />;
+
+  const hasNoRoles = userData && (!userData.roles || Object.keys(userData.roles).length === 0);
+  
+  if (hasNoRoles) {
+    return <Navigate to="/login" replace />;
+  }
   
   if (allowedRoles && !allowedRoles.includes(role)) {
     // Redirect based on their role if they try to access something they shouldn't
@@ -30,14 +37,15 @@ const ProtectedRoute = ({ children, allowedRoles }) => {
 };
 
 const AppRoutes = () => {
-  const { user, role } = useAuth();
+  const { user, role, userData } = useAuth();
+  const hasNoRoles = user && userData && (!userData.roles || Object.keys(userData.roles).length === 0);
 
   return (
     <Routes>
       <Route 
         path="/" 
         element={
-          user ? (
+          user && !hasNoRoles ? (
             <Navigate to={role === 'superadmin' || role === 'admin' ? '/admin' : '/apoderado'} replace />
           ) : (
             <Navigate to="/login" replace />
@@ -74,10 +82,12 @@ function App() {
   return (
     <ModalProvider>
       <AuthProvider>
-        <BrowserRouter>
-          <VersionChecker />
-          <AppRoutes />
-        </BrowserRouter>
+        <CourseProvider>
+          <BrowserRouter>
+            <VersionChecker />
+            <AppRoutes />
+          </BrowserRouter>
+        </CourseProvider>
       </AuthProvider>
     </ModalProvider>
   );

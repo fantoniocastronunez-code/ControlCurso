@@ -1,13 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
-import { LogIn, UserPlus } from 'lucide-react';
-import { auth } from '../firebase/config';
+import { LogIn, UserPlus, Key } from 'lucide-react';
+import { auth, db } from '../firebase/config';
 import { signInWithEmailAndPassword, createUserWithEmailAndPassword } from 'firebase/auth';
+import { collection, query, where, getDocs, setDoc, doc } from 'firebase/firestore';
 import InstallAppGuide from '../components/InstallAppGuide';
 
 const Login = () => {
-  const { user, role, loginWithGoogle } = useAuth();
+  const { user, role, userData, loginWithGoogle, logout } = useAuth();
   const navigate = useNavigate();
   
   const [email, setEmail] = useState('');
@@ -15,16 +16,23 @@ const Login = () => {
   const [isRegistering, setIsRegistering] = useState(false);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  
+  const [inviteCode, setInviteCode] = useState('');
+  const [validatingCode, setValidatingCode] = useState(false);
+
+  const hasNoRoles = user && userData && (!userData.roles || Object.keys(userData.roles).length === 0);
 
   useEffect(() => {
-    if (user && role) {
-      if (role === 'superadmin' || role === 'admin') {
+    if (user && role && !hasNoRoles) {
+      // If superadmin, always go to admin panel
+      if (role === 'superadmin' || role === 'admin' || userData?.roles?.['global'] === 'superadmin') {
         navigate('/admin');
       } else {
+        // Here we could check the role of the default course, but for now fallback to apoderado
         navigate('/apoderado');
       }
     }
-  }, [user, role, navigate]);
+  }, [user, role, userData, hasNoRoles, navigate]);
 
   const handleEmailAuth = async (e) => {
     e.preventDefault();
@@ -52,6 +60,101 @@ const Login = () => {
       setLoading(false);
     }
   };
+
+  const handleInviteCodeSubmit = async (e) => {
+    e.preventDefault();
+    setValidatingCode(true);
+    setError('');
+    
+    try {
+      // 1. Check if course exists with this invite code
+      const q = query(collection(db, 'courses'), where('inviteCode', '==', inviteCode.trim()));
+      const snap = await getDocs(q);
+      
+      if (snap.empty) {
+        setError('Código de invitación inválido. Por favor, verifica e intenta nuevamente.');
+        setValidatingCode(false);
+        return;
+      }
+      
+      const course = snap.docs[0];
+      const courseId = course.id;
+      
+      // 2. Add apoderado role to this user for this course
+      const newRoles = { ...(userData.roles || {}) };
+      newRoles[courseId] = 'apoderado';
+      
+      await setDoc(doc(db, 'users', user.uid), {
+        roles: newRoles,
+        role: 'apoderado', // keep for backwards compatibility if needed
+        defaultCourseId: courseId
+      }, { merge: true });
+      
+      window.location.reload();
+      
+    } catch (err) {
+      console.error(err);
+      setError('Hubo un error al validar el código.');
+    } finally {
+      setValidatingCode(false);
+    }
+  };
+
+  if (hasNoRoles) {
+    return (
+      <div className="container" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '100vh', padding: '1rem' }}>
+        <div className="glass-panel animate-fade-in" style={{ padding: '3rem 2rem', textAlign: 'center', maxWidth: '400px', width: '100%' }}>
+          
+          <div style={{ marginBottom: '2rem' }}>
+            <div style={{ backgroundColor: 'rgba(99, 102, 241, 0.1)', width: '80px', height: '80px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 1.5rem' }}>
+              <Key size={40} style={{ color: 'var(--primary)' }} />
+            </div>
+            <h2 className="text-gradient" style={{ fontSize: '1.8rem', marginBottom: '0.5rem' }}>Únete a tu Curso</h2>
+            <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem' }}>Ingresa el código de invitación proporcionado por la directiva de tu curso.</p>
+          </div>
+
+          {error && (
+            <div style={{ backgroundColor: 'rgba(239, 68, 68, 0.1)', color: 'var(--danger)', padding: '0.75rem', borderRadius: 'var(--radius-sm)', marginBottom: '1rem', fontSize: '0.9rem' }}>
+              {error}
+            </div>
+          )}
+
+          <form onSubmit={handleInviteCodeSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1rem', marginBottom: '1.5rem', textAlign: 'left' }}>
+            <div className="input-group" style={{ marginBottom: 0 }}>
+              <label className="input-label">Código de Invitación</label>
+              <input 
+                type="text" 
+                required
+                className="input-field" 
+                placeholder="Ej: KINDER-B-CALDR-2026"
+                value={inviteCode}
+                onChange={(e) => setInviteCode(e.target.value.toUpperCase())}
+                style={{ textTransform: 'uppercase', letterSpacing: '1px', textAlign: 'center', fontWeight: 'bold' }}
+              />
+            </div>
+            
+            <button 
+              type="submit" 
+              className="btn btn-primary" 
+              style={{ width: '100%', padding: '0.8rem', marginTop: '0.5rem', justifyContent: 'center' }}
+              disabled={validatingCode || !inviteCode.trim()}
+            >
+              {validatingCode ? 'Validando...' : 'Unirse al Curso'}
+            </button>
+          </form>
+
+          <button 
+            onClick={logout}
+            type="button"
+            className="btn btn-outline" 
+            style={{ width: '100%', padding: '0.8rem', justifyContent: 'center', borderColor: 'var(--border-color)', color: 'var(--text-muted)' }}
+          >
+            Volver / Cerrar Sesión
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="container" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '100vh', padding: '1rem' }}>
@@ -84,12 +187,9 @@ const Login = () => {
           <p style={{ marginBottom: '0.5rem', lineHeight: '1.4' }}>Sigue estos sencillos pasos para vincularte:</p>
           <ol style={{ margin: 0, paddingLeft: '1.5rem', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
             <li>Crea una cuenta o ingresa más rápido usando Google.</li>
-            <li>Dentro del portal, busca a tu hijo/a por su apellido.</li>
-            <li>Haz clic en "Soy su apoderado" e ingresa su RUT para confirmar.</li>
+            <li>Ingresa el código de invitación entregado por la directiva.</li>
+            <li>Dentro del portal, busca a tu hijo/a por su apellido y confírmalo con su RUT.</li>
           </ol>
-          <div style={{ marginTop: '0.75rem', padding: '0.5rem', backgroundColor: 'rgba(59, 130, 246, 0.15)', borderRadius: 'var(--radius-sm)', fontSize: '0.8rem', borderLeft: '3px solid var(--primary)', lineHeight: '1.4' }}>
-            <strong>Nota de Privacidad:</strong> El RUT se solicita como método de seguridad para asegurar que solo los apoderados correspondientes tengan acceso a las finanzas de cada alumno.
-          </div>
         </div>
 
         {error && (
