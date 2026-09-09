@@ -1,11 +1,14 @@
 import React, { useEffect, useState } from 'react';
 import { db } from '../firebase/config';
-import { collection, getDocs, doc, setDoc, deleteDoc, updateDoc } from 'firebase/firestore';
+import { collection, getDocs, doc, setDoc, deleteDoc, updateDoc, query, where } from 'firebase/firestore';
 import { ArrowLeft, CheckCircle, Trash2, TrendingDown, Edit2, Calculator, CheckSquare, Sparkles, RotateCcw, Save, AlertTriangle, ShieldCheck, Check } from 'lucide-react';
 import { useModal } from '../context/ModalContext';
 
+import { useCourse } from '../context/CourseContext';
+
 const OutcomeManagement = ({ onBack }) => {
   const { showAlert, showConfirm } = useModal();
+  const { selectedCourse } = useCourse();
   const [outcomes, setOutcomes] = useState([]);
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState('');
@@ -32,10 +35,11 @@ const OutcomeManagement = ({ onBack }) => {
 
   useEffect(() => {
     const fetchData = async () => {
+      if (!selectedCourse) return;
       try {
         // 1. Obtener Gastos
-        const outcomesCollection = collection(db, 'outcomes');
-        const snapshot = await getDocs(outcomesCollection);
+        const qOutcomes = query(collection(db, 'outcomes'), where('courseId', '==', selectedCourse.id));
+        const snapshot = await getDocs(qOutcomes);
         const list = snapshot.docs.map(doc => ({
           id: doc.id,
           ...doc.data()
@@ -45,8 +49,8 @@ const OutcomeManagement = ({ onBack }) => {
         setOutcomes(list);
 
         // 2. Obtener Fondos
-        const fundsCollection = collection(db, 'funds');
-        const fundsSnapshot = await getDocs(fundsCollection);
+        const qFunds = query(collection(db, 'funds'), where('courseId', '==', selectedCourse.id));
+        const fundsSnapshot = await getDocs(qFunds);
         const fundsList = fundsSnapshot.docs.map(doc => ({
           id: doc.id,
           ...doc.data()
@@ -60,7 +64,7 @@ const OutcomeManagement = ({ onBack }) => {
       }
     };
     fetchData();
-  }, []);
+  }, [selectedCourse]);
 
   const handleAddOutcome = async (e) => {
     e.preventDefault();
@@ -78,6 +82,7 @@ const OutcomeManagement = ({ onBack }) => {
         amount: parseFloat(newAmount),
         paymentMethod: newMethod,
         fundId: selectedFundId || 'general',
+        courseId: selectedCourse.id,
         date: newDate || new Date().toISOString().split('T')[0],
         createdAt: new Date().toISOString()
       };

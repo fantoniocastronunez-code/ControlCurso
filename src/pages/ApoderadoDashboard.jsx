@@ -18,6 +18,7 @@ const ApoderadoDashboard = () => {
   const impersonateStudentId = location.state?.impersonateStudentId;
   
   const [myStudents, setMyStudents] = useState([]);
+  const [activeStudentId, setActiveStudentId] = useState(null);
   const [debts, setDebts] = useState([]);
   const [loading, setLoading] = useState(true);
   
@@ -67,18 +68,7 @@ const ApoderadoDashboard = () => {
         setIsProfileComplete(true);
       }
 
-      // 0.5 Fetch Settings
-      const settingsDocRef = doc(db, 'settings', 'general');
-      const settingsSnap = await getDoc(settingsDocRef);
-      if (settingsSnap.exists()) {
-        const data = settingsSnap.data();
-        if (data.transferData) {
-          setTransferData(data.transferData);
-        }
-        if (data.whatsappContact) {
-          setWhatsappContact(data.whatsappContact);
-        }
-      }
+      // 0.5 Settings are fetched based on activeStudentId in a separate effect
 
       // 1. Fetch Students
       let students = [];
@@ -127,6 +117,42 @@ const ApoderadoDashboard = () => {
       setLoading(false);
     }
   };
+
+  useEffect(() => {
+    if (myStudents.length > 0 && !activeStudentId) {
+      setActiveStudentId(myStudents[0].id);
+    }
+  }, [myStudents, activeStudentId]);
+
+  useEffect(() => {
+    const fetchCourseSettings = async () => {
+      if (!activeStudentId) return;
+      const student = myStudents.find(s => s.id === activeStudentId);
+      if (!student || !student.courseId) return;
+
+      try {
+        const settingsDocRef = doc(db, 'settings', student.courseId);
+        const settingsSnap = await getDoc(settingsDocRef);
+        if (settingsSnap.exists()) {
+          const data = settingsSnap.data();
+          if (data.transferData) {
+            setTransferData(data.transferData);
+          }
+          if (data.whatsappContact) {
+            setWhatsappContact(data.whatsappContact);
+          } else {
+            setWhatsappContact('');
+          }
+        } else {
+          setWhatsappContact('');
+          setTransferData(null);
+        }
+      } catch (error) {
+        console.error("Error fetching course settings:", error);
+      }
+    };
+    fetchCourseSettings();
+  }, [activeStudentId, myStudents]);
 
   const handleSearch = async (e) => {
     e.preventDefault();
@@ -291,6 +317,22 @@ const ApoderadoDashboard = () => {
         </div>
       </header>
 
+      {/* Student Selector Top Bar */}
+      {isProfileComplete && myStudents.length > 1 && (
+        <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '2rem', overflowX: 'auto', paddingBottom: '0.5rem' }}>
+          {myStudents.map(student => (
+            <button
+              key={student.id}
+              onClick={() => setActiveStudentId(student.id)}
+              className={`btn ${activeStudentId === student.id ? 'btn-primary' : 'btn-outline'}`}
+              style={{ whiteSpace: 'nowrap' }}
+            >
+              {formatStudentName(student)}
+            </button>
+          ))}
+        </div>
+      )}
+
       {/* BANNER URGENTE */}
       {isProfileComplete && debts.some(d => d.urgentNotice && (d.status === 'pending' || d.status === 'partial')) && (
         <div className="glass-panel" style={{ backgroundColor: 'rgba(239, 68, 68, 0.1)', border: '1px solid var(--danger)', padding: '1rem', marginBottom: '2rem', display: 'flex', alignItems: 'center', gap: '1rem', color: 'var(--danger)' }}>
@@ -426,7 +468,7 @@ const ApoderadoDashboard = () => {
         </div>
       ) : (
         <>
-          {myStudents.map(student => {
+          {myStudents.filter(student => student.id === activeStudentId).map(student => {
             const allStudentDebts = debts.filter(d => d.studentId === student.id);
             const studentDebts = allStudentDebts.filter(d => {
               if (d.status === 'partial') {

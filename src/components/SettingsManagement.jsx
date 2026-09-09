@@ -4,13 +4,17 @@ import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { ArrowLeft, Save, Landmark, PlusCircle, Trash2, Edit2, RefreshCw } from 'lucide-react';
 import { useModal } from '../context/ModalContext';
 
+import { useCourse } from '../context/CourseContext';
+
 const SettingsManagement = ({ onBack }) => {
   const { showAlert, showConfirm } = useModal();
+  const { selectedCourse } = useCourse();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   
   const [accounts, setAccounts] = useState([]);
   const [whatsappContact, setWhatsappContact] = useState('');
+  const [inviteCode, setInviteCode] = useState('');
   
   // Modal/Form state
   const [isEditing, setIsEditing] = useState(false);
@@ -26,9 +30,10 @@ const SettingsManagement = ({ onBack }) => {
   });
 
   const fetchSettings = useCallback(async () => {
+    if (!selectedCourse) return;
     setLoading(true);
     try {
-      const docRef = doc(db, 'settings', 'general');
+      const docRef = doc(db, 'settings', selectedCourse.id);
       const docSnap = await getDoc(docRef);
       if (docSnap.exists()) {
         const data = docSnap.data();
@@ -47,18 +52,22 @@ const SettingsManagement = ({ onBack }) => {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [selectedCourse]);
 
   useEffect(() => {
     fetchSettings();
-  }, [fetchSettings]);
+    if (selectedCourse) {
+      setInviteCode(selectedCourse.inviteCode || '');
+    }
+  }, [fetchSettings, selectedCourse]);
 
 
 
   const handleSaveAccounts = async (newAccounts) => {
+    if (!selectedCourse) return;
     setSaving(true);
     try {
-      const docRef = doc(db, 'settings', 'general');
+      const docRef = doc(db, 'settings', selectedCourse.id);
       await setDoc(docRef, { transferAccounts: newAccounts }, { merge: true });
       setAccounts(newAccounts);
       await showAlert("Cuentas actualizadas correctamente.");
@@ -72,13 +81,29 @@ const SettingsManagement = ({ onBack }) => {
   };
 
   const handleSaveContact = async () => {
+    if (!selectedCourse) return;
     try {
-      const docRef = doc(db, 'settings', 'general');
+      const docRef = doc(db, 'settings', selectedCourse.id);
       await setDoc(docRef, { whatsappContact }, { merge: true });
       await showAlert("Contacto guardado correctamente.");
     } catch (error) {
       console.error("Error saving contact:", error);
       await showAlert("Error al guardar el contacto.");
+    }
+  };
+
+  const handleSaveInviteCode = async () => {
+    if (!selectedCourse || !inviteCode.trim()) return;
+    try {
+      const code = inviteCode.toUpperCase().trim();
+      const courseRef = doc(db, 'courses', selectedCourse.id);
+      await setDoc(courseRef, { inviteCode: code }, { merge: true });
+      await showAlert(`Código de invitación actualizado a: ${code}`);
+      // NOTE: We don't have access to refreshCourses from CourseContext here, 
+      // so it might take a reload or context refresh to reflect globally, but the DB is updated.
+    } catch (error) {
+      console.error("Error saving invite code:", error);
+      await showAlert("Error al guardar el código de invitación.");
     }
   };
 
@@ -211,6 +236,30 @@ const SettingsManagement = ({ onBack }) => {
             </div>
             <button onClick={handleSaveContact} className="btn btn-primary" style={{ padding: '0.6rem 1rem' }}>
               <Save size={18} /> Guardar Contacto
+            </button>
+          </div>
+          
+          <hr style={{ border: 'none', borderTop: '1px solid rgba(255,255,255,0.1)', margin: '2rem 0' }} />
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: 'var(--primary)', marginBottom: '1.5rem' }}>
+            <h4 style={{ margin: 0 }}>Código de Invitación del Curso</h4>
+          </div>
+          <p style={{ color: 'var(--text-muted)', marginBottom: '1.5rem' }}>
+            Este es el código que los apoderados deben ingresar al registrarse para unirse a este curso.
+          </p>
+          <div style={{ display: 'flex', gap: '1rem', alignItems: 'flex-end', flexWrap: 'wrap' }}>
+            <div className="input-group" style={{ marginBottom: 0, flex: 1, minWidth: '250px' }}>
+              <label className="input-label">Código (Ej: KINDER-B-2026)</label>
+              <input 
+                type="text" 
+                className="input-field" 
+                value={inviteCode} 
+                onChange={e => setInviteCode(e.target.value.toUpperCase())} 
+                placeholder="KINDER-B-2026"
+              />
+            </div>
+            <button onClick={handleSaveInviteCode} className="btn btn-primary" style={{ padding: '0.6rem 1rem' }}>
+              <Save size={18} /> Guardar Código
             </button>
           </div>
           

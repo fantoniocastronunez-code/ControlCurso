@@ -28,9 +28,18 @@ const ProtectedRoute = ({ children, allowedRoles }) => {
     return <Navigate to="/login" replace />;
   }
   
-  if (allowedRoles && !allowedRoles.includes(role)) {
+  const hasAdminRole = role === 'superadmin' || (userData && userData.roles && Object.values(userData.roles).some(r => ['admin', 'superadmin', 'presidente', 'tesorero'].includes(r)));
+  const hasApoderadoRole = userData && userData.roles && Object.values(userData.roles).some(r => r === 'apoderado');
+
+  const isAllowed = allowedRoles.some(r => {
+    if (r === 'admin' || r === 'presidente' || r === 'tesorero' || r === 'superadmin') return hasAdminRole;
+    if (r === 'apoderado') return hasApoderadoRole || hasAdminRole; // Admins can impersonate
+    return false;
+  });
+
+  if (!isAllowed) {
     // Redirect based on their role if they try to access something they shouldn't
-    return <Navigate to={role === 'superadmin' || role === 'admin' ? '/admin' : '/apoderado'} replace />;
+    return <Navigate to={hasAdminRole ? '/admin' : '/apoderado'} replace />;
   }
   
   return children;
@@ -42,11 +51,15 @@ const AppRoutes = () => {
 
   return (
     <Routes>
-      <Route 
+      <Route
         path="/" 
         element={
           user && !hasNoRoles ? (
-            <Navigate to={role === 'superadmin' || role === 'admin' ? '/admin' : '/apoderado'} replace />
+            <Navigate to={
+              role === 'superadmin' || (userData && userData.roles && Object.values(userData.roles).some(r => ['admin', 'superadmin', 'presidente', 'tesorero'].includes(r))) 
+                ? '/admin' 
+                : '/apoderado'
+            } replace />
           ) : (
             <Navigate to="/login" replace />
           )
@@ -55,10 +68,10 @@ const AppRoutes = () => {
       
       <Route path="/login" element={<Login />} />
       
-      <Route 
+      <Route
         path="/admin/*" 
         element={
-          <ProtectedRoute allowedRoles={['superadmin', 'admin']}>
+          <ProtectedRoute allowedRoles={['superadmin', 'admin', 'presidente', 'tesorero']}>
             <AdminDashboard />
           </ProtectedRoute>
         } 

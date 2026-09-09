@@ -1,12 +1,14 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { db } from '../firebase/config';
-import { collection, getDocs, doc, setDoc, updateDoc, getDoc } from 'firebase/firestore';
+import { collection, getDocs, doc, setDoc, updateDoc, getDoc, query, where } from 'firebase/firestore';
 import { ArrowLeft, PlusCircle, CheckCircle } from 'lucide-react';
 import { useModal } from '../context/ModalContext';
 import { formatStudentName } from '../utils/nameUtils';
+import { useCourse } from '../context/CourseContext';
 
 const ExpenseManagement = ({ onBack }) => {
   const { showAlert } = useModal();
+  const { selectedCourse } = useCourse();
   const [students, setStudents] = useState([]);
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState('');
@@ -27,10 +29,11 @@ const ExpenseManagement = ({ onBack }) => {
   const [selectedAccountId, setSelectedAccountId] = useState('');
 
   const fetchData = useCallback(async () => {
+    if (!selectedCourse) return;
     try {
       // Fetch students
-      const studentsCollection = collection(db, 'students');
-      const studentSnapshot = await getDocs(studentsCollection);
+      const qStudents = query(collection(db, 'students'), where('courseId', '==', selectedCourse.id));
+      const studentSnapshot = await getDocs(qStudents);
       const studentList = studentSnapshot.docs.map(doc => ({
         id: doc.id,
         ...doc.data()
@@ -44,8 +47,8 @@ const ExpenseManagement = ({ onBack }) => {
       setSelectedStudents(new Set(studentList.map(s => s.id)));
 
       // Fetch funds
-      const fundsCollection = collection(db, 'funds');
-      const fundsSnapshot = await getDocs(fundsCollection);
+      const qFunds = query(collection(db, 'funds'), where('courseId', '==', selectedCourse.id));
+      const fundsSnapshot = await getDocs(qFunds);
       const fundsList = fundsSnapshot.docs.map(doc => ({
         id: doc.id,
         ...doc.data()
@@ -57,7 +60,7 @@ const ExpenseManagement = ({ onBack }) => {
       }
 
       // Fetch transfer accounts
-      const settingsDocRef = doc(db, 'settings', 'general');
+      const settingsDocRef = doc(db, 'settings', selectedCourse.id);
       const settingsSnap = await getDoc(settingsDocRef);
       if (settingsSnap.exists()) {
         const data = settingsSnap.data();
@@ -148,6 +151,7 @@ const ExpenseManagement = ({ onBack }) => {
         await setDoc(fundRef, {
           name: title,
           description: 'Fondo creado automáticamente para la cuota',
+          courseId: selectedCourse.id,
           createdAt: new Date().toISOString()
         });
       }
@@ -165,6 +169,7 @@ const ExpenseManagement = ({ onBack }) => {
         studentsCount: selectedStudents.size,
         paidCount: 0,
         fundId: finalFundId,
+        courseId: selectedCourse.id,
         transferData: selectedAccount,
         createdAt: new Date().toISOString()
       };
@@ -220,6 +225,7 @@ const ExpenseManagement = ({ onBack }) => {
           title,
           date,
           fundId: finalFundId,
+          courseId: selectedCourse.id,
           transferData: selectedAccount,
           createdAt: new Date().toISOString()
         });

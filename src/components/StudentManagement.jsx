@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useMemo, useCallback } from 'react';
 import { db } from '../firebase/config';
-import { collection, getDocs, doc, setDoc, deleteDoc, updateDoc } from 'firebase/firestore';
+import { collection, getDocs, doc, setDoc, deleteDoc, updateDoc, query, where } from 'firebase/firestore';
 import { ArrowLeft, UserPlus, CheckCircle, Trash2, Edit2, X, Save, Eye, Search } from 'lucide-react';
 import BulkImport from './BulkImport';
 import StudentDetailModal from './StudentDetailModal';
@@ -10,6 +10,7 @@ import { formatStudentName } from '../utils/nameUtils';
 import { formatRut } from '../utils/rutUtils';
 import { useModal } from '../context/ModalContext';
 import { useAuth } from '../context/AuthContext';
+import { useCourse } from '../context/CourseContext';
 import { ChevronDown, ChevronUp } from 'lucide-react';
 
 const formatMoney = (amount) => {
@@ -235,6 +236,7 @@ const StudentRow = React.memo(({
 const StudentManagement = ({ onBack }) => {
   const { showConfirm } = useModal();
   const { role } = useAuth();
+  const { selectedCourse } = useCourse();
   const navigate = useNavigate();
   const [students, setStudents] = useState([]);
   const [usersMap, setUsersMap] = useState({});
@@ -293,14 +295,14 @@ const StudentManagement = ({ onBack }) => {
   }, []);
 
   const fetchStudents = useCallback(async () => {
+    if (!selectedCourse) return;
     try {
-      const studentsCollection = collection(db, 'students');
-      const studentSnapshot = await getDocs(studentsCollection);
+      const q = query(collection(db, 'students'), where('courseId', '==', selectedCourse.id));
+      const studentSnapshot = await getDocs(q);
       const studentList = studentSnapshot.docs.map(doc => ({
         id: doc.id,
         ...doc.data()
       }));
-      // Ordenar por número de lista si existe
       studentList.sort((a, b) => {
         const aNum = parseInt(a.listNumber) || 999;
         const bNum = parseInt(b.listNumber) || 999;
@@ -309,21 +311,21 @@ const StudentManagement = ({ onBack }) => {
       setStudents(studentList);
     } catch (error) {
       console.error("Error al obtener alumnos:", error);
+    } finally {
+      setLoading(false);
     }
-  }, []);
+  }, [selectedCourse]);
 
   useEffect(() => {
-    const fetchData = async () => {
-      setLoading(true);
-      await Promise.all([fetchUsers(), fetchStudents()]);
-      setLoading(false);
-    };
-    fetchData();
-  }, [fetchUsers, fetchStudents]);
+    if (selectedCourse) {
+      fetchUsers();
+      fetchStudents();
+    }
+  }, [fetchUsers, fetchStudents, selectedCourse]);
 
   const handleAddStudent = async (e) => {
     e.preventDefault();
-    if (!newFirstName || !newLastNamePaternal) return;
+    if (!newFirstName || !newLastNamePaternal || !selectedCourse) return;
 
     try {
       const studentId = 'std_' + Date.now().toString();

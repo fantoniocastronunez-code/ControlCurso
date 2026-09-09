@@ -2,12 +2,14 @@ import React, { useEffect, useState } from 'react';
 import { db } from '../firebase/config';
 import { collection, getDocs, doc, updateDoc, setDoc, deleteDoc } from 'firebase/firestore';
 import { useAuth } from '../context/AuthContext';
+import { useCourse } from '../context/CourseContext';
 import { ArrowLeft, UserCheck, UserPlus, Trash2, Edit2, Save, X } from 'lucide-react';
 import { useModal } from '../context/ModalContext';
 
 const UserManagement = ({ onBack }) => {
   const { showConfirm } = useModal();
   const { role } = useAuth();
+  const { selectedCourse } = useCourse();
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState('');
@@ -21,17 +23,28 @@ const UserManagement = ({ onBack }) => {
   const [editName, setEditName] = useState('');
 
   useEffect(() => {
-    fetchUsers();
-  }, []);
+    if (selectedCourse) {
+      fetchUsers();
+    }
+  }, [selectedCourse]);
 
   const fetchUsers = async () => {
     try {
       const usersCollection = collection(db, 'users');
       const userSnapshot = await getDocs(usersCollection);
-      const userList = userSnapshot.docs.map(doc => ({
+      
+      let userList = userSnapshot.docs.map(doc => ({
         id: doc.id,
         ...doc.data()
       }));
+
+      // Filter users who belong to the selected course, or are superadmins
+      userList = userList.filter(u => 
+        (u.roles && u.roles[selectedCourse.id]) || 
+        (u.roles && u.roles['global'] === 'superadmin') ||
+        u.role === 'superadmin'
+      );
+      
       setUsers(userList);
     } catch (error) {
       console.error("Error al obtener usuarios:", error);
@@ -43,9 +56,17 @@ const UserManagement = ({ onBack }) => {
   const handleRoleChange = async (userId, changedRole) => {
     try {
       const userRef = doc(db, 'users', userId);
-      await updateDoc(userRef, { role: changedRole });
+      const userToUpdate = users.find(u => u.id === userId);
       
-      setUsers(users.map(u => u.id === userId ? { ...u, role: changedRole } : u));
+      const updatedRoles = { ...(userToUpdate.roles || {}) };
+      updatedRoles[selectedCourse.id] = changedRole;
+
+      await updateDoc(userRef, { 
+        roles: updatedRoles,
+        role: changedRole // backward compatibility
+      });
+      
+      setUsers(users.map(u => u.id === userId ? { ...u, roles: updatedRoles, role: changedRole } : u));
       
       setMessage('Rol actualizado correctamente');
       setTimeout(() => setMessage(''), 3000);
@@ -58,7 +79,7 @@ const UserManagement = ({ onBack }) => {
 
   const handleAddUser = async (e) => {
     e.preventDefault();
-    if (!newEmail) return;
+    if (!newEmail || !selectedCourse) return;
 
     try {
       const emailLower = newEmail.toLowerCase().trim();
@@ -66,7 +87,11 @@ const UserManagement = ({ onBack }) => {
       const newUser = {
         email: emailLower,
         displayName: newName,
-        role: newRole,
+        roles: {
+          [selectedCourse.id]: newRole
+        },
+        role: newRole, // backward compatibility
+        defaultCourseId: selectedCourse.id,
         createdAt: new Date().toISOString(),
         preRegistered: true
       };
@@ -180,7 +205,9 @@ const UserManagement = ({ onBack }) => {
             <label className="input-label">Rol</label>
             <select className="input-field" value={newRole} onChange={(e) => setNewRole(e.target.value)}>
               <option value="apoderado">Apoderado</option>
-              <option value="admin">Administrador</option>
+              <option value="tesorero">Tesorero</option>
+              <option value="presidente">Presidente</option>
+              {role === 'superadmin' && <option value="admin">Administrador</option>}
             </select>
           </div>
           <button type="submit" className="btn btn-primary" style={{ height: '42px' }}>
@@ -220,10 +247,11 @@ const UserManagement = ({ onBack }) => {
                         padding: '0.25rem 0.75rem', 
                         borderRadius: '1rem', 
                         fontSize: '0.85rem',
-                        backgroundColor: u.role === 'superadmin' ? 'rgba(245, 158, 11, 0.2)' : u.role === 'admin' ? 'rgba(99, 102, 241, 0.2)' : 'rgba(16, 185, 129, 0.2)',
-                        color: u.role === 'superadmin' ? 'var(--warning)' : u.role === 'admin' ? 'var(--primary)' : 'var(--success)'
+                        backgroundColor: (u.roles && selectedCourse ? u.roles[selectedCourse.id] : u.role) === 'superadmin' ? 'rgba(245, 158, 11, 0.2)' : ((u.roles && selectedCourse ? u.roles[selectedCourse.id] : u.role) === 'admin' || (u.roles && selectedCourse ? u.roles[selectedCourse.id] : u.role) === 'presidente') ? 'rgba(99, 102, 241, 0.2)' : (u.roles && selectedCourse ? u.roles[selectedCourse.id] : u.role) === 'tesorero' ? 'rgba(59, 130, 246, 0.2)' : 'rgba(16, 185, 129, 0.2)',
+                        color: (u.roles && selectedCourse ? u.roles[selectedCourse.id] : u.role) === 'superadmin' ? 'var(--warning)' : ((u.roles && selectedCourse ? u.roles[selectedCourse.id] : u.role) === 'admin' || (u.roles && selectedCourse ? u.roles[selectedCourse.id] : u.role) === 'presidente') ? 'var(--primary)' : (u.roles && selectedCourse ? u.roles[selectedCourse.id] : u.role) === 'tesorero' ? '#3b82f6' : 'var(--success)',
+                        textTransform: 'capitalize'
                       }}>
-                        {u.role}
+                        {u.roles && selectedCourse ? u.roles[selectedCourse.id] : u.role}
                       </span>
                     </td>
                     <td style={{ padding: '1rem' }}>
@@ -264,10 +292,10 @@ const UserManagement = ({ onBack }) => {
                         padding: '0.25rem 0.75rem', 
                         borderRadius: '1rem', 
                         fontSize: '0.85rem',
-                        backgroundColor: u.role === 'superadmin' ? 'rgba(245, 158, 11, 0.2)' : u.role === 'admin' ? 'rgba(99, 102, 241, 0.2)' : 'rgba(16, 185, 129, 0.2)',
-                        color: u.role === 'superadmin' ? 'var(--warning)' : u.role === 'admin' ? 'var(--primary)' : 'var(--success)'
+                        backgroundColor: (u.roles && selectedCourse ? u.roles[selectedCourse.id] : u.role) === 'superadmin' ? 'rgba(245, 158, 11, 0.2)' : (u.roles && selectedCourse ? u.roles[selectedCourse.id] : u.role) === 'admin' ? 'rgba(99, 102, 241, 0.2)' : 'rgba(16, 185, 129, 0.2)',
+                        color: (u.roles && selectedCourse ? u.roles[selectedCourse.id] : u.role) === 'superadmin' ? 'var(--warning)' : (u.roles && selectedCourse ? u.roles[selectedCourse.id] : u.role) === 'admin' ? 'var(--primary)' : 'var(--success)'
                       }}>
-                        {u.role}
+                        {u.roles && selectedCourse ? u.roles[selectedCourse.id] : u.role}
                       </span>
                     </td>
                     <td style={{ padding: '1rem' }}>
@@ -284,14 +312,16 @@ const UserManagement = ({ onBack }) => {
                             <Edit2 size={16} /> Editar
                           </button>
                           <select 
-                            className="input-field" 
-                            style={{ padding: '0.4rem', fontSize: '0.85rem' }}
-                            value={u.role}
-                            onChange={(e) => handleRoleChange(u.id, e.target.value)}
-                          >
-                            <option value="apoderado">Apoderado</option>
-                            <option value="admin">Admin</option>
-                          </select>
+                          className="input-field" 
+                          style={{ padding: '0.25rem' }}
+                          value={u.roles && selectedCourse ? u.roles[selectedCourse.id] || 'apoderado' : u.role || 'apoderado'}
+                          onChange={(e) => handleRoleChange(u.id, e.target.value)}
+                        >
+                          <option value="apoderado">Apoderado</option>
+                          <option value="tesorero">Tesorero</option>
+                          <option value="presidente">Presidente</option>
+                          {role === 'superadmin' && <option value="admin">Admin</option>}
+                        </select>
                           <button onClick={() => handleDeleteUser(u.id)} className="btn btn-outline" style={{ padding: '0.4rem 0.75rem', color: 'var(--danger)', borderColor: 'rgba(239, 68, 68, 0.3)', gap: '0.5rem', display: 'flex', alignItems: 'center' }}>
                             <Trash2 size={16} />
                           </button>

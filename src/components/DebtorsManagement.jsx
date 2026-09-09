@@ -4,8 +4,11 @@ import { collection, query, where, getDocs, doc, updateDoc, addDoc } from 'fireb
 import { ArrowLeft, Bell, CheckCircle } from 'lucide-react';
 import { useModal } from '../context/ModalContext';
 
+import { useCourse } from '../context/CourseContext';
+
 const DebtorsManagement = ({ onBack }) => {
   const { showAlert } = useModal();
+  const { selectedCourse } = useCourse();
   const [debtors, setDebtors] = useState({});
   const [usersMap, setUsersMap] = useState({});
   const [loading, setLoading] = useState(true);
@@ -31,15 +34,18 @@ const DebtorsManagement = ({ onBack }) => {
   }, []);
 
   const fetchDebts = useCallback(async () => {
+    if (!selectedCourse) return;
     try {
-      // 1. Traer todas las deudas pendientes
-      const q = query(collection(db, 'debts'), where('status', '==', 'pending'));
+      const q = query(collection(db, 'debts'), where('courseId', '==', selectedCourse.id));
       const snapshot = await getDocs(q);
       
       const grouped = {};
       
       snapshot.forEach(docSnap => {
-        const debt = { id: docSnap.id, ...docSnap.data() };
+        const data = docSnap.data();
+        if (data.status !== 'pending') return;
+        
+        const debt = { id: docSnap.id, ...data };
         const emails = debt.apoderadoEmails || (debt.apoderadoEmail ? [debt.apoderadoEmail] : []);
         const emailKey = emails.length > 0 ? emails.join(', ') : 'Sin Apoderado';
         
@@ -62,7 +68,7 @@ const DebtorsManagement = ({ onBack }) => {
     } catch (error) {
       console.error("Error fetching debts:", error);
     }
-  }, []);
+  }, [selectedCourse]);
 
   const fetchData = useCallback(async () => {
     setLoading(true);

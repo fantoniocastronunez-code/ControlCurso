@@ -1,11 +1,14 @@
 import React, { useEffect, useState } from 'react';
 import { db } from '../firebase/config';
-import { collection, getDocs, doc, setDoc, deleteDoc, addDoc, updateDoc } from 'firebase/firestore';
+import { collection, getDocs, doc, setDoc, deleteDoc, addDoc, updateDoc, query, where } from 'firebase/firestore';
 import { ArrowLeft, CheckCircle, Trash2, Wallet, Plus, ArrowRightLeft, DollarSign, Lock, Unlock, Edit2 } from 'lucide-react';
 import { useModal } from '../context/ModalContext';
 
+import { useCourse } from '../context/CourseContext';
+
 const FundManagement = ({ onBack }) => {
   const { showConfirm } = useModal();
+  const { selectedCourse } = useCourse();
   const [funds, setFunds] = useState([]);
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState('');
@@ -30,9 +33,10 @@ const FundManagement = ({ onBack }) => {
 
   useEffect(() => {
     const fetchFunds = async () => {
+      if (!selectedCourse) return;
       try {
-        const fundsCollection = collection(db, 'funds');
-        const snapshot = await getDocs(fundsCollection);
+        const q = query(collection(db, 'funds'), where('courseId', '==', selectedCourse.id));
+        const snapshot = await getDocs(q);
         const list = snapshot.docs.map(doc => ({
           id: doc.id,
           ...doc.data()
@@ -40,7 +44,7 @@ const FundManagement = ({ onBack }) => {
         
         // Asegurar que exista el Fondo General en la vista
         if (!list.find(f => f.id === 'general')) {
-          list.push({ id: 'general', name: 'Fondo General', description: 'Fondo principal base del curso', isLocked: false });
+          list.push({ id: 'general', name: 'Fondo General', description: 'Fondo principal base del curso', isLocked: false, courseId: selectedCourse.id });
         }
 
         // Ordenar por nombre, pero manteniendo el Fondo General arriba
@@ -58,11 +62,11 @@ const FundManagement = ({ onBack }) => {
     };
 
     fetchFunds();
-  }, []);
+  }, [selectedCourse]);
 
   const handleAddFund = async (e) => {
     e.preventDefault();
-    if (!newTitle) return;
+    if (!newTitle || !selectedCourse) return;
 
     try {
       const fundId = 'fund_' + Date.now().toString();
@@ -72,6 +76,7 @@ const FundManagement = ({ onBack }) => {
         name: newTitle,
         description: newDescription,
         isLocked: false,
+        courseId: selectedCourse.id,
         createdAt: new Date().toISOString()
       };
       
@@ -137,7 +142,7 @@ const FundManagement = ({ onBack }) => {
 
   const handleAddIncome = async (e) => {
     e.preventDefault();
-    if (!incomeTitle || !incomeAmount || !incomeFund) return;
+    if (!incomeTitle || !incomeAmount || !incomeFund || !selectedCourse) return;
 
     try {
       await addDoc(collection(db, 'incomes'), {
@@ -145,6 +150,7 @@ const FundManagement = ({ onBack }) => {
         amount: Number(incomeAmount),
         paymentMethod: incomeMethod,
         fundId: incomeFund,
+        courseId: selectedCourse.id,
         createdAt: new Date().toISOString()
       });
       setIncomeTitle('');
@@ -160,7 +166,7 @@ const FundManagement = ({ onBack }) => {
 
   const handleTransfer = async (e) => {
     e.preventDefault();
-    if (!transferFrom || !transferTo || !transferAmount) return;
+    if (!transferFrom || !transferTo || !transferAmount || !selectedCourse) return;
     if (transferFrom === transferTo) {
       setMessage('El fondo de origen y destino deben ser diferentes.');
       setTimeout(() => setMessage(''), 3000);
@@ -172,6 +178,7 @@ const FundManagement = ({ onBack }) => {
         fromFundId: transferFrom,
         toFundId: transferTo,
         amount: Number(transferAmount),
+        courseId: selectedCourse.id,
         createdAt: new Date().toISOString()
       });
       setTransferFrom('');

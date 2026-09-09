@@ -20,9 +20,16 @@ import StudentSearchModal from '../components/StudentSearchModal';
 import MeetingReport from '../components/MeetingReport';
 import InstallAppGuide from '../components/InstallAppGuide';
 import RegisteredApoderadosModal from '../components/RegisteredApoderadosModal';
+import CourseManagement from '../components/CourseManagement';
+import { useCourse } from '../context/CourseContext';
 
 const AdminDashboard = () => {
-  const { user, role, logout } = useAuth();
+  const { user, role, userData, logout } = useAuth();
+  const { courses, selectedCourse, changeCourse } = useCourse();
+  
+  const courseRole = (role === 'superadmin' || userData?.roles?.global === 'superadmin')
+    ? 'superadmin'
+    : (userData?.roles?.[selectedCourse?.id] || null);
   const { showAlert, showPrompt } = useModal();
   const navigate = useNavigate();
   const [currentView, setCurrentView] = useState('dashboard');
@@ -84,27 +91,37 @@ const AdminDashboard = () => {
 
 
   const fetchDashboardData = useCallback(async () => {
+    if (!selectedCourse) return;
     setLoading(true);
     try {
-      const studentsPromise = getDocs(collection(db, 'students'));
+      const studentsPromise = getDocs(query(collection(db, 'students'), where('courseId', '==', selectedCourse.id)));
+      // Note: bankInfo might need to be isolated. For now we use the global settings document, but ideal to migrate to per-course
       const bankInfoPromise = getDoc(doc(db, 'settings', 'bankInfo'));
-      const expensesPromise = getDocs(collection(db, 'expenses'));
-      const fundsPromise = getDocs(collection(db, 'funds'));
-      const debtsPromise = getDocs(query(collection(db, 'debts'), where('status', 'in', ['paid', 'partial'])));
-      const outcomesPromise = getDocs(collection(db, 'outcomes'));
-      const incomesPromise = getDocs(collection(db, 'incomes'));
-      const transfersPromise = getDocs(collection(db, 'fund_transfers'));
+      const expensesPromise = getDocs(query(collection(db, 'expenses'), where('courseId', '==', selectedCourse.id)));
+      const fundsPromise = getDocs(query(collection(db, 'funds'), where('courseId', '==', selectedCourse.id)));
+      // Filter by courseId, and locally filter status to avoid composite index requirements
+      const debtsPromise = getDocs(query(collection(db, 'debts'), where('courseId', '==', selectedCourse.id)));
+      const outcomesPromise = getDocs(query(collection(db, 'outcomes'), where('courseId', '==', selectedCourse.id)));
+      const incomesPromise = getDocs(query(collection(db, 'incomes'), where('courseId', '==', selectedCourse.id)));
+      const transfersPromise = getDocs(query(collection(db, 'fund_transfers'), where('courseId', '==', selectedCourse.id)));
+      
       const usersPromise = (role === 'superadmin' || role === 'admin') 
-          ? getDocs(query(collection(db, 'users'), where('role', '==', 'apoderado'))) 
-          : Promise.resolve({ size: 0, forEach: () => {} });
+          ? getDocs(collection(db, 'users')) 
+          : Promise.resolve({ docs: [], size: 0, forEach: () => {} });
 
       const [
         studentsSnap, bankInfoSnap, expensesSnap, fundsSnap, 
-        debtsSnap, outcomesSnap, incomesSnap, transfersSnap, usersSnap
+        allDebtsSnap, outcomesSnap, incomesSnap, transfersSnap, usersSnap
       ] = await Promise.all([
         studentsPromise, bankInfoPromise, expensesPromise, fundsPromise,
         debtsPromise, outcomesPromise, incomesPromise, transfersPromise, usersPromise
       ]);
+      
+      // Filter debts by status locally
+      const debtsDocs = allDebtsSnap.docs.filter(d => {
+        const status = d.data().status;
+        return status === 'paid' || status === 'partial';
+      });
 
       // 1. Alumnos Activos
       const activeStudentsCount = studentsSnap.size;
@@ -116,10 +133,13 @@ const AdminDashboard = () => {
       let registeredApoderadosCount = 0;
       let registeredApoderadosList = [];
       if (role === 'superadmin' || role === 'admin') {
-        registeredApoderadosCount = usersSnap.size;
         usersSnap.forEach(doc => {
-          registeredApoderadosList.push({ id: doc.id, ...doc.data() });
+          const u = doc.data();
+          if (u.roles && u.roles[selectedCourse.id]) {
+            registeredApoderadosList.push({ id: doc.id, ...u });
+          }
         });
+        registeredApoderadosCount = registeredApoderadosList.length;
       }
 
       // 2. Cuotas / Gastos
@@ -144,7 +164,6 @@ const AdminDashboard = () => {
       }
 
       // 4. Cobros (Dinero realmente pagado)
-      const debtsDocs = debtsSnap.docs;
       let collected = 0;
       let cashIn = 0;
       let transferIn = 0;
@@ -345,7 +364,7 @@ const AdminDashboard = () => {
     } finally {
       setLoading(false);
     }
-  }, [role]);
+  }, [role, selectedCourse]);
 
   useEffect(() => {
     if (currentView === 'dashboard') {
@@ -406,10 +425,15 @@ const AdminDashboard = () => {
           <button onClick={() => { setCurrentView('events'); setIsSidebarOpen(false); }} className="btn btn-outline" style={{ borderColor: 'rgba(16, 185, 129, 0.3)', color: 'var(--success)', justifyContent: 'flex-start' }}>
             <Activity size={18} /> Eventos y Ventas
           </button>
-          {role === 'superadmin' && (
-            <button onClick={() => { setCurrentView('users'); setIsSidebarOpen(false); }} className="btn btn-outline" style={{ borderColor: 'var(--warning)', color: 'var(--warning)', justifyContent: 'flex-start' }}>
-              <Users size={18} /> Admins
-            </button>
+          {courseRole === 'superadmin' && (
+            <>
+              <button onClick={() => { setCurrentView('users'); setIsSidebarOpen(false); }} className="btn btn-outline" style={{ borderColor: 'var(--warning)', color: 'var(--warning)', justifyContent: 'flex-start' }}>
+                <Users size={18} /> Admins
+              </button>
+              <button onClick={() => { setCurrentView('courses'); setIsSidebarOpen(false); }} className="btn btn-outline" style={{ borderColor: '#ec4899', color: '#ec4899', justifyContent: 'flex-start' }}>
+                <Activity size={18} /> Cursos
+              </button>
+            </>
           )}
         </div>
       </div>
@@ -422,16 +446,39 @@ const AdminDashboard = () => {
             </button>
             <img 
               src="/LOGOAPPCURSO.jpg" 
-            alt="Logo" 
-            style={{ width: '75px', height: '75px', borderRadius: '8px', objectFit: 'cover', backgroundColor: 'white', padding: 0, border: '1px solid rgba(255,255,255,0.1)' }} 
-            onError={(e) => e.target.style.display = 'none'}
-          />
-          <div>
-            <h2 style={{ margin: 0 }}>Panel de Administración</h2>
-            <p style={{ color: 'var(--text-muted)', margin: 0 }}>Bienvenido, {user?.displayName} ({role})</p>
+              alt="Logo" 
+              style={{ width: '75px', height: '75px', borderRadius: '8px', objectFit: 'cover', backgroundColor: 'white', padding: 0, border: '1px solid rgba(255,255,255,0.1)' }} 
+              onError={(e) => e.target.style.display = 'none'}
+            />
+            <div>
+              <h2 style={{ margin: 0, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                Panel {role === 'superadmin' ? 'SuperAdmin' : 'Admin'}
+              </h2>
+              {courses.length > 1 ? (
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginTop: '0.25rem' }}>
+                  <select 
+                    value={selectedCourse?.id || ''} 
+                    onChange={(e) => changeCourse(e.target.value)}
+                    style={{ 
+                      padding: '0.2rem 0.5rem', 
+                      borderRadius: 'var(--radius-sm)', 
+                      backgroundColor: 'rgba(255,255,255,0.1)', 
+                      color: 'var(--text-main)', 
+                      border: '1px solid rgba(255,255,255,0.2)',
+                      fontSize: '0.9rem'
+                    }}
+                  >
+                    {courses.map(c => (
+                      <option key={c.id} value={c.id} style={{ color: '#000' }}>{c.name}</option>
+                    ))}
+                  </select>
+                </div>
+              ) : (
+                <p style={{ color: 'var(--text-muted)', margin: 0 }}>{selectedCourse?.name || 'Cargando curso...'}</p>
+              )}
+            </div>
           </div>
-        </div>
-        <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap', alignItems: 'center' }}>
+          <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap', alignItems: 'center' }}>
           {/* Barra de búsqueda interactiva */}
           <div 
             onClick={() => setIsSearchOpen(true)}
@@ -668,6 +715,8 @@ const AdminDashboard = () => {
             </>
           )}
         </>
+      ) : currentView === 'courses' ? (
+        <CourseManagement onBack={() => setCurrentView('dashboard')} />
       ) : currentView === 'users' ? (
         <UserManagement onBack={() => setCurrentView('dashboard')} />
       ) : currentView === 'students' ? (
@@ -717,17 +766,21 @@ const AdminDashboard = () => {
     {/* Liquid Bottom Navigation */}
     <nav className="bottom-nav">
       {(() => {
-        const navItems = [
-          { id: 'expenses_add', icon: PlusCircle, label: 'Crear Cuota' },
-          { id: 'students', icon: Users, label: 'Alumnos' },
-          { id: 'debtors', icon: AlertTriangle, label: 'Deudas' },
-          { id: 'settings', icon: Settings, label: 'Config' }
-        ];
+        const navItems = [];
+        if (['superadmin', 'admin', 'presidente', 'tesorero'].includes(courseRole)) {
+          navItems.push({ id: 'expenses_add', icon: PlusCircle, label: 'Crear Cuota' });
+          navItems.push({ id: 'debtors', icon: AlertTriangle, label: 'Deudas' });
+        }
+        if (['superadmin', 'admin', 'presidente'].includes(courseRole)) {
+          navItems.push({ id: 'students', icon: Users, label: 'Alumnos' });
+          navItems.push({ id: 'settings', icon: Settings, label: 'Config' });
+        }
         
         const activeIndex = navItems.findIndex(item => item.id === currentView);
         
+        const widthPercent = 100 / navItems.length;
         const indicatorStyle = {
-          left: activeIndex >= 0 ? `calc(${activeIndex * 25}% + 12.5% - 25px)` : '-100px'
+          left: activeIndex >= 0 ? `calc(${activeIndex * widthPercent}% + ${widthPercent/2}% - 25px)` : '-100px'
         };
         
         return (

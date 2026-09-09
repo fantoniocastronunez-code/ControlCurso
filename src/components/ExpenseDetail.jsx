@@ -5,9 +5,11 @@ import { ArrowLeft, CheckCircle, Clock, XCircle, FileText, Download, Trash2, Edi
 import { formatStudentName } from '../utils/nameUtils';
 import { useModal } from '../context/ModalContext';
 import { useLockBodyScroll } from '../hooks/useLockBodyScroll';
+import { useCourse } from '../context/CourseContext';
 
 const ExpenseDetail = ({ expenseId, onBack }) => {
   const { showAlert, showConfirm, showPrompt } = useModal();
+  const { selectedCourse } = useCourse();
   const [expense, setExpense] = useState(null);
   const [debts, setDebts] = useState([]);
   const [students, setStudents] = useState([]);
@@ -40,6 +42,7 @@ const ExpenseDetail = ({ expenseId, onBack }) => {
   const [manageStudentsSearch, setManageStudentsSearch] = useState('');
 
   const fetchDetail = useCallback(async () => {
+    if (!selectedCourse) return;
     setLoading(true);
     try {
       // Obtener el gasto
@@ -50,12 +53,12 @@ const ExpenseDetail = ({ expenseId, onBack }) => {
       }
 
       // Obtener alumnos para el orden y saldos a favor
-      const studentsSnap = await getDocs(collection(db, 'students'));
+      const studentsSnap = await getDocs(query(collection(db, 'students'), where('courseId', '==', selectedCourse.id)));
       const studentsData = studentsSnap.docs.map(d => ({ id: d.id, ...d.data() }));
       setStudents(studentsData);
 
       // Obtener cuentas de transferencia
-      const settingsDocRef = doc(db, 'settings', 'general');
+      const settingsDocRef = doc(db, 'settings', selectedCourse.id);
       const settingsSnap = await getDoc(settingsDocRef);
       if (settingsSnap.exists()) {
         const data = settingsSnap.data();
@@ -67,7 +70,7 @@ const ExpenseDetail = ({ expenseId, onBack }) => {
       }
 
       // Obtener fondos
-      const fundsCollection = collection(db, 'funds');
+      const fundsCollection = query(collection(db, 'funds'), where('courseId', '==', selectedCourse.id));
       const fundsSnapshot = await getDocs(fundsCollection);
       const fundsList = fundsSnapshot.docs.map(doc => ({
         id: doc.id,
@@ -95,7 +98,7 @@ const ExpenseDetail = ({ expenseId, onBack }) => {
     } finally {
       setLoading(false);
     }
-  }, [expenseId]);
+  }, [expenseId, selectedCourse]);
 
   useEffect(() => {
     fetchDetail();

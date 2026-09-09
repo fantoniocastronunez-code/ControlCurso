@@ -5,9 +5,11 @@ import { ArrowLeft, PlusCircle, CheckCircle, Calendar, X, Save, Trash2 } from 'l
 import { useModal } from '../../context/ModalContext';
 import { formatStudentName } from '../../utils/nameUtils';
 import EventDetail from './EventDetail';
+import { useCourse } from '../../context/CourseContext';
 
 const EventManagement = ({ onBack }) => {
   const { showAlert, showConfirm } = useModal();
+  const { selectedCourse } = useCourse();
   const [events, setEvents] = useState([]);
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState('');
@@ -24,9 +26,10 @@ const EventManagement = ({ onBack }) => {
   const [isTestEvent, setIsTestEvent] = useState(false);
 
   const fetchEvents = useCallback(async () => {
+    if (!selectedCourse) return;
     setLoading(true);
     try {
-      const q = query(collection(db, 'events'), orderBy('createdAt', 'desc'));
+      const q = query(collection(db, 'events'), where('courseId', '==', selectedCourse.id), orderBy('createdAt', 'desc'));
       const querySnapshot = await getDocs(q);
       const eventsList = querySnapshot.docs.map(doc => ({
         id: doc.id,
@@ -42,11 +45,11 @@ const EventManagement = ({ onBack }) => {
 
   useEffect(() => {
     fetchEvents();
-  }, [fetchEvents]);
+  }, [fetchEvents, selectedCourse]);
 
   const handleCreateEvent = async (e) => {
     e.preventDefault();
-    if (!eventName || (!isTestEvent && (!mandatoryAmount || !noShowAmount))) {
+    if (!eventName || (!isTestEvent && (!mandatoryAmount || !noShowAmount)) || !selectedCourse) {
       await showAlert('Debes ingresar el nombre y los montos requeridos.');
       return;
     }
@@ -62,6 +65,7 @@ const EventManagement = ({ onBack }) => {
       await setDoc(doc(db, 'funds', fundId), {
         name: `Evento: ${eventName.trim()}`,
         description: `Fondo automático para el evento ${eventName}`,
+        courseId: selectedCourse.id,
         createdAt: new Date().toISOString()
       });
 
@@ -73,6 +77,7 @@ const EventManagement = ({ onBack }) => {
         mandatoryAmount: isTestEvent ? 0 : parseFloat(mandatoryAmount),
         noShowAmount: isTestEvent ? 0 : parseFloat(noShowAmount),
         fundId: fundId,
+        courseId: selectedCourse.id,
         createdAt: new Date().toISOString(),
         status: 'active',
         isTestEvent: isTestEvent
@@ -84,7 +89,7 @@ const EventManagement = ({ onBack }) => {
         const expenseId = `exp_evt_${eventId}`;
         
         // Obtener alumnos activos
-        const studentsSnap = await getDocs(collection(db, 'students'));
+        const studentsSnap = await getDocs(query(collection(db, 'students'), where('courseId', '==', selectedCourse.id)));
         const studentsList = studentsSnap.docs.map(d => ({ id: d.id, ...d.data() }));
 
         await setDoc(doc(db, 'expenses', expenseId), {
@@ -95,6 +100,7 @@ const EventManagement = ({ onBack }) => {
           studentsCount: studentsList.length,
           paidCount: 0,
           fundId: fundId,
+          courseId: selectedCourse.id,
           eventId: eventId,
           createdAt: new Date().toISOString()
         });
@@ -112,6 +118,7 @@ const EventManagement = ({ onBack }) => {
             title: `Cuota Obligatoria: ${eventName.trim()}`,
             date: eventDate,
             fundId: fundId,
+            courseId: selectedCourse.id,
             eventId: eventId,
             createdAt: new Date().toISOString()
           });
