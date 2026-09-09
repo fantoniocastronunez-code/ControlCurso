@@ -600,7 +600,7 @@ const StudentManagement = ({ onBack }) => {
       </div>
 
       <div className="glass-panel" style={{ overflowX: 'auto' }}>
-        <table className="mobile-accordion" style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
+        <table className="mobile-accordion students-mode" style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
           <thead>
             <tr style={{ borderBottom: '1px solid var(--border-color)', backgroundColor: 'rgba(255,255,255,0.03)' }}>
               <th style={{ padding: '1rem', width: '80px' }}>N°</th>

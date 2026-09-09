@@ -277,7 +277,12 @@ h1, h2, h3, h4, h5, h6 {
   }
   
   /* When collapsed (not expanded), hide everything except Student Name and Status in standard mode */
-  .glass-panel table.mobile-accordion:not(.audit-mode) tr:not(.expanded) td:not(:nth-child(2)):not(:nth-child(4)) {
+  .glass-panel table.mobile-accordion:not(.audit-mode):not(.students-mode) tr:not(.expanded) td:not(:nth-child(2)):not(:nth-child(4)) {
+    display: none !important;
+  }
+  
+  /* When collapsed in Students Mode, show List Number (col 1) and Student Name (col 2) */
+  .glass-panel table.mobile-accordion.students-mode tr:not(.expanded) td:not(:nth-child(1)):not(:nth-child(2)) {
     display: none !important;
   }
   
@@ -294,6 +299,15 @@ h1, h2, h3, h4, h5, h6 {
     align-items: center;
     gap: 0.5rem;
     padding: 0.85rem 1rem;
+  }
+
+  .glass-panel table.mobile-accordion.students-mode tr:not(.expanded) {
+    justify-content: flex-start;
+    gap: 0;
+  }
+  
+  .glass-panel table.mobile-accordion.students-mode tr:not(.expanded) td:nth-child(2) {
+    flex: 1;
   }
   
   /* Clean up the visible cells in collapsed mode */
