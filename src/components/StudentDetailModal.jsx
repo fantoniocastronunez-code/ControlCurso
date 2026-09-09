@@ -39,7 +39,10 @@ const StudentDetailModal = ({ student, usersMap = {}, onClose, isModal = false }
         return new Date(b.createdAt || b.date || 0) - new Date(a.createdAt || a.date || 0);
       });
 
-      setDebts(fetchedDebts);
+      // Filter out duplicate "(Saldo Restante)" debts since the main debt handles partial payments
+      const filteredDebts = fetchedDebts.filter(d => !d.title.includes('(Saldo Restante)'));
+
+      setDebts(filteredDebts);
     } catch (error) {
       console.error("Error fetching debts:", error);
     } finally {
