@@ -262,6 +262,7 @@ const ApoderadoDashboard = () => {
   }
 
   return (
+    <>
     <div className="container animate-fade-in">
       <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
@@ -368,75 +369,6 @@ const ApoderadoDashboard = () => {
             </div>
           )}
 
-          {/* MODAL DE PAGO */}
-      {payingDebt && (
-        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.7)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: '1rem' }}>
-          <div className="glass-panel" style={{ width: '100%', maxWidth: '500px', padding: '2rem', backgroundColor: 'var(--bg-main)' }}>
-            <h3 style={{ marginBottom: '1rem' }}>Informar Pago</h3>
-            <p style={{ color: 'var(--text-muted)', marginBottom: '1.5rem' }}>
-              Estás reportando el pago para <strong>{payingDebt.title}</strong> del alumno <strong>{payingDebt.studentName}</strong>. 
-              El monto esperado es de <strong>${payingDebt.amount}</strong>.
-            </p>
-
-            {(() => {
-              const dataToShow = payingDebt.transferData || transferData;
-              if (dataToShow && dataToShow.bank) {
-                return (
-                  <div style={{ backgroundColor: 'rgba(99,102,241,0.05)', padding: '1rem', borderRadius: 'var(--radius-md)', border: '1px solid rgba(99,102,241,0.2)', marginBottom: '1.5rem', fontSize: '0.9rem' }}>
-                    <h4 style={{ margin: '0 0 0.5rem 0', color: 'var(--primary)', fontSize: '0.95rem' }}>Datos de Transferencia</h4>
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '0.3rem', color: 'var(--text-main)' }}>
-                      {dataToShow.alias && <div><strong>Alias:</strong> {dataToShow.alias}</div>}
-                      {dataToShow.bank && <div><strong>Banco:</strong> {dataToShow.bank}</div>}
-                      {dataToShow.accountType && <div><strong>Tipo de Cuenta:</strong> {dataToShow.accountType}</div>}
-                      {dataToShow.accountNumber && <div><strong>Número:</strong> {dataToShow.accountNumber}</div>}
-                      {dataToShow.rut && <div><strong>RUT:</strong> {dataToShow.rut}</div>}
-                      {dataToShow.name && <div><strong>Nombre:</strong> {dataToShow.name}</div>}
-                      {dataToShow.email && <div><strong>Correo:</strong> {dataToShow.email}</div>}
-                    </div>
-                  </div>
-                );
-              }
-              return null;
-            })()}
-
-            <form onSubmit={handlePaymentSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
-              <div className="input-group" style={{ marginBottom: 0 }}>
-                <label className="input-label">Monto Transferido ($)</label>
-                <input 
-                  type="number" 
-                  required
-                  min="1"
-                  className="input-field" 
-                  value={paidAmount}
-                  onChange={(e) => setPaidAmount(e.target.value)}
-                  placeholder="Ej. 15000"
-                />
-              </div>
-
-              <div className="input-group" style={{ marginBottom: 0 }}>
-                <label className="input-label">Comprobante (Imagen o PDF)</label>
-                <input 
-                  type="file" 
-                  required
-                  accept="image/*,.pdf"
-                  className="input-field" 
-                  style={{ padding: '0.5rem' }}
-                  onChange={(e) => setReceiptFile(e.target.files[0])}
-                />
-              </div>
-
-              <div style={{ display: 'flex', gap: '1rem', marginTop: '1rem' }}>
-                <button type="button" onClick={() => setPayingDebt(null)} className="btn btn-outline" style={{ flex: 1 }}>
-                  Cancelar
-                </button>
-                <button type="submit" disabled={uploading} className="btn btn-primary" style={{ flex: 1 }}>
-                  {uploading ? 'Subiendo...' : 'Enviar Comprobante'}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
 
       {myStudents.length === 0 ? (
         <div className="glass-panel" style={{ padding: '2rem', marginBottom: '2rem', textAlign: 'center' }}>
@@ -615,6 +547,77 @@ const ApoderadoDashboard = () => {
         </div>
       </div>
     </div>
+
+    {/* MODAL DE PAGO MOVED OUTSIDE CONTAINER */}
+    {payingDebt && (
+      <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.7)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: '1rem' }}>
+        <div className="glass-panel" style={{ width: '100%', maxWidth: '500px', padding: '2rem', backgroundColor: 'var(--bg-main)' }}>
+          <h3 style={{ marginBottom: '1rem' }}>Informar Pago</h3>
+          <p style={{ color: 'var(--text-muted)', marginBottom: '1.5rem' }}>
+            Estás reportando el pago para <strong>{payingDebt.title}</strong> del alumno <strong>{payingDebt.studentName}</strong>. 
+            El monto esperado es de <strong>${payingDebt.amount}</strong>.
+          </p>
+
+          {(() => {
+            const dataToShow = payingDebt.transferData || transferData;
+            if (dataToShow && dataToShow.bank) {
+              return (
+                <div style={{ backgroundColor: 'rgba(99,102,241,0.05)', padding: '1rem', borderRadius: 'var(--radius-md)', border: '1px solid rgba(99,102,241,0.2)', marginBottom: '1.5rem', fontSize: '0.9rem' }}>
+                  <h4 style={{ margin: '0 0 0.5rem 0', color: 'var(--primary)', fontSize: '0.95rem' }}>Datos de Transferencia</h4>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '0.3rem', color: 'var(--text-main)' }}>
+                    {dataToShow.alias && <div><strong>Alias:</strong> {dataToShow.alias}</div>}
+                    {dataToShow.bank && <div><strong>Banco:</strong> {dataToShow.bank}</div>}
+                    {dataToShow.accountType && <div><strong>Tipo de Cuenta:</strong> {dataToShow.accountType}</div>}
+                    {dataToShow.accountNumber && <div><strong>Número:</strong> {dataToShow.accountNumber}</div>}
+                    {dataToShow.rut && <div><strong>RUT:</strong> {dataToShow.rut}</div>}
+                    {dataToShow.name && <div><strong>Nombre:</strong> {dataToShow.name}</div>}
+                    {dataToShow.email && <div><strong>Correo:</strong> {dataToShow.email}</div>}
+                  </div>
+                </div>
+              );
+            }
+            return null;
+          })()}
+
+          <form onSubmit={handlePaymentSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+            <div className="input-group" style={{ marginBottom: 0 }}>
+              <label className="input-label">Monto Transferido ($)</label>
+              <input 
+                type="number" 
+                required
+                min="1"
+                className="input-field" 
+                value={paidAmount}
+                onChange={(e) => setPaidAmount(e.target.value)}
+                placeholder="Ej. 15000"
+              />
+            </div>
+
+            <div className="input-group" style={{ marginBottom: 0 }}>
+              <label className="input-label">Comprobante (Imagen o PDF)</label>
+              <input 
+                type="file" 
+                required
+                accept="image/*,.pdf"
+                className="input-field" 
+                style={{ padding: '0.5rem' }}
+                onChange={(e) => setReceiptFile(e.target.files[0])}
+              />
+            </div>
+
+            <div style={{ display: 'flex', gap: '1rem', marginTop: '1rem' }}>
+              <button type="button" onClick={() => setPayingDebt(null)} className="btn btn-outline" style={{ flex: 1 }}>
+                Cancelar
+              </button>
+              <button type="submit" disabled={uploading} className="btn btn-primary" style={{ flex: 1 }}>
+                {uploading ? 'Subiendo...' : 'Enviar Comprobante'}
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+    )}
+    </>
   );
 };
 

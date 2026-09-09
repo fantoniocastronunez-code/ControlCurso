@@ -690,27 +690,29 @@ const AdminDashboard = () => {
         <ExpenseDetail expenseId={selectedExpenseId} onBack={() => setCurrentView('dashboard')} />
       ) : null}
 
-      {selectedFundForHistory && (
-        <FundHistoryModal 
-          fund={selectedFundForHistory}
-          transactions={stats.allTransactions}
-          onClose={() => setSelectedFundForHistory(null)}
-        />
-      )}
-
-      <RegisteredApoderadosModal 
-        isOpen={isApoderadosModalOpen}
-        onClose={() => setIsApoderadosModalOpen(false)}
-        apoderados={stats.registeredApoderadosList || []}
-      />
-
-      {isSearchOpen && (
-        <StudentSearchModal 
-          isOpen={isSearchOpen}
-          onClose={() => setIsSearchOpen(false)}
-        />
-      )}
     </div>
+
+    {/* Modals are rendered outside the container to avoid positioning issues with transform/animations */}
+    {selectedFundForHistory && (
+      <FundHistoryModal 
+        fund={selectedFundForHistory}
+        transactions={stats.allTransactions}
+        onClose={() => setSelectedFundForHistory(null)}
+      />
+    )}
+
+    <RegisteredApoderadosModal 
+      isOpen={isApoderadosModalOpen}
+      onClose={() => setIsApoderadosModalOpen(false)}
+      apoderados={stats.registeredApoderadosList || []}
+    />
+
+    {isSearchOpen && (
+      <StudentSearchModal 
+        isOpen={isSearchOpen}
+        onClose={() => setIsSearchOpen(false)}
+      />
+    )}
 
     {/* Liquid Bottom Navigation */}
     <nav className="bottom-nav">
