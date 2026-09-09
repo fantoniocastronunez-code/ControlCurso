@@ -8,6 +8,7 @@ import {
 import { formatStudentName } from '../utils/nameUtils';
 import { useModal } from '../context/ModalContext';
 import html2canvas from 'html2canvas';
+import { useLockBodyScroll } from '../hooks/useLockBodyScroll';
 
 const StudentDetailModal = ({ student, usersMap = {}, onClose, isModal = false }) => {
   const { showAlert } = useModal();
@@ -17,6 +18,8 @@ const StudentDetailModal = ({ student, usersMap = {}, onClose, isModal = false }
   const [isCapturing, setIsCapturing] = useState(false);
   const [previewReceipt, setPreviewReceipt] = useState(null);
   const detailRef = useRef(null);
+
+  useLockBodyScroll(isModal);
 
   useEffect(() => {
     if (student?.id) {

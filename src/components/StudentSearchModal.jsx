@@ -5,6 +5,8 @@ import { Search, X, User, UserCheck, AlertCircle, CheckCircle, DollarSign, Arrow
 import { formatStudentName } from '../utils/nameUtils';
 import StudentDetailModal from './StudentDetailModal';
 
+import { useLockBodyScroll } from '../hooks/useLockBodyScroll';
+
 const normalizeText = (text) => {
   if (!text) return '';
   return text
@@ -22,6 +24,8 @@ const StudentSearchModal = ({ isOpen, onClose, onSelectStudent }) => {
   const [debtsMap, setDebtsMap] = useState({}); // studentId -> { pendingCount, totalPending, paidCount, totalPaid }
   const [loading, setLoading] = useState(true);
   const [selectedStudentForDetail, setSelectedStudentForDetail] = useState(null);
+
+  useLockBodyScroll(isOpen);
 
   useEffect(() => {
     if (isOpen) {

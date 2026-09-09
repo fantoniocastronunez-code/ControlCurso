@@ -1,7 +1,10 @@
 import React from 'react';
 import { X, Calendar } from 'lucide-react';
+import { useLockBodyScroll } from '../hooks/useLockBodyScroll';
 
 const RegisteredApoderadosModal = ({ isOpen, onClose, apoderados }) => {
+  useLockBodyScroll(isOpen);
+
   if (!isOpen) return null;
 
   // Format date and time

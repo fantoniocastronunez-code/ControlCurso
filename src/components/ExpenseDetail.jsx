@@ -4,6 +4,7 @@ import { collection, query, where, getDocs, doc, getDoc, updateDoc, deleteDoc, s
 import { ArrowLeft, CheckCircle, Clock, XCircle, FileText, Download, Trash2, Edit2, Save, X, Calculator, CheckSquare, AlertTriangle, RotateCcw, Sparkles, Check } from 'lucide-react';
 import { formatStudentName } from '../utils/nameUtils';
 import { useModal } from '../context/ModalContext';
+import { useLockBodyScroll } from '../hooks/useLockBodyScroll';
 
 const ExpenseDetail = ({ expenseId, onBack }) => {
   const { showAlert, showConfirm, showPrompt } = useModal();
@@ -19,6 +20,7 @@ const ExpenseDetail = ({ expenseId, onBack }) => {
   
   // Para ver imagen en grande
   const [selectedReceipt, setSelectedReceipt] = useState(null);
+  useLockBodyScroll(!!selectedReceipt);
 
   // Estados de Edición
   const [isEditing, setIsEditing] = useState(false);

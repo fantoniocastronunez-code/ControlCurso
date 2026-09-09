@@ -4,6 +4,8 @@ const ModalContext = createContext();
 
 export const useModal = () => useContext(ModalContext);
 
+import { useLockBodyScroll } from '../hooks/useLockBodyScroll';
+
 export const ModalProvider = ({ children }) => {
   const [modalState, setModalState] = useState({
     isOpen: false,
@@ -14,6 +16,9 @@ export const ModalProvider = ({ children }) => {
   });
   
   const [inputValue, setInputValue] = useState('');
+
+  // Lock body scroll when modal is open
+  useLockBodyScroll(modalState.isOpen);
 
   const showAlert = useCallback((message) => {
     return new Promise((resolve) => {

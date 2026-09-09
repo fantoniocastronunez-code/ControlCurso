@@ -525,7 +525,12 @@ const ApoderadoDashboard = () => {
                   <p style={{ color: 'var(--text-muted)' }}>No hay cobros registrados para este alumno.</p>
                 ) : (
                   <div style={{ display: 'grid', gap: '1rem' }}>
-                    {studentDebts.map(debt => (
+                    {studentDebts.map(debt => {
+                      const remainingAmount = debt.status === 'partial' 
+                        ? Math.max(0, debt.amount - (debt.paidAmount || 0)) 
+                        : debt.amount;
+                      
+                      return (
                       <div key={debt.id} style={{ 
                         display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '1rem', padding: '1rem', backgroundColor: 'rgba(255,255,255,0.03)', borderRadius: 'var(--radius-md)', 
                         borderLeft: `4px solid ${debt.status === 'paid' ? 'var(--success)' : debt.status === 'review' ? 'var(--warning)' : debt.status === 'partial' ? '#eab308' : 'var(--danger)'}` 
@@ -533,7 +538,9 @@ const ApoderadoDashboard = () => {
                         <div>
                           <p style={{ fontWeight: '500', fontSize: '1.1rem', marginBottom: '0.2rem' }}>{debt.title}</p>
                           <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>
-                            {debt.status === 'partial' ? `Saldo Restante: ` : `Monto de la cuota: `} <strong>${debt.amount}</strong> • Emitida: {debt.date}
+                            {debt.status === 'partial' ? `Saldo Restante: ` : `Monto de la cuota: `} <strong>${remainingAmount}</strong> 
+                            {debt.status === 'partial' && debt.paidAmount > 0 && <span style={{opacity: 0.7}}> (Pagado: ${debt.paidAmount})</span>}
+                            <span> • Emitida: {debt.date}</span>
                           </p>
                         </div>
                         
@@ -545,8 +552,9 @@ const ApoderadoDashboard = () => {
                               </div>
                               <button 
                                 onClick={() => {
-                                  setPayingDebt(debt);
-                                  setPaidAmount(debt.amount.toString());
+                                  // Update payingDebt to have the correct remaining amount so the modal shows the right value
+                                  setPayingDebt({ ...debt, amount: remainingAmount });
+                                  setPaidAmount(remainingAmount.toString());
                                 }} 
                                 className="btn btn-primary" style={{ padding: '0.5rem 1rem' }}
                               >
@@ -568,7 +576,8 @@ const ApoderadoDashboard = () => {
                           )}
                         </div>
                       </div>
-                    ))}
+                    );
+                    })}
                   </div>
                 )}
               </div>

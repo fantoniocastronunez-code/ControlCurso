@@ -1,11 +1,14 @@
 import React from 'react';
 import { X, ArrowDownRight, ArrowUpRight, DollarSign, Download } from 'lucide-react';
+import { useLockBodyScroll } from '../hooks/useLockBodyScroll';
 
 const formatMoney = (amount) => {
   return new Intl.NumberFormat('es-CL', { style: 'currency', currency: 'CLP' }).format(amount);
 };
 
 const FundHistoryModal = ({ fund, transactions, onClose }) => {
+  useLockBodyScroll(!!fund);
+
   if (!fund) return null;
 
   // Filtrar transacciones para este fondo

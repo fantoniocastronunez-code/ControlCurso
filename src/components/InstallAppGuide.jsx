@@ -1,11 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import { Download, X, Share, PlusSquare, Smartphone } from 'lucide-react';
+import { useLockBodyScroll } from '../hooks/useLockBodyScroll';
 
 const InstallAppGuide = () => {
   const [deferredPrompt, setDeferredPrompt] = useState(null);
   const [isIOS, setIsIOS] = useState(false);
   const [isStandalone, setIsStandalone] = useState(false);
   const [showModal, setShowModal] = useState(false);
+
+  useLockBodyScroll(showModal);
 
   useEffect(() => {
     // Check if already installed
