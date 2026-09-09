@@ -213,6 +213,10 @@ h1, h2, h3, h4, h5, h6 {
     display: none;
   }
   
+  .mobile-only-icon {
+    display: block !important;
+  }
+  
   /* Style each row as a distinct card */
   .glass-panel tr {
     margin-bottom: 1rem;

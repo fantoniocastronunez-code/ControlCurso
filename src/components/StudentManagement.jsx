@@ -10,6 +10,7 @@ import { formatStudentName } from '../utils/nameUtils';
 import { formatRut } from '../utils/rutUtils';
 import { useModal } from '../context/ModalContext';
 import { useAuth } from '../context/AuthContext';
+import { ChevronDown, ChevronUp } from 'lucide-react';
 
 const formatMoney = (amount) => {
   return new Intl.NumberFormat('es-CL', { style: 'currency', currency: 'CLP' }).format(amount);
@@ -29,11 +30,21 @@ const StudentRow = React.memo(({
   role, 
   navigate, 
   startEditing, 
-  handleDelete 
+  handleDelete,
+  isExpanded,
+  toggleExpand
 }) => {
   return (
     <React.Fragment key={s.id}>
-      <tr style={{ borderBottom: '1px solid var(--border-color)', backgroundColor: selectedStudent?.id === s.id ? 'rgba(99, 102, 241, 0.05)' : 'transparent' }}>
+      <tr 
+        className={isExpanded || editingId === s.id ? 'expanded' : ''}
+        onClick={(e) => toggleExpand && toggleExpand(s.id, e)}
+        style={{ 
+          borderBottom: '1px solid var(--border-color)', 
+          backgroundColor: selectedStudent?.id === s.id ? 'rgba(99, 102, 241, 0.05)' : 'transparent',
+          cursor: toggleExpand ? 'pointer' : 'default'
+        }}
+      >
         {editingId === s.id ? (
         <>
           <td style={{ padding: '1rem', verticalAlign: 'top' }}>
@@ -141,13 +152,19 @@ const StudentRow = React.memo(({
       ) : (
         <>
           <td style={{ padding: '1rem', color: 'var(--text-muted)' }}>{s.listNumber || '-'}</td>
-          <td style={{ padding: '1rem', fontWeight: '500' }}>
+          <td style={{ padding: '1rem', fontWeight: '500', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
             <button 
-              onClick={() => setSelectedStudent(selectedStudent?.id === s.id ? null : s)}
+              onClick={(e) => {
+                e.stopPropagation();
+                setSelectedStudent(selectedStudent?.id === s.id ? null : s);
+              }}
               style={{ background: 'none', border: 'none', color: 'var(--primary)', cursor: 'pointer', fontWeight: '500', padding: 0, fontSize: 'inherit', textAlign: 'left', textDecoration: 'underline' }}
             >
               {formatStudentName(s)}
             </button>
+            <div className="mobile-only-icon" style={{ display: 'none', color: 'var(--text-muted)' }}>
+              {isExpanded ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
+            </div>
           </td>
           <td style={{ padding: '1rem', color: 'var(--text-muted)' }}>{s.rut || '-'}</td>
           <td style={{ padding: '1rem', color: 'var(--text-muted)' }}>
@@ -179,7 +196,7 @@ const StudentRow = React.memo(({
             <div style={{ display: 'flex', gap: '0.5rem' }}>
               {role === 'superadmin' && (
                 <button 
-                  onClick={() => navigate('/apoderado', { state: { impersonateStudentId: s.id } })}
+                  onClick={(e) => { e.stopPropagation(); navigate('/apoderado', { state: { impersonateStudentId: s.id } }); }}
                   className="btn btn-outline" 
                   style={{ padding: '0.4rem 0.75rem', color: 'var(--success)', borderColor: 'rgba(16, 185, 129, 0.3)', gap: '0.5rem', display: 'flex', alignItems: 'center' }}
                   title="Ver portal como apoderado"
@@ -187,10 +204,10 @@ const StudentRow = React.memo(({
                   <Eye size={16} /> Portal
                 </button>
               )}
-              <button onClick={() => startEditing(s)} className="btn btn-outline" style={{ padding: '0.4rem 0.75rem', color: 'var(--primary)', borderColor: 'rgba(99, 102, 241, 0.3)', gap: '0.5rem', display: 'flex', alignItems: 'center' }}>
+              <button onClick={(e) => { e.stopPropagation(); startEditing(s); }} className="btn btn-outline" style={{ padding: '0.4rem 0.75rem', color: 'var(--primary)', borderColor: 'rgba(99, 102, 241, 0.3)', gap: '0.5rem', display: 'flex', alignItems: 'center' }}>
                 <Edit2 size={16} /> Editar
               </button>
-              <button onClick={() => handleDelete(s.id)} className="btn btn-outline" style={{ padding: '0.4rem 0.75rem', color: 'var(--danger)', borderColor: 'rgba(239, 68, 68, 0.3)', gap: '0.5rem', display: 'flex', alignItems: 'center' }}>
+              <button onClick={(e) => { e.stopPropagation(); handleDelete(s.id); }} className="btn btn-outline" style={{ padding: '0.4rem 0.75rem', color: 'var(--danger)', borderColor: 'rgba(239, 68, 68, 0.3)', gap: '0.5rem', display: 'flex', alignItems: 'center' }}>
                 <Trash2 size={16} /> Eliminar
               </button>
             </div>
@@ -236,6 +253,7 @@ const StudentManagement = ({ onBack }) => {
   
   const [showBulkImport, setShowBulkImport] = useState(false);
   const [selectedStudent, setSelectedStudent] = useState(null);
+  const [expandedRowId, setExpandedRowId] = useState(null);
 
   // Estados para edición
   const [editingId, setEditingId] = useState(null);
@@ -250,6 +268,11 @@ const StudentManagement = ({ onBack }) => {
       return fullName.includes(term) || rut.includes(term);
     });
   }, [students, tableSearch]);
+
+  const toggleExpand = useCallback((id, e) => {
+    if (e && (e.target.tagName === 'BUTTON' || e.target.tagName === 'INPUT' || e.target.closest('button'))) return;
+    setExpandedRowId(prev => prev === id ? null : id);
+  }, []);
 
   const fetchUsers = useCallback(async () => {
     try {
@@ -577,7 +600,7 @@ const StudentManagement = ({ onBack }) => {
       </div>
 
       <div className="glass-panel" style={{ overflowX: 'auto' }}>
-        <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
+        <table className="mobile-accordion" style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
           <thead>
             <tr style={{ borderBottom: '1px solid var(--border-color)', backgroundColor: 'rgba(255,255,255,0.03)' }}>
               <th style={{ padding: '1rem', width: '80px' }}>N°</th>
@@ -606,6 +629,8 @@ const StudentManagement = ({ onBack }) => {
                 navigate={navigate}
                 startEditing={startEditing}
                 handleDelete={handleDelete}
+                isExpanded={expandedRowId === s.id}
+                toggleExpand={toggleExpand}
               />
             ))}
           </tbody>
