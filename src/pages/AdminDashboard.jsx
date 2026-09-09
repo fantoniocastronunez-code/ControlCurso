@@ -162,6 +162,42 @@ const AdminDashboard = () => {
     }
   };
 
+  const handleFixMismatchedDebts = async () => {
+    if (!window.confirm("¿Ejecutar corrección automática de fondos en las cuotas? Esto asignará cada cuota al fondo correcto según su configuración original.")) return;
+    
+    setLoading(true);
+    try {
+      const expensesSnap = await getDocs(collection(db, 'expenses'));
+      const expensesMap = {};
+      expensesSnap.forEach(doc => {
+        expensesMap[doc.id] = doc.data().fundId;
+      });
+
+      const debtsSnap = await getDocs(collection(db, 'debts'));
+      let fixedCount = 0;
+      
+      const { updateDoc, doc: fsDoc } = await import('firebase/firestore');
+      
+      for (const debtDoc of debtsSnap.docs) {
+        const debt = debtDoc.data();
+        const correctFundId = expensesMap[debt.expenseId];
+        
+        if (correctFundId && debt.fundId !== correctFundId) {
+          await updateDoc(fsDoc(db, 'debts', debtDoc.id), { fundId: correctFundId });
+          fixedCount++;
+        }
+      }
+      
+      fetchDashboardData();
+      await showAlert(`¡Corrección completa! Se arreglaron ${fixedCount} cuotas que estaban en el fondo equivocado.`);
+    } catch (error) {
+      console.error(error);
+      await showAlert("Hubo un error al corregir las cuotas.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const fetchDashboardData = async () => {
     setLoading(true);
     try {
@@ -668,6 +704,9 @@ const AdminDashboard = () => {
                   </button>
                   <button onClick={handleQuickOutcome} className="btn btn-primary" style={{ backgroundColor: 'var(--danger)' }}>
                     - Anotar Gasto
+                  </button>
+                  <button onClick={handleFixMismatchedDebts} className="btn btn-outline" style={{ color: 'var(--primary)', borderColor: 'var(--primary)' }}>
+                    Arreglar Fondos Mezclados
                   </button>
                   <button onClick={() => setCurrentView('expenses_add')} className="btn btn-primary">
                     Cobrar Cuota

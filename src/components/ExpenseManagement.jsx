@@ -219,7 +219,7 @@ const ExpenseManagement = ({ onBack }) => {
           approvedAt,
           title,
           date,
-          fundId: selectedFundId,
+          fundId: finalFundId,
           transferData: selectedAccount,
           createdAt: new Date().toISOString()
         });
