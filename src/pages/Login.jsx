@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import { LogIn, UserPlus } from 'lucide-react';
 import { auth } from '../firebase/config';
 import { signInWithEmailAndPassword, createUserWithEmailAndPassword } from 'firebase/auth';
+import InstallAppGuide from '../components/InstallAppGuide';
 
 const Login = () => {
   const { user, role, loginWithGoogle } = useAuth();
@@ -161,6 +162,10 @@ const Login = () => {
             {isRegistering ? 'Inicia Sesión' : 'Regístrate aquí'}
           </button>
         </p>
+
+        <div style={{ display: 'flex', justifyContent: 'center', marginTop: '1rem' }}>
+          <InstallAppGuide />
+        </div>
       </div>
     </div>
   );

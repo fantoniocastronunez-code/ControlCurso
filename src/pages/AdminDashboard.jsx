@@ -18,6 +18,7 @@ import SettingsManagement from '../components/SettingsManagement';
 import FundHistoryModal from '../components/FundHistoryModal';
 import StudentSearchModal from '../components/StudentSearchModal';
 import MeetingReport from '../components/MeetingReport';
+import InstallAppGuide from '../components/InstallAppGuide';
 
 const AdminDashboard = () => {
   const { user, role, logout } = useAuth();
@@ -489,6 +490,7 @@ const AdminDashboard = () => {
             <RefreshCw size={18} />
             Actualizar
           </button>
+          <InstallAppGuide />
           <button onClick={logout} className="btn btn-outline">
             <LogOut size={18} />
             Salir

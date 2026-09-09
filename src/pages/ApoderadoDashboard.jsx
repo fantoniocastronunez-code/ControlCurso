@@ -8,6 +8,7 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { formatStudentName } from '../utils/nameUtils';
 import { formatRut } from '../utils/rutUtils';
 import { useModal } from '../context/ModalContext';
+import InstallAppGuide from '../components/InstallAppGuide';
 
 const ApoderadoDashboard = () => {
   const { showAlert } = useModal();
@@ -281,6 +282,7 @@ const ApoderadoDashboard = () => {
               Volver a Panel Admin
             </button>
           )}
+          <InstallAppGuide />
           <button onClick={logout} className="btn btn-outline">
             <LogOut size={18} />
             Salir
