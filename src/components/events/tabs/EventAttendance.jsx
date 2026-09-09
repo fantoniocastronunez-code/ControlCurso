@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { db } from '../../../firebase/config';
 import { collection, getDocs, query, where, doc, updateDoc, getDoc, setDoc, deleteDoc } from 'firebase/firestore';
 import { CheckSquare, Square, Search } from 'lucide-react';
@@ -13,11 +13,7 @@ const EventAttendance = ({ event }) => {
   const [hasChanges, setHasChanges] = useState(false);
   const [saving, setSaving] = useState(false);
 
-  useEffect(() => {
-    fetchDebts();
-  }, [event.id]);
-
-  const fetchDebts = async () => {
+  const fetchDebts = useCallback(async () => {
     setLoading(true);
     try {
       const studentsSnap = await getDocs(collection(db, 'students'));
@@ -60,7 +56,13 @@ const EventAttendance = ({ event }) => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [event.id]);
+
+  useEffect(() => {
+    fetchDebts();
+  }, [fetchDebts]);
+
+
 
   const toggleAttendance = (studentData) => {
     const willBeNotAttended = !studentData.notAttended;

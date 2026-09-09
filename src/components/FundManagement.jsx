@@ -29,36 +29,36 @@ const FundManagement = ({ onBack }) => {
   const [transferAmount, setTransferAmount] = useState('');
 
   useEffect(() => {
+    const fetchFunds = async () => {
+      try {
+        const fundsCollection = collection(db, 'funds');
+        const snapshot = await getDocs(fundsCollection);
+        const list = snapshot.docs.map(doc => ({
+          id: doc.id,
+          ...doc.data()
+        }));
+        
+        // Asegurar que exista el Fondo General en la vista
+        if (!list.find(f => f.id === 'general')) {
+          list.push({ id: 'general', name: 'Fondo General', description: 'Fondo principal base del curso', isLocked: false });
+        }
+
+        // Ordenar por nombre, pero manteniendo el Fondo General arriba
+        list.sort((a, b) => {
+          if (a.id === 'general') return -1;
+          if (b.id === 'general') return 1;
+          return a.name.localeCompare(b.name);
+        });
+        setFunds(list);
+      } catch (error) {
+        console.error("Error al obtener fondos:", error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
     fetchFunds();
   }, []);
-
-  const fetchFunds = async () => {
-    try {
-      const fundsCollection = collection(db, 'funds');
-      const snapshot = await getDocs(fundsCollection);
-      const list = snapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
-      }));
-      
-      // Asegurar que exista el Fondo General en la vista
-      if (!list.find(f => f.id === 'general')) {
-        list.push({ id: 'general', name: 'Fondo General', description: 'Fondo principal base del curso', isLocked: false });
-      }
-
-      // Ordenar por nombre, pero manteniendo el Fondo General arriba
-      list.sort((a, b) => {
-        if (a.id === 'general') return -1;
-        if (b.id === 'general') return 1;
-        return a.name.localeCompare(b.name);
-      });
-      setFunds(list);
-    } catch (error) {
-      console.error("Error al obtener fondos:", error);
-    } finally {
-      setLoading(false);
-    }
-  };
 
   const handleAddFund = async (e) => {
     e.preventDefault();

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { db } from '../../firebase/config';
 import { collection, getDocs, doc, setDoc, query, orderBy, deleteDoc, where } from 'firebase/firestore';
 import { ArrowLeft, PlusCircle, CheckCircle, Calendar, X, Save, Trash2 } from 'lucide-react';
@@ -23,11 +23,8 @@ const EventManagement = ({ onBack }) => {
   const [noShowAmount, setNoShowAmount] = useState('');
   const [isTestEvent, setIsTestEvent] = useState(false);
 
-  useEffect(() => {
-    fetchEvents();
-  }, []);
-
-  const fetchEvents = async () => {
+  const fetchEvents = useCallback(async () => {
+    setLoading(true);
     try {
       const q = query(collection(db, 'events'), orderBy('createdAt', 'desc'));
       const querySnapshot = await getDocs(q);
@@ -41,7 +38,11 @@ const EventManagement = ({ onBack }) => {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
+
+  useEffect(() => {
+    fetchEvents();
+  }, [fetchEvents]);
 
   const handleCreateEvent = async (e) => {
     e.preventDefault();

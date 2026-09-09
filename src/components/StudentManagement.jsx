@@ -1,7 +1,7 @@
-import React, { useEffect, useState, useMemo } from 'react';
+import React, { useEffect, useState, useMemo, useCallback } from 'react';
 import { db } from '../firebase/config';
 import { collection, getDocs, doc, setDoc, deleteDoc, updateDoc } from 'firebase/firestore';
-import { ArrowLeft, UserPlus, CheckCircle, Trash2, Edit2, X, Save, Image as ImageIcon, Eye, Search } from 'lucide-react';
+import { ArrowLeft, UserPlus, CheckCircle, Trash2, Edit2, X, Save, Eye, Search } from 'lucide-react';
 import BulkImport from './BulkImport';
 import StudentDetailModal from './StudentDetailModal';
 import { useNavigate } from 'react-router-dom';
@@ -11,8 +11,212 @@ import { formatRut } from '../utils/rutUtils';
 import { useModal } from '../context/ModalContext';
 import { useAuth } from '../context/AuthContext';
 
+const formatMoney = (amount) => {
+  return new Intl.NumberFormat('es-CL', { style: 'currency', currency: 'CLP' }).format(amount);
+};
+
+const StudentRow = React.memo(({ 
+  student: s, 
+  editingId, 
+  editData, 
+  setEditData, 
+  handleSaveEdit, 
+  cancelEditing, 
+  selectedStudent, 
+  setSelectedStudent, 
+  formatStudentName, 
+  usersMap, 
+  role, 
+  navigate, 
+  startEditing, 
+  handleDelete 
+}) => {
+  return (
+    <React.Fragment key={s.id}>
+      <tr style={{ borderBottom: '1px solid var(--border-color)', backgroundColor: selectedStudent?.id === s.id ? 'rgba(99, 102, 241, 0.05)' : 'transparent' }}>
+        {editingId === s.id ? (
+        <>
+          <td style={{ padding: '1rem', verticalAlign: 'top' }}>
+            <label style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>N° Lista</label>
+            <input 
+              type="number" 
+              className="input-field" 
+              value={editData.listNumber} 
+              onChange={(e) => setEditData({...editData, listNumber: e.target.value})}
+              style={{ padding: '0.4rem', width: '60px', marginTop: '0.2rem' }}
+            />
+          </td>
+          <td style={{ padding: '1rem', display: 'flex', flexDirection: 'column', gap: '0.5rem', verticalAlign: 'top' }}>
+            <div>
+              <label style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Nombres</label>
+              <input 
+                type="text" 
+                className="input-field" 
+                placeholder="Nombres"
+                value={editData.firstName} 
+                onChange={(e) => setEditData({...editData, firstName: e.target.value})}
+                style={{ padding: '0.4rem', marginTop: '0.2rem', width: '100%' }}
+              />
+            </div>
+            <div>
+              <label style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>A. Paterno</label>
+              <input 
+                type="text" 
+                className="input-field" 
+                placeholder="A. Paterno"
+                value={editData.lastNamePaternal} 
+                onChange={(e) => setEditData({...editData, lastNamePaternal: e.target.value})}
+                style={{ padding: '0.4rem', marginTop: '0.2rem', width: '100%' }}
+              />
+            </div>
+            <div>
+              <label style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>A. Materno</label>
+              <input 
+                type="text" 
+                className="input-field" 
+                placeholder="A. Materno"
+                value={editData.lastNameMaternal} 
+                onChange={(e) => setEditData({...editData, lastNameMaternal: e.target.value})}
+                style={{ padding: '0.4rem', marginTop: '0.2rem', width: '100%' }}
+              />
+            </div>
+          </td>
+          <td style={{ padding: '1rem', verticalAlign: 'top' }}>
+            <label style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>RUT</label>
+            <input 
+              type="text" 
+              className="input-field" 
+              value={editData.rut} 
+              onChange={(e) => setEditData({...editData, rut: formatRut(e.target.value)})}
+              style={{ padding: '0.4rem', marginTop: '0.2rem', width: '100%' }}
+            />
+          </td>
+          <td style={{ padding: '1rem', verticalAlign: 'top' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+              <div>
+                <label style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Email Apdo. 1</label>
+                <input 
+                  type="email" 
+                  className="input-field" 
+                  placeholder="Email 1"
+                  value={editData.apoderadoEmail1} 
+                  onChange={(e) => setEditData({...editData, apoderadoEmail1: e.target.value})}
+                  style={{ padding: '0.4rem', marginTop: '0.2rem', width: '100%' }}
+                />
+              </div>
+              <div>
+                <label style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Email Apdo. 2</label>
+                <input 
+                  type="email" 
+                  className="input-field" 
+                  placeholder="Email 2"
+                  value={editData.apoderadoEmail2} 
+                  onChange={(e) => setEditData({...editData, apoderadoEmail2: e.target.value})}
+                  style={{ padding: '0.4rem', marginTop: '0.2rem', width: '100%' }}
+                />
+              </div>
+            </div>
+          </td>
+          <td style={{ padding: '1rem', verticalAlign: 'top' }}>
+            <label style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Saldo a Favor ($)</label>
+            <input 
+              type="number" 
+              className="input-field" 
+              value={editData.balance} 
+              onChange={(e) => setEditData({...editData, balance: e.target.value})}
+              style={{ padding: '0.4rem', width: '100px', marginTop: '0.2rem' }}
+            />
+          </td>
+          <td style={{ padding: '1rem', verticalAlign: 'top' }}>
+            <div style={{ display: 'flex', gap: '0.5rem', marginTop: '1.2rem' }}>
+              <button onClick={handleSaveEdit} className="btn btn-primary" style={{ padding: '0.4rem 0.75rem', gap: '0.5rem', display: 'flex', alignItems: 'center' }}>
+                <Save size={16} /> Guardar
+              </button>
+              <button onClick={cancelEditing} className="btn btn-outline" style={{ padding: '0.4rem 0.75rem', gap: '0.5rem', display: 'flex', alignItems: 'center' }}>
+                <X size={16} />
+              </button>
+            </div>
+          </td>
+        </>
+      ) : (
+        <>
+          <td style={{ padding: '1rem', color: 'var(--text-muted)' }}>{s.listNumber || '-'}</td>
+          <td style={{ padding: '1rem', fontWeight: '500' }}>
+            <button 
+              onClick={() => setSelectedStudent(selectedStudent?.id === s.id ? null : s)}
+              style={{ background: 'none', border: 'none', color: 'var(--primary)', cursor: 'pointer', fontWeight: '500', padding: 0, fontSize: 'inherit', textAlign: 'left', textDecoration: 'underline' }}
+            >
+              {formatStudentName(s)}
+            </button>
+          </td>
+          <td style={{ padding: '1rem', color: 'var(--text-muted)' }}>{s.rut || '-'}</td>
+          <td style={{ padding: '1rem', color: 'var(--text-muted)' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
+              {(s.apoderadoEmails?.length > 0 ? s.apoderadoEmails : (s.apoderadoEmail ? [s.apoderadoEmail] : [])).length > 0 
+                ? (s.apoderadoEmails?.length > 0 ? s.apoderadoEmails : [s.apoderadoEmail]).map((email, idx) => (
+                    <div key={idx} style={{ lineHeight: '1.2' }}>
+                      <span style={{ color: 'var(--text-main)', fontWeight: '500' }}>
+                        {usersMap[email] || 'Apoderado sin nombre'}
+                      </span>
+                      <br />
+                      <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+                        {email}
+                      </span>
+                    </div>
+                  ))
+                : 'Sin apoderado'
+              }
+            </div>
+          </td>
+          <td style={{ padding: '1rem' }}>
+            {s.balance > 0 ? (
+              <span style={{ color: 'var(--success)', fontWeight: 'bold' }}>{formatMoney(s.balance)}</span>
+            ) : (
+              <span style={{ color: 'var(--text-muted)' }}>-</span>
+            )}
+          </td>
+          <td style={{ padding: '1rem' }}>
+            <div style={{ display: 'flex', gap: '0.5rem' }}>
+              {role === 'superadmin' && (
+                <button 
+                  onClick={() => navigate('/apoderado', { state: { impersonateStudentId: s.id } })}
+                  className="btn btn-outline" 
+                  style={{ padding: '0.4rem 0.75rem', color: 'var(--success)', borderColor: 'rgba(16, 185, 129, 0.3)', gap: '0.5rem', display: 'flex', alignItems: 'center' }}
+                  title="Ver portal como apoderado"
+                >
+                  <Eye size={16} /> Portal
+                </button>
+              )}
+              <button onClick={() => startEditing(s)} className="btn btn-outline" style={{ padding: '0.4rem 0.75rem', color: 'var(--primary)', borderColor: 'rgba(99, 102, 241, 0.3)', gap: '0.5rem', display: 'flex', alignItems: 'center' }}>
+                <Edit2 size={16} /> Editar
+              </button>
+              <button onClick={() => handleDelete(s.id)} className="btn btn-outline" style={{ padding: '0.4rem 0.75rem', color: 'var(--danger)', borderColor: 'rgba(239, 68, 68, 0.3)', gap: '0.5rem', display: 'flex', alignItems: 'center' }}>
+                <Trash2 size={16} /> Eliminar
+              </button>
+            </div>
+          </td>
+        </>
+      )}
+      </tr>
+      
+      {/* Fila expandible para la ficha del alumno */}
+      {selectedStudent?.id === s.id && (
+        <tr>
+          <td colSpan="6" style={{ padding: 0 }}>
+            <StudentDetailModal 
+              student={selectedStudent} 
+              usersMap={usersMap} 
+              onClose={() => setSelectedStudent(null)} 
+            />
+          </td>
+        </tr>
+      )}
+    </React.Fragment>
+  );
+});
+
 const StudentManagement = ({ onBack }) => {
-  const { showConfirm, showAlert } = useModal();
+  const { showConfirm } = useModal();
   const { role } = useAuth();
   const navigate = useNavigate();
   const [students, setStudents] = useState([]);
@@ -47,17 +251,7 @@ const StudentManagement = ({ onBack }) => {
     });
   }, [students, tableSearch]);
 
-  useEffect(() => {
-    fetchData();
-  }, []);
-
-  const fetchData = async () => {
-    setLoading(true);
-    await Promise.all([fetchUsers(), fetchStudents()]);
-    setLoading(false);
-  };
-
-  const fetchUsers = async () => {
+  const fetchUsers = useCallback(async () => {
     try {
       const usersSnap = await getDocs(collection(db, 'users'));
       const map = {};
@@ -73,9 +267,9 @@ const StudentManagement = ({ onBack }) => {
     } catch (error) {
       console.error("Error fetching users:", error);
     }
-  };
+  }, []);
 
-  const fetchStudents = async () => {
+  const fetchStudents = useCallback(async () => {
     try {
       const studentsCollection = collection(db, 'students');
       const studentSnapshot = await getDocs(studentsCollection);
@@ -93,7 +287,16 @@ const StudentManagement = ({ onBack }) => {
     } catch (error) {
       console.error("Error al obtener alumnos:", error);
     }
-  };
+  }, []);
+
+  useEffect(() => {
+    const fetchData = async () => {
+      setLoading(true);
+      await Promise.all([fetchUsers(), fetchStudents()]);
+      setLoading(false);
+    };
+    fetchData();
+  }, [fetchUsers, fetchStudents]);
 
   const handleAddStudent = async (e) => {
     e.preventDefault();
@@ -212,10 +415,6 @@ const StudentManagement = ({ onBack }) => {
       setMessage('Error al modificar alumno');
       setTimeout(() => setMessage(''), 3000);
     }
-  };
-
-  const formatMoney = (amount) => {
-    return new Intl.NumberFormat('es-CL', { style: 'currency', currency: 'CLP' }).format(amount);
   };
 
   if (loading) {
@@ -391,186 +590,23 @@ const StudentManagement = ({ onBack }) => {
           </thead>
           <tbody>
             {filteredStudents.map(s => (
-              <React.Fragment key={s.id}>
-                <tr style={{ borderBottom: '1px solid var(--border-color)', backgroundColor: selectedStudent?.id === s.id ? 'rgba(99, 102, 241, 0.05)' : 'transparent' }}>
-                  {editingId === s.id ? (
-                  <>
-                    <td style={{ padding: '1rem', verticalAlign: 'top' }}>
-                      <label style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>N° Lista</label>
-                      <input 
-                        type="number" 
-                        className="input-field" 
-                        value={editData.listNumber} 
-                        onChange={(e) => setEditData({...editData, listNumber: e.target.value})}
-                        style={{ padding: '0.4rem', width: '60px', marginTop: '0.2rem' }}
-                      />
-                    </td>
-                    <td style={{ padding: '1rem', display: 'flex', flexDirection: 'column', gap: '0.5rem', verticalAlign: 'top' }}>
-                      <div>
-                        <label style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Nombres</label>
-                        <input 
-                          type="text" 
-                          className="input-field" 
-                          placeholder="Nombres"
-                          value={editData.firstName} 
-                          onChange={(e) => setEditData({...editData, firstName: e.target.value})}
-                          style={{ padding: '0.4rem', marginTop: '0.2rem', width: '100%' }}
-                        />
-                      </div>
-                      <div>
-                        <label style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>A. Paterno</label>
-                        <input 
-                          type="text" 
-                          className="input-field" 
-                          placeholder="A. Paterno"
-                          value={editData.lastNamePaternal} 
-                          onChange={(e) => setEditData({...editData, lastNamePaternal: e.target.value})}
-                          style={{ padding: '0.4rem', marginTop: '0.2rem', width: '100%' }}
-                        />
-                      </div>
-                      <div>
-                        <label style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>A. Materno</label>
-                        <input 
-                          type="text" 
-                          className="input-field" 
-                          placeholder="A. Materno"
-                          value={editData.lastNameMaternal} 
-                          onChange={(e) => setEditData({...editData, lastNameMaternal: e.target.value})}
-                          style={{ padding: '0.4rem', marginTop: '0.2rem', width: '100%' }}
-                        />
-                      </div>
-                    </td>
-                    <td style={{ padding: '1rem', verticalAlign: 'top' }}>
-                      <label style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>RUT</label>
-                      <input 
-                        type="text" 
-                        className="input-field" 
-                        value={editData.rut} 
-                        onChange={(e) => setEditData({...editData, rut: formatRut(e.target.value)})}
-                        style={{ padding: '0.4rem', marginTop: '0.2rem', width: '100%' }}
-                      />
-                    </td>
-                    <td style={{ padding: '1rem', verticalAlign: 'top' }}>
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                        <div>
-                          <label style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Email Apdo. 1</label>
-                          <input 
-                            type="email" 
-                            className="input-field" 
-                            placeholder="Email 1"
-                            value={editData.apoderadoEmail1} 
-                            onChange={(e) => setEditData({...editData, apoderadoEmail1: e.target.value})}
-                            style={{ padding: '0.4rem', marginTop: '0.2rem', width: '100%' }}
-                          />
-                        </div>
-                        <div>
-                          <label style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Email Apdo. 2</label>
-                          <input 
-                            type="email" 
-                            className="input-field" 
-                            placeholder="Email 2"
-                            value={editData.apoderadoEmail2} 
-                            onChange={(e) => setEditData({...editData, apoderadoEmail2: e.target.value})}
-                            style={{ padding: '0.4rem', marginTop: '0.2rem', width: '100%' }}
-                          />
-                        </div>
-                      </div>
-                    </td>
-                    <td style={{ padding: '1rem', verticalAlign: 'top' }}>
-                      <label style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Saldo a Favor ($)</label>
-                      <input 
-                        type="number" 
-                        className="input-field" 
-                        value={editData.balance} 
-                        onChange={(e) => setEditData({...editData, balance: e.target.value})}
-                        style={{ padding: '0.4rem', width: '100px', marginTop: '0.2rem' }}
-                      />
-                    </td>
-                    <td style={{ padding: '1rem', verticalAlign: 'top' }}>
-                      <div style={{ display: 'flex', gap: '0.5rem', marginTop: '1.2rem' }}>
-                        <button onClick={handleSaveEdit} className="btn btn-primary" style={{ padding: '0.4rem 0.75rem', gap: '0.5rem', display: 'flex', alignItems: 'center' }}>
-                          <Save size={16} /> Guardar
-                        </button>
-                        <button onClick={cancelEditing} className="btn btn-outline" style={{ padding: '0.4rem 0.75rem', gap: '0.5rem', display: 'flex', alignItems: 'center' }}>
-                          <X size={16} />
-                        </button>
-                      </div>
-                    </td>
-                  </>
-                ) : (
-                  <>
-                    <td style={{ padding: '1rem', color: 'var(--text-muted)' }}>{s.listNumber || '-'}</td>
-                    <td style={{ padding: '1rem', fontWeight: '500' }}>
-                      <button 
-                        onClick={() => setSelectedStudent(selectedStudent?.id === s.id ? null : s)}
-                        style={{ background: 'none', border: 'none', color: 'var(--primary)', cursor: 'pointer', fontWeight: '500', padding: 0, fontSize: 'inherit', textAlign: 'left', textDecoration: 'underline' }}
-                      >
-                        {formatStudentName(s)}
-                      </button>
-                    </td>
-                    <td style={{ padding: '1rem', color: 'var(--text-muted)' }}>{s.rut || '-'}</td>
-                    <td style={{ padding: '1rem', color: 'var(--text-muted)' }}>
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
-                        {(s.apoderadoEmails?.length > 0 ? s.apoderadoEmails : (s.apoderadoEmail ? [s.apoderadoEmail] : [])).length > 0 
-                          ? (s.apoderadoEmails?.length > 0 ? s.apoderadoEmails : [s.apoderadoEmail]).map((email, idx) => (
-                              <div key={idx} style={{ lineHeight: '1.2' }}>
-                                <span style={{ color: 'var(--text-main)', fontWeight: '500' }}>
-                                  {usersMap[email] || 'Apoderado sin nombre'}
-                                </span>
-                                <br />
-                                <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
-                                  {email}
-                                </span>
-                              </div>
-                            ))
-                          : 'Sin apoderado'
-                        }
-                      </div>
-                    </td>
-                    <td style={{ padding: '1rem' }}>
-                      {s.balance > 0 ? (
-                        <span style={{ color: 'var(--success)', fontWeight: 'bold' }}>{formatMoney(s.balance)}</span>
-                      ) : (
-                        <span style={{ color: 'var(--text-muted)' }}>-</span>
-                      )}
-                    </td>
-                    <td style={{ padding: '1rem' }}>
-                      <div style={{ display: 'flex', gap: '0.5rem' }}>
-                        {role === 'superadmin' && (
-                          <button 
-                            onClick={() => navigate('/apoderado', { state: { impersonateStudentId: s.id } })}
-                            className="btn btn-outline" 
-                            style={{ padding: '0.4rem 0.75rem', color: 'var(--success)', borderColor: 'rgba(16, 185, 129, 0.3)', gap: '0.5rem', display: 'flex', alignItems: 'center' }}
-                            title="Ver portal como apoderado"
-                          >
-                            <Eye size={16} /> Portal
-                          </button>
-                        )}
-                        <button onClick={() => startEditing(s)} className="btn btn-outline" style={{ padding: '0.4rem 0.75rem', color: 'var(--primary)', borderColor: 'rgba(99, 102, 241, 0.3)', gap: '0.5rem', display: 'flex', alignItems: 'center' }}>
-                          <Edit2 size={16} /> Editar
-                        </button>
-                        <button onClick={() => handleDelete(s.id)} className="btn btn-outline" style={{ padding: '0.4rem 0.75rem', color: 'var(--danger)', borderColor: 'rgba(239, 68, 68, 0.3)', gap: '0.5rem', display: 'flex', alignItems: 'center' }}>
-                          <Trash2 size={16} /> Eliminar
-                        </button>
-                      </div>
-                    </td>
-                  </>
-                )}
-                </tr>
-                
-                {/* Fila expandible para la ficha del alumno */}
-                {selectedStudent?.id === s.id && (
-                  <tr>
-                    <td colSpan="6" style={{ padding: 0 }}>
-                      <StudentDetailModal 
-                        student={selectedStudent} 
-                        usersMap={usersMap} 
-                        onClose={() => setSelectedStudent(null)} 
-                      />
-                    </td>
-                  </tr>
-                )}
-              </React.Fragment>
+              <StudentRow 
+                key={s.id}
+                student={s}
+                editingId={editingId}
+                editData={editData}
+                setEditData={setEditData}
+                handleSaveEdit={handleSaveEdit}
+                cancelEditing={cancelEditing}
+                selectedStudent={selectedStudent}
+                setSelectedStudent={setSelectedStudent}
+                formatStudentName={formatStudentName}
+                usersMap={usersMap}
+                role={role}
+                navigate={navigate}
+                startEditing={startEditing}
+                handleDelete={handleDelete}
+              />
             ))}
           </tbody>
         </table>

@@ -1,5 +1,5 @@
 import React from 'react';
-import { X, ArrowDownRight, ArrowUpRight, DollarSign, Activity, Download } from 'lucide-react';
+import { X, ArrowDownRight, ArrowUpRight, DollarSign, Download } from 'lucide-react';
 
 const formatMoney = (amount) => {
   return new Intl.NumberFormat('es-CL', { style: 'currency', currency: 'CLP' }).format(amount);

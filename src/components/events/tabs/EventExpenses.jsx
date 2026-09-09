@@ -1,11 +1,11 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { db } from '../../../firebase/config';
-import { collection, getDocs, doc, setDoc, query, where, orderBy } from 'firebase/firestore';
-import { Plus, Trash2, DollarSign } from 'lucide-react';
+import { collection, getDocs, doc, setDoc, query, where } from 'firebase/firestore';
+import { Plus, DollarSign } from 'lucide-react';
 import { useModal } from '../../../context/ModalContext';
 
 const EventExpenses = ({ event }) => {
-  const { showAlert, showConfirm } = useModal();
+  const { showAlert } = useModal();
   const [outcomes, setOutcomes] = useState([]);
   const [loading, setLoading] = useState(true);
 
@@ -15,11 +15,7 @@ const EventExpenses = ({ event }) => {
   const [paymentMethod, setPaymentMethod] = useState('cash'); // cash, transfer
   const [responsable, setResponsable] = useState('');
 
-  useEffect(() => {
-    fetchOutcomes();
-  }, [event.id]);
-
-  const fetchOutcomes = async () => {
+  const fetchOutcomes = useCallback(async () => {
     setLoading(true);
     try {
       const q = query(collection(db, 'outcomes'), where('fundId', '==', event.fundId));
@@ -32,7 +28,13 @@ const EventExpenses = ({ event }) => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [event.fundId]);
+
+  useEffect(() => {
+    fetchOutcomes();
+  }, [fetchOutcomes]);
+
+
 
   const handleAddOutcome = async (e) => {
     e.preventDefault();

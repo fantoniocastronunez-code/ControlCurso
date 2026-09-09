@@ -34,6 +34,30 @@ const EventPOS = ({ event }) => {
   const [lastSale, setLastSale] = useState(null);
 
   useEffect(() => {
+    const fetchData = async () => {
+      setLoading(true);
+      try {
+        // Fetch menu items
+        const qItems = query(collection(db, 'eventItems'), where('eventId', '==', event.id));
+        const snapItems = await getDocs(qItems);
+        const itemsList = snapItems.docs.map(d => ({ id: d.id, ...d.data() }));
+        itemsList.sort((a, b) => a.name.localeCompare(b.name));
+        setItems(itemsList);
+
+        // Fetch past sales for correlative and history
+        const qSales = query(collection(db, 'eventSales'), where('eventId', '==', event.id));
+        const snapSales = await getDocs(qSales);
+        const salesList = snapSales.docs.map(d => ({ id: d.id, ...d.data() }));
+        salesList.sort((a, b) => b.correlative - a.correlative); // Local sort to avoid requiring composite index
+        setSales(salesList);
+
+      } catch (error) {
+        console.error("Error fetching POS data:", error);
+      } finally {
+        setLoading(false);
+      }
+    };
+    
     fetchData();
   }, [event.id]);
 
@@ -56,30 +80,6 @@ const EventPOS = ({ event }) => {
       if (document.exitFullscreen) {
         document.exitFullscreen();
       }
-    }
-  };
-
-  const fetchData = async () => {
-    setLoading(true);
-    try {
-      // Fetch menu items
-      const qItems = query(collection(db, 'eventItems'), where('eventId', '==', event.id));
-      const snapItems = await getDocs(qItems);
-      const itemsList = snapItems.docs.map(d => ({ id: d.id, ...d.data() }));
-      itemsList.sort((a, b) => a.name.localeCompare(b.name));
-      setItems(itemsList);
-
-      // Fetch past sales for correlative and history
-      const qSales = query(collection(db, 'eventSales'), where('eventId', '==', event.id));
-      const snapSales = await getDocs(qSales);
-      const salesList = snapSales.docs.map(d => ({ id: d.id, ...d.data() }));
-      salesList.sort((a, b) => b.correlative - a.correlative); // Local sort to avoid requiring composite index
-      setSales(salesList);
-
-    } catch (error) {
-      console.error("Error fetching POS data:", error);
-    } finally {
-      setLoading(false);
     }
   };
 

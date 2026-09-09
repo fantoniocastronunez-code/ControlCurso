@@ -1,7 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { db } from '../firebase/config';
 import { collection, query, where, getDocs, doc, updateDoc, addDoc } from 'firebase/firestore';
-import { ArrowLeft, Bell, AlertTriangle, CheckCircle } from 'lucide-react';
+import { ArrowLeft, Bell, CheckCircle } from 'lucide-react';
 import { useModal } from '../context/ModalContext';
 
 const DebtorsManagement = ({ onBack }) => {
@@ -12,17 +12,7 @@ const DebtorsManagement = ({ onBack }) => {
   const [notifying, setNotifying] = useState(null); // guardará el email del que está siendo notificado
   const [message, setMessage] = useState('');
 
-  useEffect(() => {
-    fetchData();
-  }, []);
-
-  const fetchData = async () => {
-    setLoading(true);
-    await Promise.all([fetchUsers(), fetchDebts()]);
-    setLoading(false);
-  };
-
-  const fetchUsers = async () => {
+  const fetchUsers = useCallback(async () => {
     try {
       const usersSnap = await getDocs(collection(db, 'users'));
       const map = {};
@@ -38,9 +28,9 @@ const DebtorsManagement = ({ onBack }) => {
     } catch (error) {
       console.error("Error fetching users:", error);
     }
-  };
+  }, []);
 
-  const fetchDebts = async () => {
+  const fetchDebts = useCallback(async () => {
     try {
       // 1. Traer todas las deudas pendientes
       const q = query(collection(db, 'debts'), where('status', '==', 'pending'));
@@ -72,7 +62,17 @@ const DebtorsManagement = ({ onBack }) => {
     } catch (error) {
       console.error("Error fetching debts:", error);
     }
-  };
+  }, []);
+
+  const fetchData = useCallback(async () => {
+    setLoading(true);
+    await Promise.all([fetchUsers(), fetchDebts()]);
+    setLoading(false);
+  }, [fetchUsers, fetchDebts]);
+
+  useEffect(() => {
+    fetchData();
+  }, [fetchData]);
 
   const handleNotify = async (email, data) => {
     if (email === 'Sin Apoderado') {

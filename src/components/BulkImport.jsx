@@ -1,12 +1,12 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { db } from '../firebase/config';
-import { collection, doc, setDoc } from 'firebase/firestore';
+import { doc, setDoc } from 'firebase/firestore';
 import { ArrowLeft, Upload, Key, AlertTriangle, CheckCircle, Image as ImageIcon, Save, Edit2, Trash2 } from 'lucide-react';
 import { GoogleGenAI } from "@google/genai";
 
 const BulkImport = ({ onBack, onImportComplete }) => {
-  const [apiKey, setApiKey] = useState('');
-  const [showApiKeyInput, setShowApiKeyInput] = useState(false);
+  const [apiKey, setApiKey] = useState(() => localStorage.getItem('gemini_api_key') || '');
+  const [showApiKeyInput, setShowApiKeyInput] = useState(() => !localStorage.getItem('gemini_api_key'));
   const [selectedImage, setSelectedImage] = useState(null);
   const [imagePreview, setImagePreview] = useState(null);
   
@@ -18,15 +18,7 @@ const BulkImport = ({ onBack, onImportComplete }) => {
   const [editingId, setEditingId] = useState(null);
   const [editForm, setEditForm] = useState({});
 
-  useEffect(() => {
-    // Cargar API key guardada
-    const savedKey = localStorage.getItem('gemini_api_key');
-    if (savedKey) {
-      setApiKey(savedKey);
-    } else {
-      setShowApiKeyInput(true);
-    }
-  }, []);
+
 
   const saveApiKey = (e) => {
     e.preventDefault();
@@ -104,7 +96,7 @@ Si algún apellido materno falta, déjalo vacío (""). Asegúrate de limpiar los
       let parsedData = [];
       try {
         parsedData = JSON.parse(responseText);
-      } catch (parseErr) {
+      } catch {
         console.error("Error parsing JSON:", responseText);
         throw new Error("La IA no devolvió un formato JSON válido.");
       }

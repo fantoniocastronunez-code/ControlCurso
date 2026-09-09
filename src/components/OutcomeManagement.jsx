@@ -31,37 +31,36 @@ const OutcomeManagement = ({ onBack }) => {
   const [funds, setFunds] = useState([]);
 
   useEffect(() => {
+    const fetchData = async () => {
+      try {
+        // 1. Obtener Gastos
+        const outcomesCollection = collection(db, 'outcomes');
+        const snapshot = await getDocs(outcomesCollection);
+        const list = snapshot.docs.map(doc => ({
+          id: doc.id,
+          ...doc.data()
+        }));
+        // Ordenar por fecha, más reciente primero
+        list.sort((a, b) => new Date(b.date) - new Date(a.date));
+        setOutcomes(list);
+
+        // 2. Obtener Fondos
+        const fundsCollection = collection(db, 'funds');
+        const fundsSnapshot = await getDocs(fundsCollection);
+        const fundsList = fundsSnapshot.docs.map(doc => ({
+          id: doc.id,
+          ...doc.data()
+        }));
+        setFunds(fundsList);
+        // Mantener selectedFundId en 'general' o dejar que el usuario elija
+      } catch (error) {
+        console.error("Error al obtener datos:", error);
+      } finally {
+        setLoading(false);
+      }
+    };
     fetchData();
   }, []);
-
-  const fetchData = async () => {
-    try {
-      // 1. Obtener Gastos
-      const outcomesCollection = collection(db, 'outcomes');
-      const snapshot = await getDocs(outcomesCollection);
-      const list = snapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
-      }));
-      // Ordenar por fecha, más reciente primero
-      list.sort((a, b) => new Date(b.date) - new Date(a.date));
-      setOutcomes(list);
-
-      // 2. Obtener Fondos
-      const fundsCollection = collection(db, 'funds');
-      const fundsSnapshot = await getDocs(fundsCollection);
-      const fundsList = fundsSnapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
-      }));
-      setFunds(fundsList);
-      // Mantener selectedFundId en 'general' o dejar que el usuario elija
-    } catch (error) {
-      console.error("Error al obtener datos:", error);
-    } finally {
-      setLoading(false);
-    }
-  };
 
   const handleAddOutcome = async (e) => {
     e.preventDefault();
@@ -144,7 +143,7 @@ const OutcomeManagement = ({ onBack }) => {
   }, [outcomes]);
 
   const auditTotalManual = React.useMemo(() => {
-    return Object.entries(auditManualAmounts).reduce((sum, [id, val]) => {
+    return Object.entries(auditManualAmounts).reduce((sum, [, val]) => {
       const num = parseFloat(val);
       return sum + (isNaN(num) ? 0 : num);
     }, 0);
@@ -491,12 +490,12 @@ const OutcomeManagement = ({ onBack }) => {
                           onClick={(e) => { e.stopPropagation(); handleToggleAuditCheck(o.id); }}
                           style={{
                             width: '24px', height: '24px', borderRadius: '6px', 
-                            border: `2px solid ${!!auditChecks[o.id] ? '#8b5cf6' : 'var(--border-color)'}`,
-                            backgroundColor: !!auditChecks[o.id] ? 'rgba(139, 92, 246, 0.2)' : 'transparent',
+                            border: `2px solid ${auditChecks[o.id] ? '#8b5cf6' : 'var(--border-color)'}`,
+                            backgroundColor: auditChecks[o.id] ? 'rgba(139, 92, 246, 0.2)' : 'transparent',
                             display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer'
                           }}
                         >
-                          {!!auditChecks[o.id] && <Check size={16} color="#8b5cf6" />}
+                          {auditChecks[o.id] && <Check size={16} color="#8b5cf6" />}
                         </div>
                       </td>
                       <td style={{ padding: '1rem', color: 'var(--text-muted)' }}>{o.date}</td>
@@ -556,9 +555,9 @@ const OutcomeManagement = ({ onBack }) => {
                         <button
                           onClick={(e) => { e.stopPropagation(); handleToggleAuditCheck(o.id); }}
                           className="btn btn-outline"
-                          style={{ padding: '0.3rem 0.6rem', fontSize: '0.8rem', borderColor: !!auditChecks[o.id] ? 'var(--success)' : '#8b5cf6', color: !!auditChecks[o.id] ? 'var(--success)' : '#c4b5fd' }}
+                          style={{ padding: '0.3rem 0.6rem', fontSize: '0.8rem', borderColor: auditChecks[o.id] ? 'var(--success)' : '#8b5cf6', color: auditChecks[o.id] ? 'var(--success)' : '#c4b5fd' }}
                         >
-                          {!!auditChecks[o.id] ? '✔ Listo' : 'Verificar'}
+                          {auditChecks[o.id] ? '✔ Listo' : 'Verificar'}
                         </button>
                       </td>
                     </>

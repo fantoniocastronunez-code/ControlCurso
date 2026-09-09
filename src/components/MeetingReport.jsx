@@ -1,10 +1,10 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { db } from '../firebase/config';
-import { collection, getDocs, query, where, doc, getDoc } from 'firebase/firestore';
+import { collection, getDocs } from 'firebase/firestore';
 import { 
-  ArrowLeft, Download, FileText, PieChart, TrendingUp, TrendingDown, 
-  Users, CheckCircle, AlertCircle, Calendar, DollarSign, Eye, EyeOff, 
-  Share2, Printer, Search, Filter, ShieldCheck, Sparkles, Landmark, RefreshCw
+  ArrowLeft, Download, PieChart, TrendingUp, TrendingDown, 
+  Users, CheckCircle, Calendar, DollarSign, Eye, EyeOff, 
+  Share2, Search, RefreshCw
 } from 'lucide-react';
 import { formatStudentName } from '../utils/nameUtils';
 import { useModal } from '../context/ModalContext';
@@ -18,7 +18,7 @@ const MeetingReport = ({ onBack }) => {
   const { showAlert } = useModal();
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('resumen'); // 'resumen' | 'gastos' | 'cuotas' | 'morosos'
-  const [meetingTitle, setMeetingTitle] = useState('Informe Financiero - Reunión de Apoderados');
+  const [meetingTitle] = useState('Informe Financiero - Reunión de Apoderados');
   const [meetingDate, setMeetingDate] = useState(new Date().toISOString().split('T')[0]);
   const [hideSensitiveNames, setHideSensitiveNames] = useState(false); // Modo Proyector
   
@@ -30,7 +30,6 @@ const MeetingReport = ({ onBack }) => {
   const [funds, setFunds] = useState([]);
   const [outcomes, setOutcomes] = useState([]);
   const [incomes, setIncomes] = useState([]);
-  const [bankInfo, setBankInfo] = useState({ realBalance: 0 });
 
   // Filters
   const [outcomeFilterFund, setOutcomeFilterFund] = useState('all');
@@ -53,70 +52,62 @@ const MeetingReport = ({ onBack }) => {
   const reportRef = useRef(null);
 
   useEffect(() => {
+    const fetchAllMeetingData = async () => {
+      setLoading(true);
+      try {
+        const [
+          usersSnap, studentsSnap, debtsSnap, expensesSnap, 
+          fundsSnap, outcomesSnap, incomesSnap
+        ] = await Promise.all([
+          getDocs(collection(db, 'users')),
+          getDocs(collection(db, 'students')),
+          getDocs(collection(db, 'debts')),
+          getDocs(collection(db, 'expenses')),
+          getDocs(collection(db, 'funds')),
+          getDocs(collection(db, 'outcomes')),
+          getDocs(collection(db, 'incomes'))
+        ]);
+
+        const uMap = {};
+        usersSnap.forEach(d => {
+          const data = d.data();
+          uMap[d.id] = data.formalName || data.displayName || data.email;
+          if (data.email) uMap[data.email.toLowerCase()] = data.formalName || data.displayName || data.email;
+        });
+        setUsersMap(uMap);
+
+        const sList = studentsSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+        sList.sort((a, b) => (parseInt(a.listNumber) || 999) - (parseInt(b.listNumber) || 999));
+        setStudents(sList);
+
+        const dList = debtsSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+        setDebts(dList);
+
+        const expList = expensesSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+        expList.sort((a, b) => new Date(b.createdAt || b.date || 0) - new Date(a.createdAt || a.date || 0));
+        setExpenses(expList);
+
+        const fList = fundsSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+        if (!fList.some(f => f.id === 'general')) {
+          fList.unshift({ id: 'general', name: 'Fondo General' });
+        }
+        setFunds(fList);
+
+        const oList = outcomesSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+        oList.sort((a, b) => new Date(b.date || b.createdAt || 0) - new Date(a.date || a.createdAt || 0));
+        setOutcomes(oList);
+
+        const incList = incomesSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+        setIncomes(incList);
+
+      } catch (error) {
+        console.error("Error al cargar datos del informe:", error);
+      } finally {
+        setLoading(false);
+      }
+    };
     fetchAllMeetingData();
   }, []);
-
-  const fetchAllMeetingData = async () => {
-    setLoading(true);
-    try {
-      // 1. Users
-      const usersSnap = await getDocs(collection(db, 'users'));
-      const uMap = {};
-      usersSnap.forEach(d => {
-        const data = d.data();
-        uMap[d.id] = data.formalName || data.displayName || data.email;
-        if (data.email) uMap[data.email.toLowerCase()] = data.formalName || data.displayName || data.email;
-      });
-      setUsersMap(uMap);
-
-      // 2. Students
-      const studentsSnap = await getDocs(collection(db, 'students'));
-      const sList = studentsSnap.docs.map(d => ({ id: d.id, ...d.data() }));
-      sList.sort((a, b) => (parseInt(a.listNumber) || 999) - (parseInt(b.listNumber) || 999));
-      setStudents(sList);
-
-      // 3. Debts
-      const debtsSnap = await getDocs(collection(db, 'debts'));
-      const dList = debtsSnap.docs.map(d => ({ id: d.id, ...d.data() }));
-      setDebts(dList);
-
-      // 4. Expenses (Cuotas)
-      const expensesSnap = await getDocs(collection(db, 'expenses'));
-      const expList = expensesSnap.docs.map(d => ({ id: d.id, ...d.data() }));
-      expList.sort((a, b) => new Date(b.createdAt || b.date || 0) - new Date(a.createdAt || a.date || 0));
-      setExpenses(expList);
-
-      // 5. Funds
-      const fundsSnap = await getDocs(collection(db, 'funds'));
-      const fList = fundsSnap.docs.map(d => ({ id: d.id, ...d.data() }));
-      if (!fList.some(f => f.id === 'general')) {
-        fList.unshift({ id: 'general', name: 'Fondo General' });
-      }
-      setFunds(fList);
-
-      // 6. Outcomes (Gastos)
-      const outcomesSnap = await getDocs(collection(db, 'outcomes'));
-      const oList = outcomesSnap.docs.map(d => ({ id: d.id, ...d.data() }));
-      oList.sort((a, b) => new Date(b.date || b.createdAt || 0) - new Date(a.date || a.createdAt || 0));
-      setOutcomes(oList);
-
-      // 7. Incomes
-      const incomesSnap = await getDocs(collection(db, 'incomes'));
-      const incList = incomesSnap.docs.map(d => ({ id: d.id, ...d.data() }));
-      setIncomes(incList);
-
-      // 8. Bank Info
-      const bankSnap = await getDoc(doc(db, 'settings', 'bankInfo'));
-      if (bankSnap.exists()) {
-        setBankInfo(bankSnap.data());
-      }
-
-    } catch (error) {
-      console.error("Error al cargar datos del informe:", error);
-    } finally {
-      setLoading(false);
-    }
-  };
 
   const formatMoney = (amount) => {
     return new Intl.NumberFormat('es-CL', { style: 'currency', currency: 'CLP' }).format(amount || 0);
@@ -137,7 +128,7 @@ const MeetingReport = ({ onBack }) => {
   }, [funds]);
 
   // Calculate totals and fund balances
-  const { totalCollected, totalOutcomes, totalIncomes, cashIn, transferIn, cashOut, transferOut, finalFundsMap } = useMemo(() => {
+  const { totalCollected, totalOutcomes, totalIncomes, cashIn, cashOut, finalFundsMap } = useMemo(() => {
     let collected = 0;
     let cIn = 0;
     let tIn = 0;
@@ -350,7 +341,6 @@ const MeetingReport = ({ onBack }) => {
 
       // Primary Brand Colors
       const primaryColor = [99, 102, 241];
-      const darkBg = [15, 23, 42];
       const textMain = [30, 41, 59];
       const textMuted = [100, 116, 139];
       const successColor = [16, 185, 129];
@@ -465,7 +455,7 @@ const MeetingReport = ({ onBack }) => {
       doc.text('Monto', pageWidth - 18, y + 5, { align: 'right' });
       y += 8;
 
-      outcomes.forEach((o, i) => {
+      outcomes.forEach((o) => {
         // Check page overflow
         if (y > pageHeight - 30) {
           doc.addPage();

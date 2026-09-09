@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { db } from '../firebase/config';
 import { collection, getDocs, doc, setDoc, updateDoc, getDoc } from 'firebase/firestore';
 import { ArrowLeft, PlusCircle, CheckCircle } from 'lucide-react';
@@ -26,11 +26,7 @@ const ExpenseManagement = ({ onBack }) => {
   const [transferAccounts, setTransferAccounts] = useState([]);
   const [selectedAccountId, setSelectedAccountId] = useState('');
 
-  useEffect(() => {
-    fetchData();
-  }, []);
-
-  const fetchData = async () => {
+  const fetchData = useCallback(async () => {
     try {
       // Fetch students
       const studentsCollection = collection(db, 'students');
@@ -82,7 +78,11 @@ const ExpenseManagement = ({ onBack }) => {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
+
+  useEffect(() => {
+    fetchData();
+  }, [fetchData]);
 
   const handleToggleStudent = (id) => {
     const newSelected = new Set(selectedStudents);

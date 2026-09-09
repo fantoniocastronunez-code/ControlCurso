@@ -1,6 +1,5 @@
 import React from 'react';
 import { createPortal } from 'react-dom';
-import { formatStudentName } from '../../../utils/nameUtils';
 
 // Este componente solo es visible cuando se invoca la impresión (@media print en CSS global)
 // Está pensado para impresoras térmicas (POS) de 58mm.
@@ -10,9 +9,6 @@ const ThermalReceipt = ({ sale, eventName }) => {
   const formatMoney = (amount) => {
     return new Intl.NumberFormat('es-CL', { style: 'currency', currency: 'CLP' }).format(amount);
   };
-
-  const padRight = (str, len) => (str + ' '.repeat(len)).substring(0, len);
-  const padLeft = (str, len) => (' '.repeat(len) + str).slice(-len);
 
   const receiptContent = (
     <div className="thermal-receipt" style={{ display: 'none' }}>

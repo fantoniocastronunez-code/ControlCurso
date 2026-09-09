@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { db } from '../../../firebase/config';
 import { collection, getDocs, doc, setDoc, updateDoc, query, where, deleteDoc } from 'firebase/firestore';
 import { Plus, Trash2, Edit2 } from 'lucide-react';
@@ -15,11 +15,7 @@ const EventMenu = ({ event }) => {
   const [subproducts, setSubproducts] = useState([{ name: '', price: '' }]);
   const [editingItemId, setEditingItemId] = useState(null);
 
-  useEffect(() => {
-    fetchItems();
-  }, [event.id]);
-
-  const fetchItems = async () => {
+  const fetchItems = useCallback(async () => {
     setLoading(true);
     try {
       const q = query(collection(db, 'eventItems'), where('eventId', '==', event.id));
@@ -32,7 +28,13 @@ const EventMenu = ({ event }) => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [event.id]);
+
+  useEffect(() => {
+    fetchItems();
+  }, [fetchItems]);
+
+
 
   const handleAddItem = async (e) => {
     e.preventDefault();

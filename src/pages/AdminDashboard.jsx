@@ -1,8 +1,8 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { LogOut, Users, DollarSign, Activity, FileText, RefreshCw, Calendar, Trash2, CreditCard, Search } from 'lucide-react';
+import { LogOut, Users, DollarSign, Activity, FileText, RefreshCw, Trash2, CreditCard, Search } from 'lucide-react';
 import { db } from '../firebase/config';
-import { collection, getDocs, query, where, orderBy, addDoc, doc, setDoc, getDoc } from 'firebase/firestore';
+import { collection, getDocs, query, where, addDoc, doc, setDoc, getDoc } from 'firebase/firestore';
 import { useNavigate } from 'react-router-dom';
 import { useModal } from '../context/ModalContext';
 
@@ -47,11 +47,7 @@ const AdminDashboard = () => {
   const [expenses, setExpenses] = useState([]);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    if (currentView === 'dashboard') {
-      fetchDashboardData();
-    }
-  }, [currentView]);
+
 
 
 
@@ -198,22 +194,39 @@ const AdminDashboard = () => {
     }
   };
 
-  const fetchDashboardData = async () => {
+  const fetchDashboardData = useCallback(async () => {
     setLoading(true);
     try {
+      const studentsPromise = getDocs(collection(db, 'students'));
+      const bankInfoPromise = getDoc(doc(db, 'settings', 'bankInfo'));
+      const expensesPromise = getDocs(collection(db, 'expenses'));
+      const fundsPromise = getDocs(collection(db, 'funds'));
+      const debtsPromise = getDocs(query(collection(db, 'debts'), where('status', 'in', ['paid', 'partial'])));
+      const outcomesPromise = getDocs(collection(db, 'outcomes'));
+      const incomesPromise = getDocs(collection(db, 'incomes'));
+      const transfersPromise = getDocs(collection(db, 'fund_transfers'));
+      const usersPromise = (role === 'superadmin' || role === 'admin') 
+          ? getDocs(query(collection(db, 'users'), where('role', '==', 'apoderado'))) 
+          : Promise.resolve({ size: 0, forEach: () => {} });
+
+      const [
+        studentsSnap, bankInfoSnap, expensesSnap, fundsSnap, 
+        debtsSnap, outcomesSnap, incomesSnap, transfersSnap, usersSnap
+      ] = await Promise.all([
+        studentsPromise, bankInfoPromise, expensesPromise, fundsPromise,
+        debtsPromise, outcomesPromise, incomesPromise, transfersPromise, usersPromise
+      ]);
+
       // 1. Alumnos Activos
-      const studentsSnap = await getDocs(collection(db, 'students'));
       const activeStudentsCount = studentsSnap.size;
 
       // 1.2 Real Bank Balance
-      const bankInfoSnap = await getDoc(doc(db, 'settings', 'bankInfo'));
       const realBankBalance = bankInfoSnap.exists() ? bankInfoSnap.data().realBalance || 0 : 0;
 
       // 1.5 Apoderados registrados
       let registeredApoderadosCount = 0;
       let registeredApoderadosList = [];
       if (role === 'superadmin' || role === 'admin') {
-        const usersSnap = await getDocs(query(collection(db, 'users'), where('role', '==', 'apoderado')));
         registeredApoderadosCount = usersSnap.size;
         usersSnap.forEach(doc => {
           registeredApoderadosList.push({ id: doc.id, ...doc.data() });
@@ -221,21 +234,17 @@ const AdminDashboard = () => {
       }
 
       // 2. Cuotas / Gastos
-      const expensesSnap = await getDocs(collection(db, 'expenses'));
       let expected = 0;
       const expensesList = [];
-      
       expensesSnap.forEach(doc => {
         const data = doc.data();
         expected += (data.totalAmount || 0);
         expensesList.push({ id: doc.id, ...data });
       });
-      
       // Ordenar localmente por fecha descendente
       expensesList.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
 
       // 3. Fondos (Categorías)
-      const fundsSnap = await getDocs(collection(db, 'funds'));
       const fundsMap = new Map(); // id -> { name, balance }
       fundsSnap.forEach(doc => {
         fundsMap.set(doc.id, { id: doc.id, name: doc.data().name, balance: 0 });
@@ -246,7 +255,6 @@ const AdminDashboard = () => {
       }
 
       // 4. Cobros (Dinero realmente pagado)
-      const debtsSnap = await getDocs(query(collection(db, 'debts'), where('status', 'in', ['paid', 'partial'])));
       const debtsDocs = debtsSnap.docs;
       let collected = 0;
       let cashIn = 0;
@@ -288,7 +296,6 @@ const AdminDashboard = () => {
       });
 
       // 5. Gastos Directiva (Egresos)
-      const outcomesSnap = await getDocs(collection(db, 'outcomes'));
       const outcomesDocs = outcomesSnap.docs;
       let cashOut = 0;
       let transferOut = 0;
@@ -303,7 +310,6 @@ const AdminDashboard = () => {
       });
 
       // 6. Ingresos Manuales (Saldos Iniciales/Extras)
-      const incomesSnap = await getDocs(collection(db, 'incomes'));
       const incomesDocs = incomesSnap.docs;
       incomesDocs.forEach(docSnap => {
         const data = docSnap.data();
@@ -382,7 +388,6 @@ const AdminDashboard = () => {
       });
 
       // Transferencias entre fondos
-      const transfersSnap = await getDocs(collection(db, 'fund_transfers'));
       transfersSnap.forEach(doc => {
         const data = doc.data();
         const amt = data.amount || 0;
@@ -451,7 +456,13 @@ const AdminDashboard = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [role]);
+
+  useEffect(() => {
+    if (currentView === 'dashboard') {
+      fetchDashboardData();
+    }
+  }, [currentView, fetchDashboardData]);
 
   const formatMoney = (amount) => {
     return new Intl.NumberFormat('es-CL', { style: 'currency', currency: 'CLP' }).format(amount);

@@ -1,7 +1,7 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { db } from '../firebase/config';
 import { collection, query, where, getDocs, doc, getDoc, updateDoc, deleteDoc, setDoc } from 'firebase/firestore';
-import { ArrowLeft, CheckCircle, Clock, XCircle, FileText, Download, Trash2, Edit2, Save, X, Calculator, CheckSquare, Square, AlertTriangle, RotateCcw, Sparkles, Check, ShieldCheck } from 'lucide-react';
+import { ArrowLeft, CheckCircle, Clock, XCircle, FileText, Download, Trash2, Edit2, Save, X, Calculator, CheckSquare, AlertTriangle, RotateCcw, Sparkles, Check } from 'lucide-react';
 import { formatStudentName } from '../utils/nameUtils';
 import { useModal } from '../context/ModalContext';
 
@@ -37,11 +37,7 @@ const ExpenseDetail = ({ expenseId, onBack }) => {
   const [selectedManageStudents, setSelectedManageStudents] = useState([]);
   const [manageStudentsSearch, setManageStudentsSearch] = useState('');
 
-  useEffect(() => {
-    fetchDetail();
-  }, [expenseId]);
-
-  const fetchDetail = async () => {
+  const fetchDetail = useCallback(async () => {
     setLoading(true);
     try {
       // Obtener el gasto
@@ -97,7 +93,11 @@ const ExpenseDetail = ({ expenseId, onBack }) => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [expenseId]);
+
+  useEffect(() => {
+    fetchDetail();
+  }, [fetchDetail]);
 
   const processPayment = async (debtId, method, defaultAmount, isApproval = false) => {
     const debtToPay = debts.find(d => d.id === debtId);
@@ -184,19 +184,7 @@ const ExpenseDetail = ({ expenseId, onBack }) => {
     }
   };
 
-  const handleRemoveStudent = async (debtId) => {
-    if (!(await showConfirm('¿Estás seguro de que quieres eliminar a este alumno de este cobro?'))) return;
-    
-    setLoading(true);
-    try {
-      await deleteDoc(doc(db, 'debts', debtId));
-      fetchDetail();
-      setManageStudentsSearch('');
-    } catch (error) {
-      console.error(error);
-      await showAlert("Error al eliminar el alumno del gasto.");
-    }
-  };
+
 
   const handleEditDebtAmount = async (debtId) => {
     const debtToEdit = debts.find(d => d.id === debtId);
@@ -388,50 +376,7 @@ const ExpenseDetail = ({ expenseId, onBack }) => {
     }
   };
 
-  const handleRevertPayment = async (debtId) => {
-    const debtToRevert = debts.find(d => d.id === debtId);
-    if (!debtToRevert) return;
-    
-    if (!(await showConfirm('¿Estás seguro de que deseas anular este pago y volver a marcarlo como PENDIENTE?'))) return;
-    
-    setLoading(true);
-    try {
-      const debtRef = doc(db, 'debts', debtId);
-      
-      // If payment was with balance, refund the student
-      if (debtToRevert.paymentMethod === 'balance' && debtToRevert.paidAmount > 0) {
-         const student = students.find(s => s.id === debtToRevert.studentId);
-         if (student) {
-            await updateDoc(doc(db, 'students', student.id), {
-               balance: (student.balance || 0) + debtToRevert.paidAmount
-            });
-         }
-      }
 
-      await updateDoc(debtRef, {
-        status: 'pending',
-        paidAmount: 0,
-        paymentMethod: null,
-        receiptUrl: null,
-        approvedAt: null
-      });
-
-      // Si el estado anterior era 'paid', descontamos el contador de la cuota
-      if (debtToRevert.status === 'paid') {
-        const expenseRef = doc(db, 'expenses', expenseId);
-        const currentPaidCount = expense.paidCount || 0;
-        await updateDoc(expenseRef, {
-          paidCount: Math.max(0, currentPaidCount - 1)
-        });
-      }
-
-      fetchDetail();
-    } catch (error) {
-      console.error("Error al revertir el pago:", error);
-      await showAlert("Hubo un error al revertir el pago.");
-      setLoading(false);
-    }
-  };
 
   const handleDeleteExpense = async () => {
     if (!(await showConfirm('¿Seguro que deseas ELIMINAR esta cuota? Se borrarán también todas las deudas de los alumnos y los pagos ya realizados desaparecerán del balance general.'))) return;
@@ -619,7 +564,7 @@ const ExpenseDetail = ({ expenseId, onBack }) => {
   }, [debts]);
 
   const auditTotalManual = useMemo(() => {
-    return Object.entries(auditManualAmounts).reduce((sum, [debtId, val]) => {
+    return Object.entries(auditManualAmounts).reduce((sum, [, val]) => {
       const num = parseFloat(val);
       return sum + (isNaN(num) ? 0 : num);
     }, 0);

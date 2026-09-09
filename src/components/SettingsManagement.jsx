@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { db } from '../firebase/config';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { ArrowLeft, Save, Landmark, PlusCircle, Trash2, Edit2, RefreshCw } from 'lucide-react';
@@ -25,11 +25,7 @@ const SettingsManagement = ({ onBack }) => {
     email: ''
   });
 
-  useEffect(() => {
-    fetchSettings();
-  }, []);
-
-  const fetchSettings = async () => {
+  const fetchSettings = useCallback(async () => {
     setLoading(true);
     try {
       const docRef = doc(db, 'settings', 'general');
@@ -51,7 +47,13 @@ const SettingsManagement = ({ onBack }) => {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
+
+  useEffect(() => {
+    fetchSettings();
+  }, [fetchSettings]);
+
+
 
   const handleSaveAccounts = async (newAccounts) => {
     setSaving(true);
