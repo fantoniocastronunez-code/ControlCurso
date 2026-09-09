@@ -14,6 +14,7 @@ const StudentDetailModal = ({ student, usersMap = {}, onClose, isModal = false }
   const [debts, setDebts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [sharing, setSharing] = useState(false);
+  const [isCapturing, setIsCapturing] = useState(false);
   const [previewReceipt, setPreviewReceipt] = useState(null);
   const detailRef = useRef(null);
 
@@ -82,6 +83,11 @@ const StudentDetailModal = ({ student, usersMap = {}, onClose, isModal = false }
 
   const handleShare = async () => {
     setSharing(true);
+    setIsCapturing(true);
+
+    // Damos un breve tiempo para que React re-renderice quitando el scroll
+    await new Promise(resolve => setTimeout(resolve, 50));
+
     try {
       if (!detailRef.current) return;
       
@@ -91,7 +97,8 @@ const StudentDetailModal = ({ student, usersMap = {}, onClose, isModal = false }
 
       const canvas = await html2canvas(detailRef.current, {
         backgroundColor: '#0f172a', // Fondo dark elegante
-        scale: 2
+        scale: 2,
+        windowHeight: detailRef.current.scrollHeight // Asegura la altura total
       });
       
       if (actionsDiv) actionsDiv.style.display = 'flex';
@@ -115,10 +122,12 @@ const StudentDetailModal = ({ student, usersMap = {}, onClose, isModal = false }
         link.click();
         await showAlert("Ficha descargada exitosamente. Puedes compartirla por WhatsApp.");
       }
+      if (actionsDiv) actionsDiv.style.display = 'flex';
     } catch (error) {
       console.error("Error al generar imagen:", error);
       await showAlert("Hubo un error al generar la imagen de la ficha.");
     } finally {
+      setIsCapturing(false);
       setSharing(false);
     }
   };
@@ -269,7 +278,7 @@ const StudentDetailModal = ({ student, usersMap = {}, onClose, isModal = false }
               <p style={{ margin: 0, fontSize: '0.8rem', opacity: 0.8 }}>No tiene cuotas pendientes por pagar.</p>
             </div>
           ) : (
-            <ul style={{ listStyle: 'none', padding: 0, margin: 0, display: 'grid', gap: '0.75rem' }}>
+            <ul style={{ listStyle: 'none', padding: 0, margin: 0, display: 'grid', gap: '0.75rem', maxHeight: (isModal && !isCapturing) ? '350px' : 'none', overflowY: (isModal && !isCapturing) ? 'auto' : 'visible' }}>
               {pendingDebts.map(d => {
                 const isPartial = d.status === 'partial';
                 const isReview = d.status === 'review';
@@ -353,7 +362,7 @@ const StudentDetailModal = ({ student, usersMap = {}, onClose, isModal = false }
               <p style={{ margin: 0 }}>No tiene pagos registrados todavía.</p>
             </div>
           ) : (
-            <ul style={{ listStyle: 'none', padding: 0, margin: 0, display: 'grid', gap: '0.75rem', maxHeight: isModal ? '350px' : 'none', overflowY: isModal ? 'auto' : 'visible' }}>
+            <ul style={{ listStyle: 'none', padding: 0, margin: 0, display: 'grid', gap: '0.75rem', maxHeight: (isModal && !isCapturing) ? '350px' : 'none', overflowY: (isModal && !isCapturing) ? 'auto' : 'visible' }}>
               {paidDebts.map(d => {
                 const methodLabel = d.paymentMethod === 'transfer' ? 'Transferencia' : d.paymentMethod === 'cash' ? 'Efectivo' : d.paymentMethod === 'balance' ? 'Saldo a Favor' : 'Pagado';
                 const paidDate = d.paidAt ? new Date(d.paidAt).toLocaleDateString() : d.date || '-';
