@@ -36,6 +36,9 @@ const DebtorsManagement = ({ onBack }) => {
   const fetchDebts = useCallback(async () => {
     if (!selectedCourse) return;
     try {
+      const studentsSnap = await getDocs(query(collection(db, 'students'), where('courseId', '==', selectedCourse.id)));
+      const studentsData = studentsSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+
       const q = query(collection(db, 'debts'), where('courseId', '==', selectedCourse.id));
       const snapshot = await getDocs(q);
       
@@ -43,10 +46,19 @@ const DebtorsManagement = ({ onBack }) => {
       
       snapshot.forEach(docSnap => {
         const data = docSnap.data();
-        if (data.status !== 'pending') return;
+        if (data.status !== 'pending' && data.status !== 'partial') return;
         
         const debt = { id: docSnap.id, ...data };
-        const emails = debt.apoderadoEmails || (debt.apoderadoEmail ? [debt.apoderadoEmail] : []);
+        const student = studentsData.find(s => s.id === debt.studentId);
+        
+        let emails = [];
+        if (student) {
+          emails = student.apoderadoEmails?.length > 0 ? student.apoderadoEmails : (student.apoderadoEmail ? [student.apoderadoEmail] : []);
+        }
+        if (emails.length === 0) {
+          emails = debt.apoderadoEmails?.length > 0 ? debt.apoderadoEmails : (debt.apoderadoEmail ? [debt.apoderadoEmail] : []);
+        }
+        
         const emailKey = emails.length > 0 ? emails.join(', ') : 'Sin Apoderado';
         
         if (!grouped[emailKey]) {
@@ -59,9 +71,11 @@ const DebtorsManagement = ({ onBack }) => {
           };
         }
         
-        grouped[emailKey].debts.push(debt);
-        grouped[emailKey].totalAmount += debt.amount;
-        grouped[emailKey].students.add(debt.studentName);
+        const remainingAmount = debt.status === 'partial' ? (debt.amount - (debt.paidAmount || 0)) : debt.amount;
+        
+        grouped[emailKey].debts.push({...debt, remainingAmount});
+        grouped[emailKey].totalAmount += remainingAmount;
+        grouped[emailKey].students.add(student ? formatStudentName(student) : debt.studentName);
       });
 
       setDebtors(grouped);
@@ -195,7 +209,7 @@ const DebtorsManagement = ({ onBack }) => {
                       });
                       
                       return Object.entries(debtsByStudent).map(([studentName, studentDebts]) => {
-                        const studentTotal = studentDebts.reduce((sum, d) => sum + d.amount, 0);
+                        const studentTotal = studentDebts.reduce((sum, d) => sum + (d.remainingAmount || d.amount), 0);
                         return (
                           <div key={studentName} style={{ marginBottom: '1rem', padding: '0.75rem', backgroundColor: 'rgba(255,255,255,0.03)', borderRadius: 'var(--radius-sm)' }}>
                             <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.5rem', alignItems: 'center' }}>
@@ -205,7 +219,7 @@ const DebtorsManagement = ({ onBack }) => {
                             <ul style={{ margin: 0, paddingLeft: '1.2rem', color: 'var(--text-muted)', fontSize: '0.85rem' }}>
                               {studentDebts.map(d => (
                                 <li key={d.id} style={{ marginBottom: '0.25rem' }}>
-                                  {d.title}: <strong style={{ color: 'var(--text-main)' }}>{formatMoney(d.amount)}</strong>
+                                  {d.title}{d.status === 'partial' ? ' (Saldo Restante)' : ''}: <strong style={{ color: 'var(--text-main)' }}>{formatMoney(d.remainingAmount || d.amount)}</strong>
                                   {d.urgentNotice && <span style={{ color: 'var(--warning)', marginLeft: '0.5rem', fontSize: '0.75rem' }}>(Notificado)</span>}
                                 </li>
                               ))}

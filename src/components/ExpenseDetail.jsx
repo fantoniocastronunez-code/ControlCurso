@@ -21,6 +21,7 @@ const ExpenseDetail = ({ expenseId, onBack }) => {
   const [expense, setExpense] = useState(null);
   const [debts, setDebts] = useState([]);
   const [students, setStudents] = useState([]);
+  const [usersMap, setUsersMap] = useState({});
   const [loading, setLoading] = useState(true);
   
   // Modo Auditoría
@@ -108,7 +109,26 @@ const ExpenseDetail = ({ expenseId, onBack }) => {
     }
   }, [expenseId, selectedCourse]);
 
+  const fetchUsers = async () => {
+    try {
+      const usersSnap = await getDocs(collection(db, 'users'));
+      const map = {};
+      usersSnap.forEach(doc => {
+        const data = doc.data();
+        if (data.formalName) {
+          map[doc.id] = data.formalName;
+        } else if (data.displayName) {
+          map[doc.id] = data.displayName;
+        }
+      });
+      setUsersMap(map);
+    } catch (error) {
+      console.error("Error fetching users:", error);
+    }
+  };
+
   useEffect(() => {
+    fetchUsers();
     fetchDetail();
   }, [fetchDetail]);
 
@@ -1195,9 +1215,17 @@ const ExpenseDetail = ({ expenseId, onBack }) => {
                                 const emails = student?.apoderadoEmails?.length > 0 ? student.apoderadoEmails : (student?.apoderadoEmail ? [student.apoderadoEmail] : (debt.apoderadoEmails?.length > 0 ? debt.apoderadoEmails : (debt.apoderadoEmail ? [debt.apoderadoEmail] : [])));
                                 if (!emails || emails.length === 0) return 'Sin apoderado';
                                 return (
-                                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.1rem' }}>
+                                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
                                     {emails.map((email, idx) => (
-                                      <span key={idx}>{email}</span>
+                                      <div key={idx}>
+                                        <span style={{ color: 'var(--text-main)', fontWeight: '500' }}>
+                                          {usersMap[email] || 'Sin registrar'}
+                                        </span>
+                                        <br />
+                                        <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                                          {email}
+                                        </span>
+                                      </div>
                                     ))}
                                   </div>
                                 );
