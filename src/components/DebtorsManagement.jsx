@@ -3,8 +3,8 @@ import { db } from '../firebase/config';
 import { collection, query, where, getDocs, doc, updateDoc, addDoc } from 'firebase/firestore';
 import { ArrowLeft, Bell, CheckCircle } from 'lucide-react';
 import { useModal } from '../context/ModalContext';
-
 import { useCourse } from '../context/CourseContext';
+import { formatStudentName } from '../utils/nameUtils';
 
 const DebtorsManagement = ({ onBack }) => {
   const { showAlert } = useModal();
