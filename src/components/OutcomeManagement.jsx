@@ -3,12 +3,17 @@ import { db } from '../firebase/config';
 import { collection, getDocs, doc, setDoc, deleteDoc, updateDoc, query, where } from 'firebase/firestore';
 import { ArrowLeft, CheckCircle, Trash2, TrendingDown, Edit2, Calculator, CheckSquare, Sparkles, RotateCcw, Save, AlertTriangle, ShieldCheck, Check } from 'lucide-react';
 import { useModal } from '../context/ModalContext';
-
 import { useCourse } from '../context/CourseContext';
+import { useAuth } from '../context/AuthContext';
+import { requestApproval } from '../services/approvalService';
 
 const OutcomeManagement = ({ onBack }) => {
   const { showAlert, showConfirm } = useModal();
   const { selectedCourse } = useCourse();
+  const { user, role, userData } = useAuth();
+  const courseRole = (role === 'superadmin' || userData?.roles?.global === 'superadmin')
+    ? 'superadmin'
+    : (userData?.roles?.[selectedCourse?.id] || null);
   const [outcomes, setOutcomes] = useState([]);
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState('');
@@ -75,7 +80,6 @@ const OutcomeManagement = ({ onBack }) => {
 
     try {
       const outcomeId = 'out_' + Date.now().toString();
-      const outcomeRef = doc(db, 'outcomes', outcomeId);
       
       const newOutcome = {
         title: newTitle,
@@ -87,15 +91,28 @@ const OutcomeManagement = ({ onBack }) => {
         createdAt: new Date().toISOString()
       };
       
-      await setDoc(outcomeRef, newOutcome);
-      
-      setOutcomes([{ id: outcomeId, ...newOutcome }, ...outcomes]);
+      const requiresApproval = courseRole !== 'tesorero' && courseRole !== 'superadmin';
+
+      if (requiresApproval) {
+        const payload = {
+          outcomeId,
+          outcomeData: newOutcome
+        };
+        await requestApproval('CREATE_OUTCOME', `Gasto: ${newTitle} ($${newAmount})`, payload, user, selectedCourse.id);
+        setMessage('Solicitud de gasto enviada a la tesorera para su aprobación.');
+      } else {
+        const outcomeRef = doc(db, 'outcomes', outcomeId);
+        await setDoc(outcomeRef, newOutcome);
+        
+        setOutcomes([{ id: outcomeId, ...newOutcome }, ...outcomes]);
+        setMessage('Gasto registrado correctamente');
+      }
+
       setNewTitle('');
       setNewAmount('');
       setNewMethod('cash');
       setNewDate('');
       
-      setMessage('Gasto registrado correctamente');
       setTimeout(() => setMessage(''), 3000);
     } catch (error) {
       console.error("Error registrando gasto:", error);

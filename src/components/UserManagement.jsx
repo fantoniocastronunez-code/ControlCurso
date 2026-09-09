@@ -207,6 +207,7 @@ const UserManagement = ({ onBack }) => {
               <option value="apoderado">Apoderado</option>
               <option value="tesorero">Tesorero</option>
               <option value="presidente">Presidente</option>
+              <option value="secretario">Secretario</option>
               {role === 'superadmin' && <option value="admin">Administrador</option>}
             </select>
           </div>
@@ -247,8 +248,8 @@ const UserManagement = ({ onBack }) => {
                         padding: '0.25rem 0.75rem', 
                         borderRadius: '1rem', 
                         fontSize: '0.85rem',
-                        backgroundColor: (u.roles && selectedCourse ? u.roles[selectedCourse.id] : u.role) === 'superadmin' ? 'rgba(245, 158, 11, 0.2)' : ((u.roles && selectedCourse ? u.roles[selectedCourse.id] : u.role) === 'admin' || (u.roles && selectedCourse ? u.roles[selectedCourse.id] : u.role) === 'presidente') ? 'rgba(99, 102, 241, 0.2)' : (u.roles && selectedCourse ? u.roles[selectedCourse.id] : u.role) === 'tesorero' ? 'rgba(59, 130, 246, 0.2)' : 'rgba(16, 185, 129, 0.2)',
-                        color: (u.roles && selectedCourse ? u.roles[selectedCourse.id] : u.role) === 'superadmin' ? 'var(--warning)' : ((u.roles && selectedCourse ? u.roles[selectedCourse.id] : u.role) === 'admin' || (u.roles && selectedCourse ? u.roles[selectedCourse.id] : u.role) === 'presidente') ? 'var(--primary)' : (u.roles && selectedCourse ? u.roles[selectedCourse.id] : u.role) === 'tesorero' ? '#3b82f6' : 'var(--success)',
+                        backgroundColor: (u.roles && selectedCourse ? u.roles[selectedCourse.id] : u.role) === 'superadmin' ? 'rgba(245, 158, 11, 0.2)' : ((u.roles && selectedCourse ? u.roles[selectedCourse.id] : u.role) === 'admin' || (u.roles && selectedCourse ? u.roles[selectedCourse.id] : u.role) === 'presidente' || (u.roles && selectedCourse ? u.roles[selectedCourse.id] : u.role) === 'secretario') ? 'rgba(99, 102, 241, 0.2)' : (u.roles && selectedCourse ? u.roles[selectedCourse.id] : u.role) === 'tesorero' ? 'rgba(59, 130, 246, 0.2)' : 'rgba(16, 185, 129, 0.2)',
+                        color: (u.roles && selectedCourse ? u.roles[selectedCourse.id] : u.role) === 'superadmin' ? 'var(--warning)' : ((u.roles && selectedCourse ? u.roles[selectedCourse.id] : u.role) === 'admin' || (u.roles && selectedCourse ? u.roles[selectedCourse.id] : u.role) === 'presidente' || (u.roles && selectedCourse ? u.roles[selectedCourse.id] : u.role) === 'secretario') ? 'var(--primary)' : (u.roles && selectedCourse ? u.roles[selectedCourse.id] : u.role) === 'tesorero' ? '#3b82f6' : 'var(--success)',
                         textTransform: 'capitalize'
                       }}>
                         {u.roles && selectedCourse ? u.roles[selectedCourse.id] : u.role}
@@ -292,8 +293,8 @@ const UserManagement = ({ onBack }) => {
                         padding: '0.25rem 0.75rem', 
                         borderRadius: '1rem', 
                         fontSize: '0.85rem',
-                        backgroundColor: (u.roles && selectedCourse ? u.roles[selectedCourse.id] : u.role) === 'superadmin' ? 'rgba(245, 158, 11, 0.2)' : (u.roles && selectedCourse ? u.roles[selectedCourse.id] : u.role) === 'admin' ? 'rgba(99, 102, 241, 0.2)' : 'rgba(16, 185, 129, 0.2)',
-                        color: (u.roles && selectedCourse ? u.roles[selectedCourse.id] : u.role) === 'superadmin' ? 'var(--warning)' : (u.roles && selectedCourse ? u.roles[selectedCourse.id] : u.role) === 'admin' ? 'var(--primary)' : 'var(--success)'
+                        backgroundColor: (u.roles && selectedCourse ? u.roles[selectedCourse.id] : u.role) === 'superadmin' ? 'rgba(245, 158, 11, 0.2)' : ((u.roles && selectedCourse ? u.roles[selectedCourse.id] : u.role) === 'admin' || (u.roles && selectedCourse ? u.roles[selectedCourse.id] : u.role) === 'presidente' || (u.roles && selectedCourse ? u.roles[selectedCourse.id] : u.role) === 'secretario') ? 'rgba(99, 102, 241, 0.2)' : (u.roles && selectedCourse ? u.roles[selectedCourse.id] : u.role) === 'tesorero' ? 'rgba(59, 130, 246, 0.2)' : 'rgba(16, 185, 129, 0.2)',
+                        color: (u.roles && selectedCourse ? u.roles[selectedCourse.id] : u.role) === 'superadmin' ? 'var(--warning)' : ((u.roles && selectedCourse ? u.roles[selectedCourse.id] : u.role) === 'admin' || (u.roles && selectedCourse ? u.roles[selectedCourse.id] : u.role) === 'presidente' || (u.roles && selectedCourse ? u.roles[selectedCourse.id] : u.role) === 'secretario') ? 'var(--primary)' : (u.roles && selectedCourse ? u.roles[selectedCourse.id] : u.role) === 'tesorero' ? '#3b82f6' : 'var(--success)'
                       }}>
                         {u.roles && selectedCourse ? u.roles[selectedCourse.id] : u.role}
                       </span>

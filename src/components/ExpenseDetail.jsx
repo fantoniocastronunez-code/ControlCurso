@@ -6,10 +6,18 @@ import { formatStudentName } from '../utils/nameUtils';
 import { useModal } from '../context/ModalContext';
 import { useLockBodyScroll } from '../hooks/useLockBodyScroll';
 import { useCourse } from '../context/CourseContext';
+import { useAuth } from '../context/AuthContext';
+import { requestApproval } from '../services/approvalService';
 
 const ExpenseDetail = ({ expenseId, onBack }) => {
   const { showAlert, showConfirm, showPrompt } = useModal();
   const { selectedCourse } = useCourse();
+  const { user, role, userData } = useAuth();
+  const courseRole = (role === 'superadmin' || userData?.roles?.global === 'superadmin')
+    ? 'superadmin'
+    : (userData?.roles?.[selectedCourse?.id] || null);
+  const requiresApproval = courseRole !== 'tesorero' && courseRole !== 'superadmin';
+
   const [expense, setExpense] = useState(null);
   const [debts, setDebts] = useState([]);
   const [students, setStudents] = useState([]);
@@ -165,6 +173,23 @@ const ExpenseDetail = ({ expenseId, onBack }) => {
       if (finalTotalPaid >= debtToPay.amount) newStatus = 'paid';
       else if (finalTotalPaid > 0) newStatus = 'partial';
 
+      const fullyPaidCount = (expense.paidCount || 0) + (newStatus === 'paid' && debtToPay.status !== 'paid' ? 1 : (newStatus !== 'paid' && debtToPay.status === 'paid' ? -1 : 0));
+
+      if (requiresApproval) {
+        const payload = {
+          expenseId,
+          expensePaidCount: fullyPaidCount,
+          debtsToUpdate: [{
+            debtId,
+            updates: { status: newStatus, paidAmount: finalTotalPaid, paymentMethod: method }
+          }]
+        };
+        await requestApproval('REGISTER_PAYMENTS', `Pago: ${debtToPay.studentName} ($${finalTotalPaid})`, payload, user, selectedCourse.id);
+        await showAlert('Solicitud de pago enviada a la tesorera.');
+        fetchDetail();
+        return;
+      }
+
       await updateDoc(debtRef, {
         status: newStatus,
         paidAmount: finalTotalPaid,
@@ -175,11 +200,11 @@ const ExpenseDetail = ({ expenseId, onBack }) => {
       // Recalcular cuántos alumnos están completamente pagados
       const q = query(collection(db, 'debts'), where('expenseId', '==', expenseId));
       const snap = await getDocs(q);
-      const fullyPaidCount = snap.docs.filter(d => d.data().status === 'paid').length;
+      const updatedFullyPaidCount = snap.docs.filter(d => d.data().status === 'paid').length;
       
       const expenseRef = doc(db, 'expenses', expenseId);
       await updateDoc(expenseRef, {
-        paidCount: fullyPaidCount
+        paidCount: updatedFullyPaidCount
       });
 
       fetchDetail();
@@ -266,23 +291,38 @@ const ExpenseDetail = ({ expenseId, onBack }) => {
     setLoading(true);
     try {
       let newlyPaidCount = 0;
+      const debtsToUpdate = [];
+
       for (const debtId of selectedDebts) {
-        const debtRef = doc(db, 'debts', debtId);
         const debtToPay = debts.find(d => d.id === debtId);
-        await updateDoc(debtRef, {
-          status: 'paid',
-          paidAmount: debtToPay.amount,
-          paymentMethod: method,
-          approvedAt: new Date().toISOString()
+        debtsToUpdate.push({
+          debtId,
+          updates: { status: 'paid', paidAmount: debtToPay.amount, paymentMethod: method }
         });
         newlyPaidCount++;
       }
 
-      const expenseRef = doc(db, 'expenses', expenseId);
       const currentPaidCount = expense.paidCount || 0;
-      await updateDoc(expenseRef, {
-        paidCount: currentPaidCount + newlyPaidCount
-      });
+
+      if (requiresApproval) {
+        const payload = {
+          expenseId,
+          expensePaidCount: currentPaidCount + newlyPaidCount,
+          debtsToUpdate
+        };
+        await requestApproval('REGISTER_PAYMENTS', `Pago masivo (${selectedDebts.length} alumnos)`, payload, user, selectedCourse.id);
+        await showAlert('Solicitud de pago masivo enviada a la tesorera.');
+      } else {
+        for (const update of debtsToUpdate) {
+          await updateDoc(doc(db, 'debts', update.debtId), {
+            ...update.updates,
+            approvedAt: new Date().toISOString()
+          });
+        }
+        await updateDoc(doc(db, 'expenses', expenseId), {
+          paidCount: currentPaidCount + newlyPaidCount
+        });
+      }
 
       setSelectedDebts([]);
       fetchDetail();
@@ -316,28 +356,48 @@ const ExpenseDetail = ({ expenseId, onBack }) => {
     
     setLoading(true);
     try {
-      // 1. Actualizar deuda
-      const debtRef = doc(db, 'debts', debtId);
-      await updateDoc(debtRef, {
-        status: isFullyPaid ? 'paid' : 'partial',
-        paidAmount: newPaidAmount,
-        paymentMethod: 'balance',
-        approvedAt: new Date().toISOString()
-      });
+      const isFullyPaid = newPaidAmount >= debtToPay.amount;
+      const currentPaidCount = expense.paidCount || 0;
+      const expensePaidCount = (isFullyPaid && debtToPay.status !== 'paid') ? currentPaidCount + 1 : currentPaidCount;
 
-      // 2. Descontar saldo del estudiante
-      const studentRef = doc(db, 'students', student.id);
-      await updateDoc(studentRef, {
-        balance: newBalance
-      });
-
-      // 3. Aumentar el contador del gasto (solo si se completó el pago)
-      if (isFullyPaid && debtToPay.status !== 'paid') {
-        const expenseRef = doc(db, 'expenses', expenseId);
-        const currentPaidCount = expense.paidCount || 0;
-        await updateDoc(expenseRef, {
-          paidCount: currentPaidCount + 1
+      if (requiresApproval) {
+        const payload = {
+          expenseId,
+          expensePaidCount,
+          debtsToUpdate: [{
+            debtId,
+            updates: { status: isFullyPaid ? 'paid' : 'partial', paidAmount: newPaidAmount, paymentMethod: 'balance' }
+          }],
+          studentBalances: [{
+            studentId: student.id,
+            newBalance
+          }]
+        };
+        await requestApproval('REGISTER_PAYMENTS', `Pago con saldo: ${student.name}`, payload, user, selectedCourse.id);
+        await showAlert('Solicitud de pago con saldo enviada a la tesorera.');
+      } else {
+        // 1. Actualizar deuda
+        const debtRef = doc(db, 'debts', debtId);
+        await updateDoc(debtRef, {
+          status: isFullyPaid ? 'paid' : 'partial',
+          paidAmount: newPaidAmount,
+          paymentMethod: 'balance',
+          approvedAt: new Date().toISOString()
         });
+
+        // 2. Descontar saldo del estudiante
+        const studentRef = doc(db, 'students', student.id);
+        await updateDoc(studentRef, {
+          balance: newBalance
+        });
+
+        // 3. Aumentar el contador del gasto (solo si se completó el pago)
+        if (isFullyPaid && debtToPay.status !== 'paid') {
+          const expenseRef = doc(db, 'expenses', expenseId);
+          await updateDoc(expenseRef, {
+            paidCount: expensePaidCount
+          });
+        }
       }
 
       fetchDetail();
@@ -645,7 +705,15 @@ const ExpenseDetail = ({ expenseId, onBack }) => {
 
     setLoading(true);
     try {
+      const debtsToUpdate = [];
       let updatedCount = 0;
+      
+      const fullyPaidCount = debts.filter(d => {
+        const amtStr = auditManualAmounts[d.id];
+        const amt = (amtStr !== undefined && amtStr !== '') ? parseFloat(amtStr) : 0;
+        return amt >= d.amount;
+      }).length;
+
       for (const debt of debts) {
         const manualAmtStr = auditManualAmounts[debt.id];
         
@@ -659,28 +727,38 @@ const ExpenseDetail = ({ expenseId, onBack }) => {
         if (manualAmt >= debt.amount) newStatus = 'paid';
         else if (manualAmt > 0) newStatus = 'partial';
 
-        await updateDoc(doc(db, 'debts', debt.id), {
-          paidAmount: manualAmt,
-          status: newStatus,
-          paymentMethod: manualAmt > 0 ? (debt.paymentMethod || 'cash') : null,
-          approvedAt: manualAmt > 0 ? (debt.approvedAt || new Date().toISOString()) : null
+        debtsToUpdate.push({
+          debtId: debt.id,
+          updates: {
+            paidAmount: manualAmt,
+            status: newStatus,
+            paymentMethod: manualAmt > 0 ? (debt.paymentMethod || 'cash') : null
+          }
         });
         
         updatedCount++;
       }
       
-      // Actualizamos el contador general de pagados en la cuota
-      const fullyPaidCount = debts.filter(d => {
-        const amtStr = auditManualAmounts[d.id];
-        const amt = (amtStr !== undefined && amtStr !== '') ? parseFloat(amtStr) : 0;
-        return amt >= d.amount;
-      }).length;
-
-      await updateDoc(doc(db, 'expenses', expenseId), {
-        paidCount: fullyPaidCount
-      });
-
-      await showAlert(`Se ha reemplazado la suma del sistema con éxito. ${updatedCount} registros actualizados.`);
+      if (requiresApproval) {
+        const payload = {
+          expenseId,
+          expensePaidCount: fullyPaidCount,
+          debtsToUpdate
+        };
+        await requestApproval('REGISTER_PAYMENTS', `Auditoría masiva (${updatedCount} registros)`, payload, user, selectedCourse.id);
+        await showAlert('Solicitud de auditoría enviada a la tesorera para su aprobación.');
+      } else {
+        for (const update of debtsToUpdate) {
+          await updateDoc(doc(db, 'debts', update.debtId), {
+            ...update.updates,
+            approvedAt: update.updates.paidAmount > 0 ? new Date().toISOString() : null
+          });
+        }
+        await updateDoc(doc(db, 'expenses', expenseId), {
+          paidCount: fullyPaidCount
+        });
+        await showAlert(`Se ha reemplazado la suma del sistema con éxito. ${updatedCount} registros actualizados.`);
+      }
       
       // Limpiar auditoría tras aplicar
       setAuditChecks({});

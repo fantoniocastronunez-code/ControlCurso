@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { LogOut, Users, DollarSign, Activity, FileText, RefreshCw, Trash2, CreditCard, Search, Menu, X, PlusCircle, Settings, AlertTriangle } from 'lucide-react';
+import { LogOut, Users, DollarSign, Activity, FileText, RefreshCw, Trash2, CreditCard, Search, Menu, X, PlusCircle, Settings, AlertTriangle, CheckCircle } from 'lucide-react';
 import { db } from '../firebase/config';
 import { collection, getDocs, query, where, addDoc, doc, setDoc, getDoc } from 'firebase/firestore';
 import { useNavigate } from 'react-router-dom';
@@ -21,6 +21,7 @@ import MeetingReport from '../components/MeetingReport';
 import InstallAppGuide from '../components/InstallAppGuide';
 import RegisteredApoderadosModal from '../components/RegisteredApoderadosModal';
 import CourseManagement from '../components/CourseManagement';
+import ApprovalsManagement from '../components/ApprovalsManagement';
 import { useCourse } from '../context/CourseContext';
 
 const AdminDashboard = () => {
@@ -425,6 +426,31 @@ const AdminDashboard = () => {
           <button onClick={() => { setCurrentView('events'); setIsSidebarOpen(false); }} className="btn btn-outline" style={{ borderColor: 'rgba(16, 185, 129, 0.3)', color: 'var(--success)', justifyContent: 'flex-start' }}>
             <Activity size={18} /> Eventos y Ventas
           </button>
+          {['superadmin', 'admin', 'presidente', 'tesorero'].includes(courseRole) && (
+            <>
+              <button onClick={() => { setCurrentView('expenses_add'); setIsSidebarOpen(false); }} className="btn btn-outline" style={{ borderColor: 'var(--primary)', color: 'var(--primary)', justifyContent: 'flex-start' }}>
+                <PlusCircle size={18} /> Crear Cuota
+              </button>
+              <button onClick={() => { setCurrentView('debtors'); setIsSidebarOpen(false); }} className="btn btn-outline" style={{ borderColor: 'var(--warning)', color: 'var(--warning)', justifyContent: 'flex-start' }}>
+                <AlertTriangle size={18} /> Deudas
+              </button>
+            </>
+          )}
+          {['superadmin', 'admin', 'presidente'].includes(courseRole) && (
+            <button onClick={() => { setCurrentView('students'); setIsSidebarOpen(false); }} className="btn btn-outline" style={{ borderColor: '#3b82f6', color: '#3b82f6', justifyContent: 'flex-start' }}>
+              <Users size={18} /> Alumnos
+            </button>
+          )}
+          {courseRole === 'superadmin' || courseRole === 'tesorero' ? (
+            <button onClick={() => { setCurrentView('approvals'); setIsSidebarOpen(false); }} className="btn btn-outline" style={{ borderColor: 'var(--success)', color: 'var(--success)', justifyContent: 'flex-start' }}>
+              <CheckCircle size={18} /> Aprobaciones
+            </button>
+          ) : null}
+          {['superadmin', 'admin', 'presidente'].includes(courseRole) && (
+            <button onClick={() => { setCurrentView('settings'); setIsSidebarOpen(false); }} className="btn btn-outline" style={{ justifyContent: 'flex-start' }}>
+              <Settings size={18} /> Configuración
+            </button>
+          )}
           {courseRole === 'superadmin' && (
             <>
               <button onClick={() => { setCurrentView('users'); setIsSidebarOpen(false); }} className="btn btn-outline" style={{ borderColor: 'var(--warning)', color: 'var(--warning)', justifyContent: 'flex-start' }}>
@@ -735,6 +761,8 @@ const AdminDashboard = () => {
         <SettingsManagement onBack={() => setCurrentView('dashboard')} />
       ) : currentView === 'meeting_report' ? (
         <MeetingReport onBack={() => setCurrentView('dashboard')} />
+      ) : currentView === 'approvals' ? (
+        <ApprovalsManagement onBack={() => setCurrentView('dashboard')} />
       ) : currentView === 'expense_detail' && selectedExpenseId ? (
         <ExpenseDetail expenseId={selectedExpenseId} onBack={() => setCurrentView('dashboard')} />
       ) : null}

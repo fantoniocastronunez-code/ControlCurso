@@ -5,10 +5,16 @@ import { ArrowLeft, PlusCircle, CheckCircle } from 'lucide-react';
 import { useModal } from '../context/ModalContext';
 import { formatStudentName } from '../utils/nameUtils';
 import { useCourse } from '../context/CourseContext';
+import { useAuth } from '../context/AuthContext';
+import { requestApproval } from '../services/approvalService';
 
 const ExpenseManagement = ({ onBack }) => {
   const { showAlert } = useModal();
   const { selectedCourse } = useCourse();
+  const { user, role, userData } = useAuth();
+  const courseRole = (role === 'superadmin' || userData?.roles?.global === 'superadmin')
+    ? 'superadmin'
+    : (userData?.roles?.[selectedCourse?.id] || null);
   const [students, setStudents] = useState([]);
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState('');
@@ -145,42 +151,15 @@ const ExpenseManagement = ({ onBack }) => {
       }
       
       let finalFundId = selectedFundId;
-      if (createAutoFund) {
-        finalFundId = 'fund_' + Date.now().toString();
-        const fundRef = doc(db, 'funds', finalFundId);
-        await setDoc(fundRef, {
-          name: title,
-          description: 'Fondo creado automáticamente para la cuota',
-          courseId: selectedCourse.id,
-          createdAt: new Date().toISOString()
-        });
-      }
+      let fullyPaidCount = 0;
       
-      const expenseId = 'exp_' + Date.now().toString();
-      const expenseRef = doc(db, 'expenses', expenseId);
-      
-      const selectedAccount = transferAccounts.find(a => a.id === selectedAccountId) || null;
-      
-      const newExpense = {
-        title,
-        date,
-        totalAmount: finalTotalAmount,
-        amountPerStudent,
-        studentsCount: selectedStudents.size,
-        paidCount: 0,
-        fundId: finalFundId,
-        courseId: selectedCourse.id,
-        transferData: selectedAccount,
-        createdAt: new Date().toISOString()
-      };
-      
-      await setDoc(expenseRef, newExpense);
+      const debtsData = [];
+      const studentBalances = [];
 
-      // Crear deudas individuales
+      // Process individual debts
       for (const studentId of selectedStudents) {
         const student = students.find(s => s.id === studentId);
         const debtId = `debt_${expenseId}_${studentId}`;
-        const debtRef = doc(db, 'debts', debtId);
         
         const finalStudentAmount = calculationMode === 'custom' ? parseFloat(customAmounts[studentId]) : amountPerStudent;
         
@@ -191,7 +170,6 @@ const ExpenseManagement = ({ onBack }) => {
 
         const requestedBalance = parseFloat(balanceToUse[studentId]) || 0;
         if (requestedBalance > 0 && student.balance > 0) {
-            // Cap the balance used to the final debt amount, and to what the student actually has
             const amountToUse = Math.min(requestedBalance, finalStudentAmount, student.balance);
             if (amountToUse > 0) {
                 paidAmount = amountToUse;
@@ -200,56 +178,89 @@ const ExpenseManagement = ({ onBack }) => {
                 
                 if (amountToUse >= finalStudentAmount) {
                     status = 'paid';
+                    fullyPaidCount++;
                 } else {
                     status = 'partial';
                 }
 
-                // Deduct from student
-                const studentRef = doc(db, 'students', student.id);
-                await updateDoc(studentRef, {
-                    balance: student.balance - amountToUse
+                studentBalances.push({
+                  studentId: student.id,
+                  newBalance: student.balance - amountToUse
                 });
             }
         }
         
-        await setDoc(debtRef, {
-          expenseId,
-          studentId,
-          studentName: student.name,
-          apoderadoEmails: student.apoderadoEmails || (student.apoderadoEmail ? [student.apoderadoEmail] : []),
-          amount: finalStudentAmount,
-          status, // pending, review, paid, partial
-          paidAmount,
-          paymentMethod,
-          approvedAt,
-          title,
-          date,
-          fundId: finalFundId,
-          courseId: selectedCourse.id,
-          transferData: selectedAccount,
-          createdAt: new Date().toISOString()
+        debtsData.push({
+          debtId,
+          debtData: {
+            expenseId,
+            studentId,
+            studentName: student.name,
+            apoderadoEmails: student.apoderadoEmails || (student.apoderadoEmail ? [student.apoderadoEmail] : []),
+            amount: finalStudentAmount,
+            status,
+            paidAmount,
+            paymentMethod,
+            approvedAt,
+            title,
+            date,
+            fundId: finalFundId,
+            courseId: selectedCourse.id,
+            transferData: selectedAccount,
+            createdAt: new Date().toISOString()
+          }
         });
       }
 
-      // Re-calculate how many were fully paid to update the expense record
-      let fullyPaidCount = 0;
-      for (const studentId of selectedStudents) {
-          const finalStudentAmount = calculationMode === 'custom' ? parseFloat(customAmounts[studentId]) : amountPerStudent;
-          const requestedBalance = parseFloat(balanceToUse[studentId]) || 0;
-          const student = students.find(s => s.id === studentId);
-          if (requestedBalance > 0 && student && student.balance > 0) {
-              const amountToUse = Math.min(requestedBalance, finalStudentAmount, student.balance);
-              if (amountToUse >= finalStudentAmount) fullyPaidCount++;
-          }
-      }
-      
-      if (fullyPaidCount > 0) {
-          await updateDoc(expenseRef, {
-              paidCount: fullyPaidCount
-          });
-      }
+      newExpense.paidCount = fullyPaidCount;
 
-      setMessage('Cuota generada y enviada a los apoderados con éxito.');
+      const requiresApproval = courseRole !== 'tesorero' && courseRole !== 'superadmin';
+
+      if (requiresApproval) {
+        const payload = {
+          expenseId,
+          expenseData: newExpense,
+          debtsData,
+          autoFundId: createAutoFund ? finalFundId : null,
+          autoFundData: createAutoFund ? {
+            name: title,
+            description: 'Fondo creado automáticamente para la cuota',
+            courseId: selectedCourse.id,
+            createdAt: new Date().toISOString()
+          } : null,
+          studentBalances
+        };
+        await requestApproval('CREATE_EXPENSE', `Cuota: ${title}`, payload, user, selectedCourse.id);
+        
+        setMessage('Solicitud de creación enviada a la tesorera para su aprobación.');
+      } else {
+        // Ejecución inmediata (Tesorero o Superadmin)
+        if (createAutoFund) {
+          const fundRef = doc(db, 'funds', finalFundId);
+          await setDoc(fundRef, {
+            name: title,
+            description: 'Fondo creado automáticamente para la cuota',
+            courseId: selectedCourse.id,
+            createdAt: new Date().toISOString()
+          });
+        }
+        
+        await setDoc(expenseRef, newExpense);
+        
+        for (const debt of debtsData) {
+          await setDoc(doc(db, 'debts', debt.debtId), debt.debtData);
+        }
+        
+        if (studentBalances.length > 0) {
+          for (const studentUpdate of studentBalances) {
+            await updateDoc(doc(db, 'students', studentUpdate.studentId), {
+              balance: studentUpdate.newBalance
+            });
+          }
+        }
+        
+        setMessage('Cuota registrada correctamente');
+      }
       setTimeout(() => {
         setMessage('');
         onBack();
