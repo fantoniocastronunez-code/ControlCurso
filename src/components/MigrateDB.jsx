@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { db } from '../firebase';
+import { db } from '../firebase/config';
 import { collection, getDocs, doc, updateDoc, setDoc } from 'firebase/firestore';
 
 const COURSE_ID = 'kinder-b-2026';
