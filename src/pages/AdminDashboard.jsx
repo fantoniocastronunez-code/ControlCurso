@@ -212,10 +212,10 @@ const AdminDashboard = () => {
       
       debtsDocs.forEach(doc => {
         const data = doc.data();
-        let fundId = data.fundId;
+        let fundId = data.fundId || 'general';
         
-        // Si el fondo fue eliminado, el dinero pasa a caja/fondo general, no puede desaparecer
-        if (!fundId || !fundsMap.has(fundId)) fundId = 'general';
+        // Si el fondo fue eliminado, ignorar el dinero por completo
+        if (!fundsMap.has(fundId)) return;
 
         const amt = typeof data.paidAmount === 'number' ? data.paidAmount : (data.amount || 0);
         const expected = data.amount || 0;
@@ -250,8 +250,8 @@ const AdminDashboard = () => {
       let transferOut = 0;
       outcomesDocs.forEach(doc => {
         const data = doc.data();
-        let fundId = data.fundId;
-        if (!fundId || !fundsMap.has(fundId)) fundId = 'general';
+        let fundId = data.fundId || 'general';
+        if (!fundsMap.has(fundId)) return;
 
         const amt = data.amount || 0;
         if (data.paymentMethod === 'cash') cashOut += amt;
@@ -284,8 +284,8 @@ const AdminDashboard = () => {
           data.title = 'Saldo Año Anterior';
         }
 
-        let fundId = data.fundId;
-        if (!fundId || !fundsMap.has(fundId)) fundId = 'general';
+        let fundId = data.fundId || 'general';
+        if (!fundsMap.has(fundId)) return;
 
         const amt = data.amount || 0;
         if (data.paymentMethod === 'cash') cashIn += amt;
@@ -295,8 +295,8 @@ const AdminDashboard = () => {
       // Calcular balances por fondo y llenar transacciones
       debtsDocs.forEach(doc => {
         const data = doc.data();
-        let fundId = data.fundId;
-        if (!fundId || !fundsMap.has(fundId)) fundId = 'general';
+        let fundId = data.fundId || 'general';
+        if (!fundsMap.has(fundId)) return;
 
         const amt = typeof data.paidAmount === 'number' ? data.paidAmount : (data.amount || 0);
         
@@ -312,8 +312,8 @@ const AdminDashboard = () => {
 
       outcomesDocs.forEach(doc => {
         const data = doc.data();
-        let fundId = data.fundId;
-        if (!fundId || !fundsMap.has(fundId)) fundId = 'general';
+        let fundId = data.fundId || 'general';
+        if (!fundsMap.has(fundId)) return;
         
         const amt = data.amount || 0;
         fundsMap.get(fundId).balance -= amt;
@@ -329,8 +329,8 @@ const AdminDashboard = () => {
         
 
 
-        let fundId = data.fundId;
-        if (!fundId || !fundsMap.has(fundId)) fundId = 'general';
+        let fundId = data.fundId || 'general';
+        if (!fundsMap.has(fundId)) return;
         
         const amt = data.amount || 0;
         fundsMap.get(fundId).balance += amt;

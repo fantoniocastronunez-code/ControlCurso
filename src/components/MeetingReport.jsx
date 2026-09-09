@@ -143,6 +143,9 @@ const MeetingReport = ({ onBack }) => {
 
     // From Debts (Pagos recibidos)
     debts.forEach(d => {
+      const fundId = d.fundId || 'general';
+      if (!currentFunds[fundId]) return;
+
       if (d.status === 'paid' || d.status === 'partial') {
         const amt = typeof d.paidAmount === 'number' ? d.paidAmount : (d.amount || 0);
         collected += amt;
@@ -154,35 +157,32 @@ const MeetingReport = ({ onBack }) => {
         if (d.paymentMethod === 'transfer') tIn += baseAmt;
         tIn += overpayAmt;
 
-        let fundId = d.fundId;
-        if (!fundId || !currentFunds[fundId]) fundId = 'general';
-        
         currentFunds[fundId].totalIn += amt;
       }
     });
 
     // From Incomes (Ingresos manuales)
     incomes.forEach(inc => {
+      const fundId = inc.fundId || 'general';
+      if (!currentFunds[fundId]) return;
+
       const amt = inc.amount || 0;
       incTotal += amt;
       if (inc.paymentMethod === 'cash') cIn += amt;
       if (inc.paymentMethod === 'transfer') tIn += amt;
 
-      let fundId = inc.fundId;
-      if (!fundId || !currentFunds[fundId]) fundId = 'general';
-      
       currentFunds[fundId].totalIn += amt;
     });
 
     // From Outcomes (Egresos / Gastos)
     outcomes.forEach(out => {
+      const fundId = out.fundId || 'general';
+      if (!currentFunds[fundId]) return;
+
       const amt = out.amount || 0;
       if (out.paymentMethod === 'cash') cOut += amt;
       if (out.paymentMethod === 'transfer') tOut += amt;
 
-      let fundId = out.fundId;
-      if (!fundId || !currentFunds[fundId]) fundId = 'general';
-      
       currentFunds[fundId].totalOut += amt;
     });
 
