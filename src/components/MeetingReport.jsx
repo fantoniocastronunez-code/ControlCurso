@@ -154,10 +154,10 @@ const MeetingReport = ({ onBack }) => {
         if (d.paymentMethod === 'transfer') tIn += baseAmt;
         tIn += overpayAmt;
 
-        const fundId = d.fundId || 'general';
-        if (currentFunds[fundId]) {
-          currentFunds[fundId].totalIn += amt;
-        }
+        let fundId = d.fundId;
+        if (!fundId || !currentFunds[fundId]) fundId = 'general';
+        
+        currentFunds[fundId].totalIn += amt;
       }
     });
 
@@ -168,10 +168,10 @@ const MeetingReport = ({ onBack }) => {
       if (inc.paymentMethod === 'cash') cIn += amt;
       if (inc.paymentMethod === 'transfer') tIn += amt;
 
-      const fundId = inc.fundId || 'general';
-      if (currentFunds[fundId]) {
-        currentFunds[fundId].totalIn += amt;
-      }
+      let fundId = inc.fundId;
+      if (!fundId || !currentFunds[fundId]) fundId = 'general';
+      
+      currentFunds[fundId].totalIn += amt;
     });
 
     // From Outcomes (Egresos / Gastos)
@@ -180,10 +180,10 @@ const MeetingReport = ({ onBack }) => {
       if (out.paymentMethod === 'cash') cOut += amt;
       if (out.paymentMethod === 'transfer') tOut += amt;
 
-      const fundId = out.fundId || 'general';
-      if (currentFunds[fundId]) {
-        currentFunds[fundId].totalOut += amt;
-      }
+      let fundId = out.fundId;
+      if (!fundId || !currentFunds[fundId]) fundId = 'general';
+      
+      currentFunds[fundId].totalOut += amt;
     });
 
     // Calculate balance per fund
@@ -205,7 +205,7 @@ const MeetingReport = ({ onBack }) => {
     };
   }, [debts, incomes, outcomes, fundsMap]);
 
-  const totalAvailable = (totalCollected + totalIncomes) - totalOutcomes;
+  const totalAvailable = Object.values(finalFundsMap).reduce((sum, f) => sum + f.balance, 0);
   const cashBalance = cashIn - cashOut;
   const transferBalance = transferIn - transferOut;
 
