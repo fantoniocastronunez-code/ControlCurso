@@ -81,9 +81,9 @@ const AdminDashboard = () => {
           console.log("Found debt:", debtDoc.id, debtDoc.data());
           // FIX IT
           const debtRef = doc(db, 'debts', debtDoc.id);
-          await setDoc(debtRef, { paidAmount: 9000, status: 'paid' }, { merge: true });
+          await setDoc(debtRef, { paidAmount: 9000, amount: 9000, status: 'paid' }, { merge: true });
           console.log("Debt fixed successfully!");
-          alert("Deuda de Emma corregida exitosamente a 9000 (Pagado)!");
+          alert("Deuda de Emma corregida exitosamente a 9000 (Monto cuota y Pagado)!");
         });
       } catch (e) {
         console.error("Error fixing debt:", e);
