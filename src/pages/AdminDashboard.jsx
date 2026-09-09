@@ -453,8 +453,11 @@ const AdminDashboard = () => {
           )}
           {courseRole === 'superadmin' && (
             <>
-              <button onClick={() => { setCurrentView('users'); setIsSidebarOpen(false); }} className="btn btn-outline" style={{ borderColor: 'var(--warning)', color: 'var(--warning)', justifyContent: 'flex-start' }}>
+              <button onClick={() => { setCurrentView('admins'); setIsSidebarOpen(false); }} className="btn btn-outline" style={{ borderColor: 'var(--warning)', color: 'var(--warning)', justifyContent: 'flex-start' }}>
                 <Users size={18} /> Admins
+              </button>
+              <button onClick={() => { setCurrentView('users'); setIsSidebarOpen(false); }} className="btn btn-outline" style={{ borderColor: '#3b82f6', color: '#3b82f6', justifyContent: 'flex-start' }}>
+                <Users size={18} /> Usuarios
               </button>
               <button onClick={() => { setCurrentView('courses'); setIsSidebarOpen(false); }} className="btn btn-outline" style={{ borderColor: '#ec4899', color: '#ec4899', justifyContent: 'flex-start' }}>
                 <Activity size={18} /> Cursos
@@ -744,7 +747,9 @@ const AdminDashboard = () => {
       ) : currentView === 'courses' ? (
         <CourseManagement onBack={() => setCurrentView('dashboard')} />
       ) : currentView === 'users' ? (
-        <UserManagement onBack={() => setCurrentView('dashboard')} />
+        <UserManagement viewMode="users" onBack={() => setCurrentView('dashboard')} />
+      ) : currentView === 'admins' ? (
+        <UserManagement viewMode="admins" onBack={() => setCurrentView('dashboard')} />
       ) : currentView === 'students' ? (
         <StudentManagement onBack={() => setCurrentView('dashboard')} />
       ) : currentView === 'expenses_add' ? (

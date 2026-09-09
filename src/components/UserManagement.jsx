@@ -6,11 +6,13 @@ import { useCourse } from '../context/CourseContext';
 import { ArrowLeft, UserCheck, UserPlus, Trash2, Edit2, Save, X } from 'lucide-react';
 import { useModal } from '../context/ModalContext';
 
-const UserManagement = ({ onBack }) => {
+const UserManagement = ({ onBack, viewMode = 'users' }) => {
   const { showConfirm } = useModal();
   const { role } = useAuth();
   const { selectedCourse } = useCourse();
   const [users, setUsers] = useState([]);
+  const [allCourses, setAllCourses] = useState([]);
+  const [filterCourse, setFilterCourse] = useState('all');
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState('');
   
@@ -23,13 +25,16 @@ const UserManagement = ({ onBack }) => {
   const [editName, setEditName] = useState('');
 
   useEffect(() => {
-    if (selectedCourse) {
-      fetchUsers();
-    }
-  }, [selectedCourse]);
+    fetchData();
+  }, [viewMode]);
 
-  const fetchUsers = async () => {
+  const fetchData = async () => {
+    setLoading(true);
     try {
+      const coursesSnap = await getDocs(collection(db, 'courses'));
+      const coursesData = coursesSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+      setAllCourses(coursesData);
+
       const usersCollection = collection(db, 'users');
       const userSnapshot = await getDocs(usersCollection);
       
@@ -37,21 +42,34 @@ const UserManagement = ({ onBack }) => {
         id: doc.id,
         ...doc.data()
       }));
-
-      // Filter users who belong to the selected course, or are superadmins
-      userList = userList.filter(u => 
-        (u.roles && u.roles[selectedCourse.id]) || 
-        (u.roles && u.roles['global'] === 'superadmin') ||
-        u.role === 'superadmin'
-      );
-      
       setUsers(userList);
     } catch (error) {
-      console.error("Error al obtener usuarios:", error);
+      console.error("Error al obtener datos:", error);
     } finally {
       setLoading(false);
     }
   };
+
+  const filteredUsers = users.filter(u => {
+    const isSuperadmin = (u.roles && u.roles['global'] === 'superadmin') || u.role === 'superadmin';
+    const rolesKeys = u.roles ? Object.keys(u.roles) : [];
+    
+    // 1. Filter by viewMode
+    let matchesMode = false;
+    if (viewMode === 'admins') {
+       matchesMode = isSuperadmin || rolesKeys.some(k => ['admin', 'presidente', 'tesorero', 'secretario'].includes(u.roles[k]));
+    } else {
+       matchesMode = !isSuperadmin && (!u.roles || Object.keys(u.roles).length === 0 || rolesKeys.some(k => u.roles[k] === 'apoderado'));
+    }
+    
+    // 2. Filter by course
+    let matchesCourse = true;
+    if (filterCourse !== 'all') {
+      matchesCourse = (u.roles && !!u.roles[filterCourse]) || isSuperadmin;
+    }
+    
+    return matchesMode && matchesCourse;
+  });
 
   const handleRoleChange = async (userId, changedRole) => {
     try {
@@ -165,7 +183,22 @@ const UserManagement = ({ onBack }) => {
         <button onClick={onBack} className="btn btn-outline" style={{ padding: '0.5rem' }}>
           <ArrowLeft size={18} />
         </button>
-        <h3 style={{ margin: 0 }}>Gestión de Usuarios</h3>
+        <h3 style={{ margin: 0 }}>Gestión de {viewMode === 'admins' ? 'Administradores' : 'Usuarios'}</h3>
+      </div>
+
+      <div style={{ marginBottom: '1.5rem', display: 'flex', gap: '1rem', alignItems: 'center' }}>
+        <label style={{ fontWeight: '500' }}>Filtrar por Curso:</label>
+        <select 
+          className="input-field" 
+          style={{ width: 'auto' }}
+          value={filterCourse}
+          onChange={(e) => setFilterCourse(e.target.value)}
+        >
+          <option value="all">Todos los cursos</option>
+          {allCourses.map(c => (
+            <option key={c.id} value={c.id}>{c.name} {c.year}</option>
+          ))}
+        </select>
       </div>
 
       {message && (
@@ -223,13 +256,13 @@ const UserManagement = ({ onBack }) => {
             <tr style={{ borderBottom: '1px solid var(--border-color)', backgroundColor: 'rgba(255,255,255,0.03)' }}>
               <th style={{ padding: '1rem' }}>Nombre</th>
               <th style={{ padding: '1rem' }}>Email</th>
-              <th style={{ padding: '1rem' }}>Rol</th>
+              <th style={{ padding: '1rem' }}>Rol / Curso</th>
               <th style={{ padding: '1rem' }}>Estado</th>
               <th style={{ padding: '1rem' }}>Acciones</th>
             </tr>
           </thead>
           <tbody>
-            {users.map(u => (
+            {filteredUsers.map(u => (
               <tr key={u.id} style={{ borderBottom: '1px solid var(--border-color)' }}>
                 {editingId === u.id ? (
                   <>
@@ -244,16 +277,25 @@ const UserManagement = ({ onBack }) => {
                     </td>
                     <td style={{ padding: '1rem', color: 'var(--text-muted)' }}>{u.email}</td>
                     <td style={{ padding: '1rem' }}>
-                      <span style={{ 
-                        padding: '0.25rem 0.75rem', 
-                        borderRadius: '1rem', 
-                        fontSize: '0.85rem',
-                        backgroundColor: (u.roles && selectedCourse ? u.roles[selectedCourse.id] : u.role) === 'superadmin' ? 'rgba(245, 158, 11, 0.2)' : ((u.roles && selectedCourse ? u.roles[selectedCourse.id] : u.role) === 'admin' || (u.roles && selectedCourse ? u.roles[selectedCourse.id] : u.role) === 'presidente' || (u.roles && selectedCourse ? u.roles[selectedCourse.id] : u.role) === 'secretario') ? 'rgba(99, 102, 241, 0.2)' : (u.roles && selectedCourse ? u.roles[selectedCourse.id] : u.role) === 'tesorero' ? 'rgba(59, 130, 246, 0.2)' : 'rgba(16, 185, 129, 0.2)',
-                        color: (u.roles && selectedCourse ? u.roles[selectedCourse.id] : u.role) === 'superadmin' ? 'var(--warning)' : ((u.roles && selectedCourse ? u.roles[selectedCourse.id] : u.role) === 'admin' || (u.roles && selectedCourse ? u.roles[selectedCourse.id] : u.role) === 'presidente' || (u.roles && selectedCourse ? u.roles[selectedCourse.id] : u.role) === 'secretario') ? 'var(--primary)' : (u.roles && selectedCourse ? u.roles[selectedCourse.id] : u.role) === 'tesorero' ? '#3b82f6' : 'var(--success)',
-                        textTransform: 'capitalize'
-                      }}>
-                        {u.roles && selectedCourse ? u.roles[selectedCourse.id] : u.role}
-                      </span>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+                        {((u.roles && u.roles['global'] === 'superadmin') || u.role === 'superadmin') ? (
+                          <span style={{ padding: '0.25rem 0.5rem', borderRadius: '4px', fontSize: '0.8rem', backgroundColor: 'rgba(245, 158, 11, 0.2)', color: 'var(--warning)', width: 'max-content' }}>
+                            Superadmin (Global)
+                          </span>
+                        ) : (
+                          Object.entries(u.roles || {}).map(([cId, r]) => {
+                            if (cId === 'global') return null;
+                            const cName = allCourses.find(c => c.id === cId)?.name || 'Curso Desconocido';
+                            if (viewMode === 'admins' && !['admin', 'presidente', 'tesorero', 'secretario'].includes(r)) return null;
+                            if (viewMode === 'users' && r !== 'apoderado') return null;
+                            return (
+                              <span key={cId} style={{ padding: '0.25rem 0.5rem', borderRadius: '4px', fontSize: '0.8rem', backgroundColor: 'rgba(99, 102, 241, 0.1)', color: 'var(--primary)', width: 'max-content' }}>
+                                {r.charAt(0).toUpperCase() + r.slice(1)} - {cName}
+                              </span>
+                            );
+                          })
+                        )}
+                      </div>
                     </td>
                     <td style={{ padding: '1rem' }}>
                       {u.uid ? (
@@ -289,15 +331,25 @@ const UserManagement = ({ onBack }) => {
                     </td>
                     <td style={{ padding: '1rem', color: 'var(--text-muted)' }}>{u.email}</td>
                     <td style={{ padding: '1rem' }}>
-                      <span style={{ 
-                        padding: '0.25rem 0.75rem', 
-                        borderRadius: '1rem', 
-                        fontSize: '0.85rem',
-                        backgroundColor: (u.roles && selectedCourse ? u.roles[selectedCourse.id] : u.role) === 'superadmin' ? 'rgba(245, 158, 11, 0.2)' : ((u.roles && selectedCourse ? u.roles[selectedCourse.id] : u.role) === 'admin' || (u.roles && selectedCourse ? u.roles[selectedCourse.id] : u.role) === 'presidente' || (u.roles && selectedCourse ? u.roles[selectedCourse.id] : u.role) === 'secretario') ? 'rgba(99, 102, 241, 0.2)' : (u.roles && selectedCourse ? u.roles[selectedCourse.id] : u.role) === 'tesorero' ? 'rgba(59, 130, 246, 0.2)' : 'rgba(16, 185, 129, 0.2)',
-                        color: (u.roles && selectedCourse ? u.roles[selectedCourse.id] : u.role) === 'superadmin' ? 'var(--warning)' : ((u.roles && selectedCourse ? u.roles[selectedCourse.id] : u.role) === 'admin' || (u.roles && selectedCourse ? u.roles[selectedCourse.id] : u.role) === 'presidente' || (u.roles && selectedCourse ? u.roles[selectedCourse.id] : u.role) === 'secretario') ? 'var(--primary)' : (u.roles && selectedCourse ? u.roles[selectedCourse.id] : u.role) === 'tesorero' ? '#3b82f6' : 'var(--success)'
-                      }}>
-                        {u.roles && selectedCourse ? u.roles[selectedCourse.id] : u.role}
-                      </span>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+                        {((u.roles && u.roles['global'] === 'superadmin') || u.role === 'superadmin') ? (
+                          <span style={{ padding: '0.25rem 0.5rem', borderRadius: '4px', fontSize: '0.8rem', backgroundColor: 'rgba(245, 158, 11, 0.2)', color: 'var(--warning)', width: 'max-content' }}>
+                            Superadmin (Global)
+                          </span>
+                        ) : (
+                          Object.entries(u.roles || {}).map(([cId, r]) => {
+                            if (cId === 'global') return null;
+                            const cName = allCourses.find(c => c.id === cId)?.name || 'Curso Desconocido';
+                            if (viewMode === 'admins' && !['admin', 'presidente', 'tesorero', 'secretario'].includes(r)) return null;
+                            if (viewMode === 'users' && r !== 'apoderado') return null;
+                            return (
+                              <span key={cId} style={{ padding: '0.25rem 0.5rem', borderRadius: '4px', fontSize: '0.8rem', backgroundColor: 'rgba(99, 102, 241, 0.1)', color: 'var(--primary)', width: 'max-content' }}>
+                                {r.charAt(0).toUpperCase() + r.slice(1)} - {cName}
+                              </span>
+                            );
+                          })
+                        )}
+                      </div>
                     </td>
                     <td style={{ padding: '1rem' }}>
                       {u.uid ? (
@@ -337,9 +389,9 @@ const UserManagement = ({ onBack }) => {
             ))}
           </tbody>
         </table>
-        {users.length === 0 && (
+        {filteredUsers.length === 0 && (
           <div style={{ padding: '2rem', textAlign: 'center', color: 'var(--text-muted)' }}>
-            No se encontraron usuarios.
+            No se encontraron {viewMode === 'admins' ? 'administradores' : 'usuarios'}.
           </div>
         )}
       </div>

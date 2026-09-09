@@ -68,7 +68,13 @@ h1, h2, h3, h4, h5, h6 {
 .container {
   max-width: 1200px;
   margin: 0 auto;
-  padding: 2rem 1.5rem;
+  padding: 2rem 1.5rem 6rem; /* Extra bottom padding for mobile bottom-nav */
+}
+
+@media (min-width: 769px) {
+  .container {
+    padding-bottom: 2rem; /* Normal bottom padding on PC */
+  }
 }
 
 /* Typography utilities */
@@ -417,12 +423,7 @@ h1, h2, h3, h4, h5, h6 {
 
 @media (min-width: 769px) {
   .bottom-nav {
-    justify-content: center;
-    gap: 2rem;
-  }
-  .bottom-nav-item {
-    width: auto !important;
-    min-width: 80px;
+    display: none;
   }
 }
 
