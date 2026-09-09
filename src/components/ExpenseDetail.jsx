@@ -1049,7 +1049,7 @@ const ExpenseDetail = ({ expenseId, onBack }) => {
             </tr>
           </thead>
           <tbody>
-            {debts.filter(d => !d.title.includes('(Saldo Restante)')).map(debt => {
+            {debts.map(debt => {
               const isExpanded = expandedDebts.includes(debt.id);
               const isAudited = !!auditChecks[debt.id];
               const sysPaidAmt = debt.status === 'paid' 

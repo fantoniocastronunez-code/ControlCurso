@@ -45,13 +45,22 @@ const StudentDetailModal = ({ student, usersMap = {}, onClose, isModal = false }
 
       // Hide 'partial' debts ONLY if a '(Saldo Restante)' debt was manually created for THIS SPECIFIC debt title
       const filteredDebts = fetchedDebts.filter(d => {
+        const baseTitle = d.title.replace('(Saldo Restante)', '').trim();
+        
         if (d.status === 'partial') {
-          const baseTitle = d.title.trim();
           const hasSpecificSaldoRestante = fetchedDebts.some(other => 
             other.title.includes('(Saldo Restante)') && other.title.includes(baseTitle)
           );
           if (hasSpecificSaldoRestante) return false;
         }
+
+        if (d.title.includes('(Saldo Restante)')) {
+          const originalIsPaid = fetchedDebts.some(other => 
+            other.title.trim() === baseTitle && other.status === 'paid'
+          );
+          if (originalIsPaid) return false;
+        }
+        
         return true;
       });
 

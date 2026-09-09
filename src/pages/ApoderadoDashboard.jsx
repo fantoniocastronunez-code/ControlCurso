@@ -471,13 +471,22 @@ const ApoderadoDashboard = () => {
           {myStudents.filter(student => student.id === activeStudentId).map(student => {
             const allStudentDebts = debts.filter(d => d.studentId === student.id);
             const studentDebts = allStudentDebts.filter(d => {
+              const baseTitle = d.title.replace('(Saldo Restante)', '').trim();
+              
               if (d.status === 'partial') {
-                const baseTitle = d.title.trim();
                 const hasSpecificSaldoRestante = allStudentDebts.some(other => 
                   other.title.includes('(Saldo Restante)') && other.title.includes(baseTitle)
                 );
                 if (hasSpecificSaldoRestante) return false;
               }
+
+              if (d.title.includes('(Saldo Restante)')) {
+                const originalIsPaid = allStudentDebts.some(other => 
+                  other.title.trim() === baseTitle && other.status === 'paid'
+                );
+                if (originalIsPaid) return false;
+              }
+              
               return true;
             });
             
