@@ -5,6 +5,7 @@ import { db } from '../firebase/config';
 import { collection, getDocs, query, where, addDoc, doc, setDoc, getDoc } from 'firebase/firestore';
 import { useNavigate } from 'react-router-dom';
 import { useModal } from '../context/ModalContext';
+import MigrateDB from '../components/MigrateDB';
 
 import UserManagement from '../components/UserManagement';
 import StudentManagement from '../components/StudentManagement';
@@ -415,6 +416,7 @@ const AdminDashboard = () => {
       </div>
 
       <div className="container animate-fade-in">
+        {role === 'superadmin' && <MigrateDB />}
         <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem', flexWrap: 'wrap', gap: '1rem' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
             <button onClick={() => setIsSidebarOpen(true)} className="hamburger-btn">
