@@ -40,8 +40,8 @@ const StudentDetailModal = ({ student, usersMap = {}, onClose, isModal = false }
         return new Date(b.createdAt || b.date || 0) - new Date(a.createdAt || a.date || 0);
       });
 
-      // Filter out duplicate "(Saldo Restante)" debts since the main debt handles partial payments
-      const filteredDebts = fetchedDebts.filter(d => !d.title.includes('(Saldo Restante)'));
+      // Filter out the original "partial" debt since its parts are already shown as "Completada" and "(Saldo Restante)"
+      const filteredDebts = fetchedDebts.filter(d => d.status !== 'partial');
 
       setDebts(filteredDebts);
     } catch (error) {

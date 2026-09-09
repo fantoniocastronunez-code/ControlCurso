@@ -495,7 +495,7 @@ const ApoderadoDashboard = () => {
       ) : (
         <>
           {myStudents.map(student => {
-            const studentDebts = debts.filter(d => d.studentId === student.id);
+            const studentDebts = debts.filter(d => d.studentId === student.id && d.status !== 'partial');
             
             return (
               <div key={student.id} className="glass-panel" style={{ padding: '2rem', marginBottom: '2rem' }}>
