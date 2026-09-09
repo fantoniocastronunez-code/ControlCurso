@@ -48,6 +48,51 @@ const AdminDashboard = () => {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    const fixDebt = async () => {
+      try {
+        console.log("Starting debt fix script...");
+        // 1. Find Emma
+        const studentsSnap = await getDocs(collection(db, 'students'));
+        let studentId = null;
+        studentsSnap.forEach(doc => {
+          if (doc.data().name.includes('PEZO OTEIZA')) studentId = doc.id;
+        });
+        
+        if (!studentId) {
+          console.log("Student not found");
+          return;
+        }
+        
+        // 2. Find Paseo Planetario
+        const expSnap = await getDocs(collection(db, 'expenses'));
+        let expId = null;
+        expSnap.forEach(doc => {
+          if (doc.data().title.includes('Paseo Planetario')) expId = doc.id;
+        });
+
+        if (!expId) {
+          console.log("Expense not found");
+          return;
+        }
+
+        // 3. Find Debt
+        const debtSnap = await getDocs(query(collection(db, 'debts'), where('studentId', '==', studentId), where('expenseId', '==', expId)));
+        debtSnap.forEach(async (debtDoc) => {
+          console.log("Found debt:", debtDoc.id, debtDoc.data());
+          // FIX IT
+          const debtRef = doc(db, 'debts', debtDoc.id);
+          await setDoc(debtRef, { paidAmount: 9000, status: 'paid' }, { merge: true });
+          console.log("Debt fixed successfully!");
+          alert("Deuda de Emma corregida exitosamente a 9000 (Pagado)!");
+        });
+      } catch (e) {
+        console.error("Error fixing debt:", e);
+      }
+    };
+    fixDebt();
+  }, []);
+
+  useEffect(() => {
     if (currentView === 'dashboard') {
       fetchDashboardData();
     }
