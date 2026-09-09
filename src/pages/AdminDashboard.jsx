@@ -81,118 +81,6 @@ const AdminDashboard = () => {
     }
   };
 
-  const handleQuickIncome = async () => {
-    const titleStr = await showPrompt("Nombre para este ingreso (Ej: Aporte anónimo, Bingo, etc):", "Ingreso Rápido");
-    if (!titleStr) return;
-    
-    const amountStr = await showPrompt(`Monto a sumar para "${titleStr}":`, "");
-    if (!amountStr) return;
-    
-    const amount = parseFloat(amountStr);
-    if (isNaN(amount) || amount <= 0) {
-      await showAlert("Monto inválido.");
-      return;
-    }
-    
-    setLoading(true);
-    try {
-      await addDoc(collection(db, 'incomes'), {
-        amount: amount,
-        title: titleStr,
-        description: 'Monto agregado mediante ingreso rápido',
-        paymentMethod: 'cash',
-        fundId: 'general',
-        createdAt: new Date().toISOString()
-      });
-      fetchDashboardData();
-      await showAlert(`Ingreso "${titleStr}" agregado correctamente al Fondo General.`);
-    } catch (error) {
-      console.error(error);
-      await showAlert("Hubo un error al agregar el dinero.");
-      setLoading(false);
-    }
-  };
-
-  const handleQuickOutcome = async () => {
-    const titleStr = await showPrompt("Motivo del gasto (Ej: Cartulinas, Fotocopias, etc):", "Gasto Rápido");
-    if (!titleStr) return;
-    
-    const amountStr = await showPrompt(`Monto gastado en "${titleStr}":`, "");
-    if (!amountStr) return;
-    
-    const amount = parseFloat(amountStr);
-    if (isNaN(amount) || amount <= 0) {
-      await showAlert("Monto inválido.");
-      return;
-    }
-
-    const dateStr = await showPrompt("Fecha del gasto (Opcional, formato AAAA-MM-DD o déjalo en blanco para hoy):", "");
-    let finalDate = new Date().toISOString().split('T')[0];
-    
-    if (dateStr) {
-      const parsed = new Date(dateStr);
-      if (!isNaN(parsed.getTime())) {
-        finalDate = parsed.toISOString().split('T')[0];
-      } else {
-        await showAlert("Formato de fecha no válido. Se usará la fecha de hoy.");
-      }
-    }
-    
-    setLoading(true);
-    try {
-      await addDoc(collection(db, 'outcomes'), {
-        amount: amount,
-        title: titleStr,
-        description: 'Gasto registrado rápidamente',
-        paymentMethod: 'cash',
-        fundId: 'general',
-        date: finalDate,
-        createdAt: new Date().toISOString()
-      });
-      fetchDashboardData();
-      await showAlert(`Gasto "${titleStr}" registrado correctamente descontado del Fondo General.`);
-    } catch (error) {
-      console.error(error);
-      await showAlert("Hubo un error al registrar el gasto.");
-      setLoading(false);
-    }
-  };
-
-  const handleFixMismatchedDebts = async () => {
-    if (!window.confirm("¿Ejecutar corrección automática de fondos en las cuotas? Esto asignará cada cuota al fondo correcto según su configuración original.")) return;
-    
-    setLoading(true);
-    try {
-      const expensesSnap = await getDocs(collection(db, 'expenses'));
-      const expensesMap = {};
-      expensesSnap.forEach(doc => {
-        expensesMap[doc.id] = doc.data().fundId;
-      });
-
-      const debtsSnap = await getDocs(collection(db, 'debts'));
-      let fixedCount = 0;
-      
-      const { updateDoc, doc: fsDoc } = await import('firebase/firestore');
-      
-      for (const debtDoc of debtsSnap.docs) {
-        const debt = debtDoc.data();
-        const correctFundId = expensesMap[debt.expenseId];
-        
-        if (correctFundId && debt.fundId !== correctFundId) {
-          await updateDoc(fsDoc(db, 'debts', debtDoc.id), { fundId: correctFundId });
-          fixedCount++;
-        }
-      }
-      
-      fetchDashboardData();
-      await showAlert(`¡Corrección completa! Se arreglaron ${fixedCount} cuotas que estaban en el fondo equivocado.`);
-    } catch (error) {
-      console.error(error);
-      await showAlert("Hubo un error al corregir las cuotas.");
-    } finally {
-      setLoading(false);
-    }
-  };
 
   const fetchDashboardData = useCallback(async () => {
     setLoading(true);
@@ -707,18 +595,7 @@ const AdminDashboard = () => {
                   <button onClick={() => setCurrentView('meeting_report')} className="btn btn-primary" style={{ backgroundColor: '#8b5cf6', borderColor: '#8b5cf6', boxShadow: '0 4px 14px 0 rgba(139, 92, 246, 0.4)', gap: '0.5rem' }}>
                     <FileText size={18} /> Informe Reunión Apoderados
                   </button>
-                  <button onClick={() => setIsSearchOpen(true)} className="btn btn-primary" style={{ backgroundColor: 'var(--primary)', boxShadow: '0 4px 14px 0 rgba(99, 102, 241, 0.4)' }}>
-                    <Search size={18} /> Buscar Alumno / Pagos
-                  </button>
-                  <button onClick={handleQuickIncome} className="btn btn-primary" style={{ backgroundColor: 'var(--success)' }}>
-                    + Ingreso Rápido
-                  </button>
-                  <button onClick={handleQuickOutcome} className="btn btn-primary" style={{ backgroundColor: 'var(--danger)' }}>
-                    - Anotar Gasto
-                  </button>
-                  <button onClick={handleFixMismatchedDebts} className="btn btn-outline" style={{ color: 'var(--primary)', borderColor: 'var(--primary)' }}>
-                    Arreglar Fondos Mezclados
-                  </button>
+
                   <button onClick={() => setCurrentView('expenses_add')} className="btn btn-primary">
                     Cobrar Cuota
                   </button>
