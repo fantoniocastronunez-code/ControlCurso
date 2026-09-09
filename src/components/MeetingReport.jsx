@@ -207,7 +207,7 @@ const MeetingReport = ({ onBack }) => {
 
   const totalAvailable = Object.values(finalFundsMap).reduce((sum, f) => sum + f.balance, 0);
   const cashBalance = cashIn - cashOut;
-  const transferBalance = transferIn - transferOut;
+  const transferBalance = totalAvailable - cashBalance;
 
   // Student Debt Stats
   const studentDebtStats = useMemo(() => {

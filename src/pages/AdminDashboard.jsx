@@ -384,6 +384,9 @@ const AdminDashboard = () => {
       const fundsBalances = Array.from(fundsMap.values());
       const totalAvailable = fundsBalances.reduce((sum, fund) => sum + fund.balance, 0);
 
+      const calculatedCashBalance = cashIn - cashOut;
+      const calculatedTransferBalance = totalAvailable - calculatedCashBalance;
+
       setStats({
         activeStudents: activeStudentsCount,
         registeredApoderados: registeredApoderadosCount,
@@ -392,8 +395,8 @@ const AdminDashboard = () => {
         totalAvailable,
         fundsBalances,
         allTransactions,
-        cashBalance: cashIn - cashOut,
-        transferBalance: transferIn - transferOut,
+        cashBalance: calculatedCashBalance,
+        transferBalance: calculatedTransferBalance,
         realBankBalance
       });
       setExpenses(expensesList);
