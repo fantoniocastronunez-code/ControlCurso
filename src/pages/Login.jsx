@@ -121,12 +121,24 @@ const Login = () => {
 
           <form onSubmit={handleInviteCodeSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1rem', marginBottom: '1.5rem', textAlign: 'left' }}>
             <div className="input-group" style={{ marginBottom: 0 }}>
-              <label className="input-label">Código de Invitación</label>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.5rem' }}>
+                <label className="input-label" style={{ marginBottom: 0 }}>Código de Invitación</label>
+                <div 
+                  style={{ 
+                    width: '20px', height: '20px', borderRadius: '50%', backgroundColor: 'rgba(99, 102, 241, 0.2)', 
+                    color: 'var(--primary)', display: 'flex', alignItems: 'center', justifyContent: 'center', 
+                    fontSize: '12px', fontWeight: 'bold', cursor: 'help'
+                  }}
+                  title="Contactate con el administrador, presidente o tesorero de tu curso para obtener el código de invitación"
+                >
+                  ?
+                </div>
+              </div>
               <input 
                 type="text" 
                 required
                 className="input-field" 
-                placeholder="Ej: KINDER-B-CALDR-2026"
+                placeholder="XXXX-XXXX-XXXX"
                 value={inviteCode}
                 onChange={(e) => setInviteCode(e.target.value.toUpperCase())}
                 style={{ textTransform: 'uppercase', letterSpacing: '1px', textAlign: 'center', fontWeight: 'bold' }}

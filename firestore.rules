@@ -1,0 +1,154 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // =======================================================
+    // 1. FUNCIONES DE AUTENTICACIÓN Y ROLES
+    // =======================================================
+    
+    function isAuthenticated() {
+      return request.auth != null && request.auth.token.email != null;
+    }
+    
+    function getUserData() {
+      return get(/databases/$(database)/documents/users/$(request.auth.token.email)).data;
+    }
+    
+    function isSuperAdmin() {
+      return isAuthenticated() && getUserData().role == 'superadmin';
+    }
+    
+    function isCourseAdmin(courseId) {
+      return isAuthenticated() && (
+        isSuperAdmin() ||
+        (
+          'roles' in getUserData() && 
+          courseId in getUserData().roles && 
+          (getUserData().roles[courseId] == 'tesorero' || getUserData().roles[courseId] == 'admin')
+        )
+      );
+    }
+
+    // =======================================================
+    // 2. REGLAS POR COLECCIÓN
+    // =======================================================
+
+    // -- USERS --
+    match /users/{userId} {
+      allow read: if isAuthenticated();
+      
+      // Permitir crear su propio perfil
+      allow create: if isAuthenticated() && request.auth.token.email == userId;
+      
+      // Permitir actualización: 
+      // 1. Un superadmin puede actualizar a cualquiera.
+      // 2. Un usuario puede actualizar SOLO sus campos básicos, NO sus roles.
+      // 3. Un admin de algún curso puede modificar roles (confianza delegada).
+      allow update: if isAuthenticated() && (
+        isSuperAdmin() ||
+        (
+          request.auth.token.email == userId &&
+          !request.resource.data.diff(resource.data).affectedKeys().hasAny(['role', 'roles'])
+        ) ||
+        ('roles' in getUserData() && getUserData().roles.keys().size() > 0)
+      );
+      
+      allow delete: if isSuperAdmin();
+    }
+    
+    // -- STUDENTS --
+    match /students/{studentId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated() && isCourseAdmin(request.resource.data.courseId);
+      allow delete: if isAuthenticated() && isCourseAdmin(resource.data.courseId);
+      
+      // Apoderados pueden vincularse a sí mismos a un estudiante (solo tocan campos apoderadoEmails/rut)
+      allow update: if isAuthenticated() && (
+        isCourseAdmin(resource.data.courseId) ||
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['apoderadoEmails', 'apoderadoEmail', 'rut'])
+      );
+    }
+    
+    // -- DEBTS (DEUDAS) --
+    match /debts/{debtId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated() && isCourseAdmin(request.resource.data.courseId);
+      allow delete: if isAuthenticated() && isCourseAdmin(resource.data.courseId);
+      
+      // Apoderados pueden actualizar SOLO deudas donde estén vinculados (para subir comprobantes)
+      allow update: if isAuthenticated() && (
+        isCourseAdmin(resource.data.courseId) ||
+        (request.auth.token.email in resource.data.apoderadoEmails) ||
+        (request.auth.token.email == resource.data.apoderadoEmail)
+      );
+    }
+    
+    // -- EXPENSES, FUNDS, TRANSACTIONS, OUTCOMES (FINANZAS NÚCLEO) --
+    match /expenses/{expenseId} {
+      allow read: if isAuthenticated();
+      allow create, update, delete: if isAuthenticated() && isCourseAdmin(resource.data.courseId);
+    }
+    
+    match /funds/{fundId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated() && isCourseAdmin(request.resource.data.courseId);
+      allow update, delete: if isAuthenticated() && isCourseAdmin(resource.data.courseId);
+    }
+    
+    match /transactions/{txId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated() && isCourseAdmin(request.resource.data.courseId);
+      allow update, delete: if isAuthenticated() && isCourseAdmin(resource.data.courseId);
+    }
+    
+    match /outcomes/{outcomeId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated() && isCourseAdmin(request.resource.data.courseId);
+      allow update, delete: if isAuthenticated() && isCourseAdmin(resource.data.courseId);
+    }
+    
+    // -- APPROVALS (SISTEMA DE APROBACIONES) --
+    match /approvals/{approvalId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated(); 
+      allow update, delete: if isAuthenticated() && isCourseAdmin(resource.data.courseId);
+    }
+    
+    // -- EVENTS, TICKETS, INVENTORY, SALES (PUNTO DE VENTA) --
+    match /events/{eventId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated() && isCourseAdmin(request.resource.data.courseId);
+      allow update, delete: if isAuthenticated() && isCourseAdmin(resource.data.courseId);
+    }
+    
+    match /inventory/{itemId} {
+      allow read: if isAuthenticated();
+      allow create, update, delete: if isAuthenticated() && ('roles' in getUserData());
+    }
+    
+    match /sales/{saleId} {
+      allow read: if isAuthenticated();
+      allow create, update, delete: if isAuthenticated() && ('roles' in getUserData());
+    }
+    
+    match /tickets/{ticketId} {
+      allow read: if isAuthenticated();
+      allow create, update, delete: if isAuthenticated() && ('roles' in getUserData());
+    }
+
+    // -- MAIL (SISTEMA DE NOTIFICACIONES EXTENSION) --
+    match /mail/{mailId} {
+      // Cualquier usuario autenticado puede desencadenar un envío de correo (ej. recibo de pago o notificación)
+      allow create: if isAuthenticated();
+      allow read, update, delete: if false; // Solo el backend/extension de Firebase puede leer y modificar la cola
+    }
+    
+    // -- COURSES --
+    match /courses/{courseId} {
+      allow read: if isAuthenticated();
+      allow create, update, delete: if isSuperAdmin();
+    }
+    
+  }
+}
