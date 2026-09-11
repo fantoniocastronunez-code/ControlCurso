@@ -298,7 +298,6 @@ const UserManagement = ({ onBack, viewMode = 'users' }) => {
                                 </span>
                               );
                             })
-                          )
                         )}
                       </div>
                     </td>
@@ -357,7 +356,6 @@ const UserManagement = ({ onBack, viewMode = 'users' }) => {
                                 </span>
                               );
                             })
-                          )
                         )}
                       </div>
                     </td>
