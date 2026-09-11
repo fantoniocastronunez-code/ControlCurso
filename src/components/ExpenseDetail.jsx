@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { db } from '../firebase/config';
-import { collection, query, where, getDocs, doc, getDoc, updateDoc, deleteDoc, setDoc } from 'firebase/firestore';
-import { ArrowLeft, CheckCircle, Clock, XCircle, FileText, Download, Trash2, Edit2, Save, X, Calculator, CheckSquare, AlertTriangle, RotateCcw, Sparkles, Check } from 'lucide-react';
+import { collection, doc, getDoc, getDocs, query, updateDoc, where, deleteDoc, setDoc, writeBatch } from 'firebase/firestore';
+import { ArrowLeft, CheckCircle, Clock, XCircle, FileText, Download, Trash2, Edit2, Save, X, Calculator, CheckSquare, AlertTriangle, RotateCcw, Sparkles, Check, AlertCircle, RefreshCw } from 'lucide-react';
 import { formatStudentName } from '../utils/nameUtils';
 import { useModal } from '../context/ModalContext';
 import { useLockBodyScroll } from '../hooks/useLockBodyScroll';
@@ -49,6 +49,15 @@ const ExpenseDetail = ({ expenseId, onBack }) => {
   const [isManagingStudents, setIsManagingStudents] = useState(false);
   const [selectedManageStudents, setSelectedManageStudents] = useState([]);
   const [manageStudentsSearch, setManageStudentsSearch] = useState('');
+
+  // Detect duplicates
+  const duplicateNames = useMemo(() => {
+    const names = debts.map(d => {
+      const student = students.find(s => s.id === d.studentId);
+      return student ? student.name : (d.studentName || '');
+    }).filter(n => n);
+    return [...new Set(names.filter((item, index) => names.indexOf(item) !== index))];
+  }, [debts, students]);
 
   const fetchDetail = useCallback(async () => {
     if (!selectedCourse) return;
@@ -235,6 +244,63 @@ const ExpenseDetail = ({ expenseId, onBack }) => {
   };
 
 
+
+  const handleFixDuplicates = async () => {
+    if (!duplicateNames || duplicateNames.length === 0) return;
+    if (!(await showConfirm(`¿Deseas unificar los registros duplicados de: ${duplicateNames.join(', ')}?`, 'Se sumarán los montos pagados en un solo registro.'))) return;
+    
+    setLoading(true);
+    try {
+      const batch = writeBatch(db);
+      
+      for (const name of duplicateNames) {
+        // Find all debts for this name
+        const duplicates = debts.filter(d => {
+          const student = students.find(s => s.id === d.studentId);
+          const dName = student ? student.name : (d.studentName || '');
+          return dName === name;
+        });
+        
+        if (duplicates.length > 1) {
+          // Sort to keep the one with most info (or receipt) as primary
+          duplicates.sort((a, b) => (b.paidAmount || 0) - (a.paidAmount || 0));
+          const primary = duplicates[0];
+          
+          let totalPaid = 0;
+          let combinedReceipt = primary.receiptUrl || '';
+          
+          for (let i = 0; i < duplicates.length; i++) {
+            totalPaid += (duplicates[i].paidAmount || 0);
+            if (!combinedReceipt && duplicates[i].receiptUrl) {
+              combinedReceipt = duplicates[i].receiptUrl;
+            }
+            if (i > 0) {
+              // Delete the others
+              batch.delete(doc(db, 'debts', duplicates[i].id));
+            }
+          }
+          
+          let newStatus = 'pending';
+          if (totalPaid >= primary.amount) newStatus = 'paid';
+          else if (totalPaid > 0) newStatus = 'partial';
+          
+          batch.update(doc(db, 'debts', primary.id), {
+            paidAmount: totalPaid,
+            status: newStatus,
+            receiptUrl: combinedReceipt
+          });
+        }
+      }
+      
+      await batch.commit();
+      await showAlert('Registros unificados correctamente.');
+      fetchDetail();
+    } catch (error) {
+      console.error(error);
+      await showAlert('Error al unificar registros.');
+      setLoading(false);
+    }
+  };
 
   const handleEditDebtAmount = async (debtId) => {
     const debtToEdit = debts.find(d => d.id === debtId);
@@ -854,6 +920,21 @@ const ExpenseDetail = ({ expenseId, onBack }) => {
           {isAuditMode ? 'Modo Auditoría: ACTIVADO' : 'Activar Modo Auditoría'}
         </button>
       </div>
+
+      {duplicateNames && duplicateNames.length > 0 && (
+        <div className="glass-panel" style={{ padding: '1rem', marginBottom: '2rem', backgroundColor: 'rgba(239, 68, 68, 0.1)', border: '1px solid var(--danger)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', color: 'var(--danger)' }}>
+            <AlertTriangle size={24} />
+            <div>
+              <h4 style={{ margin: 0, fontWeight: 'bold' }}>¡Registros Duplicados Detectados!</h4>
+              <p style={{ margin: 0, fontSize: '0.9rem' }}>Se encontraron {duplicateNames.length} alumno(s) repetido(s) en esta lista ({duplicateNames.join(', ')}).</p>
+            </div>
+          </div>
+          <button onClick={handleFixDuplicates} className="btn btn-primary" style={{ backgroundColor: 'var(--danger)', border: 'none' }}>
+            <RefreshCw size={18} /> Unificar Pagos
+          </button>
+        </div>
+      )}
 
       {/* Resumen del Gasto */}
       <div className="glass-panel" style={{ padding: '2rem', marginBottom: '2rem', display: 'flex', justifyContent: 'space-between', flexWrap: 'wrap', gap: '2rem' }}>
