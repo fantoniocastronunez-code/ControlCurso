@@ -37,11 +37,31 @@ const ApprovalsManagement = ({ onBack }) => {
       const snapHistory = await getDocs(qHistory);
       const hActions = snapHistory.docs.map(d => ({ id: d.id, ...d.data() }));
 
-      // Sort locally by date desc
-      pActions.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+      // Fetch debts in 'review' status
+      const qDebtsReview = query(
+        collection(db, 'debts'),
+        where('courseId', '==', selectedCourse.id),
+        where('status', '==', 'review')
+      );
+      const snapDebtsReview = await getDocs(qDebtsReview);
+      const debtActions = snapDebtsReview.docs.map(d => {
+        const data = d.data();
+        return {
+          id: d.id,
+          type: 'PAYMENT_RECEIPT',
+          summary: `Comprobante de pago: ${data.title} - ${data.studentName}`,
+          requestedByName: data.studentName || 'Apoderado',
+          createdAt: data.paidAt || data.createdAt,
+          originalData: data
+        };
+      });
+
+      // Combine and sort locally by date desc
+      const combinedPending = [...pActions, ...debtActions];
+      combinedPending.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
       hActions.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
 
-      setPendingActions(pActions);
+      setPendingActions(combinedPending);
       setHistoryActions(hActions);
     } catch (error) {
       console.error("Error fetching approvals:", error);
@@ -57,6 +77,27 @@ const ApprovalsManagement = ({ onBack }) => {
   const handleApprove = async (action) => {
     if (!(await showConfirm('¿Estás seguro de aprobar esta solicitud?', 'Se ejecutarán los cambios permanentemente.'))) return;
     setProcessingId(action.id);
+    
+    if (action.type === 'PAYMENT_RECEIPT') {
+      try {
+        const data = action.originalData;
+        const newStatus = data.paidAmount >= data.amount ? 'paid' : 'partial';
+        import('firebase/firestore').then(async ({ updateDoc, doc }) => {
+          await updateDoc(doc(db, 'debts', action.id), {
+            status: newStatus,
+            approvedAt: new Date().toISOString()
+          });
+          await showAlert('Comprobante aprobado. El pago se ha registrado.');
+          fetchActions();
+        });
+      } catch (error) {
+        console.error(error);
+        await showAlert('Error al aprobar el comprobante.');
+      }
+      setProcessingId(null);
+      return;
+    }
+
     const result = await executeApproval(action.id, action, user);
     setProcessingId(null);
     if (result.success) {
@@ -70,6 +111,25 @@ const ApprovalsManagement = ({ onBack }) => {
   const handleReject = async (action) => {
     if (!(await showConfirm('¿Estás seguro de rechazar esta solicitud?'))) return;
     setProcessingId(action.id);
+    
+    if (action.type === 'PAYMENT_RECEIPT') {
+      try {
+        import('firebase/firestore').then(async ({ updateDoc, doc }) => {
+          await updateDoc(doc(db, 'debts', action.id), {
+            status: 'pending',
+            paidAmount: 0 // Reiniciamos el pago para que vuelva a intentar
+          });
+          await showAlert('Comprobante rechazado. El apoderado deberá subirlo de nuevo.');
+          fetchActions();
+        });
+      } catch (error) {
+        console.error(error);
+        await showAlert('Error al rechazar el comprobante.');
+      }
+      setProcessingId(null);
+      return;
+    }
+
     await rejectApproval(action.id, user);
     setProcessingId(null);
     await showAlert('Solicitud rechazada.');
@@ -81,6 +141,7 @@ const ApprovalsManagement = ({ onBack }) => {
       case 'CREATE_EXPENSE': return 'Creación de Cuota';
       case 'CREATE_OUTCOME': return 'Registro de Gasto/Egreso';
       case 'REGISTER_PAYMENTS': return 'Registro de Pago';
+      case 'PAYMENT_RECEIPT': return 'Revisión de Comprobante';
       default: return 'Acción Desconocida';
     }
   };
@@ -129,6 +190,16 @@ const ApprovalsManagement = ({ onBack }) => {
                       {getActionTypeLabel(action.type)}
                     </span>
                     <h4 style={{ margin: '0.5rem 0', fontSize: '1.1rem' }}>{action.summary}</h4>
+                    {action.type === 'PAYMENT_RECEIPT' && action.originalData?.receiptUrl && (
+                      <a 
+                        href={action.originalData.receiptUrl} 
+                        target="_blank" 
+                        rel="noopener noreferrer" 
+                        style={{ color: 'var(--primary)', fontSize: '0.95rem', display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.5rem', fontWeight: '500' }}
+                      >
+                        <FileText size={16} /> Ver Comprobante Adjunto (Monto reportado: ${action.originalData.paidAmount})
+                      </a>
+                    )}
                     <p style={{ margin: 0, fontSize: '0.85rem', color: 'var(--text-muted)' }}>
                       Solicitado por: <strong>{action.requestedByName}</strong> • {new Date(action.createdAt).toLocaleString('es-CL')}
                     </p>
