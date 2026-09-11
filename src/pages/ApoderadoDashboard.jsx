@@ -304,6 +304,47 @@ const ApoderadoDashboard = () => {
         paidAt: new Date().toISOString()
       });
 
+      // Notificar a superadmin y tesoreros por correo
+      try {
+        const usersSnap = await getDocs(collection(db, 'users'));
+        const notifyEmails = new Set();
+        usersSnap.forEach(uDoc => {
+          const uData = uDoc.data();
+          if (uData.role === 'superadmin' || (uData.roles && uData.roles.global === 'superadmin')) {
+            notifyEmails.add(uDoc.id);
+          }
+          if (uData.roles && payingDebt.courseId && uData.roles[payingDebt.courseId] === 'tesorero') {
+            notifyEmails.add(uDoc.id);
+          }
+        });
+
+        for (const adminEmail of notifyEmails) {
+          await addDoc(collection(db, 'mail'), {
+            to: adminEmail,
+            message: {
+              subject: `Nuevo Pago por Aprobar: ${payingDebt.studentName}`,
+              html: `
+                <div style="font-family: Arial, sans-serif; padding: 20px; max-width: 600px; margin: 0 auto; border: 1px solid #e2e8f0; border-radius: 10px;">
+                  <h2 style="color: #4f46e5;">¡Nuevo Comprobante de Pago Recibido!</h2>
+                  <p>Un apoderado ha subido un nuevo comprobante de pago que está pendiente de revisión.</p>
+                  <div style="background-color: #f8fafc; padding: 15px; border-radius: 8px; margin-top: 20px;">
+                    <p style="margin: 5px 0;"><strong>Alumno:</strong> ${payingDebt.studentName}</p>
+                    <p style="margin: 5px 0;"><strong>Cuota/Motivo:</strong> ${payingDebt.title}</p>
+                    <p style="margin: 5px 0;"><strong>Monto Subido:</strong> $${parseFloat(paidAmount).toLocaleString('es-CL')}</p>
+                    <p style="margin: 5px 0;"><strong>Enviado por (Email):</strong> ${user.email}</p>
+                    <p style="margin: 5px 0;"><strong>Fecha y Hora:</strong> ${new Date().toLocaleString('es-CL')}</p>
+                  </div>
+                  <p style="margin-top: 20px;">Por favor, ingresa a la plataforma y dirígete a la sección <strong>Aprobaciones</strong> o <strong>Detalle de Cuota</strong> para verificar el comprobante y aprobar el pago.</p>
+                  <p style="color: #64748b; font-size: 0.85rem; margin-top: 20px;">Este es un mensaje automático enviado por el portal de ControlCurso.</p>
+                </div>
+              `
+            }
+          });
+        }
+      } catch (mailError) {
+        console.error("Error sending notification email for payment:", mailError);
+      }
+
       // Refrescar localmente
       await showAlert("Comprobante enviado con éxito. Está pendiente de revisión por el administrador.");
       setPayingDebt(null);
