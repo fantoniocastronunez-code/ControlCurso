@@ -282,18 +282,23 @@ const UserManagement = ({ onBack, viewMode = 'users' }) => {
                           <span style={{ padding: '0.25rem 0.5rem', borderRadius: '4px', fontSize: '0.8rem', backgroundColor: 'rgba(245, 158, 11, 0.2)', color: 'var(--warning)', width: 'max-content' }}>
                             Superadmin (Global)
                           </span>
-                        ) : (
-                          Object.entries(u.roles || {}).map(([cId, r]) => {
-                            if (cId === 'global') return null;
-                            const cName = allCourses.find(c => c.id === cId)?.name || 'Curso Desconocido';
-                            if (viewMode === 'admins' && !['admin', 'presidente', 'tesorero', 'secretario'].includes(r)) return null;
-                            if (viewMode === 'users' && r !== 'apoderado') return null;
-                            return (
-                              <span key={cId} style={{ padding: '0.25rem 0.5rem', borderRadius: '4px', fontSize: '0.8rem', backgroundColor: 'rgba(99, 102, 241, 0.1)', color: 'var(--primary)', width: 'max-content' }}>
-                                {r.charAt(0).toUpperCase() + r.slice(1)} - {cName}
-                              </span>
-                            );
-                          })
+                        ) : (!u.roles || Object.keys(u.roles).filter(k => k !== 'global').length === 0) ? (
+                            <span style={{ padding: '0.25rem 0.5rem', borderRadius: '4px', fontSize: '0.8rem', backgroundColor: 'rgba(239, 68, 68, 0.1)', color: 'var(--danger)', width: 'max-content' }}>
+                              Sin Curso
+                            </span>
+                          ) : (
+                            Object.entries(u.roles || {}).map(([cId, r]) => {
+                              if (cId === 'global') return null;
+                              const cName = allCourses.find(c => c.id === cId)?.name || 'Curso Desconocido';
+                              if (viewMode === 'admins' && !['admin', 'presidente', 'tesorero', 'secretario'].includes(r)) return null;
+                              if (viewMode === 'users' && r !== 'apoderado') return null;
+                              return (
+                                <span key={cId} style={{ padding: '0.25rem 0.5rem', borderRadius: '4px', fontSize: '0.8rem', backgroundColor: 'rgba(99, 102, 241, 0.1)', color: 'var(--primary)', width: 'max-content' }}>
+                                  {r.charAt(0).toUpperCase() + r.slice(1)} - {cName}
+                                </span>
+                              );
+                            })
+                          )
                         )}
                       </div>
                     </td>
@@ -336,18 +341,23 @@ const UserManagement = ({ onBack, viewMode = 'users' }) => {
                           <span style={{ padding: '0.25rem 0.5rem', borderRadius: '4px', fontSize: '0.8rem', backgroundColor: 'rgba(245, 158, 11, 0.2)', color: 'var(--warning)', width: 'max-content' }}>
                             Superadmin (Global)
                           </span>
-                        ) : (
-                          Object.entries(u.roles || {}).map(([cId, r]) => {
-                            if (cId === 'global') return null;
-                            const cName = allCourses.find(c => c.id === cId)?.name || 'Curso Desconocido';
-                            if (viewMode === 'admins' && !['admin', 'presidente', 'tesorero', 'secretario'].includes(r)) return null;
-                            if (viewMode === 'users' && r !== 'apoderado') return null;
-                            return (
-                              <span key={cId} style={{ padding: '0.25rem 0.5rem', borderRadius: '4px', fontSize: '0.8rem', backgroundColor: 'rgba(99, 102, 241, 0.1)', color: 'var(--primary)', width: 'max-content' }}>
-                                {r.charAt(0).toUpperCase() + r.slice(1)} - {cName}
-                              </span>
-                            );
-                          })
+                        ) : (!u.roles || Object.keys(u.roles).filter(k => k !== 'global').length === 0) ? (
+                            <span style={{ padding: '0.25rem 0.5rem', borderRadius: '4px', fontSize: '0.8rem', backgroundColor: 'rgba(239, 68, 68, 0.1)', color: 'var(--danger)', width: 'max-content' }}>
+                              Sin Curso
+                            </span>
+                          ) : (
+                            Object.entries(u.roles || {}).map(([cId, r]) => {
+                              if (cId === 'global') return null;
+                              const cName = allCourses.find(c => c.id === cId)?.name || 'Curso Desconocido';
+                              if (viewMode === 'admins' && !['admin', 'presidente', 'tesorero', 'secretario'].includes(r)) return null;
+                              if (viewMode === 'users' && r !== 'apoderado') return null;
+                              return (
+                                <span key={cId} style={{ padding: '0.25rem 0.5rem', borderRadius: '4px', fontSize: '0.8rem', backgroundColor: 'rgba(99, 102, 241, 0.1)', color: 'var(--primary)', width: 'max-content' }}>
+                                  {r.charAt(0).toUpperCase() + r.slice(1)} - {cName}
+                                </span>
+                              );
+                            })
+                          )
                         )}
                       </div>
                     </td>
@@ -367,9 +377,10 @@ const UserManagement = ({ onBack, viewMode = 'users' }) => {
                           <select 
                           className="input-field" 
                           style={{ padding: '0.25rem' }}
-                          value={u.roles && selectedCourse ? u.roles[selectedCourse.id] || 'apoderado' : u.role || 'apoderado'}
+                          value={u.roles && selectedCourse && u.roles[selectedCourse.id] ? u.roles[selectedCourse.id] : ''}
                           onChange={(e) => handleRoleChange(u.id, e.target.value)}
                         >
+                          <option value="" disabled>Asignar Rol...</option>
                           <option value="apoderado">Apoderado</option>
                           <option value="tesorero">Tesorero</option>
                           <option value="presidente">Presidente</option>

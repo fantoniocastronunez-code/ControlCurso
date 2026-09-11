@@ -448,7 +448,7 @@ const AdminDashboard = () => {
           ) : null}
           {['superadmin', 'admin', 'presidente'].includes(courseRole) && (
             <button onClick={() => { setCurrentView('settings'); setIsSidebarOpen(false); }} className="btn btn-outline" style={{ justifyContent: 'flex-start' }}>
-              <Settings size={18} /> Configuración
+              <Settings size={18} /> Configuración del Curso
             </button>
           )}
           {courseRole === 'superadmin' && (
@@ -483,7 +483,7 @@ const AdminDashboard = () => {
               <h2 style={{ margin: 0, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                 Panel {role === 'superadmin' ? 'SuperAdmin' : 'Admin'}
               </h2>
-              {courses.length > 1 ? (
+              {courses.length > 1 || role === 'superadmin' ? (
                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginTop: '0.25rem' }}>
                   <select 
                     value={selectedCourse?.id || ''} 
