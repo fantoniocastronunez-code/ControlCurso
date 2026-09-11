@@ -115,6 +115,14 @@ const StudentRow = React.memo(({
                   onChange={(e) => setEditData({...editData, apoderadoEmail1: e.target.value})}
                   style={{ padding: '0.4rem', marginTop: '0.2rem', width: '100%' }}
                 />
+                <input 
+                  type="text" 
+                  className="input-field" 
+                  placeholder="Nombre Apdo. 1"
+                  value={editData.apoderadoName1} 
+                  onChange={(e) => setEditData({...editData, apoderadoName1: e.target.value})}
+                  style={{ padding: '0.4rem', marginTop: '0.2rem', width: '100%' }}
+                />
               </div>
               <div>
                 <label style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Email Apdo. 2</label>
@@ -124,6 +132,14 @@ const StudentRow = React.memo(({
                   placeholder="Email 2"
                   value={editData.apoderadoEmail2} 
                   onChange={(e) => setEditData({...editData, apoderadoEmail2: e.target.value})}
+                  style={{ padding: '0.4rem', marginTop: '0.2rem', width: '100%' }}
+                />
+                <input 
+                  type="text" 
+                  className="input-field" 
+                  placeholder="Nombre Apdo. 2"
+                  value={editData.apoderadoName2} 
+                  onChange={(e) => setEditData({...editData, apoderadoName2: e.target.value})}
                   style={{ padding: '0.4rem', marginTop: '0.2rem', width: '100%' }}
                 />
               </div>
@@ -393,6 +409,8 @@ const StudentManagement = ({ onBack }) => {
       lastNameMaternal: student.lastNameMaternal || '',
       apoderadoEmail1: emails[0] || '',
       apoderadoEmail2: emails[1] || '',
+      apoderadoName1: emails[0] ? (usersMap[emails[0]] || '') : '',
+      apoderadoName2: emails[1] ? (usersMap[emails[1]] || '') : '',
       listNumber: student.listNumber || '',
       balance: student.balance || 0,
       rut: student.rut || ''
@@ -401,7 +419,7 @@ const StudentManagement = ({ onBack }) => {
 
   const cancelEditing = () => {
     setEditingId(null);
-    setEditData({ firstName: '', lastNamePaternal: '', lastNameMaternal: '', apoderadoEmail1: '', apoderadoEmail2: '', listNumber: '', balance: '', rut: '' });
+    setEditData({ firstName: '', lastNamePaternal: '', lastNameMaternal: '', apoderadoEmail1: '', apoderadoEmail2: '', apoderadoName1: '', apoderadoName2: '', listNumber: '', balance: '', rut: '' });
   };
 
   const handleSaveEdit = async () => {
@@ -411,6 +429,25 @@ const StudentManagement = ({ onBack }) => {
       const emails = [editData.apoderadoEmail1.toLowerCase().trim(), editData.apoderadoEmail2.toLowerCase().trim()].filter(e => e);
       const fullName = `${editData.firstName} ${editData.lastNamePaternal} ${editData.lastNameMaternal}`.trim();
       
+      const updateApoderadoName = async (email, newName) => {
+        if (!email || !newName) return;
+        const emailLower = email.toLowerCase().trim();
+        const userRef = doc(db, 'users', emailLower);
+        await setDoc(userRef, {
+          email: emailLower,
+          displayName: newName.trim(),
+          role: 'apoderado',
+          roles: { [selectedCourse.id]: 'apoderado' },
+          defaultCourseId: selectedCourse.id,
+          preRegistered: true,
+          updatedAt: new Date().toISOString()
+        }, { merge: true });
+        setUsersMap(prev => ({ ...prev, [emailLower]: newName.trim() }));
+      };
+
+      await updateApoderadoName(editData.apoderadoEmail1, editData.apoderadoName1);
+      await updateApoderadoName(editData.apoderadoEmail2, editData.apoderadoName2);
+
       await updateDoc(studentRef, {
         name: fullName,
         firstName: editData.firstName.trim(),
