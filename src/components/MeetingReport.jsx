@@ -76,7 +76,7 @@ const MeetingReport = ({ onBack }) => {
         });
         setUsersMap(uMap);
 
-        const sList = studentsSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+        const sList = studentsSnap.docs.map(d => ({ id: d.id, ...d.data() })).filter(s => s.status !== 'retirado');
         sList.sort((a, b) => (parseInt(a.listNumber) || 999) - (parseInt(b.listNumber) || 999));
         setStudents(sList);
 

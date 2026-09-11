@@ -156,13 +156,23 @@ const StudentRow = React.memo(({
             />
           </td>
           <td style={{ padding: '1rem', verticalAlign: 'top' }}>
-            <div style={{ display: 'flex', gap: '0.5rem', marginTop: '1.2rem' }}>
-              <button onClick={handleSaveEdit} className="btn btn-primary" style={{ padding: '0.4rem 0.75rem', gap: '0.5rem', display: 'flex', alignItems: 'center' }}>
-                <Save size={16} /> Guardar
-              </button>
-              <button onClick={cancelEditing} className="btn btn-outline" style={{ padding: '0.4rem 0.75rem', gap: '0.5rem', display: 'flex', alignItems: 'center' }}>
-                <X size={16} />
-              </button>
+            <div style={{ display: 'flex', gap: '0.5rem', marginTop: '1.2rem', flexDirection: 'column' }}>
+              <label style={{ fontSize: '0.8rem', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                <input 
+                  type="checkbox"
+                  checked={editData.status === 'retirado'}
+                  onChange={(e) => setEditData({...editData, status: e.target.checked ? 'retirado' : 'activo'})}
+                />
+                Retirado
+              </label>
+              <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.5rem' }}>
+                <button onClick={handleSaveEdit} className="btn btn-primary" style={{ padding: '0.4rem 0.75rem', gap: '0.5rem', display: 'flex', alignItems: 'center' }}>
+                  <Save size={16} /> Guardar
+                </button>
+                <button onClick={cancelEditing} className="btn btn-outline" style={{ padding: '0.4rem 0.75rem', gap: '0.5rem', display: 'flex', alignItems: 'center' }}>
+                  <X size={16} />
+                </button>
+              </div>
             </div>
           </td>
         </>
@@ -175,9 +185,9 @@ const StudentRow = React.memo(({
                 e.stopPropagation();
                 setSelectedStudent(selectedStudent?.id === s.id ? null : s);
               }}
-              style={{ background: 'none', border: 'none', color: 'var(--primary)', cursor: 'pointer', fontWeight: '500', padding: 0, fontSize: 'inherit', textAlign: 'left', textDecoration: 'underline' }}
+              style={{ background: 'none', border: 'none', color: 'var(--primary)', cursor: 'pointer', fontWeight: '500', padding: 0, fontSize: 'inherit', textAlign: 'left', textDecoration: s.status === 'retirado' ? 'line-through' : 'underline', opacity: s.status === 'retirado' ? 0.6 : 1 }}
             >
-              {formatStudentName(s)}
+              {formatStudentName(s)} {s.status === 'retirado' && <span style={{fontSize: '0.7rem', color: 'var(--text-muted)', marginLeft: '0.5rem', textDecoration: 'none'}}>(Retirado)</span>}
             </button>
             <div className="mobile-only-icon" style={{ display: 'none', color: 'var(--text-muted)' }}>
               {isExpanded ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
@@ -259,6 +269,7 @@ const StudentManagement = ({ onBack }) => {
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState('');
   const [tableSearch, setTableSearch] = useState('');
+  const [showWithdrawn, setShowWithdrawn] = useState(false);
   
   const [newFirstName, setNewFirstName] = useState('');
   const [newLastNamePaternal, setNewLastNamePaternal] = useState('');
@@ -275,17 +286,21 @@ const StudentManagement = ({ onBack }) => {
 
   // Estados para edición
   const [editingId, setEditingId] = useState(null);
-  const [editData, setEditData] = useState({ firstName: '', lastNamePaternal: '', lastNameMaternal: '', apoderadoEmail1: '', apoderadoEmail2: '', listNumber: '', balance: '', rut: '' });
+  const [editData, setEditData] = useState({ firstName: '', lastNamePaternal: '', lastNameMaternal: '', apoderadoEmail1: '', apoderadoEmail2: '', listNumber: '', balance: '', rut: '', status: '' });
 
   const filteredStudents = useMemo(() => {
-    if (!tableSearch) return students;
+    let result = students;
+    if (!showWithdrawn) {
+      result = result.filter(s => s.status !== 'retirado');
+    }
+    if (!tableSearch) return result;
     const term = tableSearch.toLowerCase();
-    return students.filter(s => {
+    return result.filter(s => {
       const fullName = formatStudentName(s).toLowerCase();
       const rut = (s.rut || '').toLowerCase();
       return fullName.includes(term) || rut.includes(term);
     });
-  }, [students, tableSearch]);
+  }, [students, tableSearch, showWithdrawn]);
 
   const toggleExpand = useCallback((id, e) => {
     if (e && (e.target.tagName === 'BUTTON' || e.target.tagName === 'INPUT' || e.target.closest('button'))) return;
@@ -360,6 +375,7 @@ const StudentManagement = ({ onBack }) => {
         listNumber: newListNumber,
         balance: Number(newBalance) || 0,
         rut: newRut.trim(),
+        status: 'activo',
         createdAt: new Date().toISOString(),
       };
       
@@ -413,13 +429,14 @@ const StudentManagement = ({ onBack }) => {
       apoderadoName2: emails[1] ? (usersMap[emails[1]] || '') : '',
       listNumber: student.listNumber || '',
       balance: student.balance || 0,
-      rut: student.rut || ''
+      rut: student.rut || '',
+      status: student.status || 'activo'
     });
   };
 
   const cancelEditing = () => {
     setEditingId(null);
-    setEditData({ firstName: '', lastNamePaternal: '', lastNameMaternal: '', apoderadoEmail1: '', apoderadoEmail2: '', apoderadoName1: '', apoderadoName2: '', listNumber: '', balance: '', rut: '' });
+    setEditData({ firstName: '', lastNamePaternal: '', lastNameMaternal: '', apoderadoEmail1: '', apoderadoEmail2: '', apoderadoName1: '', apoderadoName2: '', listNumber: '', balance: '', rut: '', status: '' });
   };
 
   const handleSaveEdit = async () => {
@@ -456,11 +473,12 @@ const StudentManagement = ({ onBack }) => {
         apoderadoEmails: emails,
         listNumber: editData.listNumber,
         balance: Number(editData.balance) || 0,
-        rut: editData.rut.trim()
+        rut: editData.rut.trim(),
+        status: editData.status
       });
       
       let updatedList = students.map(s => 
-        s.id === editingId ? { ...s, ...editData, apoderadoEmails: emails, balance: Number(editData.balance) || 0, rut: editData.rut.trim() } : s
+        s.id === editingId ? { ...s, ...editData, apoderadoEmails: emails, balance: Number(editData.balance) || 0, rut: editData.rut.trim(), status: editData.status } : s
       );
       updatedList.sort((a, b) => {
         const aNum = parseInt(a.listNumber) || 999;
@@ -531,6 +549,13 @@ const StudentManagement = ({ onBack }) => {
             style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', borderColor: 'var(--primary)', color: 'var(--primary)' }}
           >
             {showBulkImport ? 'Ocultar Carga Masiva' : 'Carga Masiva Excel/Texto'}
+          </button>
+          <button 
+            onClick={() => setShowWithdrawn(!showWithdrawn)}
+            className="btn btn-outline"
+            style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}
+          >
+            {showWithdrawn ? 'Ocultar Retirados' : 'Ver Retirados'}
           </button>
         </div>
       </div>

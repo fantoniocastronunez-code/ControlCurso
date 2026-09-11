@@ -43,7 +43,7 @@ const ExpenseManagement = ({ onBack }) => {
       const studentList = studentSnapshot.docs.map(doc => ({
         id: doc.id,
         ...doc.data()
-      }));
+      })).filter(s => s.status !== 'retirado');
       studentList.sort((a, b) => {
         const aNum = parseInt(a.listNumber) || 999;
         const bNum = parseInt(b.listNumber) || 999;

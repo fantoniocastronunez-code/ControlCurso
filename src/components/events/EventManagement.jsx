@@ -90,7 +90,7 @@ const EventManagement = ({ onBack }) => {
         
         // Obtener alumnos activos
         const studentsSnap = await getDocs(query(collection(db, 'students'), where('courseId', '==', selectedCourse.id)));
-        const studentsList = studentsSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+        const studentsList = studentsSnap.docs.map(d => ({ id: d.id, ...d.data() })).filter(s => s.status !== 'retirado');
 
         await setDoc(doc(db, 'expenses', expenseId), {
           title: `Cuota Obligatoria: ${eventName.trim()}`,

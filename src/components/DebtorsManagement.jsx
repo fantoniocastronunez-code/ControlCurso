@@ -51,6 +51,8 @@ const DebtorsManagement = ({ onBack }) => {
         const debt = { id: docSnap.id, ...data };
         const student = studentsData.find(s => s.id === debt.studentId);
         
+        if (student && student.status === 'retirado') return;
+
         let emails = [];
         if (student) {
           emails = student.apoderadoEmails?.length > 0 ? student.apoderadoEmails : (student.apoderadoEmail ? [student.apoderadoEmail] : []);
