@@ -8,7 +8,7 @@ const CourseContext = createContext();
 export const useCourse = () => useContext(CourseContext);
 
 export const CourseProvider = ({ children }) => {
-  const { user, role } = useAuth();
+  const { user, role, userData } = useAuth();
   const [courses, setCourses] = useState([]);
   const [selectedCourse, setSelectedCourse] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -24,9 +24,6 @@ export const CourseProvider = ({ children }) => {
     const fetchCourses = async () => {
       try {
         setLoading(true);
-        // First get the user's document to see their roles/assigned courses
-        const userDoc = await getDoc(doc(db, 'users', user.uid));
-        const userData = userDoc.exists() ? userDoc.data() : null;
         
         const isSuperAdmin = role === 'superadmin' || (userData?.roles && userData.roles['global'] === 'superadmin');
 

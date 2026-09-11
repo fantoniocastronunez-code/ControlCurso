@@ -46,7 +46,8 @@ const AdminDashboard = () => {
     fundsBalances: [],
     allTransactions: [],
     realBankBalance: 0,
-    registeredApoderadosList: []
+    registeredApoderadosList: [],
+    pendingApprovalsCount: 0
   });
   
   const [selectedFundForHistory, setSelectedFundForHistory] = useState(null);
@@ -118,9 +119,14 @@ const AdminDashboard = () => {
         debtsPromise, outcomesPromise, incomesPromise, transfersPromise, usersPromise
       ]);
       
+      let pendingApprovalsCount = 0;
+      
       // Filter debts by status locally
       const debtsDocs = allDebtsSnap.docs.filter(d => {
         const status = d.data().status;
+        if (status === 'review') {
+          pendingApprovalsCount++;
+        }
         return status === 'paid' || status === 'partial';
       });
 
@@ -356,7 +362,8 @@ const AdminDashboard = () => {
         cashBalance: calculatedCashBalance,
         transferBalance: calculatedTransferBalance,
         realBankBalance,
-        registeredApoderadosList
+        registeredApoderadosList,
+        pendingApprovalsCount
       });
       setExpenses(expensesList);
 
@@ -442,8 +449,15 @@ const AdminDashboard = () => {
             </button>
           )}
           {courseRole === 'superadmin' || courseRole === 'tesorero' ? (
-            <button onClick={() => { setCurrentView('approvals'); setIsSidebarOpen(false); }} className="btn btn-outline" style={{ borderColor: 'var(--success)', color: 'var(--success)', justifyContent: 'flex-start' }}>
-              <CheckCircle size={18} /> Aprobaciones
+            <button onClick={() => { setCurrentView('approvals'); setIsSidebarOpen(false); }} className="btn btn-outline" style={{ borderColor: 'var(--success)', color: 'var(--success)', justifyContent: 'space-between' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                <CheckCircle size={18} /> Aprobaciones
+              </div>
+              {stats.pendingApprovalsCount > 0 && (
+                <span style={{ backgroundColor: 'var(--warning)', color: '#000', padding: '0.1rem 0.5rem', borderRadius: '1rem', fontSize: '0.75rem', fontWeight: 'bold' }}>
+                  {stats.pendingApprovalsCount}
+                </span>
+              )}
             </button>
           ) : null}
           {['superadmin', 'admin', 'presidente'].includes(courseRole) && (
@@ -562,6 +576,26 @@ const AdminDashboard = () => {
             <div style={{ padding: '2rem', textAlign: 'center', color: 'var(--text-muted)' }}>Cargando datos...</div>
           ) : (
             <>
+              {stats.pendingApprovalsCount > 0 && (
+                <div 
+                  className="glass-panel" 
+                  style={{ backgroundColor: 'rgba(245, 158, 11, 0.1)', border: '1px solid var(--warning)', padding: '1rem', marginBottom: '1.5rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '1rem', cursor: 'pointer', transition: 'all 0.2s ease' }}
+                  onClick={() => setCurrentView('approvals')}
+                  onMouseOver={(e) => e.currentTarget.style.transform = 'translateY(-2px)'}
+                  onMouseOut={(e) => e.currentTarget.style.transform = 'translateY(0)'}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', color: 'var(--warning)' }}>
+                    <AlertTriangle size={24} />
+                    <div>
+                      <h4 style={{ margin: 0, fontWeight: 'bold' }}>¡Atención requerida!</h4>
+                      <p style={{ margin: 0, fontSize: '0.9rem' }}>Tienes {stats.pendingApprovalsCount} {stats.pendingApprovalsCount === 1 ? 'comprobante de pago pendiente' : 'comprobantes de pago pendientes'} de revisión.</p>
+                    </div>
+                  </div>
+                  <button className="btn btn-primary" style={{ backgroundColor: 'var(--warning)', borderColor: 'var(--warning)', color: '#000', whiteSpace: 'nowrap' }}>
+                    Revisar ahora
+                  </button>
+                </div>
+              )}
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '1.5rem', marginBottom: '2rem' }}>
                 <div className="glass-panel" style={{ padding: '1.5rem', display: 'flex', alignItems: 'center', gap: '1rem' }}>
                   <div style={{ backgroundColor: 'rgba(99,102,241,0.2)', padding: '1rem', borderRadius: '50%', color: 'var(--primary)' }}>

@@ -24,8 +24,8 @@ export const AuthProvider = ({ children }) => {
         try {
           const userDocRef = doc(db, 'users', currentUser.uid); // Changed to uid instead of email for consistency, although existing might use email
           // Wait, the existing code uses currentUser.email as document ID! Let's respect that or check.
-          // In the provided file: const userDocRef = doc(db, 'users', currentUser.email);
-          const userDocRefEmail = doc(db, 'users', currentUser.email);
+          const emailLower = currentUser.email ? currentUser.email.toLowerCase() : '';
+          const userDocRefEmail = doc(db, 'users', emailLower);
           let userDoc = await getDoc(userDocRefEmail);
 
           if (!userDoc.exists()) {
