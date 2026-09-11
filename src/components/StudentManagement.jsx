@@ -260,7 +260,7 @@ const StudentRow = React.memo(({
 });
 
 const StudentManagement = ({ onBack }) => {
-  const { showConfirm } = useModal();
+  const { showConfirm, showAlert } = useModal();
   const { role } = useAuth();
   const { selectedCourse } = useCourse();
   const navigate = useNavigate();
