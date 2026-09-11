@@ -39,19 +39,29 @@ service cloud.firestore {
       allow read: if isAuthenticated();
       
       // Permitir crear su propio perfil
-      allow create: if isAuthenticated() && request.auth.token.email == userId;
+      allow create: if isAuthenticated() && (request.auth.token.email == userId || request.auth.uid == userId);
       
       // Permitir actualización: 
       // 1. Un superadmin puede actualizar a cualquiera.
-      // 2. Un usuario puede actualizar SOLO sus campos básicos, NO sus roles.
-      // 3. Un admin de algún curso puede modificar roles (confianza delegada).
+      // 2. Un usuario puede actualizar sus propios datos. Si modifica sus roles (para unirse a un curso),
+      //    solo puede hacerlo si no se está asignando permisos de admin/tesorero/superadmin.
+      //    Si ya tenía esos permisos, se le permite modificar su propio perfil.
+      // 3. Un admin/tesorero de algún curso puede modificar roles de otros (confianza delegada).
       allow update: if isAuthenticated() && (
         isSuperAdmin() ||
         (
-          request.auth.token.email == userId &&
-          !request.resource.data.diff(resource.data).affectedKeys().hasAny(['role', 'roles'])
+          (request.auth.token.email == userId || request.auth.uid == userId) &&
+          (
+            !request.resource.data.diff(resource.data).affectedKeys().hasAny(['role', 'roles']) ||
+            (
+              (!('roles' in request.resource.data) || !request.resource.data.roles.values().hasAny(['admin', 'tesorero', 'superadmin']))
+            ) ||
+            (
+              'roles' in resource.data && resource.data.roles.values().hasAny(['admin', 'tesorero', 'superadmin'])
+            )
+          )
         ) ||
-        ('roles' in getUserData() && getUserData().roles.keys().size() > 0)
+        ('roles' in getUserData() && getUserData().roles.values().hasAny(['admin', 'tesorero']))
       );
       
       allow delete: if isSuperAdmin();
@@ -102,7 +112,19 @@ service cloud.firestore {
       allow update, delete: if isAuthenticated() && isCourseAdmin(resource.data.courseId);
     }
     
+    match /fund_transfers/{transferId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated() && isCourseAdmin(request.resource.data.courseId);
+      allow update, delete: if isAuthenticated() && isCourseAdmin(resource.data.courseId);
+    }
+    
     match /outcomes/{outcomeId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated() && isCourseAdmin(request.resource.data.courseId);
+      allow update, delete: if isAuthenticated() && isCourseAdmin(resource.data.courseId);
+    }
+    
+    match /incomes/{incomeId} {
       allow read: if isAuthenticated();
       allow create: if isAuthenticated() && isCourseAdmin(request.resource.data.courseId);
       allow update, delete: if isAuthenticated() && isCourseAdmin(resource.data.courseId);
@@ -110,6 +132,12 @@ service cloud.firestore {
     
     // -- APPROVALS (SISTEMA DE APROBACIONES) --
     match /approvals/{approvalId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated(); 
+      allow update, delete: if isAuthenticated() && isCourseAdmin(resource.data.courseId);
+    }
+    
+    match /pending_actions/{actionId} {
       allow read: if isAuthenticated();
       allow create: if isAuthenticated(); 
       allow update, delete: if isAuthenticated() && isCourseAdmin(resource.data.courseId);
@@ -147,6 +175,12 @@ service cloud.firestore {
     // -- COURSES --
     match /courses/{courseId} {
       allow read: if isAuthenticated();
+      allow create, update, delete: if isSuperAdmin();
+    }
+    
+    // -- SETTINGS --
+    match /settings/{settingId} {
+      allow read: if settingId == 'version' || isAuthenticated();
       allow create, update, delete: if isSuperAdmin();
     }
     
