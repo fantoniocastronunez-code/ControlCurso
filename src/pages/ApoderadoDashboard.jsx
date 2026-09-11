@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { LogOut, CheckCircle, Clock, Search, UserPlus, Upload, AlertCircle, MessageCircle } from 'lucide-react';
 import { db, storage } from '../firebase/config';
-import { collection, query, where, getDocs, getDoc, doc, updateDoc, setDoc, or } from 'firebase/firestore';
+import { collection, query, where, getDocs, getDoc, doc, updateDoc, setDoc, or, addDoc } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { formatStudentName } from '../utils/nameUtils';
@@ -211,6 +211,42 @@ const ApoderadoDashboard = () => {
             apoderadoEmails: emails,
             rut: rutInput.trim()
           });
+
+          // Notificar al superadmin por correo
+          try {
+            const usersSnap = await getDocs(collection(db, 'users'));
+            const superAdmins = [];
+            usersSnap.forEach(uDoc => {
+              const uData = uDoc.data();
+              if (uData.role === 'superadmin' || (uData.roles && uData.roles.global === 'superadmin')) {
+                superAdmins.push(uDoc.id); // Document ID is the email
+              }
+            });
+
+            for (const adminEmail of superAdmins) {
+              await addDoc(collection(db, 'mail'), {
+                to: adminEmail,
+                message: {
+                  subject: `Nuevo Apoderado Vinculado: ${data.name}`,
+                  html: `
+                    <div style="font-family: Arial, sans-serif; padding: 20px; max-width: 600px; margin: 0 auto; border: 1px solid #e2e8f0; border-radius: 10px;">
+                      <h2 style="color: #4f46e5;">¡Nuevo Apoderado Vinculado!</h2>
+                      <p>Un usuario acaba de vincularse exitosamente a un alumno en el sistema.</p>
+                      <div style="background-color: #f8fafc; padding: 15px; border-radius: 8px; margin-top: 20px;">
+                        <p style="margin: 5px 0;"><strong>Alumno Reconocido:</strong> ${data.name}</p>
+                        <p style="margin: 5px 0;"><strong>Apoderado (Email):</strong> ${user.email}</p>
+                        <p style="margin: 5px 0;"><strong>RUT Validado:</strong> ${rutInput.trim()}</p>
+                        <p style="margin: 5px 0;"><strong>Fecha y Hora:</strong> ${new Date().toLocaleString('es-CL')}</p>
+                      </div>
+                      <p style="color: #64748b; font-size: 0.85rem; margin-top: 20px;">Este es un mensaje automático enviado por el portal de ControlCurso.</p>
+                    </div>
+                  `
+                }
+              });
+            }
+          } catch (mailError) {
+            console.error("Error sending notification email:", mailError);
+          }
         }
         
         // Éxito
