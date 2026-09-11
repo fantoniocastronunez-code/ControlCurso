@@ -5,6 +5,7 @@ import { db } from '../firebase/config';
 import { collection, getDocs, query, where, addDoc, doc, setDoc, getDoc } from 'firebase/firestore';
 import { useNavigate } from 'react-router-dom';
 import { useModal } from '../context/ModalContext';
+import { ArrowDownRight, ArrowUpRight, ArrowRightLeft } from 'lucide-react';
 
 import UserManagement from '../components/UserManagement';
 import StudentManagement from '../components/StudentManagement';
@@ -738,42 +739,84 @@ const AdminDashboard = () => {
 
 
 
-              <div className="glass-panel" style={{ padding: '2rem' }}>
-                <h3 style={{ marginBottom: '1.5rem' }}>Últimas Cuotas Emitidas</h3>
-                {expenses.length === 0 ? (
-                  <p style={{ color: 'var(--text-muted)', textAlign: 'center', padding: '1rem' }}>No hay cuotas emitidas todavía.</p>
-                ) : (
-                  <div style={{ display: 'grid', gap: '1rem' }}>
-                    {expenses.map(exp => (
-                      <div 
-                        key={exp.id} 
-                        style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '1rem', backgroundColor: 'rgba(255,255,255,0.03)', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-color)', cursor: 'pointer', transition: 'all 0.2s' }}
-                        onMouseOver={(e) => e.currentTarget.style.backgroundColor = 'rgba(255,255,255,0.08)'}
-                        onMouseOut={(e) => e.currentTarget.style.backgroundColor = 'rgba(255,255,255,0.03)'}
-                        onClick={() => {
-                          setSelectedExpenseId(exp.id);
-                          setCurrentView('expense_detail');
-                        }}
-                      >
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-                           <div style={{ backgroundColor: 'rgba(99,102,241,0.1)', padding: '0.8rem', borderRadius: '50%', color: 'var(--primary)' }}>
-                             <FileText size={20} />
-                           </div>
-                           <div>
-                             <h4 style={{ margin: 0 }}>{exp.title}</h4>
-                             <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', margin: 0 }}>Emitido: {exp.date} • {exp.studentsCount} Alumnos</p>
-                           </div>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(350px, 1fr))', gap: '1.5rem' }}>
+                <div className="glass-panel" style={{ padding: '2rem' }}>
+                  <h3 style={{ marginBottom: '1.5rem' }}>Últimas Cuotas Emitidas</h3>
+                  {expenses.length === 0 ? (
+                    <p style={{ color: 'var(--text-muted)', textAlign: 'center', padding: '1rem' }}>No hay cuotas emitidas todavía.</p>
+                  ) : (
+                    <div style={{ display: 'grid', gap: '1rem' }}>
+                      {expenses.slice(0, 5).map(exp => (
+                        <div 
+                          key={exp.id} 
+                          style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '1rem', backgroundColor: 'rgba(255,255,255,0.03)', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-color)', cursor: 'pointer', transition: 'all 0.2s' }}
+                          onMouseOver={(e) => e.currentTarget.style.backgroundColor = 'rgba(255,255,255,0.08)'}
+                          onMouseOut={(e) => e.currentTarget.style.backgroundColor = 'rgba(255,255,255,0.03)'}
+                          onClick={() => {
+                            setSelectedExpenseId(exp.id);
+                            setCurrentView('expense_detail');
+                          }}
+                        >
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+                             <div style={{ backgroundColor: 'rgba(99,102,241,0.1)', padding: '0.8rem', borderRadius: '50%', color: 'var(--primary)' }}>
+                               <FileText size={20} />
+                             </div>
+                             <div>
+                               <h4 style={{ margin: 0 }}>{exp.title}</h4>
+                               <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', margin: 0 }}>Emitido: {exp.date} • {exp.studentsCount} Alumnos</p>
+                             </div>
+                          </div>
+                          <div style={{ textAlign: 'right' }}>
+                            <p style={{ fontWeight: 'bold', margin: 0, color: 'var(--success)' }}>{formatMoney(exp.collectedAmount || 0)}</p>
+                            <p style={{ fontSize: '0.85rem', color: exp.paidCount === exp.studentsCount ? 'var(--success)' : 'var(--warning)', margin: 0 }}>
+                              {exp.paidCount || 0} de {exp.studentsCount} pagadas
+                            </p>
+                          </div>
                         </div>
-                        <div style={{ textAlign: 'right' }}>
-                          <p style={{ fontWeight: 'bold', margin: 0, color: 'var(--success)' }}>{formatMoney(exp.collectedAmount || 0)}</p>
-                          <p style={{ fontSize: '0.85rem', color: exp.paidCount === exp.studentsCount ? 'var(--success)' : 'var(--warning)', margin: 0 }}>
-                            {exp.paidCount || 0} de {exp.studentsCount} pagadas
-                          </p>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                <div className="glass-panel" style={{ padding: '2rem' }}>
+                  <h3 style={{ marginBottom: '1.5rem' }}>Últimos Movimientos</h3>
+                  {stats.allTransactions.length === 0 ? (
+                    <p style={{ color: 'var(--text-muted)', textAlign: 'center', padding: '1rem' }}>No hay movimientos recientes.</p>
+                  ) : (
+                    <div style={{ display: 'grid', gap: '1rem' }}>
+                      {[...stats.allTransactions]
+                        .sort((a, b) => new Date(b.date || 0) - new Date(a.date || 0))
+                        .slice(0, 6)
+                        .map(t => {
+                          const isIncome = t.amount > 0;
+                          const isTransfer = t.type === 'transfer_in' || t.type === 'transfer_out';
+                          return (
+                            <div key={t.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '1rem', backgroundColor: 'rgba(255,255,255,0.03)', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-color)' }}>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+                                <div style={{ 
+                                  backgroundColor: isTransfer ? 'rgba(59, 130, 246, 0.1)' : (isIncome ? 'rgba(16, 185, 129, 0.1)' : 'rgba(239, 68, 68, 0.1)'), 
+                                  padding: '0.6rem', 
+                                  borderRadius: '50%', 
+                                  color: isTransfer ? '#3b82f6' : (isIncome ? 'var(--success)' : 'var(--danger)') 
+                                }}>
+                                  {isTransfer ? <ArrowRightLeft size={18} /> : (isIncome ? <ArrowDownRight size={18} /> : <ArrowUpRight size={18} />)}
+                                </div>
+                                <div>
+                                  <p style={{ margin: 0, fontWeight: '500', fontSize: '0.9rem' }}>{t.description}</p>
+                                  <p style={{ margin: 0, fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                                    {new Date(t.date).toLocaleDateString()} • {t.paymentMethod === 'cash' ? 'Efectivo' : t.paymentMethod === 'transfer' ? 'Transferencia' : t.paymentMethod === 'balance' ? 'Saldo' : 'Otro'}
+                                  </p>
+                                </div>
+                              </div>
+                              <span style={{ fontWeight: 'bold', color: isTransfer ? '#3b82f6' : (isIncome ? 'var(--success)' : 'var(--danger)') }}>
+                                {isIncome ? '+' : ''}{formatMoney(t.amount)}
+                              </span>
+                            </div>
+                          );
+                      })}
+                    </div>
+                  )}
+                </div>
               </div>
             </>
           )}
