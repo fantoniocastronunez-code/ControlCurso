@@ -442,6 +442,42 @@ const StudentManagement = ({ onBack }) => {
     }
   };
 
+  const generatePendingReport = async () => {
+    setLoading(true);
+    try {
+      const usersSnap = await getDocs(collection(db, 'users'));
+      const activeEmails = new Set();
+      usersSnap.forEach(doc => {
+        if (doc.data().uid) {
+          activeEmails.add(doc.id.toLowerCase());
+        }
+      });
+
+      const pendingStudents = students.filter(s => {
+        const emails = s.apoderadoEmails?.length > 0 ? s.apoderadoEmails : (s.apoderadoEmail ? [s.apoderadoEmail] : []);
+        if (emails.length === 0) return true;
+        return emails.every(email => !activeEmails.has(email.toLowerCase()));
+      });
+
+      if (pendingStudents.length === 0) {
+        showAlert('¡Excelente! Todos los alumnos tienen al menos un apoderado registrado en la aplicación.');
+        return;
+      }
+
+      const text = `🚨 *ALUMNOS SIN APODERADO REGISTRADO EN LA APP* 🚨\n\nPor favor, solicitamos a los apoderados de los siguientes alumnos que descarguen la aplicación y completen su registro (iniciando sesión con su correo o Google) para poder acceder a la información del curso:\n\n` + 
+        pendingStudents.map(s => `• ${formatStudentName(s)}`).join('\n') +
+        `\n\n_¡Muchas gracias por su colaboración!_`;
+
+      await navigator.clipboard.writeText(text);
+      showAlert('¡Informe copiado al portapapeles!\n\nAhora puedes ir a tu grupo de WhatsApp, hacer clic derecho (o mantener presionado) y seleccionar "Pegar".');
+    } catch (error) {
+      console.error(error);
+      showAlert('Hubo un error al generar el informe.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   if (loading) {
     return <div style={{ textAlign: 'center', padding: '2rem' }}>Cargando alumnos...</div>;
   }
@@ -452,7 +488,15 @@ const StudentManagement = ({ onBack }) => {
         <button onClick={onBack} className="btn btn-outline" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
           <ArrowLeft size={18} /> Volver al Panel
         </button>
-        <div style={{ display: 'flex', gap: '1rem' }}>
+        <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>
+          <button 
+            onClick={generatePendingReport}
+            className="btn btn-outline"
+            style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', borderColor: 'var(--warning)', color: 'var(--warning)' }}
+            disabled={loading}
+          >
+            Copiar Informe Pendientes (WhatsApp)
+          </button>
           <button 
             onClick={() => setShowBulkImport(!showBulkImport)} 
             className="btn btn-outline"
