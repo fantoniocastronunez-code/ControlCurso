@@ -152,8 +152,8 @@ const StudentRow = React.memo(({
         </>
       ) : (
         <>
-          <td style={{ padding: '1rem', color: 'var(--text-muted)' }}>{s.listNumber || '-'}</td>
-          <td style={{ padding: '1rem', fontWeight: '500', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <td style={{ padding: '0.5rem 1rem', color: 'var(--text-muted)' }}>{s.listNumber || '-'}</td>
+          <td style={{ padding: '0.5rem 1rem', fontWeight: '500', display: 'flex', alignItems: 'center', justifyContent: 'space-between', whiteSpace: 'nowrap' }}>
             <button 
               onClick={(e) => {
                 e.stopPropagation();
@@ -167,8 +167,8 @@ const StudentRow = React.memo(({
               {isExpanded ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
             </div>
           </td>
-          <td style={{ padding: '1rem', color: 'var(--text-muted)' }}>{s.rut || '-'}</td>
-          <td style={{ padding: '1rem', color: 'var(--text-muted)' }}>
+          <td style={{ padding: '0.5rem 1rem', color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>{s.rut || '-'}</td>
+          <td style={{ padding: '0.5rem 1rem', color: 'var(--text-muted)' }}>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
               {(s.apoderadoEmails?.length > 0 ? s.apoderadoEmails : (s.apoderadoEmail ? [s.apoderadoEmail] : [])).length > 0 
                 ? (s.apoderadoEmails?.length > 0 ? s.apoderadoEmails : [s.apoderadoEmail]).map((email, idx) => (
@@ -186,14 +186,14 @@ const StudentRow = React.memo(({
               }
             </div>
           </td>
-          <td style={{ padding: '1rem' }}>
+          <td style={{ padding: '0.5rem 1rem' }}>
             {s.balance > 0 ? (
               <span style={{ color: 'var(--success)', fontWeight: 'bold' }}>{formatMoney(s.balance)}</span>
             ) : (
               <span style={{ color: 'var(--text-muted)' }}>-</span>
             )}
           </td>
-          <td style={{ padding: '1rem' }}>
+          <td style={{ padding: '0.5rem 1rem' }}>
             <div style={{ display: 'flex', gap: '0.5rem' }}>
               {role === 'superadmin' && (
                 <button 
@@ -649,12 +649,12 @@ const StudentManagement = ({ onBack }) => {
         <table className="mobile-accordion students-mode" style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
           <thead>
             <tr style={{ borderBottom: '1px solid var(--border-color)', backgroundColor: 'rgba(255,255,255,0.03)' }}>
-              <th style={{ padding: '1rem', width: '80px' }}>N°</th>
-              <th style={{ padding: '1rem' }}>Nombre Alumno</th>
-              <th style={{ padding: '1rem' }}>RUT</th>
-              <th style={{ padding: '1rem' }}>Apoderado</th>
-              <th style={{ padding: '1rem' }}>Saldo a Favor</th>
-              <th style={{ padding: '1rem' }}>Acciones</th>
+              <th style={{ padding: '0.75rem 1rem', width: '80px' }}>N°</th>
+              <th style={{ padding: '0.75rem 1rem', whiteSpace: 'nowrap' }}>Nombre Alumno</th>
+              <th style={{ padding: '0.75rem 1rem', whiteSpace: 'nowrap' }}>RUT</th>
+              <th style={{ padding: '0.75rem 1rem' }}>Apoderado</th>
+              <th style={{ padding: '0.75rem 1rem' }}>Saldo a Favor</th>
+              <th style={{ padding: '0.75rem 1rem' }}>Acciones</th>
             </tr>
           </thead>
           <tbody>
