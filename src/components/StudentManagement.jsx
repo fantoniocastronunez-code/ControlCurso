@@ -199,17 +199,17 @@ const StudentRow = React.memo(({
                 <button 
                   onClick={(e) => { e.stopPropagation(); navigate('/apoderado', { state: { impersonateStudentId: s.id } }); }}
                   className="btn btn-outline" 
-                  style={{ padding: '0.4rem 0.75rem', color: 'var(--success)', borderColor: 'rgba(16, 185, 129, 0.3)', gap: '0.5rem', display: 'flex', alignItems: 'center' }}
+                  style={{ padding: '0.5rem', color: 'var(--success)', borderColor: 'rgba(16, 185, 129, 0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
                   title="Ver portal como apoderado"
                 >
-                  <Eye size={16} /> Portal
+                  <Eye size={18} />
                 </button>
               )}
-              <button onClick={(e) => { e.stopPropagation(); startEditing(s); }} className="btn btn-outline" style={{ padding: '0.4rem 0.75rem', color: 'var(--primary)', borderColor: 'rgba(99, 102, 241, 0.3)', gap: '0.5rem', display: 'flex', alignItems: 'center' }}>
-                <Edit2 size={16} /> Editar
+              <button onClick={(e) => { e.stopPropagation(); startEditing(s); }} className="btn btn-outline" style={{ padding: '0.5rem', color: 'var(--primary)', borderColor: 'rgba(99, 102, 241, 0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center' }} title="Editar">
+                <Edit2 size={18} />
               </button>
-              <button onClick={(e) => { e.stopPropagation(); handleDelete(s.id); }} className="btn btn-outline" style={{ padding: '0.4rem 0.75rem', color: 'var(--danger)', borderColor: 'rgba(239, 68, 68, 0.3)', gap: '0.5rem', display: 'flex', alignItems: 'center' }}>
-                <Trash2 size={16} /> Eliminar
+              <button onClick={(e) => { e.stopPropagation(); handleDelete(s.id); }} className="btn btn-outline" style={{ padding: '0.5rem', color: 'var(--danger)', borderColor: 'rgba(239, 68, 68, 0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center' }} title="Eliminar">
+                <Trash2 size={18} />
               </button>
             </div>
           </td>
