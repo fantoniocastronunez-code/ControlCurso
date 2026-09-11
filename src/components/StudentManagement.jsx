@@ -482,26 +482,17 @@ const StudentManagement = ({ onBack }) => {
   const generatePendingReport = async () => {
     setLoading(true);
     try {
-      const usersSnap = await getDocs(collection(db, 'users'));
-      const activeEmails = new Set();
-      usersSnap.forEach(doc => {
-        if (doc.data().uid) {
-          activeEmails.add(doc.id.toLowerCase());
-        }
-      });
-
       const pendingStudents = students.filter(s => {
         const emails = s.apoderadoEmails?.length > 0 ? s.apoderadoEmails : (s.apoderadoEmail ? [s.apoderadoEmail] : []);
-        if (emails.length === 0) return true;
-        return emails.every(email => !activeEmails.has(email.toLowerCase()));
+        return emails.length === 0;
       });
 
       if (pendingStudents.length === 0) {
-        showAlert('¡Excelente! Todos los alumnos tienen al menos un apoderado registrado en la aplicación.');
+        showAlert('¡Excelente! Todos los alumnos tienen un apoderado asignado.');
         return;
       }
 
-      const text = `🚨 *ALUMNOS SIN APODERADO REGISTRADO EN LA APP* 🚨\n\nPor favor, solicitamos a los apoderados de los siguientes alumnos que descarguen la aplicación y completen su registro (iniciando sesión con su correo o Google) para poder acceder a la información del curso:\n\n` + 
+      const text = `🚨 *ALUMNOS SIN APODERADO ASIGNADO* 🚨\n\nPor favor, los apoderados de los siguientes alumnos deben comunicarse con la directiva para entregar su correo electrónico y poder registrarlos en la aplicación:\n\n` + 
         pendingStudents.map(s => `• ${formatStudentName(s)}`).join('\n') +
         `\n\n_¡Muchas gracias por su colaboración!_`;
 
