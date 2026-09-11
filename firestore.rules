@@ -38,9 +38,12 @@ service cloud.firestore {
     match /users/{userId} {
       allow read: if isAuthenticated();
       
-      // Permitir crear su propio perfil
-      allow create: if isAuthenticated() && (request.auth.token.email == userId || request.auth.uid == userId);
-      
+      // Permitir crear su propio perfil, o permitir que un admin pre-registre a un apoderado
+      allow create: if isAuthenticated() && (
+        (request.auth.token.email == userId || request.auth.uid == userId) ||
+        isSuperAdmin() ||
+        ('roles' in getUserData() && getUserData().roles.values().hasAny(['admin', 'tesorero']))
+      );
       // Permitir actualización: 
       // 1. Un superadmin puede actualizar a cualquiera.
       // 2. Un usuario puede actualizar sus propios datos. Si modifica sus roles (para unirse a un curso),
