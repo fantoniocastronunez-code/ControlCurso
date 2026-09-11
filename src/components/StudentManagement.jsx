@@ -510,9 +510,9 @@ const StudentManagement = ({ onBack }) => {
         return;
       }
 
-      const text = `🚨 *ALUMNOS SIN APODERADO ASIGNADO* 🚨\n\nPor favor, los apoderados de los siguientes alumnos deben comunicarse con la directiva para entregar su correo electrónico y poder registrarlos en la aplicación:\n\n` + 
+      const text = `🚨 *ALUMNOS SIN APODERADO ASIGNADO* 🚨\n\nPor favor, los apoderados de los siguientes alumnos deben conectarse a la aplicación para registrarse y poder estar al tanto de los pagos de su pupilo:\n\n` + 
         pendingStudents.map(s => `• ${formatStudentName(s)}`).join('\n') +
-        `\n\n_¡Muchas gracias por su colaboración!_`;
+        `\n\n👉 *Ingresa aquí:* https://control-curso.vercel.app/admin\n\n_¡Muchas gracias por su colaboración!_`;
 
       await navigator.clipboard.writeText(text);
       showAlert('¡Informe copiado al portapapeles!\n\nAhora puedes ir a tu grupo de WhatsApp, hacer clic derecho (o mantener presionado) y seleccionar "Pegar".');
