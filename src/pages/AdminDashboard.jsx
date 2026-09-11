@@ -40,6 +40,7 @@ const AdminDashboard = () => {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [stats, setStats] = useState({
     activeStudents: 0,
+    studentsWithApoderados: 0,
     registeredApoderados: 0,
     totalCollected: 0,
     totalExpected: 0,
@@ -133,6 +134,15 @@ const AdminDashboard = () => {
 
       // 1. Alumnos Activos
       const activeStudentsCount = studentsSnap.size;
+      let studentsWithApoderadosCount = 0;
+      
+      studentsSnap.forEach(doc => {
+        const data = doc.data();
+        const emails = data.apoderadoEmails?.length > 0 ? data.apoderadoEmails : (data.apoderadoEmail ? [data.apoderadoEmail] : []);
+        if (emails.length > 0) {
+          studentsWithApoderadosCount++;
+        }
+      });
 
       // 1.2 Real Bank Balance
       const realBankBalance = bankInfoSnap.exists() ? bankInfoSnap.data().realBalance || 0 : 0;
@@ -354,6 +364,7 @@ const AdminDashboard = () => {
 
       setStats({
         activeStudents: activeStudentsCount,
+        studentsWithApoderados: studentsWithApoderadosCount,
         registeredApoderados: registeredApoderadosCount,
         totalCollected: collected,
         totalExpected: expected,
@@ -605,6 +616,16 @@ const AdminDashboard = () => {
                   <div>
                     <h3 style={{ fontSize: '1.5rem', margin: 0 }}>{stats.activeStudents}</h3>
                     <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem' }}>Alumnos Activos</p>
+                  </div>
+                </div>
+
+                <div className="glass-panel" style={{ padding: '1.5rem', display: 'flex', alignItems: 'center', gap: '1rem' }}>
+                  <div style={{ backgroundColor: 'rgba(16, 185, 129, 0.2)', padding: '1rem', borderRadius: '50%', color: 'var(--success)' }}>
+                    <Users size={24} />
+                  </div>
+                  <div>
+                    <h3 style={{ fontSize: '1.5rem', margin: 0 }}>{stats.studentsWithApoderados}</h3>
+                    <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem' }}>Alumnos con Apoderados</p>
                   </div>
                 </div>
 
