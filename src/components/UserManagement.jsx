@@ -23,6 +23,7 @@ const UserManagement = ({ onBack, viewMode = 'users' }) => {
   // Estados para edición
   const [editingId, setEditingId] = useState(null);
   const [editName, setEditName] = useState('');
+  const [selectedImage, setSelectedImage] = useState(null);
 
   useEffect(() => {
     fetchData();
@@ -324,7 +325,13 @@ const UserManagement = ({ onBack, viewMode = 'users' }) => {
                     <td style={{ padding: '1rem' }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
                         {u.photoURL ? (
-                          <img src={u.photoURL} alt={u.displayName} style={{ width: '32px', height: '32px', borderRadius: '50%' }} />
+                          <img 
+                            src={u.photoURL} 
+                            alt={u.displayName} 
+                            style={{ width: '32px', height: '32px', borderRadius: '50%', cursor: 'pointer', border: '1px solid var(--border-color)', objectFit: 'cover' }} 
+                            onClick={(e) => { e.stopPropagation(); setSelectedImage(u.photoURL); }}
+                            title="Ver en pantalla completa"
+                          />
                         ) : (
                           <div style={{ width: '32px', height: '32px', borderRadius: '50%', backgroundColor: 'var(--primary)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                             {u.displayName ? u.displayName[0].toUpperCase() : u.email[0].toUpperCase()}
@@ -404,6 +411,34 @@ const UserManagement = ({ onBack, viewMode = 'users' }) => {
           </div>
         )}
       </div>
+
+      {selectedImage && (
+        <div style={{
+          position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+          backgroundColor: 'rgba(0,0,0,0.85)', backdropFilter: 'blur(4px)',
+          display: 'flex', justifyContent: 'center', alignItems: 'center',
+          zIndex: 10000, padding: '1rem', cursor: 'zoom-out'
+        }} onClick={() => setSelectedImage(null)}>
+          <img 
+            src={selectedImage} 
+            alt="Usuario" 
+            style={{ 
+              maxWidth: '90%', maxHeight: '90vh', 
+              borderRadius: '8px', boxShadow: '0 25px 50px -12px rgba(0,0,0,0.5)',
+              objectFit: 'contain'
+            }} 
+          />
+          <button onClick={() => setSelectedImage(null)} style={{
+            position: 'absolute', top: '1.5rem', right: '1.5rem',
+            background: 'rgba(0,0,0,0.5)', border: 'none', color: '#fff',
+            cursor: 'pointer', borderRadius: '50%', padding: '0.5rem',
+            display: 'flex', alignItems: 'center', justifyContent: 'center'
+          }}>
+            <X size={24} />
+          </button>
+        </div>
+      )}
+
     </div>
   );
 };
