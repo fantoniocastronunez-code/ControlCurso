@@ -21,6 +21,7 @@ import StudentSearchModal from '../components/StudentSearchModal';
 import MeetingReport from '../components/MeetingReport';
 import InstallAppGuide from '../components/InstallAppGuide';
 import RegisteredApoderadosModal from '../components/RegisteredApoderadosModal';
+import StudentsWithoutApoderadosModal from '../components/StudentsWithoutApoderadosModal';
 import CourseManagement from '../components/CourseManagement';
 import ApprovalsManagement from '../components/ApprovalsManagement';
 import { useCourse } from '../context/CourseContext';
@@ -49,11 +50,13 @@ const AdminDashboard = () => {
     allTransactions: [],
     realBankBalance: 0,
     registeredApoderadosList: [],
+    studentsWithoutApoderadosList: [],
     pendingApprovalsCount: 0
   });
   
   const [selectedFundForHistory, setSelectedFundForHistory] = useState(null);
   const [isApoderadosModalOpen, setIsApoderadosModalOpen] = useState(false);
+  const [isNoApoderadosModalOpen, setIsNoApoderadosModalOpen] = useState(false);
   
   // Lista de cuotas
   const [expenses, setExpenses] = useState([]);
@@ -135,12 +138,15 @@ const AdminDashboard = () => {
       // 1. Alumnos Activos
       const activeStudentsCount = studentsSnap.size;
       let studentsWithApoderadosCount = 0;
+      let studentsWithoutApoderadosList = [];
       
       studentsSnap.forEach(doc => {
         const data = doc.data();
         const emails = data.apoderadoEmails?.length > 0 ? data.apoderadoEmails : (data.apoderadoEmail ? [data.apoderadoEmail] : []);
         if (emails.length > 0) {
           studentsWithApoderadosCount++;
+        } else {
+          studentsWithoutApoderadosList.push({ id: doc.id, ...data });
         }
       });
 
@@ -365,6 +371,7 @@ const AdminDashboard = () => {
       setStats({
         activeStudents: activeStudentsCount,
         studentsWithApoderados: studentsWithApoderadosCount,
+        studentsWithoutApoderadosList,
         registeredApoderados: registeredApoderadosCount,
         totalCollected: collected,
         totalExpected: expected,
@@ -619,7 +626,14 @@ const AdminDashboard = () => {
                   </div>
                 </div>
 
-                <div className="glass-panel" style={{ padding: '1.5rem', display: 'flex', alignItems: 'center', gap: '1rem' }}>
+                <div 
+                  className="glass-panel" 
+                  style={{ padding: '1.5rem', display: 'flex', alignItems: 'center', gap: '1rem', cursor: 'pointer', transition: 'all 0.2s ease' }}
+                  onClick={() => setIsNoApoderadosModalOpen(true)}
+                  onMouseOver={(e) => e.currentTarget.style.transform = 'translateY(-2px)'}
+                  onMouseOut={(e) => e.currentTarget.style.transform = 'translateY(0)'}
+                  title="Ver lista de alumnos sin apoderado"
+                >
                   <div style={{ backgroundColor: 'rgba(16, 185, 129, 0.2)', padding: '1rem', borderRadius: '50%', color: 'var(--success)' }}>
                     <Users size={24} />
                   </div>
@@ -885,6 +899,12 @@ const AdminDashboard = () => {
       isOpen={isApoderadosModalOpen}
       onClose={() => setIsApoderadosModalOpen(false)}
       apoderados={stats.registeredApoderadosList || []}
+    />
+
+    <StudentsWithoutApoderadosModal 
+      isOpen={isNoApoderadosModalOpen}
+      onClose={() => setIsNoApoderadosModalOpen(false)}
+      students={stats.studentsWithoutApoderadosList || []}
     />
 
     {isSearchOpen && (
