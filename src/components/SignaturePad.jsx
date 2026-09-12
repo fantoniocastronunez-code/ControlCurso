@@ -1,4 +1,5 @@
 import React, { useRef, useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { Eraser, Maximize, Minimize, CheckCircle } from 'lucide-react';
 
 export default function SignaturePad({ title, initialData, onSave, onClear, onChange }) {
@@ -142,17 +143,8 @@ export default function SignaturePad({ title, initialData, onSave, onClear, onCh
     setIsFullscreen(false);
   };
 
-  return (
-    <div style={{ width: '100%', display: 'flex', flexDirection: 'column' }}>
-      {title && (
-        <h4 style={{ margin: '0 0 0.5rem 0', fontSize: '0.95rem', color: 'var(--text-main)' }}>{title}</h4>
-      )}
-      
-      {/* Fondo borroso cuando está en pantalla completa */}
-      {isFullscreen && (
-        <div style={{ position: 'fixed', top: 0, right: 0, bottom: 0, left: 0, backgroundColor: 'rgba(15, 23, 42, 0.9)', zIndex: 9998, backdropFilter: 'blur(4px)', transition: 'opacity 0.3s' }}></div>
-      )}
-
+  const renderContent = () => (
+    <>
       <div style={
         isFullscreen
           ? { position: 'fixed', left: '1rem', right: '1rem', top: '50%', transform: 'translateY(-50%)', height: '75vh', zIndex: 9999, border: '2px solid #cbd5e1', borderRadius: '1.5rem', backgroundColor: '#fff', overflow: 'hidden', boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)', touchAction: 'none', display: 'flex', flexDirection: 'column' }
@@ -219,8 +211,23 @@ export default function SignaturePad({ title, initialData, onSave, onClear, onCh
               </button>
            </div>
         )}
-
       </div>
+    </>
+  );
+
+  return (
+    <div style={{ width: '100%', display: 'flex', flexDirection: 'column' }}>
+      {title && (
+        <h4 style={{ margin: '0 0 0.5rem 0', fontSize: '0.95rem', color: 'var(--text-main)' }}>{title}</h4>
+      )}
+      
+      {/* Fondo borroso cuando está en pantalla completa */}
+      {isFullscreen && createPortal(
+        <div style={{ position: 'fixed', top: 0, right: 0, bottom: 0, left: 0, backgroundColor: 'rgba(15, 23, 42, 0.9)', zIndex: 9998, backdropFilter: 'blur(4px)', transition: 'opacity 0.3s' }}></div>,
+        document.body
+      )}
+
+      {isFullscreen ? createPortal(renderContent(), document.body) : renderContent()}
     </div>
   );
 }
