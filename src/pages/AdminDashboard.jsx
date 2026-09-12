@@ -136,12 +136,15 @@ const AdminDashboard = () => {
       });
 
       // 1. Alumnos Activos
-      const activeStudentsCount = studentsSnap.size;
+      let activeStudentsCount = 0;
       let studentsWithApoderadosCount = 0;
       let studentsWithoutApoderadosList = [];
       
       studentsSnap.forEach(doc => {
         const data = doc.data();
+        if (data.status === 'retirado') return;
+        
+        activeStudentsCount++;
         const emails = data.apoderadoEmails?.length > 0 ? data.apoderadoEmails : (data.apoderadoEmail ? [data.apoderadoEmail] : []);
         if (emails.length > 0) {
           studentsWithApoderadosCount++;
