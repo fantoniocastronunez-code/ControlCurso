@@ -245,7 +245,7 @@ const StudentRow = React.memo(({
       
       {/* Fila expandible para la ficha del alumno */}
       {selectedStudent?.id === s.id && (
-        <tr>
+        <tr className="expanded">
           <td colSpan="6" style={{ padding: 0 }}>
             <StudentDetailModal 
               student={selectedStudent} 

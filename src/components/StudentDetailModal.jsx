@@ -216,7 +216,7 @@ const StudentDetailModal = ({ student, usersMap = {}, onClose, isModal = false }
       {/* KPI Financial Summary Cards */}
       <div style={{ 
         display: 'grid', 
-        gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', 
+        gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', 
         gap: '0.75rem', 
         marginBottom: '1.5rem' 
       }}>
@@ -284,7 +284,7 @@ const StudentDetailModal = ({ student, usersMap = {}, onClose, isModal = false }
       </div>
 
       {/* Grid: Por Pagar vs Pagados */}
-      <div style={{ display: 'grid', gap: '1.5rem', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))' }}>
+      <div style={{ display: 'grid', gap: '1.5rem', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))' }}>
         
         {/* Deudas Pendientes / Por Pagar */}
         <div style={{ display: 'flex', flexDirection: 'column' }}>
