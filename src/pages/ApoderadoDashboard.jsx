@@ -300,7 +300,7 @@ const ApoderadoDashboard = () => {
           downloadURL = await getDownloadURL(storageRef);
         } catch (uploadError) {
           console.error("Error al subir comprobante:", uploadError);
-          await showAlert("No pudimos subir tu foto (posible error de permisos), pero tu pago será registrado de todas formas.");
+          await showAlert("No pudimos subir tu foto. Error detallado: " + uploadError.message + " | Código: " + uploadError.code + ". Tu pago será registrado de todas formas.");
         }
       }
 
