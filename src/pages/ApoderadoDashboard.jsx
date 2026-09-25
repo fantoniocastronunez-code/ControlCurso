@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { LogOut, CheckCircle, Clock, Search, UserPlus, Upload, AlertCircle, MessageCircle } from 'lucide-react';
 import { db, storage } from '../firebase/config';
-import { collection, query, where, getDocs, getDoc, doc, updateDoc, setDoc, or, addDoc } from 'firebase/firestore';
+import { collection, query, where, getDocs, getDoc, doc, updateDoc, setDoc, or, addDoc, onSnapshot } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { formatStudentName } from '../utils/nameUtils';
@@ -94,29 +94,36 @@ const ApoderadoDashboard = () => {
         return aNum - bNum;
       });
       setMyStudents(students);
-
-      // 2. Fetch Debts
-      if (students.length > 0) {
-        const studentIds = students.map(s => s.id).slice(0, 30); // max 30 for 'in' query
-        const qDebts = query(collection(db, 'debts'), where('studentId', 'in', studentIds));
-        const snapDebts = await getDocs(qDebts);
-        const fetchedDebts = snapDebts.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-        // Ordenar: pendientes primero
-        fetchedDebts.sort((a, b) => {
-          const statusOrder = { pending: 1, partial: 2, review: 3, paid: 4 };
-          if (statusOrder[a.status] !== statusOrder[b.status]) {
-            return statusOrder[a.status] - statusOrder[b.status];
-          }
-          return new Date(b.createdAt) - new Date(a.createdAt);
-        });
-        setDebts(fetchedDebts);
-      }
     } catch (error) {
       console.error("Error fetching data:", error);
     } finally {
       setLoading(false);
     }
   };
+
+  useEffect(() => {
+    if (myStudents.length === 0) return;
+    
+    const studentIds = myStudents.map(s => s.id).slice(0, 30); // max 30 for 'in' query
+    const qDebts = query(collection(db, 'debts'), where('studentId', 'in', studentIds));
+    
+    const unsubscribe = onSnapshot(qDebts, (snapDebts) => {
+      const fetchedDebts = snapDebts.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      // Ordenar: pendientes primero
+      fetchedDebts.sort((a, b) => {
+        const statusOrder = { pending: 1, partial: 2, review: 3, paid: 4 };
+        if (statusOrder[a.status] !== statusOrder[b.status]) {
+          return statusOrder[a.status] - statusOrder[b.status];
+        }
+        return new Date(b.createdAt) - new Date(a.createdAt);
+      });
+      setDebts(fetchedDebts);
+    }, (error) => {
+      console.error("Error listening to debts:", error);
+    });
+
+    return () => unsubscribe();
+  }, [myStudents]);
 
   useEffect(() => {
     if (myStudents.length > 0 && !activeStudentId) {
