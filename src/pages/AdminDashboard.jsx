@@ -779,7 +779,15 @@ const AdminDashboard = () => {
 
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(350px, 1fr))', gap: '1.5rem' }}>
                 <div className="glass-panel" style={{ padding: '2rem' }}>
-                  <h3 style={{ marginBottom: '1.5rem' }}>Últimas Cuotas Emitidas</h3>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
+                    <h3 style={{ margin: 0 }}>Últimas Cuotas Emitidas</h3>
+                    <button 
+                      onClick={() => setCurrentView('expenses_add')} 
+                      style={{ background: 'none', border: 'none', color: 'var(--primary)', cursor: 'pointer', fontSize: '0.9rem', fontWeight: '500', textDecoration: 'underline', padding: 0 }}
+                    >
+                      Ver todas
+                    </button>
+                  </div>
                   {expenses.length === 0 ? (
                     <p style={{ color: 'var(--text-muted)', textAlign: 'center', padding: '1rem' }}>No hay cuotas emitidas todavía.</p>
                   ) : (
