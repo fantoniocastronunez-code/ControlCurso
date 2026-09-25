@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { db } from '../firebase/config';
 import { collection, doc, getDoc, getDocs, query, updateDoc, where, deleteDoc, setDoc, writeBatch } from 'firebase/firestore';
-import { ArrowLeft, CheckCircle, Clock, XCircle, FileText, Download, Trash2, Edit2, Save, X, Calculator, CheckSquare, AlertTriangle, RotateCcw, Sparkles, Check, AlertCircle, RefreshCw } from 'lucide-react';
+import { ArrowLeft, CheckCircle, Clock, XCircle, FileText, Download, Trash2, Edit2, Save, X, Calculator, CheckSquare, AlertTriangle, RotateCcw, Sparkles, Check, AlertCircle, RefreshCw, MessageCircle } from 'lucide-react';
 import { formatStudentName } from '../utils/nameUtils';
 import { useModal } from '../context/ModalContext';
 import { useLockBodyScroll } from '../hooks/useLockBodyScroll';
@@ -49,6 +49,7 @@ const ExpenseDetail = ({ expenseId, onBack }) => {
   const [isManagingStudents, setIsManagingStudents] = useState(false);
   const [selectedManageStudents, setSelectedManageStudents] = useState([]);
   const [manageStudentsSearch, setManageStudentsSearch] = useState('');
+  const [sortBy, setSortBy] = useState('list');
 
   // Detect duplicates
   const duplicateNames = useMemo(() => {
@@ -140,6 +141,54 @@ const ExpenseDetail = ({ expenseId, onBack }) => {
     fetchUsers();
     fetchDetail();
   }, [fetchDetail]);
+
+  const sortedDebts = useMemo(() => {
+    const list = [...debts];
+    if (sortBy === 'debt') {
+      list.sort((a, b) => {
+         const getStatusWeight = (status) => {
+           if (status === 'pending') return 0;
+           if (status === 'review') return 1;
+           if (status === 'partial') return 2;
+           if (status === 'paid') return 3;
+           return 4;
+         };
+         const weightA = getStatusWeight(a.status);
+         const weightB = getStatusWeight(b.status);
+         if (weightA !== weightB) return weightA - weightB;
+         return 0; 
+      });
+    }
+    return list;
+  }, [debts, sortBy]);
+
+  const handleGenerateWhatsappReport = () => {
+    let report = `*Detalle de Deudas - ${expense.title}*\n`;
+    report += `Emitido el: ${expense.date}\n\n`;
+
+    const pending = debts.filter(d => d.status === 'pending' || d.status === 'partial');
+    
+    if (pending.length === 0) {
+      report += "¡Todos los alumnos han pagado!\n";
+    } else {
+      pending.forEach(d => {
+        const student = students.find(s => s.id === d.studentId);
+        const name = student ? formatStudentName(student) : (d.studentName || 'Desconocido');
+        const expected = d.amount || expense.totalAmount || 0;
+        const paid = d.paidAmount || 0;
+        const remaining = expected - paid;
+        
+        report += `• ${name}: ${d.status === 'partial' ? 'Pago Parcial (Falta $' + remaining.toLocaleString('es-CL') + ')' : 'Pendiente ($' + expected.toLocaleString('es-CL') + ')'}\n`;
+      });
+    }
+    
+    navigator.clipboard.writeText(report).then(() => {
+      showAlert('Reporte copiado', 'El detalle de morosos ha sido copiado al portapapeles para enviar por WhatsApp.');
+    }).catch(err => {
+      console.error(err);
+      showAlert('Error', 'No se pudo copiar el reporte al portapapeles.');
+    });
+  };
 
   const processPayment = async (debtId, method, defaultAmount, isApproval = false) => {
     const debtToPay = debts.find(d => d.id === debtId);
@@ -1045,6 +1094,7 @@ const ExpenseDetail = ({ expenseId, onBack }) => {
                 <button onClick={handleStartEdit} className="btn btn-outline" style={{ padding: '0.3rem', borderColor: 'var(--primary)', color: 'var(--primary)' }} title="Editar Cuota"><Edit2 size={16}/></button>
                 <button onClick={handleStartManageStudents} className="btn btn-outline" style={{ padding: '0.3rem', color: 'var(--text)' }} title="Agregar/Quitar Alumnos"><FileText size={16}/></button>
                 <button onClick={handleDeleteExpense} className="btn btn-outline" style={{ padding: '0.3rem', borderColor: 'rgba(239, 68, 68, 0.3)', color: 'var(--danger)' }} title="Eliminar Cuota"><Trash2 size={16}/></button>
+                <button onClick={handleGenerateWhatsappReport} className="btn btn-outline" style={{ padding: '0.3rem', borderColor: '#25D366', color: '#25D366' }} title="Generar reporte WhatsApp de deudas"><MessageCircle size={16}/></button>
               </div>
               <p style={{ color: 'var(--text-muted)' }}>Emitido el: {expense.date}</p>
             </div>
@@ -1175,10 +1225,22 @@ const ExpenseDetail = ({ expenseId, onBack }) => {
         </div>
       )}
 
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
-        <h4 style={{ margin: 0 }}>
-          {isAuditMode ? 'Lista de Alumnos (Modo Auditoría)' : 'Estado de los Alumnos'}
-        </h4>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem', flexWrap: 'wrap', gap: '1rem' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+          <h4 style={{ margin: 0 }}>
+            {isAuditMode ? 'Lista de Alumnos (Modo Auditoría)' : 'Estado de los Alumnos'}
+          </h4>
+          {!isAuditMode && (
+            <select 
+              value={sortBy}
+              onChange={(e) => setSortBy(e.target.value)}
+              style={{ padding: '0.3rem 0.5rem', borderRadius: 'var(--radius-sm)', backgroundColor: 'rgba(255,255,255,0.05)', color: 'var(--text-main)', border: '1px solid var(--border-color)', fontSize: '0.85rem' }}
+            >
+              <option value="list" style={{ color: '#000' }}>Orden por Lista</option>
+              <option value="debt" style={{ color: '#000' }}>Orden por Morosos</option>
+            </select>
+          )}
+        </div>
         {selectedDebts.length > 0 && !isAuditMode && (
           <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', backgroundColor: 'rgba(99,102,241,0.1)', padding: '0.5rem 1rem', borderRadius: 'var(--radius-md)' }}>
             <span style={{ color: 'var(--primary)', fontWeight: 'bold' }}>{selectedDebts.length} seleccionados</span>
@@ -1228,7 +1290,7 @@ const ExpenseDetail = ({ expenseId, onBack }) => {
             </tr>
           </thead>
           <tbody>
-            {debts.map(debt => {
+            {sortedDebts.map(debt => {
               const isExpanded = expandedDebts.includes(debt.id);
               const isAudited = !!auditChecks[debt.id];
               const sysPaidAmt = debt.status === 'paid' 
