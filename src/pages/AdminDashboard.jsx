@@ -57,6 +57,7 @@ const AdminDashboard = () => {
   const [selectedFundForHistory, setSelectedFundForHistory] = useState(null);
   const [isApoderadosModalOpen, setIsApoderadosModalOpen] = useState(false);
   const [isNoApoderadosModalOpen, setIsNoApoderadosModalOpen] = useState(false);
+  const [showAllExpenses, setShowAllExpenses] = useState(false);
   
   // Lista de cuotas
   const [expenses, setExpenses] = useState([]);
@@ -781,18 +782,20 @@ const AdminDashboard = () => {
                 <div className="glass-panel" style={{ padding: '2rem' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
                     <h3 style={{ margin: 0 }}>Últimas Cuotas Emitidas</h3>
-                    <button 
-                      onClick={() => setCurrentView('expenses_add')} 
-                      style={{ background: 'none', border: 'none', color: 'var(--primary)', cursor: 'pointer', fontSize: '0.9rem', fontWeight: '500', textDecoration: 'underline', padding: 0 }}
-                    >
-                      Ver todas
-                    </button>
+                    {expenses.length > 5 && (
+                      <button 
+                        onClick={() => setShowAllExpenses(!showAllExpenses)} 
+                        style={{ background: 'none', border: 'none', color: 'var(--primary)', cursor: 'pointer', fontSize: '0.9rem', fontWeight: '500', textDecoration: 'underline', padding: 0 }}
+                      >
+                        {showAllExpenses ? "Ver menos" : "Ver todas"}
+                      </button>
+                    )}
                   </div>
                   {expenses.length === 0 ? (
                     <p style={{ color: 'var(--text-muted)', textAlign: 'center', padding: '1rem' }}>No hay cuotas emitidas todavía.</p>
                   ) : (
                     <div style={{ display: 'grid', gap: '1rem' }}>
-                      {expenses.slice(0, 5).map(exp => (
+                      {(showAllExpenses ? expenses : expenses.slice(0, 5)).map(exp => (
                         <div 
                           key={exp.id} 
                           style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '1rem', backgroundColor: 'rgba(255,255,255,0.03)', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-color)', cursor: 'pointer', transition: 'all 0.2s' }}
