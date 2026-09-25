@@ -112,6 +112,7 @@ const AdminDashboard = () => {
       const outcomesPromise = getDocs(query(collection(db, 'outcomes'), where('courseId', '==', selectedCourse.id)));
       const incomesPromise = getDocs(query(collection(db, 'incomes'), where('courseId', '==', selectedCourse.id)));
       const transfersPromise = getDocs(query(collection(db, 'fund_transfers'), where('courseId', '==', selectedCourse.id)));
+      const paymentsPromise = getDocs(query(collection(db, 'payments'), where('courseId', '==', selectedCourse.id)));
       
       const usersPromise = (role === 'superadmin' || role === 'admin') 
           ? getDocs(collection(db, 'users')) 
@@ -119,10 +120,10 @@ const AdminDashboard = () => {
 
       const [
         studentsSnap, bankInfoSnap, expensesSnap, fundsSnap, 
-        allDebtsSnap, outcomesSnap, incomesSnap, transfersSnap, usersSnap
+        allDebtsSnap, outcomesSnap, incomesSnap, transfersSnap, usersSnap, paymentsSnap
       ] = await Promise.all([
         studentsPromise, bankInfoPromise, expensesPromise, fundsPromise,
-        debtsPromise, outcomesPromise, incomesPromise, transfersPromise, usersPromise
+        debtsPromise, outcomesPromise, incomesPromise, transfersPromise, usersPromise, paymentsPromise
       ]);
       
       let pendingApprovalsCount = 0;
@@ -279,6 +280,24 @@ const AdminDashboard = () => {
       });
 
       // Calcular balances por fondo y llenar transacciones
+      const debtsWithPayments = new Set();
+      
+      if (paymentsSnap) {
+        paymentsSnap.forEach(docSnap => {
+          const p = docSnap.data();
+          debtsWithPayments.add(p.debtId);
+          allTransactions.push({
+            id: docSnap.id,
+            fundId: p.fundId || 'general',
+            type: 'debt_payment',
+            amount: p.amount,
+            paymentMethod: p.paymentMethod,
+            description: `Pago ${p.status === 'partial' ? 'parcial ' : ''}de ${p.studentName}: ${p.title}`,
+            date: p.createdAt
+          });
+        });
+      }
+
       debtsDocs.forEach(doc => {
         const data = doc.data();
         let fundId = data.fundId || 'general';
@@ -286,14 +305,16 @@ const AdminDashboard = () => {
 
         const amt = typeof data.paidAmount === 'number' ? data.paidAmount : (data.amount || 0);
         
-        if (data.paymentMethod === 'balance') {
-           fundsMap.get(fundId).balance += amt;
-           allTransactions.push({ id: doc.id + '_add', fundId: fundId, type: 'debt_payment', amount: amt, paymentMethod: data.paymentMethod, description: `Pago ${data.studentName ? 'de ' + data.studentName : ''}: ${data.title || 'Cuota'} (Saldo a favor)`, date: data.approvedAt || data.paidAt || data.createdAt });
-           return;
-        }
-        
         fundsMap.get(fundId).balance += amt;
-        allTransactions.push({ id: doc.id, fundId: fundId, type: 'debt_payment', amount: amt, paymentMethod: data.paymentMethod, description: `Pago ${data.studentName ? 'de ' + data.studentName : ''}: ${data.title || 'Cuota'}`, date: data.approvedAt || data.paidAt || data.createdAt });
+
+        // Solo mostrar como movimiento si no tiene historial en la nueva colección 'payments'
+        if (!debtsWithPayments.has(doc.id)) {
+           if (data.paymentMethod === 'balance') {
+              allTransactions.push({ id: doc.id + '_add', fundId: fundId, type: 'debt_payment', amount: amt, paymentMethod: data.paymentMethod, description: `Total pagado por ${data.studentName ? data.studentName : ''}: ${data.title || 'Cuota'} (Saldo a favor)`, date: data.approvedAt || data.paidAt || data.createdAt });
+           } else {
+              allTransactions.push({ id: doc.id, fundId: fundId, type: 'debt_payment', amount: amt, paymentMethod: data.paymentMethod, description: `Total pagado por ${data.studentName ? data.studentName : ''}: ${data.title || 'Cuota'}`, date: data.approvedAt || data.paidAt || data.createdAt });
+           }
+        }
       });
 
       outcomesDocs.forEach(doc => {

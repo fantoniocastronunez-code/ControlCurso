@@ -308,6 +308,7 @@ const ApoderadoDashboard = () => {
       const updateData = {
         status: 'review', // Pasa a revisión del admin
         paidAmount: (payingDebt.paidAmount || 0) + parseFloat(paidAmount),
+        lastPaymentAmount: parseFloat(paidAmount),
         paidAt: new Date().toISOString()
       };
       

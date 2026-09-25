@@ -178,8 +178,8 @@ const StudentRow = React.memo(({
         </>
       ) : (
         <>
-          <td style={{ padding: '0.5rem 1rem', color: 'var(--text-muted)' }}>{s.listNumber || '-'}</td>
-          <td style={{ padding: '0.5rem 1rem', fontWeight: '500', display: 'flex', alignItems: 'center', justifyContent: 'space-between', whiteSpace: 'nowrap' }}>
+          <td data-label="N° Lista" style={{ padding: '0.5rem 1rem', color: 'var(--text-muted)' }}>{s.listNumber || '-'}</td>
+          <td data-label="Nombre Alumno" style={{ padding: '0.5rem 1rem', fontWeight: '500', display: 'flex', alignItems: 'center', justifyContent: 'space-between', whiteSpace: 'nowrap' }}>
             <button 
               onClick={(e) => {
                 e.stopPropagation();
@@ -189,12 +189,9 @@ const StudentRow = React.memo(({
             >
               {formatStudentName(s)} {s.status === 'retirado' && <span style={{fontSize: '0.7rem', color: 'var(--text-muted)', marginLeft: '0.5rem', textDecoration: 'none'}}>(Retirado)</span>}
             </button>
-            <div className="mobile-only-icon" style={{ display: 'none', color: 'var(--text-muted)' }}>
-              {isExpanded ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
-            </div>
           </td>
-          <td style={{ padding: '0.5rem 1rem', color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>{s.rut || '-'}</td>
-          <td style={{ padding: '0.5rem 1rem', color: 'var(--text-muted)' }}>
+          <td data-label="RUT" style={{ padding: '0.5rem 1rem', color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>{s.rut || '-'}</td>
+          <td data-label="Apoderado" style={{ padding: '0.5rem 1rem', color: 'var(--text-muted)' }}>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
               {(s.apoderadoEmails?.length > 0 ? s.apoderadoEmails : (s.apoderadoEmail ? [s.apoderadoEmail] : [])).length > 0 
                 ? (s.apoderadoEmails?.length > 0 ? s.apoderadoEmails : [s.apoderadoEmail]).map((email, idx) => (
@@ -212,14 +209,14 @@ const StudentRow = React.memo(({
               }
             </div>
           </td>
-          <td style={{ padding: '0.5rem 1rem' }}>
+          <td data-label="Saldo a Favor" style={{ padding: '0.5rem 1rem' }}>
             {s.balance > 0 ? (
               <span style={{ color: 'var(--success)', fontWeight: 'bold' }}>{formatMoney(s.balance)}</span>
             ) : (
               <span style={{ color: 'var(--text-muted)' }}>-</span>
             )}
           </td>
-          <td style={{ padding: '0.5rem 1rem' }}>
+          <td data-label="Acciones" style={{ padding: '0.5rem 1rem' }}>
             <div style={{ display: 'flex', gap: '0.5rem' }}>
               {role === 'superadmin' && (
                 <button 
@@ -243,18 +240,6 @@ const StudentRow = React.memo(({
       )}
       </tr>
       
-      {/* Fila expandible para la ficha del alumno */}
-      {selectedStudent?.id === s.id && (
-        <tr className="expanded">
-          <td colSpan="6" style={{ padding: 0 }}>
-            <StudentDetailModal 
-              student={selectedStudent} 
-              usersMap={usersMap} 
-              onClose={() => setSelectedStudent(null)} 
-            />
-          </td>
-        </tr>
-      )}
     </React.Fragment>
   );
 });
@@ -699,7 +684,7 @@ const StudentManagement = ({ onBack }) => {
       </div>
 
       <div className="glass-panel" style={{ overflowX: 'auto' }}>
-        <table className="mobile-accordion students-mode" style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
+        <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
           <thead>
             <tr style={{ borderBottom: '1px solid var(--border-color)', backgroundColor: 'rgba(255,255,255,0.03)' }}>
               <th style={{ padding: '0.75rem 1rem', width: '80px' }}>N°</th>
@@ -740,6 +725,29 @@ const StudentManagement = ({ onBack }) => {
           </div>
         )}
       </div>
+
+      {/* Modal Full Screen para Ficha del Alumno */}
+      {selectedStudent && (
+        <div style={{
+          position: 'fixed',
+          top: 0, left: 0, width: '100vw', height: '100vh',
+          backgroundColor: 'rgba(0, 0, 0, 0.8)',
+          backdropFilter: 'blur(8px)',
+          zIndex: 9999,
+          display: 'flex',
+          justifyContent: 'center',
+          alignItems: 'center',
+          padding: '1rem',
+          overflowY: 'auto'
+        }}>
+          <StudentDetailModal 
+            student={selectedStudent} 
+            usersMap={usersMap} 
+            onClose={() => setSelectedStudent(null)} 
+            isModal={true}
+          />
+        </div>
+      )}
     </div>
   );
 };

@@ -245,6 +245,17 @@ h1, h2, h3, h4, h5, h6 {
     text-align: left !important;
   }
   
+  .glass-panel td::before {
+    content: attr(data-label);
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    margin-bottom: 0.25rem;
+    display: block;
+  }
+
+  
   /* Remove border from the last cell (typically actions) */
   .glass-panel td:last-child {
     border-bottom: none;

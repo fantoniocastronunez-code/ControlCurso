@@ -82,11 +82,25 @@ const ApprovalsManagement = ({ onBack }) => {
       try {
         const data = action.originalData;
         const newStatus = data.paidAmount >= data.amount ? 'paid' : 'partial';
-        import('firebase/firestore').then(async ({ updateDoc, doc }) => {
+        import('firebase/firestore').then(async ({ updateDoc, doc, addDoc, collection }) => {
           await updateDoc(doc(db, 'debts', action.id), {
             status: newStatus,
             approvedAt: new Date().toISOString()
           });
+          
+          const amountToLog = data.lastPaymentAmount || data.paidAmount;
+          await addDoc(collection(db, 'payments'), {
+            debtId: action.id,
+            courseId: data.courseId,
+            fundId: data.fundId || 'general',
+            amount: amountToLog,
+            paymentMethod: data.paymentMethod || 'transfer',
+            studentName: data.studentName,
+            title: data.title,
+            status: newStatus,
+            createdAt: new Date().toISOString()
+          });
+          
           await showAlert('Comprobante aprobado. El pago se ha registrado.');
           fetchActions();
         });

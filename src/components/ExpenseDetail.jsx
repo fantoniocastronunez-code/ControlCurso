@@ -275,6 +275,24 @@ const ExpenseDetail = ({ expenseId, onBack }) => {
         approvedAt: new Date().toISOString()
       });
 
+      // Log real payment transaction
+      const exactPaidNow = isApproval ? approvedAmount : addedAmount;
+      if (exactPaidNow > 0) {
+        import('firebase/firestore').then(async ({ addDoc }) => {
+          await addDoc(collection(db, 'payments'), {
+            debtId: debtId,
+            courseId: selectedCourse.id,
+            fundId: fundId,
+            amount: exactPaidNow,
+            paymentMethod: method,
+            studentName: debtToPay.studentName,
+            title: debtToPay.title,
+            status: newStatus,
+            createdAt: new Date().toISOString()
+          });
+        });
+      }
+
       // Recalcular cuántos alumnos están completamente pagados
       const q = query(collection(db, 'debts'), where('expenseId', '==', expenseId));
       const snap = await getDocs(q);
@@ -453,6 +471,21 @@ const ExpenseDetail = ({ expenseId, onBack }) => {
             ...update.updates,
             approvedAt: new Date().toISOString()
           });
+          
+          import('firebase/firestore').then(async ({ addDoc }) => {
+            const debtToPay = debts.find(d => d.id === update.debtId);
+            await addDoc(collection(db, 'payments'), {
+              debtId: update.debtId,
+              courseId: selectedCourse.id,
+              fundId: debtToPay.fundId || expense.fundId || 'general',
+              amount: update.updates.paidAmount,
+              paymentMethod: update.updates.paymentMethod,
+              studentName: debtToPay.studentName,
+              title: debtToPay.title,
+              status: 'paid',
+              createdAt: new Date().toISOString()
+            });
+          });
         }
         await updateDoc(doc(db, 'expenses', expenseId), {
           paidCount: currentPaidCount + newlyPaidCount
@@ -518,6 +551,20 @@ const ExpenseDetail = ({ expenseId, onBack }) => {
           paidAmount: newPaidAmount,
           paymentMethod: 'balance',
           approvedAt: new Date().toISOString()
+        });
+
+        import('firebase/firestore').then(async ({ addDoc }) => {
+          await addDoc(collection(db, 'payments'), {
+            debtId: debtId,
+            courseId: selectedCourse.id,
+            fundId: debtToPay.fundId || expense.fundId || 'general',
+            amount: amountToUse,
+            paymentMethod: 'balance',
+            studentName: debtToPay.studentName,
+            title: debtToPay.title,
+            status: isFullyPaid ? 'paid' : 'partial',
+            createdAt: new Date().toISOString()
+          });
         });
 
         // 2. Descontar saldo del estudiante
