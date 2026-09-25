@@ -280,29 +280,43 @@ const ApoderadoDashboard = () => {
 
   const handlePaymentSubmit = async (e) => {
     e.preventDefault();
-    if (!receiptFile || !paidAmount) {
-      await showAlert("Debes ingresar el monto y adjuntar un comprobante.");
+    if (!paidAmount) {
+      await showAlert("Debes ingresar el monto que estás informando.");
       return;
     }
 
     setUploading(true);
     try {
-      // Subir archivo a Storage
-      const fileExt = receiptFile.name.split('.').pop();
-      const fileName = `receipts/${payingDebt.id}_${Date.now()}.${fileExt}`;
-      const storageRef = ref(storage, fileName);
-      
-      await uploadBytes(storageRef, receiptFile);
-      const downloadURL = await getDownloadURL(storageRef);
+      let downloadURL = null;
+
+      if (receiptFile) {
+        try {
+          // Subir archivo a Storage
+          const fileExt = receiptFile.name.split('.').pop();
+          const fileName = `receipts/${payingDebt.id}_${Date.now()}.${fileExt}`;
+          const storageRef = ref(storage, fileName);
+          
+          await uploadBytes(storageRef, receiptFile);
+          downloadURL = await getDownloadURL(storageRef);
+        } catch (uploadError) {
+          console.error("Error al subir comprobante:", uploadError);
+          await showAlert("No pudimos subir tu foto (posible error de permisos), pero tu pago será registrado de todas formas.");
+        }
+      }
 
       // Actualizar la deuda en Firestore
-      const debtRef = doc(db, 'debts', payingDebt.id);
-      await updateDoc(debtRef, {
+      const updateData = {
         status: 'review', // Pasa a revisión del admin
         paidAmount: (payingDebt.paidAmount || 0) + parseFloat(paidAmount),
-        receiptUrl: downloadURL,
         paidAt: new Date().toISOString()
-      });
+      };
+      
+      if (downloadURL) {
+        updateData.receiptUrl = downloadURL;
+      }
+
+      const debtRef = doc(db, 'debts', payingDebt.id);
+      await updateDoc(debtRef, updateData);
 
       // Notificar a superadmin y tesoreros por correo
       try {
@@ -353,8 +367,8 @@ const ApoderadoDashboard = () => {
       fetchData();
 
     } catch (error) {
-      console.error("Error al subir comprobante:", error);
-      await showAlert("Hubo un error al procesar tu pago. Asegúrate de que las reglas de Firebase Storage permitan subidas.");
+      console.error("Error al registrar pago:", error);
+      await showAlert("Hubo un error al procesar tu pago. Por favor intenta de nuevo.");
     } finally {
       setUploading(false);
     }
@@ -722,10 +736,9 @@ const ApoderadoDashboard = () => {
             </div>
 
             <div className="input-group" style={{ marginBottom: 0 }}>
-              <label className="input-label">Comprobante (Imagen o PDF)</label>
+              <label className="input-label">Comprobante (Imagen o PDF) - Opcional</label>
               <input 
                 type="file" 
-                required
                 accept="image/*,.pdf"
                 className="input-field" 
                 style={{ padding: '0.5rem' }}
