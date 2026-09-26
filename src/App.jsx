@@ -1,4 +1,5 @@
 import React from 'react';
+import { Analytics } from '@vercel/analytics/react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { CourseProvider } from './context/CourseContext';
@@ -99,6 +100,7 @@ function App() {
           <BrowserRouter>
             <VersionChecker />
             <AppRoutes />
+            <Analytics />
           </BrowserRouter>
         </CourseProvider>
       </AuthProvider>
