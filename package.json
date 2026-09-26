@@ -12,6 +12,7 @@
   "dependencies": {
     "@google/genai": "^2.21.0",
     "@vercel/analytics": "^2.0.1",
+    "@vercel/speed-insights": "^2.0.0",
     "firebase": "^12.18.0",
     "html2canvas": "^1.4.1",
     "jspdf": "^4.2.1",
