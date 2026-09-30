@@ -103,6 +103,12 @@ service cloud.firestore {
       allow create, update, delete: if isAuthenticated() && isCourseAdmin(resource.data.courseId);
     }
     
+    match /payments/{paymentId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated() && isCourseAdmin(request.resource.data.courseId);
+      allow update, delete: if isAuthenticated() && isCourseAdmin(resource.data.courseId);
+    }
+    
     match /funds/{fundId} {
       allow read: if isAuthenticated();
       allow create: if isAuthenticated() && isCourseAdmin(request.resource.data.courseId);
