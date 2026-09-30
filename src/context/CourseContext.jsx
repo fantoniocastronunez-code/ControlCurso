@@ -63,7 +63,7 @@ export const CourseProvider = ({ children }) => {
     };
 
     fetchCourses();
-  }, [user, role]);
+  }, [user, role, userData]);
 
   const changeCourse = async (courseId) => {
     const course = courses.find(c => c.id === courseId);
