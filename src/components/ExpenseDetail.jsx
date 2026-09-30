@@ -1332,6 +1332,7 @@ const ExpenseDetail = ({ expenseId, onBack }) => {
                   <th style={{ padding: '1rem' }}>Estado</th>
                   <th style={{ padding: '1rem' }}>Monto A Cobrar</th>
                   <th style={{ padding: '1rem' }}>Monto Informado</th>
+                  <th style={{ padding: '1rem' }}>Saldo Restante</th>
                   <th style={{ padding: '1rem' }}>Comprobante</th>
                   <th style={{ padding: '1rem' }}>Acciones</th>
                 </>
@@ -1631,6 +1632,14 @@ const ExpenseDetail = ({ expenseId, onBack }) => {
                           </button>
                         )}
                       </div>
+                    </td>
+
+                    <td style={{ padding: '1rem', color: 'var(--warning)', fontWeight: 'bold' }}>
+                      {debt.paidAmount > 0 && debt.paidAmount < debt.amount ? (
+                        formatMoney(debt.amount - debt.paidAmount)
+                      ) : (
+                        '-'
+                      )}
                     </td>
 
                     <td style={{ padding: '1rem' }}>
