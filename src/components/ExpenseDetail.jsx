@@ -194,6 +194,7 @@ const ExpenseDetail = ({ expenseId, onBack }) => {
     const debtToPay = debts.find(d => d.id === debtId);
     
     let finalTotalPaid = 0;
+    let exactPaidNow = 0;
 
     if (isApproval) {
       // En aprobaciones, el apoderado ya subió un comprobante y reportó un monto que reemplaza al actual (o es el primero).
@@ -209,6 +210,7 @@ const ExpenseDetail = ({ expenseId, onBack }) => {
         return;
       }
       finalTotalPaid = approvedAmount;
+      exactPaidNow = approvedAmount;
     } else {
       // Pago manual (Efectivo/Transferencia) reportado por el admin.
       const currentPaid = debtToPay.paidAmount || 0;
@@ -230,6 +232,7 @@ const ExpenseDetail = ({ expenseId, onBack }) => {
       
       // Sumamos al monto ya pagado
       finalTotalPaid = currentPaid + addedAmount;
+      exactPaidNow = addedAmount;
     }
 
     try {
@@ -276,7 +279,6 @@ const ExpenseDetail = ({ expenseId, onBack }) => {
       });
 
       // Log real payment transaction
-      const exactPaidNow = isApproval ? approvedAmount : addedAmount;
       if (exactPaidNow > 0) {
         import('firebase/firestore').then(async ({ addDoc }) => {
           await addDoc(collection(db, 'payments'), {
