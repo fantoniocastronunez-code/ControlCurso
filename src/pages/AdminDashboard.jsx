@@ -413,6 +413,7 @@ const AdminDashboard = () => {
 
     } catch (error) {
       console.error("Error fetching dashboard data:", error);
+      showAlert(`Error al cargar datos del panel: ${error.message}`);
     } finally {
       setLoading(false);
     }
