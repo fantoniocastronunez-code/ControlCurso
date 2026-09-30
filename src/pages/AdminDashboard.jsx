@@ -817,7 +817,10 @@ const AdminDashboard = () => {
                     <p style={{ color: 'var(--text-muted)', textAlign: 'center', padding: '1rem' }}>No hay cuotas emitidas todavía.</p>
                   ) : (
                     <div style={{ display: 'grid', gap: '1rem' }}>
-                      {(showAllExpenses ? expenses : expenses.slice(0, 5)).map(exp => (
+                      {[...expenses]
+                        .sort((a, b) => (a.paidCount >= a.studentsCount) - (b.paidCount >= b.studentsCount))
+                        .slice(0, showAllExpenses ? expenses.length : 5)
+                        .map(exp => (
                         <div 
                           key={exp.id} 
                           style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '1rem', backgroundColor: 'rgba(255,255,255,0.03)', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-color)', cursor: 'pointer', transition: 'all 0.2s' }}
