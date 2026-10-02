@@ -4,10 +4,12 @@ import { collection, getDocs, doc, setDoc, query, orderBy, deleteDoc, where } fr
 import { ArrowLeft, PlusCircle, CheckCircle, Calendar, X, Save, Trash2 } from 'lucide-react';
 import { useModal } from '../../context/ModalContext';
 import { formatStudentName } from '../../utils/nameUtils';
+import { useAuth } from '../../context/AuthContext';
 import EventDetail from './EventDetail';
 import { useCourse } from '../../context/CourseContext';
 
 const EventManagement = ({ onBack }) => {
+  const { user } = useAuth();
   const { showAlert, showConfirm } = useModal();
   const { selectedCourse } = useCourse();
   const [events, setEvents] = useState([]);
@@ -79,6 +81,7 @@ const EventManagement = ({ onBack }) => {
         fundId: fundId,
         courseId: selectedCourse.id,
         createdAt: new Date().toISOString(),
+        createdBy: user?.email || user?.displayName || 'Unknown User',
         status: 'active',
         isTestEvent: isTestEvent
       };

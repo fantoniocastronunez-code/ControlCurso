@@ -3,8 +3,10 @@ import { db } from '../../../firebase/config';
 import { collection, getDocs, doc, setDoc, query, where } from 'firebase/firestore';
 import { Plus, DollarSign } from 'lucide-react';
 import { useModal } from '../../../context/ModalContext';
+import { useAuth } from '../../../context/AuthContext';
 
 const EventExpenses = ({ event }) => {
+  const { user } = useAuth();
   const { showAlert } = useModal();
   const [outcomes, setOutcomes] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -53,7 +55,8 @@ const EventExpenses = ({ event }) => {
         responsable: responsable.trim(),
         fundId: event.fundId,
         eventId: event.id,
-        createdAt: new Date().toISOString()
+        createdAt: new Date().toISOString(),
+        createdBy: user?.email || user?.displayName || 'Unknown User'
       };
       
       await setDoc(doc(db, 'outcomes', id), newOutcome);

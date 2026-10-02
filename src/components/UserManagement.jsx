@@ -23,6 +23,7 @@ const UserManagement = ({ onBack, viewMode = 'users' }) => {
   // Estados para edición
   const [editingId, setEditingId] = useState(null);
   const [editName, setEditName] = useState('');
+  const [editCanAccessEvents, setEditCanAccessEvents] = useState(false);
   const [selectedImage, setSelectedImage] = useState(null);
 
   useEffect(() => {
@@ -146,22 +147,25 @@ const UserManagement = ({ onBack, viewMode = 'users' }) => {
   const startEditing = (user) => {
     setEditingId(user.id);
     setEditName(user.displayName || '');
+    setEditCanAccessEvents(user.canAccessEvents || false);
   };
 
   const cancelEditing = () => {
     setEditingId(null);
     setEditName('');
+    setEditCanAccessEvents(false);
   };
 
   const handleSaveEdit = async () => {
     try {
       const userRef = doc(db, 'users', editingId);
       await updateDoc(userRef, {
-        displayName: editName
+        displayName: editName,
+        canAccessEvents: editCanAccessEvents
       });
       
       setUsers(users.map(u => 
-        u.id === editingId ? { ...u, displayName: editName } : u
+        u.id === editingId ? { ...u, displayName: editName, canAccessEvents: editCanAccessEvents } : u
       ));
       
       setMessage('Usuario modificado correctamente');
@@ -268,13 +272,23 @@ const UserManagement = ({ onBack, viewMode = 'users' }) => {
                 {editingId === u.id ? (
                   <>
                     <td style={{ padding: '1rem' }}>
-                      <input 
-                        type="text" 
-                        className="input-field" 
-                        value={editName} 
-                        onChange={(e) => setEditName(e.target.value)}
-                        style={{ padding: '0.4rem' }}
-                      />
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                        <input 
+                          type="text" 
+                          className="input-field" 
+                          value={editName} 
+                          onChange={(e) => setEditName(e.target.value)}
+                          style={{ padding: '0.4rem' }}
+                        />
+                        <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.85rem' }}>
+                          <input 
+                            type="checkbox" 
+                            checked={editCanAccessEvents} 
+                            onChange={(e) => setEditCanAccessEvents(e.target.checked)} 
+                          />
+                          Habilitar Eventos y POS
+                        </label>
+                      </div>
                     </td>
                     <td style={{ padding: '1rem', color: 'var(--text-muted)' }}>{u.email}</td>
                     <td style={{ padding: '1rem' }}>
@@ -363,6 +377,11 @@ const UserManagement = ({ onBack, viewMode = 'users' }) => {
                                 </span>
                               );
                             })
+                        )}
+                        {u.canAccessEvents && (
+                          <span style={{ padding: '0.25rem 0.5rem', borderRadius: '4px', fontSize: '0.8rem', backgroundColor: 'rgba(16, 185, 129, 0.1)', color: 'var(--success)', width: 'max-content' }}>
+                            Acceso Eventos/POS
+                          </span>
                         )}
                       </div>
                     </td>

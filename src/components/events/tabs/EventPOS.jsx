@@ -3,9 +3,11 @@ import { db } from '../../../firebase/config';
 import { collection, getDocs, doc, setDoc, query, where, orderBy, updateDoc, deleteDoc } from 'firebase/firestore';
 import { ShoppingCart, Plus, Minus, Trash2, Printer, Maximize, Minimize } from 'lucide-react';
 import { useModal } from '../../../context/ModalContext';
+import { useAuth } from '../../../context/AuthContext';
 import ThermalReceipt from './ThermalReceipt';
 
 const EventPOS = ({ event }) => {
+  const { user } = useAuth();
   const { showAlert, showConfirm } = useModal();
   const [items, setItems] = useState([]);
   const [sales, setSales] = useState([]);
@@ -159,7 +161,8 @@ const EventPOS = ({ event }) => {
         paymentMethod,
         items: cart,
         total: cartTotal,
-        createdAt: new Date().toISOString()
+        createdAt: new Date().toISOString(),
+        createdBy: user?.email || user?.displayName || 'Unknown User'
       };
 
       // 1. Guardar Venta
@@ -175,7 +178,8 @@ const EventPOS = ({ event }) => {
         fundId: event.fundId,
         eventId: event.id,
         saleId: saleId,
-        createdAt: new Date().toISOString()
+        createdAt: new Date().toISOString(),
+        createdBy: user?.email || user?.displayName || 'Unknown User'
       });
 
       // Actualizar estado local

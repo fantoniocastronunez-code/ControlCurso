@@ -1314,7 +1314,7 @@ const ExpenseDetail = ({ expenseId, onBack }) => {
                   <th style={{ padding: '1rem', width: '160px' }}>Monto Manual ($)</th>
                   <th style={{ padding: '1rem' }}>Cuadratura</th>
                   <th style={{ padding: '1rem' }}>Comprobante</th>
-                  <th style={{ padding: '1rem' }}>Acciones</th>
+                  <th style={{ padding: '1rem', minWidth: '150px' }}>Acciones</th>
                 </>
               ) : (
                 <>
@@ -1334,7 +1334,7 @@ const ExpenseDetail = ({ expenseId, onBack }) => {
                   <th style={{ padding: '1rem' }}>Monto Informado</th>
                   <th style={{ padding: '1rem' }}>Saldo Restante</th>
                   <th style={{ padding: '1rem' }}>Comprobante</th>
-                  <th style={{ padding: '1rem' }}>Acciones</th>
+                  <th style={{ padding: '1rem', minWidth: '220px' }}>Acciones</th>
                 </>
               )}
             </tr>

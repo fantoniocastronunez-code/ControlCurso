@@ -30,7 +30,7 @@ const ProtectedRoute = ({ children, allowedRoles }) => {
     return <Navigate to="/login" replace />;
   }
   
-  const hasAdminRole = role === 'superadmin' || (userData && userData.roles && Object.values(userData.roles).some(r => ['admin', 'superadmin', 'presidente', 'tesorero'].includes(r)));
+  const hasAdminRole = role === 'superadmin' || (userData && userData.roles && Object.values(userData.roles).some(r => ['admin', 'superadmin', 'presidente', 'tesorero'].includes(r))) || (userData && userData.canAccessEvents === true);
   const hasApoderadoRole = userData && userData.roles && Object.values(userData.roles).some(r => r === 'apoderado');
 
   const isAllowed = allowedRoles.some(r => {
@@ -58,7 +58,7 @@ const AppRoutes = () => {
         element={
           user && !hasNoRoles ? (
             <Navigate to={
-              role === 'superadmin' || (userData && userData.roles && Object.values(userData.roles).some(r => ['admin', 'superadmin', 'presidente', 'tesorero'].includes(r))) 
+              role === 'superadmin' || (userData && userData.roles && Object.values(userData.roles).some(r => ['admin', 'superadmin', 'presidente', 'tesorero'].includes(r))) || (userData && userData.canAccessEvents === true)
                 ? '/admin' 
                 : '/apoderado'
             } replace />

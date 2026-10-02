@@ -3,8 +3,10 @@ import { db } from '../../../firebase/config';
 import { collection, getDocs, doc, setDoc, updateDoc, query, where, deleteDoc } from 'firebase/firestore';
 import { Plus, Trash2, Edit2 } from 'lucide-react';
 import { useModal } from '../../../context/ModalContext';
+import { useAuth } from '../../../context/AuthContext';
 
 const EventMenu = ({ event }) => {
+  const { user } = useAuth();
   const { showAlert, showConfirm } = useModal();
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -48,7 +50,8 @@ const EventMenu = ({ event }) => {
         subproducts: hasSubproducts ? subproducts.filter(sp => sp.name.trim() !== '').map(sp => ({
           name: sp.name.trim(),
           price: parseFloat(sp.price || 0)
-        })) : []
+        })) : [],
+        createdBy: user?.email || user?.displayName || 'Unknown User'
       };
       
       if (editingItemId) {
