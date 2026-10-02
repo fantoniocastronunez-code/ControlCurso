@@ -1328,7 +1328,6 @@ const ExpenseDetail = ({ expenseId, onBack }) => {
                     />
                   </th>
                   <th style={{ padding: '1rem' }}>Alumno</th>
-                  <th style={{ padding: '1rem' }}>Apoderado</th>
                   <th style={{ padding: '1rem' }}>Estado</th>
                   <th style={{ padding: '1rem' }}>Monto A Cobrar</th>
                   <th style={{ padding: '1rem' }}>Monto Informado</th>
@@ -1564,20 +1563,6 @@ const ExpenseDetail = ({ expenseId, onBack }) => {
                                 <strong>{formatMoney(student.balance)}</strong>
                               </div>
                             )}
-                          </div>
-                        );
-                      })()}
-                    </td>
-                    <td style={{ padding: '1rem', color: 'var(--text-muted)' }}>
-                      {(() => {
-                        const student = students.find(s => s.id === debt.studentId);
-                        const emails = student?.apoderadoEmails?.length > 0 ? student.apoderadoEmails : (student?.apoderadoEmail ? [student.apoderadoEmail] : (debt.apoderadoEmails?.length > 0 ? debt.apoderadoEmails : (debt.apoderadoEmail ? [debt.apoderadoEmail] : [])));
-                        if (!emails || emails.length === 0) return 'Sin apoderado';
-                        return (
-                          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
-                            {emails.map((email, idx) => (
-                              <span key={idx} style={{ fontSize: '0.85rem' }}>{email}</span>
-                            ))}
                           </div>
                         );
                       })()}
