@@ -439,6 +439,38 @@ const ExpenseDetail = ({ expenseId, onBack }) => {
     await processPayment(debtId, method, debtToPay.amount, false);
   };
 
+  const handleCancelPayment = async (debtId) => {
+    const debtToCancel = debts.find(d => d.id === debtId);
+    if (!debtToCancel) return;
+    
+    if (!(await showConfirm('¿Estás seguro de que deseas cancelar este pago?', 'El registro volverá a estar Pendiente.'))) return;
+    
+    setLoading(true);
+    try {
+      await updateDoc(doc(db, 'debts', debtId), {
+        status: 'pending',
+        paidAmount: 0,
+        paymentMethod: null,
+        receiptUrl: null,
+        approvedAt: null
+      });
+
+      const q = query(collection(db, 'debts'), where('expenseId', '==', expenseId));
+      const snap = await getDocs(q);
+      const updatedFullyPaidCount = snap.docs.filter(d => d.data().status === 'paid').length;
+      
+      await updateDoc(doc(db, 'expenses', expenseId), {
+        paidCount: updatedFullyPaidCount
+      });
+
+      fetchDetail();
+    } catch (error) {
+      console.error("Error al cancelar pago:", error);
+      await showAlert("Hubo un error al cancelar el pago.");
+      setLoading(false);
+    }
+  };
+
   const handleBulkPayment = async (method) => {
     if (selectedDebts.length === 0) return;
     if (!(await showConfirm(`¿Registrar pago masivo a ${selectedDebts.length} alumnos en ${method === 'cash' ? 'Efectivo' : 'Transferencia'}?`))) return;
