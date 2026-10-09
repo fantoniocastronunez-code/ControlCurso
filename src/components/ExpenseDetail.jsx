@@ -455,6 +455,13 @@ const ExpenseDetail = ({ expenseId, onBack }) => {
         approvedAt: null
       });
 
+      // Eliminar historial de pagos en la colección "payments" para esta cuota
+      const paymentsQ = query(collection(db, 'payments'), where('debtId', '==', debtId));
+      const paymentsSnap = await getDocs(paymentsQ);
+      for (const pDoc of paymentsSnap.docs) {
+        await deleteDoc(doc(db, 'payments', pDoc.id));
+      }
+
       const q = query(collection(db, 'debts'), where('expenseId', '==', expenseId));
       const snap = await getDocs(q);
       const updatedFullyPaidCount = snap.docs.filter(d => d.data().status === 'paid').length;

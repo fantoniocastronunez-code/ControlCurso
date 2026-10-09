@@ -281,10 +281,18 @@ const AdminDashboard = () => {
 
       // Calcular balances por fondo y llenar transacciones
       const debtsWithPayments = new Set();
+      const debtsMap = new Map();
+      debtsDocs.forEach(d => debtsMap.set(d.id, d.data()));
       
       if (paymentsSnap) {
         paymentsSnap.forEach(docSnap => {
           const p = docSnap.data();
+          
+          const relatedDebt = debtsMap.get(p.debtId);
+          if (relatedDebt && (relatedDebt.status === 'pending' || !relatedDebt.paidAmount)) {
+             return; // Ignorar pagos huérfanos de cuotas canceladas
+          }
+
           debtsWithPayments.add(p.debtId);
           allTransactions.push({
             id: docSnap.id,
