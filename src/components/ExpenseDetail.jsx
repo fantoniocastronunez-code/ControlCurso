@@ -412,9 +412,23 @@ const ExpenseDetail = ({ expenseId, onBack }) => {
 
     setLoading(true);
     try {
+      let newStatus = 'pending';
+      if (newAmount >= debtToEdit.amount) newStatus = 'paid';
+      else if (newAmount > 0) newStatus = 'partial';
+
       await updateDoc(doc(db, 'debts', debtId), {
-        paidAmount: newAmount
+        paidAmount: newAmount,
+        status: newStatus
       });
+
+      const q = query(collection(db, 'debts'), where('expenseId', '==', expenseId));
+      const snap = await getDocs(q);
+      const updatedFullyPaidCount = snap.docs.filter(d => d.data().status === 'paid').length;
+      
+      await updateDoc(doc(db, 'expenses', expenseId), {
+        paidCount: updatedFullyPaidCount
+      });
+
       fetchDetail();
     } catch (error) {
       console.error("Error modificando pago:", error);
