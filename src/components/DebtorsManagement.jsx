@@ -1,10 +1,11 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { db } from '../firebase/config';
 import { collection, query, where, getDocs, doc, updateDoc, addDoc } from 'firebase/firestore';
-import { ArrowLeft, Bell, CheckCircle } from 'lucide-react';
+import { ArrowLeft, Bell, CheckCircle, Download, CheckSquare, Square } from 'lucide-react';
 import { useModal } from '../context/ModalContext';
 import { useCourse } from '../context/CourseContext';
 import { formatStudentName } from '../utils/nameUtils';
+import { jsPDF } from 'jspdf';
 
 const DebtorsManagement = ({ onBack }) => {
   const { showAlert } = useModal();
@@ -14,6 +15,9 @@ const DebtorsManagement = ({ onBack }) => {
   const [loading, setLoading] = useState(true);
   const [notifying, setNotifying] = useState(null); // guardará el email del que está siendo notificado
   const [message, setMessage] = useState('');
+
+  const [selectedDebtors, setSelectedDebtors] = useState(new Set());
+  const [generatingPdf, setGeneratingPdf] = useState(false);
 
   const fetchUsers = useCallback(async () => {
     try {
@@ -188,19 +192,172 @@ const DebtorsManagement = ({ onBack }) => {
     return new Intl.NumberFormat('es-CL', { style: 'currency', currency: 'CLP' }).format(amount);
   };
 
+  const debtorsList = Object.values(debtors);
+
+  const handleToggleSelect = (email) => {
+    const newSet = new Set(selectedDebtors);
+    if (newSet.has(email)) {
+      newSet.delete(email);
+    } else {
+      newSet.add(email);
+    }
+    setSelectedDebtors(newSet);
+  };
+
+  const handleSelectAll = () => {
+    if (selectedDebtors.size === debtorsList.length) {
+      setSelectedDebtors(new Set());
+    } else {
+      setSelectedDebtors(new Set(debtorsList.map(d => d.email)));
+    }
+  };
+
+  const generatePDF = async () => {
+    if (selectedDebtors.size === 0) {
+      await showAlert("Por favor selecciona al menos un apoderado.");
+      return;
+    }
+
+    setGeneratingPdf(true);
+    try {
+      const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+      const pageWidth = doc.internal.pageSize.getWidth();
+      const pageHeight = doc.internal.pageSize.getHeight();
+      let y = 15;
+
+      const primaryColor = [99, 102, 241];
+      const textMain = [30, 41, 59];
+      const textMuted = [100, 116, 139];
+      const dangerColor = [239, 68, 68];
+
+      doc.setFillColor(15, 23, 42);
+      doc.roundedRect(12, y, pageWidth - 24, 28, 3, 3, 'F');
+      
+      doc.setTextColor(255, 255, 255);
+      doc.setFontSize(16);
+      doc.setFont('helvetica', 'bold');
+      doc.text("Resumen de Deudas Impagas", 18, y + 11);
+      
+      const today = new Date().toISOString().split('T')[0];
+      doc.setFontSize(9);
+      doc.setFont('helvetica', 'normal');
+      doc.setTextColor(148, 163, 184);
+      doc.text(`Fecha del Informe: ${today}  •  Generado automáticamente`, 18, y + 19);
+
+      y += 35;
+
+      const selectedList = debtorsList.filter(d => selectedDebtors.has(d.email));
+
+      selectedList.forEach((data, index) => {
+        if (y > pageHeight - 40) {
+          doc.addPage();
+          y = 15;
+        }
+
+        const apoderadoName = data.emailsArray.length > 0 
+          ? data.emailsArray.map(e => usersMap[e] || e).join(' / ') 
+          : data.email;
+
+        doc.setFillColor(248, 250, 252);
+        doc.setDrawColor(226, 232, 240);
+        doc.roundedRect(14, y, pageWidth - 28, 12, 2, 2, 'FD');
+
+        doc.setTextColor(textMain[0], textMain[1], textMain[2]);
+        doc.setFontSize(11);
+        doc.setFont('helvetica', 'bold');
+        doc.text(`Apoderado: ${apoderadoName}`, 18, y + 8);
+        
+        doc.setTextColor(dangerColor[0], dangerColor[1], dangerColor[2]);
+        doc.text(`Total: ${formatMoney(data.totalAmount)}`, pageWidth - 18, y + 8, { align: 'right' });
+
+        y += 16;
+
+        const debtsByStudent = {};
+        data.debts.forEach(d => {
+          if (!debtsByStudent[d.studentName]) debtsByStudent[d.studentName] = [];
+          debtsByStudent[d.studentName].push(d);
+        });
+
+        Object.entries(debtsByStudent).forEach(([studentName, studentDebts]) => {
+          if (y > pageHeight - 30) {
+            doc.addPage();
+            y = 15;
+          }
+          
+          doc.setFontSize(9);
+          doc.setFont('helvetica', 'bold');
+          doc.setTextColor(textMain[0], textMain[1], textMain[2]);
+          doc.text(`Alumno: ${studentName}`, 18, y);
+          y += 6;
+
+          studentDebts.forEach(d => {
+            if (y > pageHeight - 20) {
+              doc.addPage();
+              y = 15;
+            }
+            doc.setFontSize(9);
+            doc.setFont('helvetica', 'normal');
+            doc.setTextColor(textMuted[0], textMuted[1], textMuted[2]);
+            const debtTitle = `${d.title}${d.status === 'partial' ? ' (Saldo Restante)' : ''}`;
+            const titleStr = debtTitle.length > 60 ? debtTitle.substring(0, 57) + '...' : debtTitle;
+            doc.text(`• ${titleStr}`, 22, y);
+            
+            doc.setFont('helvetica', 'bold');
+            doc.setTextColor(textMain[0], textMain[1], textMain[2]);
+            doc.text(formatMoney(d.remainingAmount || d.amount), pageWidth - 18, y, { align: 'right' });
+            y += 5;
+          });
+          y += 4;
+        });
+
+        y += 8;
+      });
+
+      doc.save(`Deudas_Apoderados_${today}.pdf`);
+      await showAlert("¡PDF de Deudas generado exitosamente!");
+
+    } catch (error) {
+      console.error(error);
+      await showAlert("Hubo un error al generar el PDF.");
+    } finally {
+      setGeneratingPdf(false);
+    }
+  };
+
   if (loading) {
     return <div style={{ textAlign: 'center', padding: '2rem' }}>Cargando morosos...</div>;
   }
 
-  const debtorsList = Object.values(debtors);
-
   return (
     <div className="animate-fade-in">
-      <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginBottom: '2rem' }}>
-        <button onClick={onBack} className="btn btn-outline" style={{ padding: '0.5rem' }}>
-          <ArrowLeft size={18} />
-        </button>
-        <h3 style={{ margin: 0 }}>Apoderados en Deuda</h3>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '2rem', flexWrap: 'wrap', gap: '1rem' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+          <button onClick={onBack} className="btn btn-outline" style={{ padding: '0.5rem' }}>
+            <ArrowLeft size={18} />
+          </button>
+          <h3 style={{ margin: 0 }}>Apoderados en Deuda</h3>
+        </div>
+        
+        {debtorsList.length > 0 && (
+          <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>
+            <button 
+              onClick={handleSelectAll}
+              className="btn btn-outline"
+            >
+              {selectedDebtors.size === debtorsList.length ? <Square size={16} /> : <CheckSquare size={16} />}
+              {selectedDebtors.size === debtorsList.length ? 'Deseleccionar Todos' : 'Seleccionar Todos'}
+            </button>
+            <button 
+              onClick={generatePDF}
+              disabled={generatingPdf || selectedDebtors.size === 0}
+              className="btn btn-primary"
+              style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}
+            >
+              <Download size={16} />
+              {generatingPdf ? 'Generando...' : `Generar PDF (${selectedDebtors.size})`}
+            </button>
+          </div>
+        )}
       </div>
 
       {message && (
@@ -219,25 +376,44 @@ const DebtorsManagement = ({ onBack }) => {
         </div>
       ) : (
         <div style={{ display: 'grid', gap: '1.5rem' }}>
-          {debtorsList.map((data, idx) => (
-            <div key={idx} className="glass-panel" style={{ padding: '1.5rem', borderLeft: '4px solid var(--danger)' }}>
+          {debtorsList.map((data, idx) => {
+            const isSelected = selectedDebtors.has(data.email);
+            return (
+            <div 
+              key={idx} 
+              className="glass-panel" 
+              style={{ 
+                padding: '1.5rem', 
+                borderLeft: isSelected ? '4px solid var(--primary)' : '4px solid var(--danger)',
+                backgroundColor: isSelected ? 'rgba(99, 102, 241, 0.03)' : 'var(--panel-bg)',
+                transition: 'all 0.2s ease'
+              }}
+            >
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '1rem' }}>
-                <div>
-                  <h4 style={{ margin: 0, fontSize: '1.2rem', color: 'var(--danger)' }}>
-                    {data.emailsArray.length > 0 
-                      ? data.emailsArray.map(email => usersMap[email] || email).join(' / ') 
-                      : data.email}
-                  </h4>
+                <div style={{ flex: '1', minWidth: '300px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginBottom: '0.5rem' }}>
+                    <div 
+                      onClick={() => handleToggleSelect(data.email)} 
+                      style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', color: isSelected ? 'var(--primary)' : 'var(--text-muted)' }}
+                    >
+                      {isSelected ? <CheckSquare size={22} /> : <Square size={22} />}
+                    </div>
+                    <h4 style={{ margin: 0, fontSize: '1.2rem', color: 'var(--danger)' }}>
+                      {data.emailsArray.length > 0 
+                        ? data.emailsArray.map(email => usersMap[email] || email).join(' / ') 
+                        : data.email}
+                    </h4>
+                  </div>
                   {data.email !== 'Sin Apoderado' && (
-                    <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', margin: '0.25rem 0 0 0' }}>
+                    <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', margin: '0.25rem 0 0 2.5rem' }}>
                       {data.email}
                     </p>
                   )}
-                  <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem', marginTop: '0.5rem' }}>
+                  <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem', marginTop: '0.5rem', marginLeft: '2.5rem' }}>
                     Alumnos a cargo: {Array.from(data.students).join(', ')}
                   </p>
                   
-                  <div style={{ marginTop: '1.5rem' }}>
+                  <div style={{ marginTop: '1.5rem', marginLeft: '2.5rem' }}>
                     <p style={{ fontSize: '0.85rem', fontWeight: 'bold', marginBottom: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--primary)' }}>Detalle por Alumno:</p>
                     
                     {(() => {
@@ -292,7 +468,7 @@ const DebtorsManagement = ({ onBack }) => {
                 </div>
               </div>
             </div>
-          ))}
+          )})}
         </div>
       )}
     </div>
