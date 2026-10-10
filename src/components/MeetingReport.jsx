@@ -45,6 +45,11 @@ const MeetingReport = ({ onBack }) => {
   const [generatingImage, setGeneratingImage] = useState(false);
   const [sendingEmail, setSendingEmail] = useState(false);
   
+  // Export settings states
+  const [showExportModal, setShowExportModal] = useState(false);
+  const [exportIncludeDetails, setExportIncludeDetails] = useState(false);
+  const [exportSendEmail, setExportSendEmail] = useState(false);
+  
   // Signatures
   const [sigTreasurer, setSigTreasurer] = useState(null);
   const [sigPresident, setSigPresident] = useState(null);
@@ -437,11 +442,14 @@ const MeetingReport = ({ onBack }) => {
 
       y += 6;
 
+      let sectionCount = 3;
+
       // Section 3: Gastos Realizados
-      doc.setTextColor(textMain[0], textMain[1], textMain[2]);
-      doc.setFontSize(13);
-      doc.setFont('helvetica', 'bold');
-      doc.text(`3. Lista Detallada de Gastos (${outcomes.length} registros)`, 14, y);
+      if (exportIncludeDetails) {
+        doc.setTextColor(textMain[0], textMain[1], textMain[2]);
+        doc.setFontSize(13);
+        doc.setFont('helvetica', 'bold');
+        doc.text(`${sectionCount}. Lista Detallada de Gastos (${outcomes.length} registros)`, 14, y);
       y += 5;
 
       doc.setFillColor(241, 245, 249);
@@ -492,6 +500,8 @@ const MeetingReport = ({ onBack }) => {
       });
 
       y += 6;
+      sectionCount++;
+      }
 
       // Check page overflow for Cuotas & Debtors
       if (y > pageHeight - 65) {
@@ -503,7 +513,8 @@ const MeetingReport = ({ onBack }) => {
       doc.setTextColor(textMain[0], textMain[1], textMain[2]);
       doc.setFontSize(13);
       doc.setFont('helvetica', 'bold');
-      doc.text('4. Estado de Cuotas Emitidas', 14, y);
+      doc.text(`${sectionCount}. Estado de Cuotas Emitidas`, 14, y);
+      sectionCount++;
       y += 5;
 
       doc.setFillColor(241, 245, 249);
@@ -552,7 +563,7 @@ const MeetingReport = ({ onBack }) => {
       doc.setTextColor(textMain[0], textMain[1], textMain[2]);
       doc.setFontSize(13);
       doc.setFont('helvetica', 'bold');
-      doc.text('5. Resumen de Cumplimiento de Apoderados', 14, y);
+      doc.text(`${sectionCount}. Resumen de Cumplimiento de Apoderados`, 14, y);
       y += 6;
 
       doc.setFont('helvetica', 'normal');
@@ -592,66 +603,72 @@ const MeetingReport = ({ onBack }) => {
       doc.save(`Informe_Reunion_Apoderados_${meetingDate}.pdf`);
       
       // 2. Preparar el envío automático de correos (Trigger Email)
-      setSendingEmail(true);
-      const pdfBase64 = doc.output('datauristring').split(',')[1];
-      
-      const allEmails = new Set();
-      students.forEach(s => {
-        if (s.apoderadoEmails && s.apoderadoEmails.length > 0) {
-          s.apoderadoEmails.forEach(e => allEmails.add(e));
-        } else if (s.apoderadoEmail) {
-          allEmails.add(s.apoderadoEmail);
-        }
-      });
-      
-      const emailList = Array.from(allEmails);
-      
-      if (emailList.length > 0) {
-        const logoUrl = `${window.location.origin}/LOGOAPPCURSO.jpg`;
+      if (exportSendEmail) {
+        setSendingEmail(true);
+        const pdfBase64 = doc.output('datauristring').split(',')[1];
         
-        const emailHtml = `
-          <div style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; max-width: 600px; margin: 0 auto; border: 1px solid #eaeaea; border-radius: 8px; overflow: hidden; box-shadow: 0 4px 6px rgba(0,0,0,0.05);">
-            <div style="background-color: #1e1e2f; padding: 20px; text-align: center;">
-              <img src="${logoUrl}" alt="Control Curso" style="max-height: 70px; margin-bottom: 15px; border-radius: 8px; object-fit: cover;" />
-              <h2 style="color: #ffffff; margin: 0; font-size: 20px; letter-spacing: 0.5px;">Informe Financiero Oficial</h2>
-            </div>
-            <div style="padding: 30px; background-color: #ffffff;">
-              <p style="font-size: 16px; color: #333333; margin-top: 0;">Estimados Apoderados,</p>
-              <p style="font-size: 15px; color: #555555; line-height: 1.5;">Adjuntamos a este correo el <strong>informe financiero oficial y estado de cuenta actualizado</strong>, correspondiente a la reunión del <strong>${meetingDate}</strong>.</p>
-              
-              <div style="background-color: #f0fdf4; border: 1px solid #bbf7d0; padding: 15px; border-radius: 6px; margin: 25px 0;">
-                <p style="margin: 0; font-size: 14px; color: #166534; text-align: center;">
-                  Este informe cuenta con las firmas digitales de la Directiva del curso, validando su autenticidad.
-                </p>
-              </div>
-              
-              <p style="font-size: 14px; color: #888888; margin-top: 30px; margin-bottom: 0;">Atentamente,</p>
-              <p style="font-size: 15px; color: #333333; font-weight: bold; margin-top: 5px;">La Tesorería del Curso</p>
-            </div>
-            <div style="background-color: #f8f9fa; padding: 15px; text-align: center; border-top: 1px solid #eaeaea;">
-              <p style="font-size: 12px; color: #999999; margin: 0;">Este es un mensaje automático generado por la plataforma del curso. Por favor no responda a este correo.</p>
-            </div>
-          </div>
-        `;
-
-        await addDoc(collection(db, 'mail'), {
-          to: emailList,
-          message: {
-            subject: `Informe Financiero Oficial - Reunión de Apoderados (${meetingDate})`,
-            html: emailHtml,
-            attachments: [
-              {
-                filename: `Informe_Reunion_${meetingDate}.pdf`,
-                content: pdfBase64,
-                encoding: 'base64'
-              }
-            ]
+        const allEmails = new Set();
+        students.forEach(s => {
+          if (s.apoderadoEmails && s.apoderadoEmails.length > 0) {
+            s.apoderadoEmails.forEach(e => allEmails.add(e));
+          } else if (s.apoderadoEmail) {
+            allEmails.add(s.apoderadoEmail);
           }
         });
-        await showAlert("¡PDF Oficial generado, descargado y ENVIADO por correo a todos los apoderados!");
+        
+        const emailList = Array.from(allEmails);
+        
+        if (emailList.length > 0) {
+          const logoUrl = `${window.location.origin}/LOGOAPPCURSO.jpg`;
+          
+          const emailHtml = `
+            <div style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; max-width: 600px; margin: 0 auto; border: 1px solid #eaeaea; border-radius: 8px; overflow: hidden; box-shadow: 0 4px 6px rgba(0,0,0,0.05);">
+              <div style="background-color: #1e1e2f; padding: 20px; text-align: center;">
+                <img src="${logoUrl}" alt="Control Curso" style="max-height: 70px; margin-bottom: 15px; border-radius: 8px; object-fit: cover;" />
+                <h2 style="color: #ffffff; margin: 0; font-size: 20px; letter-spacing: 0.5px;">Informe Financiero Oficial</h2>
+              </div>
+              <div style="padding: 30px; background-color: #ffffff;">
+                <p style="font-size: 16px; color: #333333; margin-top: 0;">Estimados Apoderados,</p>
+                <p style="font-size: 15px; color: #555555; line-height: 1.5;">Adjuntamos a este correo el <strong>informe financiero oficial y estado de cuenta actualizado</strong>, correspondiente a la reunión del <strong>${meetingDate}</strong>.</p>
+                
+                <div style="background-color: #f0fdf4; border: 1px solid #bbf7d0; padding: 15px; border-radius: 6px; margin: 25px 0;">
+                  <p style="margin: 0; font-size: 14px; color: #166534; text-align: center;">
+                    Este informe cuenta con las firmas digitales de la Directiva del curso, validando su autenticidad.
+                  </p>
+                </div>
+                
+                <p style="font-size: 14px; color: #888888; margin-top: 30px; margin-bottom: 0;">Atentamente,</p>
+                <p style="font-size: 15px; color: #333333; font-weight: bold; margin-top: 5px;">La Tesorería del Curso</p>
+              </div>
+              <div style="background-color: #f8f9fa; padding: 15px; text-align: center; border-top: 1px solid #eaeaea;">
+                <p style="font-size: 12px; color: #999999; margin: 0;">Este es un mensaje automático generado por la plataforma del curso. Por favor no responda a este correo.</p>
+              </div>
+            </div>
+          `;
+  
+          await addDoc(collection(db, 'mail'), {
+            to: emailList,
+            message: {
+              subject: `Informe Financiero Oficial - Reunión de Apoderados (${meetingDate})`,
+              html: emailHtml,
+              attachments: [
+                {
+                  filename: `Informe_Reunion_${meetingDate}.pdf`,
+                  content: pdfBase64,
+                  encoding: 'base64'
+                }
+              ]
+            }
+          });
+          await showAlert("¡PDF Oficial generado, descargado y ENVIADO por correo a todos los apoderados!");
+        } else {
+          await showAlert("¡PDF generado y descargado! No se enviaron correos porque no hay apoderados registrados con email.");
+        }
       } else {
-        await showAlert("¡PDF generado y descargado! No se enviaron correos porque no hay apoderados registrados con email.");
+        await showAlert("¡PDF Oficial descargado exitosamente!");
       }
+
+      setShowExportModal(false);
       
     } catch (error) {
       console.error("Error al generar PDF:", error);
@@ -755,13 +772,13 @@ const MeetingReport = ({ onBack }) => {
 
           {/* Export PDF Button */}
           <button 
-            onClick={generatePDFReport}
+            onClick={() => setShowExportModal(true)}
             disabled={generatingPdf || sendingEmail}
             className="btn btn-primary"
             style={{ backgroundColor: 'var(--primary)', display: 'flex', alignItems: 'center', gap: '0.4rem', boxShadow: '0 4px 14px rgba(99, 102, 241, 0.4)' }}
           >
             <Download size={16} />
-            {(generatingPdf || sendingEmail) ? 'Generando y Enviando...' : 'Descargar y Enviar a Apoderados'}
+            {(generatingPdf || sendingEmail) ? 'Procesando...' : 'Descargar Informe'}
           </button>
         </div>
       </div>
@@ -1377,6 +1394,73 @@ const MeetingReport = ({ onBack }) => {
           isModal={true}
           onClose={() => setSelectedStudentForDetail(null)}
         />
+      )}
+
+      {/* Export Options Modal */}
+      {showExportModal && (
+        <div style={{
+          position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+          backgroundColor: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          zIndex: 9999, padding: '1rem'
+        }}>
+          <div className="glass-panel" style={{
+            background: 'var(--bg-secondary)', width: '100%', maxWidth: '450px',
+            borderRadius: 'var(--radius-lg)', padding: '2rem',
+            border: '1px solid var(--border-color)', boxShadow: '0 20px 40px rgba(0,0,0,0.3)'
+          }}>
+            <h2 style={{ margin: '0 0 1.5rem 0', color: 'var(--text-main)', fontSize: '1.4rem' }}>
+              Opciones de Descarga
+            </h2>
+            
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem', marginBottom: '2rem' }}>
+              <label style={{ display: 'flex', alignItems: 'flex-start', gap: '0.75rem', cursor: 'pointer' }}>
+                <input 
+                  type="checkbox" 
+                  checked={exportIncludeDetails} 
+                  onChange={(e) => setExportIncludeDetails(e.target.checked)} 
+                  style={{ marginTop: '0.25rem', width: '18px', height: '18px', cursor: 'pointer' }}
+                />
+                <div>
+                  <div style={{ fontWeight: '600', color: 'var(--text-main)' }}>Incluir lista detallada de gastos</div>
+                  <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>Agrega una tabla con el detalle de todos los gastos realizados. Desmarcar para un resumen más ejecutivo.</div>
+                </div>
+              </label>
+
+              <label style={{ display: 'flex', alignItems: 'flex-start', gap: '0.75rem', cursor: 'pointer' }}>
+                <input 
+                  type="checkbox" 
+                  checked={exportSendEmail} 
+                  onChange={(e) => setExportSendEmail(e.target.checked)} 
+                  style={{ marginTop: '0.25rem', width: '18px', height: '18px', cursor: 'pointer' }}
+                />
+                <div>
+                  <div style={{ fontWeight: '600', color: 'var(--text-main)' }}>Enviar automáticamente a apoderados</div>
+                  <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>Se enviará una copia del PDF por correo electrónico a todos los apoderados registrados.</div>
+                </div>
+              </label>
+            </div>
+            
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '1rem' }}>
+              <button 
+                className="btn btn-outline" 
+                onClick={() => setShowExportModal(false)}
+                disabled={generatingPdf || sendingEmail}
+              >
+                Cancelar
+              </button>
+              <button 
+                className="btn btn-primary" 
+                onClick={generatePDFReport}
+                disabled={generatingPdf || sendingEmail}
+                style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}
+              >
+                <Download size={16} />
+                {(generatingPdf || sendingEmail) ? 'Generando...' : 'Generar PDF'}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );
