@@ -535,14 +535,20 @@ const MeetingReport = ({ onBack }) => {
 
         const expDebts = debts.filter(d => d.expenseId === exp.id);
         const expCollected = expDebts.reduce((sum, d) => sum + (d.status === 'paid' ? (d.amount || 0) : (d.paidAmount || 0)), 0);
-        const expExpected = (exp.amountPerStudent || exp.amount || 0) * (expDebts.length || students.length || 1);
+        
+        let unitAmount = parseFloat(exp.amountPerStudent);
+        if (isNaN(unitAmount)) unitAmount = parseFloat(exp.amount);
+        if (isNaN(unitAmount) && expDebts.length > 0) unitAmount = parseFloat(expDebts[0].amount);
+        if (isNaN(unitAmount)) unitAmount = 0;
+
+        const expExpected = unitAmount * (expDebts.length || students.length || 1);
         const expPct = expExpected > 0 ? ((expCollected / expExpected) * 100).toFixed(0) : 0;
 
         doc.setFont('helvetica', 'normal');
         doc.setFontSize(8);
         doc.setTextColor(textMain[0], textMain[1], textMain[2]);
         doc.text(exp.title || 'Cuota', 18, y + 4);
-        doc.text(formatMoney(exp.amountPerStudent || exp.amount || 0), 85, y + 4, { align: 'right' });
+        doc.text(formatMoney(unitAmount), 85, y + 4, { align: 'right' });
         doc.text(formatMoney(expCollected), 130, y + 4, { align: 'right' });
         doc.setFont('helvetica', 'bold');
         doc.text(`${expPct}%`, pageWidth - 18, y + 4, { align: 'right' });
