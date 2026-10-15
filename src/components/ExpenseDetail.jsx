@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import { db } from '../firebase/config';
 import { collection, doc, getDoc, getDocs, query, updateDoc, where, deleteDoc, setDoc, writeBatch } from 'firebase/firestore';
 import { ArrowLeft, CheckCircle, Clock, XCircle, FileText, Download, Trash2, Edit2, Save, X, Calculator, CheckSquare, AlertTriangle, RotateCcw, Sparkles, Check, AlertCircle, RefreshCw, MessageCircle, Copy } from 'lucide-react';
@@ -33,6 +34,14 @@ const ExpenseDetail = ({ expenseId, onBack }) => {
   // Para ver imagen en grande
   const [selectedReceipt, setSelectedReceipt] = useState(null);
   useLockBodyScroll(!!selectedReceipt);
+
+  // Cerrar visor de imagen con la tecla Escape
+  useEffect(() => {
+    if (!selectedReceipt) return;
+    const onKey = (e) => { if (e.key === 'Escape') setSelectedReceipt(null); };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [selectedReceipt]);
 
   // Estados de Edición
   const [isEditing, setIsEditing] = useState(false);
@@ -1080,21 +1089,36 @@ const ExpenseDetail = ({ expenseId, onBack }) => {
 
   return (
     <div className="animate-fade-in">
-      {/* Modal de Imagen */}
-      {selectedReceipt && (
-        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.9)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: '2rem', flexDirection: 'column' }}>
-           <img 
-             src={selectedReceipt} 
-             alt="Comprobante" 
-             style={{ maxWidth: '100%', maxHeight: '80vh', objectFit: 'contain', borderRadius: 'var(--radius-sm)' }} 
-           />
-           <div style={{ marginTop: '2rem', display: 'flex', gap: '1rem' }}>
-              <a href={selectedReceipt} target="_blank" rel="noopener noreferrer" className="btn btn-primary">
-                <Download size={18} /> Abrir Original
-              </a>
-              <button onClick={() => setSelectedReceipt(null)} className="btn btn-outline">Cerrar</button>
-           </div>
-        </div>
+      {/* Modal de Imagen (portal al body para que no lo afecten transformaciones del contenedor) */}
+      {selectedReceipt && createPortal(
+        <div
+          onClick={() => setSelectedReceipt(null)}
+          style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.9)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 10000, padding: '1rem', flexDirection: 'column', boxSizing: 'border-box' }}
+        >
+          <button
+            onClick={() => setSelectedReceipt(null)}
+            aria-label="Cerrar"
+            title="Cerrar (Esc)"
+            style={{ position: 'fixed', top: '1rem', right: '1rem', width: '44px', height: '44px', borderRadius: '50%', border: '1px solid rgba(255,255,255,0.3)', backgroundColor: 'rgba(0,0,0,0.6)', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', zIndex: 10001 }}
+          >
+            <X size={24} />
+          </button>
+          <img
+            src={selectedReceipt}
+            alt="Comprobante"
+            onClick={(e) => e.stopPropagation()}
+            style={{ maxWidth: '100%', maxHeight: 'calc(100vh - 8rem)', objectFit: 'contain', borderRadius: 'var(--radius-sm)' }}
+          />
+          <div onClick={(e) => e.stopPropagation()} style={{ marginTop: '1rem', display: 'flex', gap: '1rem', flexWrap: 'wrap', justifyContent: 'center' }}>
+            <a href={selectedReceipt} target="_blank" rel="noopener noreferrer" className="btn btn-primary">
+              <Download size={18} /> Abrir Original
+            </a>
+            <button onClick={() => setSelectedReceipt(null)} className="btn btn-outline" style={{ color: 'white', borderColor: 'rgba(255,255,255,0.5)' }}>
+              <X size={18} /> Cerrar
+            </button>
+          </div>
+        </div>,
+        document.body
       )}
 
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem', flexWrap: 'wrap', gap: '1rem' }}>
