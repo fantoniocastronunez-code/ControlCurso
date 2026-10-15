@@ -201,8 +201,20 @@ const ExpenseDetail = ({ expenseId, onBack }) => {
       return !(student && student.status === 'retirado');
     });
 
+    // Monto por alumno: si todas las deudas tienen el mismo monto se usa ese; si no, es variable
+    const uniqueAmounts = [...new Set(debts.map(d => Number(d.amount) || 0))];
+    let perStudentText;
+    if (uniqueAmounts.length === 1) {
+      perStudentText = money(uniqueAmounts[0]);
+    } else if (typeof expense.amountPerStudent === 'number') {
+      perStudentText = money(expense.amountPerStudent);
+    } else {
+      perStudentText = 'Variable (según alumno)';
+    }
+
     let text = `📌 *${expense.title}*\n`;
-    text += `💰 Monto: ${money(expense.totalAmount)} por alumno\n`;
+    text += `💰 Total a recaudar: ${money(expense.totalAmount)}\n`;
+    text += `👤 Monto por alumno: ${perStudentText}\n`;
     if (expense.date) text += `📅 Emitida el: ${expense.date}\n`;
     text += `\n`;
 
@@ -214,7 +226,7 @@ const ExpenseDetail = ({ expenseId, onBack }) => {
         const student = students.find(s => s.id === d.studentId);
         const studentName = student ? formatStudentName(student) : (d.studentName || 'Alumno desconocido');
 
-        const expected = d.amount || expense.totalAmount || 0;
+        const expected = d.amount || (typeof expense.amountPerStudent === 'number' ? expense.amountPerStudent : 0);
         const remaining = expected - (d.paidAmount || 0);
         const detail = d.status === 'partial'
           ? `Pago parcial, falta ${money(remaining)}`
