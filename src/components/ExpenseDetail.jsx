@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { db } from '../firebase/config';
 import { collection, doc, getDoc, getDocs, query, updateDoc, where, deleteDoc, setDoc, writeBatch } from 'firebase/firestore';
-import { ArrowLeft, CheckCircle, Clock, XCircle, FileText, Download, Trash2, Edit2, Save, X, Calculator, CheckSquare, AlertTriangle, RotateCcw, Sparkles, Check, AlertCircle, RefreshCw, MessageCircle } from 'lucide-react';
+import { ArrowLeft, CheckCircle, Clock, XCircle, FileText, Download, Trash2, Edit2, Save, X, Calculator, CheckSquare, AlertTriangle, RotateCcw, Sparkles, Check, AlertCircle, RefreshCw, MessageCircle, Copy } from 'lucide-react';
 import { formatStudentName } from '../utils/nameUtils';
 import { useModal } from '../context/ModalContext';
 import { useLockBodyScroll } from '../hooks/useLockBodyScroll';
@@ -23,6 +23,7 @@ const ExpenseDetail = ({ expenseId, onBack }) => {
   const [students, setStudents] = useState([]);
   const [usersMap, setUsersMap] = useState({});
   const [loading, setLoading] = useState(true);
+  const [copiedPending, setCopiedPending] = useState(false);
   
   // Modo Auditoría
   const [isAuditMode, setIsAuditMode] = useState(false);
@@ -188,6 +189,49 @@ const ExpenseDetail = ({ expenseId, onBack }) => {
       console.error(err);
       showAlert('Error', 'No se pudo copiar el reporte al portapapeles.');
     });
+  };
+
+  // Copia al portapapeles: nombre de la cuota, monto y apoderados que no han pagado
+  const handleCopyPendingApoderados = async () => {
+    const money = (n) => new Intl.NumberFormat('es-CL', { style: 'currency', currency: 'CLP' }).format(n || 0);
+
+    const pending = debts.filter(d => {
+      if (d.status !== 'pending' && d.status !== 'partial') return false;
+      const student = students.find(s => s.id === d.studentId);
+      return !(student && student.status === 'retirado');
+    });
+
+    let text = `📌 *${expense.title}*\n`;
+    text += `💰 Monto: ${money(expense.totalAmount)} por alumno\n`;
+    if (expense.date) text += `📅 Emitida el: ${expense.date}\n`;
+    text += `\n`;
+
+    if (pending.length === 0) {
+      text += `✅ ¡Todos han pagado esta cuota!`;
+    } else {
+      text += `⚠️ *Pendientes de pago (${pending.length}):*\n\n`;
+      pending.forEach((d, idx) => {
+        const student = students.find(s => s.id === d.studentId);
+        const studentName = student ? formatStudentName(student) : (d.studentName || 'Alumno desconocido');
+
+        const expected = d.amount || expense.totalAmount || 0;
+        const remaining = expected - (d.paidAmount || 0);
+        const detail = d.status === 'partial'
+          ? `Pago parcial, falta ${money(remaining)}`
+          : `Debe ${money(expected)}`;
+
+        text += `${idx + 1}. ${studentName} — ${detail}\n`;
+      });
+    }
+
+    try {
+      await navigator.clipboard.writeText(text.trim());
+      setCopiedPending(true);
+      setTimeout(() => setCopiedPending(false), 2000);
+    } catch (err) {
+      console.error(err);
+      showAlert('Error', 'No se pudo copiar al portapapeles.');
+    }
   };
 
   const processPayment = async (debtId, method, defaultAmount, isApproval = false) => {
@@ -1197,6 +1241,24 @@ const ExpenseDetail = ({ expenseId, onBack }) => {
                 <button onClick={handleStartManageStudents} className="btn btn-outline" style={{ padding: '0.3rem', color: 'var(--text)' }} title="Agregar/Quitar Alumnos"><FileText size={16}/></button>
                 <button onClick={handleDeleteExpense} className="btn btn-outline" style={{ padding: '0.3rem', borderColor: 'rgba(239, 68, 68, 0.3)', color: 'var(--danger)' }} title="Eliminar Cuota"><Trash2 size={16}/></button>
                 <button onClick={handleGenerateWhatsappReport} className="btn btn-outline" style={{ padding: '0.3rem', borderColor: '#25D366', color: '#25D366' }} title="Generar reporte WhatsApp de deudas"><MessageCircle size={16}/></button>
+                <button
+                  onClick={handleCopyPendingApoderados}
+                  className="btn btn-outline"
+                  style={{
+                    padding: '0.3rem 0.7rem',
+                    fontSize: '0.85rem',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '0.35rem',
+                    borderColor: copiedPending ? 'var(--success)' : '#f59e0b',
+                    color: copiedPending ? 'var(--success)' : '#f59e0b',
+                    transition: 'all 0.2s ease'
+                  }}
+                  title="Copiar al portapapeles: nombre de la cuota, monto y alumnos que no han pagado"
+                >
+                  {copiedPending ? <Check size={16}/> : <Copy size={16}/>}
+                  {copiedPending ? '¡Copiado!' : 'Copiar pendientes'}
+                </button>
               </div>
               <p style={{ color: 'var(--text-muted)' }}>Emitido el: {expense.date}</p>
             </div>
