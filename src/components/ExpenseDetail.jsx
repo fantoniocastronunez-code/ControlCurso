@@ -1,8 +1,8 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { db } from '../firebase/config';
-import { collection, doc, getDoc, getDocs, query, updateDoc, where, deleteDoc, setDoc, writeBatch } from 'firebase/firestore';
-import { ArrowLeft, CheckCircle, Clock, XCircle, FileText, Download, Trash2, Edit2, Save, X, Calculator, CheckSquare, AlertTriangle, RotateCcw, Sparkles, Check, AlertCircle, RefreshCw, MessageCircle, Copy } from 'lucide-react';
+import { collection, doc, getDoc, getDocs, query, updateDoc, where, deleteDoc, setDoc, writeBatch, addDoc } from 'firebase/firestore';
+import { ArrowLeft, CheckCircle, Clock, XCircle, FileText, Download, Trash2, Edit2, Save, X, Calculator, CheckSquare, AlertTriangle, RotateCcw, Sparkles, Check, RefreshCw, MessageCircle, Copy } from 'lucide-react';
 import { formatStudentName } from '../utils/nameUtils';
 import { useModal } from '../context/ModalContext';
 import { useLockBodyScroll } from '../hooks/useLockBodyScroll';
@@ -70,9 +70,9 @@ const ExpenseDetail = ({ expenseId, onBack }) => {
     return [...new Set(names.filter((item, index) => names.indexOf(item) !== index))];
   }, [debts, students]);
 
-  const fetchDetail = useCallback(async () => {
+  const fetchDetail = useCallback(async (isInitial = false) => {
     if (!selectedCourse) return;
-    setLoading(true);
+    if (isInitial) setLoading(true);
     try {
       // Obtener el gasto
       const expenseRef = doc(db, 'expenses', expenseId);
@@ -125,7 +125,7 @@ const ExpenseDetail = ({ expenseId, onBack }) => {
     } catch (error) {
       console.error("Error fetching expense details:", error);
     } finally {
-      setLoading(false);
+      if (isInitial) setLoading(false);
     }
   }, [expenseId, selectedCourse]);
 
@@ -149,7 +149,7 @@ const ExpenseDetail = ({ expenseId, onBack }) => {
 
   useEffect(() => {
     fetchUsers();
-    fetchDetail();
+    fetchDetail(true);
   }, [fetchDetail]);
 
   const sortedDebts = useMemo(() => {
@@ -257,47 +257,23 @@ const ExpenseDetail = ({ expenseId, onBack }) => {
 
   const processPayment = async (debtId, method, defaultAmount, isApproval = false) => {
     const debtToPay = debts.find(d => d.id === debtId);
+    if (!debtToPay) return;
     
     let finalTotalPaid = 0;
     let exactPaidNow = 0;
 
     if (isApproval) {
-      // En aprobaciones, el apoderado ya subió un comprobante y reportó un monto que reemplaza al actual (o es el primero).
+      // En aprobaciones, el apoderado ya subió un comprobante con un monto. Se aprueba directamente.
       const suggestedAmount = debtToPay.paidAmount || debtToPay.amount;
-      const amountStr = await showPrompt(
-        `Confirma el MONTO TOTAL PAGADO en este comprobante:\n(Monto a cobrar: $${debtToPay.amount})`, 
-        suggestedAmount
-      );
-      if (amountStr === null) return;
-      const approvedAmount = parseFloat(amountStr);
-      if (isNaN(approvedAmount) || approvedAmount <= 0) {
-        await showAlert("Monto inválido.");
-        return;
-      }
-      finalTotalPaid = approvedAmount;
-      exactPaidNow = approvedAmount;
+      finalTotalPaid = suggestedAmount;
+      exactPaidNow = suggestedAmount;
     } else {
-      // Pago manual (Efectivo/Transferencia) reportado por el admin.
+      // Pago manual (Efectivo/Transferencia): se registra de inmediato el monto pendiente sin prompts.
       const currentPaid = debtToPay.paidAmount || 0;
       const remaining = debtToPay.amount - currentPaid;
       
-      const amountStr = await showPrompt(
-        currentPaid > 0 
-          ? `Este alumno ya ha pagado $${currentPaid}.\nIngresa el MONTO A SUMAR (Restante para el total: $${remaining}):`
-          : `Ingresa el monto pagado (Total a cobrar: $${debtToPay.amount}):`, 
-        remaining > 0 ? remaining : 0
-      );
-      
-      if (amountStr === null) return;
-      const addedAmount = parseFloat(amountStr);
-      if (isNaN(addedAmount) || addedAmount <= 0) {
-        await showAlert("Monto inválido. Debe ser mayor a 0.");
-        return;
-      }
-      
-      // Sumamos al monto ya pagado
-      finalTotalPaid = currentPaid + addedAmount;
-      exactPaidNow = addedAmount;
+      exactPaidNow = remaining > 0 ? remaining : debtToPay.amount;
+      finalTotalPaid = currentPaid + exactPaidNow;
     }
 
     try {
@@ -319,7 +295,7 @@ const ExpenseDetail = ({ expenseId, onBack }) => {
       if (finalTotalPaid >= debtToPay.amount) newStatus = 'paid';
       else if (finalTotalPaid > 0) newStatus = 'partial';
 
-      const fullyPaidCount = (expense.paidCount || 0) + (newStatus === 'paid' && debtToPay.status !== 'paid' ? 1 : (newStatus !== 'paid' && debtToPay.status === 'paid' ? -1 : 0));
+      const fullyPaidCount = (expense?.paidCount || 0) + (newStatus === 'paid' && debtToPay.status !== 'paid' ? 1 : (newStatus !== 'paid' && debtToPay.status === 'paid' ? -1 : 0));
 
       if (requiresApproval) {
         const payload = {
@@ -332,9 +308,23 @@ const ExpenseDetail = ({ expenseId, onBack }) => {
         };
         await requestApproval('REGISTER_PAYMENTS', `Pago: ${debtToPay.studentName} ($${finalTotalPaid})`, payload, user, selectedCourse.id);
         await showAlert('Solicitud de pago enviada a la tesorera.');
-        fetchDetail();
+        fetchDetail(false);
         return;
       }
+
+      // Actualización optimista inmediata en interfaz (sin recarga ni saltos de scroll)
+      setDebts(prev => prev.map(d => d.id === debtId ? {
+        ...d,
+        status: newStatus,
+        paidAmount: finalTotalPaid,
+        paymentMethod: method,
+        approvedAt: new Date().toISOString()
+      } : d));
+
+      setExpense(prev => prev ? {
+        ...prev,
+        paidCount: fullyPaidCount
+      } : prev);
 
       await updateDoc(debtRef, {
         status: newStatus,
@@ -345,18 +335,16 @@ const ExpenseDetail = ({ expenseId, onBack }) => {
 
       // Log real payment transaction
       if (exactPaidNow > 0) {
-        import('firebase/firestore').then(async ({ addDoc }) => {
-          await addDoc(collection(db, 'payments'), {
-            debtId: debtId,
-            courseId: selectedCourse.id,
-            fundId: fundId,
-            amount: exactPaidNow,
-            paymentMethod: method,
-            studentName: debtToPay.studentName,
-            title: debtToPay.title,
-            status: newStatus,
-            createdAt: new Date().toISOString()
-          });
+        await addDoc(collection(db, 'payments'), {
+          debtId: debtId,
+          courseId: selectedCourse.id,
+          fundId: fundId,
+          amount: exactPaidNow,
+          paymentMethod: method,
+          studentName: debtToPay.studentName,
+          title: debtToPay.title,
+          status: newStatus,
+          createdAt: new Date().toISOString()
         });
       }
 
@@ -370,20 +358,18 @@ const ExpenseDetail = ({ expenseId, onBack }) => {
         paidCount: updatedFullyPaidCount
       });
 
-      fetchDetail();
+      fetchDetail(false);
     } catch (error) {
       console.error("Error al procesar pago:", error);
       await showAlert("Hubo un error al procesar el pago.");
+      fetchDetail(false);
     }
   };
-
-
 
   const handleFixDuplicates = async () => {
     if (!duplicateNames || duplicateNames.length === 0) return;
     if (!(await showConfirm(`¿Deseas unificar los registros duplicados de: ${duplicateNames.join(', ')}?`, 'Se sumarán los montos pagados en un solo registro.'))) return;
     
-    setLoading(true);
     try {
       const batch = writeBatch(db);
       
@@ -428,11 +414,10 @@ const ExpenseDetail = ({ expenseId, onBack }) => {
       
       await batch.commit();
       await showAlert('Registros unificados correctamente.');
-      fetchDetail();
+      fetchDetail(false);
     } catch (error) {
       console.error(error);
       await showAlert('Error al unificar registros.');
-      setLoading(false);
     }
   };
 
@@ -449,16 +434,17 @@ const ExpenseDetail = ({ expenseId, onBack }) => {
       return;
     }
 
-    setLoading(true);
+    setDebts(prev => prev.map(d => d.id === debtId ? { ...d, amount: newAmount } : d));
+
     try {
       await updateDoc(doc(db, 'debts', debtId), {
         amount: newAmount
       });
-      fetchDetail();
+      fetchDetail(false);
     } catch (error) {
       console.error("Error modificando deuda:", error);
       await showAlert("Error al modificar el monto.");
-      setLoading(false);
+      fetchDetail(false);
     }
   };
 
@@ -466,7 +452,7 @@ const ExpenseDetail = ({ expenseId, onBack }) => {
     const debtToEdit = debts.find(d => d.id === debtId);
     if (!debtToEdit) return;
 
-    const newAmountStr = await showPrompt("Ingresa el NUEVO Monto Informado (Pagado) para este alumno:", debtToEdit.paidAmount || 0);
+    const newAmountStr = await showPrompt("Ingresa el Monto Informado (Pagado) para este alumno:", debtToEdit.paidAmount || 0);
     if (newAmountStr === null) return;
     
     const newAmount = parseFloat(newAmountStr);
@@ -475,12 +461,13 @@ const ExpenseDetail = ({ expenseId, onBack }) => {
       return;
     }
 
-    setLoading(true);
-    try {
-      let newStatus = 'pending';
-      if (newAmount >= debtToEdit.amount) newStatus = 'paid';
-      else if (newAmount > 0) newStatus = 'partial';
+    let newStatus = 'pending';
+    if (newAmount >= debtToEdit.amount) newStatus = 'paid';
+    else if (newAmount > 0) newStatus = 'partial';
 
+    setDebts(prev => prev.map(d => d.id === debtId ? { ...d, paidAmount: newAmount, status: newStatus } : d));
+
+    try {
       await updateDoc(doc(db, 'debts', debtId), {
         paidAmount: newAmount,
         status: newStatus
@@ -493,12 +480,13 @@ const ExpenseDetail = ({ expenseId, onBack }) => {
       await updateDoc(doc(db, 'expenses', expenseId), {
         paidCount: updatedFullyPaidCount
       });
+      setExpense(prev => prev ? { ...prev, paidCount: updatedFullyPaidCount } : prev);
 
-      fetchDetail();
+      fetchDetail(false);
     } catch (error) {
       console.error("Error modificando pago:", error);
       await showAlert("Error al modificar el monto pagado.");
-      setLoading(false);
+      fetchDetail(false);
     }
   };
 
@@ -524,7 +512,19 @@ const ExpenseDetail = ({ expenseId, onBack }) => {
     
     if (!(await showConfirm('¿Estás seguro de que deseas cancelar este pago?', 'El registro volverá a estar Pendiente.'))) return;
     
-    setLoading(true);
+    setDebts(prev => prev.map(d => d.id === debtId ? {
+      ...d,
+      status: 'pending',
+      paidAmount: 0,
+      paymentMethod: null,
+      receiptUrl: null,
+      approvedAt: null
+    } : d));
+    setExpense(prev => prev ? {
+      ...prev,
+      paidCount: Math.max(0, (prev.paidCount || 1) - (debtToCancel.status === 'paid' ? 1 : 0))
+    } : prev);
+
     try {
       await updateDoc(doc(db, 'debts', debtId), {
         status: 'pending',
@@ -549,11 +549,11 @@ const ExpenseDetail = ({ expenseId, onBack }) => {
         paidCount: updatedFullyPaidCount
       });
 
-      fetchDetail();
+      fetchDetail(false);
     } catch (error) {
       console.error("Error al cancelar pago:", error);
       await showAlert("Hubo un error al cancelar el pago.");
-      setLoading(false);
+      fetchDetail(false);
     }
   };
 
@@ -561,63 +561,82 @@ const ExpenseDetail = ({ expenseId, onBack }) => {
     if (selectedDebts.length === 0) return;
     if (!(await showConfirm(`¿Registrar pago masivo a ${selectedDebts.length} alumnos en ${method === 'cash' ? 'Efectivo' : 'Transferencia'}?`))) return;
     
-    setLoading(true);
-    try {
-      let newlyPaidCount = 0;
-      const debtsToUpdate = [];
+    const selectedIds = [...selectedDebts];
+    setSelectedDebts([]);
 
-      for (const debtId of selectedDebts) {
-        const debtToPay = debts.find(d => d.id === debtId);
+    let newlyPaidCount = 0;
+    const debtsToUpdate = [];
+
+    for (const debtId of selectedIds) {
+      const debtToPay = debts.find(d => d.id === debtId);
+      if (debtToPay) {
         debtsToUpdate.push({
           debtId,
           updates: { status: 'paid', paidAmount: debtToPay.amount, paymentMethod: method }
         });
-        newlyPaidCount++;
+        if (debtToPay.status !== 'paid') newlyPaidCount++;
       }
+    }
 
-      const currentPaidCount = expense.paidCount || 0;
+    const currentPaidCount = expense?.paidCount || 0;
 
-      if (requiresApproval) {
-        const payload = {
-          expenseId,
-          expensePaidCount: currentPaidCount + newlyPaidCount,
-          debtsToUpdate
+    if (requiresApproval) {
+      const payload = {
+        expenseId,
+        expensePaidCount: currentPaidCount + newlyPaidCount,
+        debtsToUpdate
+      };
+      await requestApproval('REGISTER_PAYMENTS', `Pago masivo (${selectedIds.length} alumnos)`, payload, user, selectedCourse.id);
+      await showAlert('Solicitud de pago masivo enviada a la tesorera.');
+      fetchDetail(false);
+      return;
+    }
+
+    // Actualización optimista masiva
+    setDebts(prev => prev.map(d => {
+      if (selectedIds.includes(d.id)) {
+        return {
+          ...d,
+          status: 'paid',
+          paidAmount: d.amount,
+          paymentMethod: method,
+          approvedAt: new Date().toISOString()
         };
-        await requestApproval('REGISTER_PAYMENTS', `Pago masivo (${selectedDebts.length} alumnos)`, payload, user, selectedCourse.id);
-        await showAlert('Solicitud de pago masivo enviada a la tesorera.');
-      } else {
-        for (const update of debtsToUpdate) {
-          await updateDoc(doc(db, 'debts', update.debtId), {
-            ...update.updates,
-            approvedAt: new Date().toISOString()
-          });
-          
-          import('firebase/firestore').then(async ({ addDoc }) => {
-            const debtToPay = debts.find(d => d.id === update.debtId);
-            await addDoc(collection(db, 'payments'), {
-              debtId: update.debtId,
-              courseId: selectedCourse.id,
-              fundId: debtToPay.fundId || expense.fundId || 'general',
-              amount: update.updates.paidAmount,
-              paymentMethod: update.updates.paymentMethod,
-              studentName: debtToPay.studentName,
-              title: debtToPay.title,
-              status: 'paid',
-              createdAt: new Date().toISOString()
-            });
-          });
-        }
-        await updateDoc(doc(db, 'expenses', expenseId), {
-          paidCount: currentPaidCount + newlyPaidCount
+      }
+      return d;
+    }));
+    setExpense(prev => prev ? { ...prev, paidCount: currentPaidCount + newlyPaidCount } : prev);
+
+    try {
+      for (const update of debtsToUpdate) {
+        await updateDoc(doc(db, 'debts', update.debtId), {
+          ...update.updates,
+          approvedAt: new Date().toISOString()
+        });
+        
+        const debtToPay = debts.find(d => d.id === update.debtId);
+        await addDoc(collection(db, 'payments'), {
+          debtId: update.debtId,
+          courseId: selectedCourse.id,
+          fundId: debtToPay?.fundId || expense.fundId || 'general',
+          amount: update.updates.paidAmount,
+          paymentMethod: update.updates.paymentMethod,
+          studentName: debtToPay?.studentName,
+          title: debtToPay?.title,
+          status: 'paid',
+          createdAt: new Date().toISOString()
         });
       }
 
-      setSelectedDebts([]);
-      fetchDetail();
+      await updateDoc(doc(db, 'expenses', expenseId), {
+        paidCount: currentPaidCount + newlyPaidCount
+      });
+
+      fetchDetail(false);
     } catch (error) {
       console.error("Error al registrar pago masivo:", error);
       await showAlert("Error al registrar los pagos.");
-      setLoading(false);
+      fetchDetail(false);
     }
   };
 
@@ -642,71 +661,82 @@ const ExpenseDetail = ({ expenseId, onBack }) => {
 
     if (!(await showConfirm(`¿Usar ${formatMoney(amountToUse)} del saldo a favor de ${student.name}? Le quedarán ${formatMoney(newBalance)} a favor.`))) return;
     
-    setLoading(true);
+    const currentPaidCount = expense?.paidCount || 0;
+    const expensePaidCount = (isFullyPaid && debtToPay.status !== 'paid') ? currentPaidCount + 1 : currentPaidCount;
+
+    if (requiresApproval) {
+      const payload = {
+        expenseId,
+        expensePaidCount,
+        debtsToUpdate: [{
+          debtId,
+          updates: { status: isFullyPaid ? 'paid' : 'partial', paidAmount: newPaidAmount, paymentMethod: 'balance' }
+        }],
+        studentBalances: [{
+          studentId: student.id,
+          newBalance
+        }]
+      };
+      await requestApproval('REGISTER_PAYMENTS', `Pago con saldo: ${student.name}`, payload, user, selectedCourse.id);
+      await showAlert('Solicitud de pago con saldo enviada a la tesorera.');
+      fetchDetail(false);
+      return;
+    }
+
+    // Actualización optimista
+    setDebts(prev => prev.map(d => d.id === debtId ? {
+      ...d,
+      status: isFullyPaid ? 'paid' : 'partial',
+      paidAmount: newPaidAmount,
+      paymentMethod: 'balance',
+      approvedAt: new Date().toISOString()
+    } : d));
+    setStudents(prev => prev.map(s => s.id === student.id ? { ...s, balance: newBalance } : s));
+    if (isFullyPaid && debtToPay.status !== 'paid') {
+      setExpense(prev => prev ? { ...prev, paidCount: expensePaidCount } : prev);
+    }
+
     try {
-      const isFullyPaid = newPaidAmount >= debtToPay.amount;
-      const currentPaidCount = expense.paidCount || 0;
-      const expensePaidCount = (isFullyPaid && debtToPay.status !== 'paid') ? currentPaidCount + 1 : currentPaidCount;
+      // 1. Actualizar deuda
+      const debtRef = doc(db, 'debts', debtId);
+      await updateDoc(debtRef, {
+        status: isFullyPaid ? 'paid' : 'partial',
+        paidAmount: newPaidAmount,
+        paymentMethod: 'balance',
+        approvedAt: new Date().toISOString()
+      });
 
-      if (requiresApproval) {
-        const payload = {
-          expenseId,
-          expensePaidCount,
-          debtsToUpdate: [{
-            debtId,
-            updates: { status: isFullyPaid ? 'paid' : 'partial', paidAmount: newPaidAmount, paymentMethod: 'balance' }
-          }],
-          studentBalances: [{
-            studentId: student.id,
-            newBalance
-          }]
-        };
-        await requestApproval('REGISTER_PAYMENTS', `Pago con saldo: ${student.name}`, payload, user, selectedCourse.id);
-        await showAlert('Solicitud de pago con saldo enviada a la tesorera.');
-      } else {
-        // 1. Actualizar deuda
-        const debtRef = doc(db, 'debts', debtId);
-        await updateDoc(debtRef, {
-          status: isFullyPaid ? 'paid' : 'partial',
-          paidAmount: newPaidAmount,
-          paymentMethod: 'balance',
-          approvedAt: new Date().toISOString()
+      await addDoc(collection(db, 'payments'), {
+        debtId: debtId,
+        courseId: selectedCourse.id,
+        fundId: debtToPay.fundId || expense.fundId || 'general',
+        amount: amountToUse,
+        paymentMethod: 'balance',
+        studentName: debtToPay.studentName,
+        title: debtToPay.title,
+        status: isFullyPaid ? 'paid' : 'partial',
+        createdAt: new Date().toISOString()
+      });
+
+      // 2. Descontar saldo del estudiante
+      const studentRef = doc(db, 'students', student.id);
+      await updateDoc(studentRef, {
+        balance: newBalance
+      });
+
+      // 3. Aumentar el contador del gasto (solo si se completó el pago)
+      if (isFullyPaid && debtToPay.status !== 'paid') {
+        const expenseRef = doc(db, 'expenses', expenseId);
+        await updateDoc(expenseRef, {
+          paidCount: expensePaidCount
         });
-
-        import('firebase/firestore').then(async ({ addDoc }) => {
-          await addDoc(collection(db, 'payments'), {
-            debtId: debtId,
-            courseId: selectedCourse.id,
-            fundId: debtToPay.fundId || expense.fundId || 'general',
-            amount: amountToUse,
-            paymentMethod: 'balance',
-            studentName: debtToPay.studentName,
-            title: debtToPay.title,
-            status: isFullyPaid ? 'paid' : 'partial',
-            createdAt: new Date().toISOString()
-          });
-        });
-
-        // 2. Descontar saldo del estudiante
-        const studentRef = doc(db, 'students', student.id);
-        await updateDoc(studentRef, {
-          balance: newBalance
-        });
-
-        // 3. Aumentar el contador del gasto (solo si se completó el pago)
-        if (isFullyPaid && debtToPay.status !== 'paid') {
-          const expenseRef = doc(db, 'expenses', expenseId);
-          await updateDoc(expenseRef, {
-            paidCount: expensePaidCount
-          });
-        }
       }
 
-      fetchDetail();
+      fetchDetail(false);
     } catch (error) {
       console.error("Error al registrar pago con saldo:", error);
       await showAlert("Error al registrar el pago.");
-      setLoading(false);
+      fetchDetail(false);
     }
   };
 
@@ -777,7 +807,6 @@ const ExpenseDetail = ({ expenseId, onBack }) => {
 
   const handleSaveEdit = async () => {
     if (!editData.title || !editData.totalAmount || !editData.fundId) return;
-    setLoading(true);
     try {
       const newAmount = Number(editData.totalAmount);
       const selectedAccount = transferAccounts.find(a => a.id === editData.accountId) || null;
@@ -810,11 +839,10 @@ const ExpenseDetail = ({ expenseId, onBack }) => {
 
       setExpense({ ...expense, title: editData.title, totalAmount: newAmount, transferData: selectedAccount, fundId: editData.fundId });
       setIsEditing(false);
-      fetchDetail();
+      fetchDetail(false);
     } catch (error) {
       console.error("Error editando cuota:", error);
       await showAlert('Hubo un error al editar la cuota.');
-      setLoading(false);
     }
   };
 
@@ -1005,7 +1033,6 @@ const ExpenseDetail = ({ expenseId, onBack }) => {
 
     if (!(await showConfirm(`¿Estás seguro de reemplazar TODOS los montos en sistema por las sumas manuales auditadas?\n\n⚠️ ATENCIÓN: Cualquier alumno que NO tenga un monto manual ingresado quedará en $0 (Pendiente). La Suma Registrada en Sistema pasará a ser exactamente la Suma Manual Auditada.`))) return;
 
-    setLoading(true);
     try {
       const debtsToUpdate = [];
       let updatedCount = 0;
@@ -1066,11 +1093,10 @@ const ExpenseDetail = ({ expenseId, onBack }) => {
       setAuditChecks({});
       setAuditManualAmounts({});
       
-      fetchDetail();
+      fetchDetail(false);
     } catch (error) {
       console.error("Error al actualizar montos de auditoría masivos:", error);
       await showAlert("Error al guardar los montos auditados.");
-      setLoading(false);
     }
   };
 
@@ -1758,15 +1784,14 @@ const ExpenseDetail = ({ expenseId, onBack }) => {
                     <td style={{ padding: '1rem', color: 'var(--success)' }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                         {debt.paidAmount ? `+${formatMoney(debt.paidAmount)}` : '-'}
-                        {(debt.status === 'paid' || debt.status === 'partial' || debt.status === 'review') && (
-                          <button 
-                            onClick={() => handleEditPaidAmount(debt.id)}
-                            style={{ background: 'none', border: 'none', color: 'var(--success)', cursor: 'pointer', padding: '0.2rem' }}
-                            title="Modificar Monto Informado"
-                          >
-                            <Edit2 size={14} />
-                          </button>
-                        )}
+                        <button 
+                          type="button"
+                          onClick={(e) => { e.stopPropagation(); handleEditPaidAmount(debt.id); }}
+                          style={{ background: 'none', border: 'none', color: 'var(--success)', cursor: 'pointer', padding: '0.2rem' }}
+                          title={debt.paidAmount ? "Modificar Monto Informado" : "Ingresar Monto Personalizado / Parcial"}
+                        >
+                          <Edit2 size={14} />
+                        </button>
                       </div>
                     </td>
 
@@ -1781,7 +1806,8 @@ const ExpenseDetail = ({ expenseId, onBack }) => {
                     <td style={{ padding: '1rem' }}>
                       {debt.receiptUrl ? (
                         <button 
-                          onClick={() => setSelectedReceipt(debt.receiptUrl)} 
+                          type="button"
+                          onClick={(e) => { e.stopPropagation(); setSelectedReceipt(debt.receiptUrl); }} 
                           className="btn btn-outline" 
                           style={{ padding: '0.3rem 0.6rem', fontSize: '0.85rem' }}
                         >
@@ -1794,7 +1820,8 @@ const ExpenseDetail = ({ expenseId, onBack }) => {
                       {debt.status === 'review' ? (
                         <div style={{ display: 'flex', gap: '0.5rem' }}>
                           <button 
-                            onClick={() => handleApprovePayment(debt.id)}
+                            type="button"
+                            onClick={(e) => { e.stopPropagation(); handleApprovePayment(debt.id); }}
                             className="btn btn-primary" 
                             style={{ padding: '0.3rem 0.6rem', fontSize: '0.85rem', backgroundColor: 'var(--success)' }}
                             title="Aprobar Pago"
@@ -1802,7 +1829,8 @@ const ExpenseDetail = ({ expenseId, onBack }) => {
                             <CheckCircle size={16} /> Aprobar
                           </button>
                           <button 
-                            onClick={() => handleRejectPayment(debt.id)}
+                            type="button"
+                            onClick={(e) => { e.stopPropagation(); handleRejectPayment(debt.id); }}
                             className="btn btn-outline" 
                             style={{ padding: '0.3rem 0.6rem', fontSize: '0.85rem', color: 'var(--danger)', borderColor: 'rgba(239, 68, 68, 0.3)' }}
                             title="Rechazar Comprobante"
@@ -1813,18 +1841,20 @@ const ExpenseDetail = ({ expenseId, onBack }) => {
                       ) : (debt.status === 'pending' || debt.status === 'partial') ? (
                         <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
                           <button 
-                            onClick={() => handleManualPayment(debt.id, 'cash')}
+                            type="button"
+                            onClick={(e) => { e.stopPropagation(); handleManualPayment(debt.id, 'cash'); }}
                             className="btn btn-outline" 
                             style={{ padding: '0.3rem 0.6rem', fontSize: '0.8rem', color: 'var(--primary)', borderColor: 'rgba(99, 102, 241, 0.3)' }}
-                            title="Pago Manual en Efectivo"
+                            title="Registrar pago completo en Efectivo inmediatamente"
                           >
                              Efectivo
                           </button>
                           <button 
-                            onClick={() => handleManualPayment(debt.id, 'transfer')}
+                            type="button"
+                            onClick={(e) => { e.stopPropagation(); handleManualPayment(debt.id, 'transfer'); }}
                             className="btn btn-outline" 
                             style={{ padding: '0.3rem 0.6rem', fontSize: '0.8rem', color: 'var(--primary)', borderColor: 'rgba(99, 102, 241, 0.3)' }}
-                            title="Pago Manual con Transferencia"
+                            title="Registrar pago completo con Transferencia inmediatamente"
                           >
                              Transf.
                           </button>
@@ -1833,7 +1863,8 @@ const ExpenseDetail = ({ expenseId, onBack }) => {
                             if (student && student.balance > 0) {
                               return (
                                 <button 
-                                  onClick={() => handlePayWithBalance(debt.id)}
+                                  type="button"
+                                  onClick={(e) => { e.stopPropagation(); handlePayWithBalance(debt.id); }}
                                   className="btn btn-primary" 
                                   style={{ padding: '0.3rem 0.6rem', fontSize: '0.8rem', backgroundColor: 'var(--success)', border: 'none' }}
                                   title={`Usar saldo a favor de ${formatMoney(student.balance)}`}
@@ -1848,7 +1879,8 @@ const ExpenseDetail = ({ expenseId, onBack }) => {
                       ) : (
                         <div style={{ display: 'flex', gap: '0.5rem' }}>
                           <button 
-                            onClick={() => handleCancelPayment(debt.id)}
+                            type="button"
+                            onClick={(e) => { e.stopPropagation(); handleCancelPayment(debt.id); }}
                             className="btn btn-outline" 
                             style={{ padding: '0.3rem 0.6rem', fontSize: '0.8rem', color: 'var(--danger)', borderColor: 'rgba(239, 68, 68, 0.3)' }}
                             title="Cancelar pago registrado"
