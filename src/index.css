@@ -509,3 +509,191 @@ h1, h2, h3, h4, h5, h6 {
     display: block;
   }
 }
+
+/* ============================================================
+   ESTILO COMPROBANTE OFICIAL CLARO (EXPORTACIÓN A WHATSAPP / IMAGEN)
+   ============================================================ */
+.receipt-export-light {
+  background-color: #ffffff !important;
+  color: #0f172a !important;
+  border: 1px solid #cbd5e1 !important;
+  box-shadow: none !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+  border-radius: 16px !important;
+  padding: 2rem !important;
+}
+
+.receipt-export-light * {
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+  text-shadow: none !important;
+}
+
+.receipt-export-light h2,
+.receipt-export-light h3,
+.receipt-export-light h4 {
+  color: #0f172a !important;
+}
+
+.receipt-export-light p,
+.receipt-export-light span {
+  color: #334155;
+}
+
+.receipt-export-light .receipt-student-name {
+  color: #0f172a !important;
+  font-size: 1.5rem !important;
+  font-weight: 700 !important;
+}
+
+.receipt-export-light .receipt-student-badge {
+  background-color: #e0e7ff !important;
+  color: #3730a3 !important;
+  border: 1px solid #c7d2fe !important;
+}
+
+.receipt-export-light .receipt-subtext {
+  color: #64748b !important;
+}
+
+.receipt-export-light .receipt-border-b {
+  border-bottom: 1px solid #e2e8f0 !important;
+}
+
+/* Tarjetas KPI */
+.receipt-export-light .receipt-kpi-paid {
+  background-color: #ecfdf5 !important;
+  border: 1px solid #a7f3d0 !important;
+}
+.receipt-export-light .receipt-kpi-paid p {
+  color: #065f46 !important;
+}
+.receipt-export-light .receipt-kpi-paid h3 {
+  color: #047857 !important;
+}
+
+.receipt-export-light .receipt-kpi-pending-danger {
+  background-color: #fef2f2 !important;
+  border: 1px solid #fecaca !important;
+}
+.receipt-export-light .receipt-kpi-pending-danger p {
+  color: #991b1b !important;
+}
+.receipt-export-light .receipt-kpi-pending-danger h3 {
+  color: #b91c1c !important;
+}
+
+.receipt-export-light .receipt-kpi-pending-clean {
+  background-color: #f8fafc !important;
+  border: 1px solid #e2e8f0 !important;
+}
+.receipt-export-light .receipt-kpi-pending-clean p {
+  color: #64748b !important;
+}
+.receipt-export-light .receipt-kpi-pending-clean h3 {
+  color: #0f172a !important;
+}
+
+.receipt-export-light .receipt-kpi-balance-active {
+  background-color: #eff6ff !important;
+  border: 1px solid #bfdbfe !important;
+}
+.receipt-export-light .receipt-kpi-balance-active p {
+  color: #1e40af !important;
+}
+.receipt-export-light .receipt-kpi-balance-active h3 {
+  color: #1d4ed8 !important;
+}
+
+.receipt-export-light .receipt-kpi-balance-neutral {
+  background-color: #f8fafc !important;
+  border: 1px solid #e2e8f0 !important;
+}
+.receipt-export-light .receipt-kpi-balance-neutral p {
+  color: #64748b !important;
+}
+.receipt-export-light .receipt-kpi-balance-neutral h3 {
+  color: #94a3b8 !important;
+}
+
+.receipt-export-light .receipt-kpi-total {
+  background-color: #f8fafc !important;
+  border: 1px solid #e2e8f0 !important;
+}
+.receipt-export-light .receipt-kpi-total p {
+  color: #475569 !important;
+}
+.receipt-export-light .receipt-kpi-total h3 {
+  color: #0f172a !important;
+}
+
+/* Apoderados */
+.receipt-export-light .receipt-parent-title {
+  color: #475569 !important;
+}
+.receipt-export-light .receipt-parent-card {
+  background-color: #f8fafc !important;
+  border: 1px solid #e2e8f0 !important;
+}
+.receipt-export-light .receipt-parent-card p:first-child {
+  color: #0f172a !important;
+}
+.receipt-export-light .receipt-parent-card p:last-child {
+  color: #64748b !important;
+}
+
+/* Deudas pendientes */
+.receipt-export-light .receipt-section-pending-title {
+  color: #b91c1c !important;
+}
+.receipt-export-light .receipt-clean-banner {
+  background-color: #ecfdf5 !important;
+  border: 1px dashed #6ee7b7 !important;
+  color: #065f46 !important;
+}
+.receipt-export-light .receipt-clean-banner * {
+  color: #065f46 !important;
+}
+
+.receipt-export-light .receipt-item-pending {
+  background-color: #ffffff !important;
+  border: 1px solid #fecaca !important;
+  border-left: 4px solid #ef4444 !important;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05) !important;
+}
+.receipt-export-light .receipt-item-pending .receipt-debt-title {
+  color: #0f172a !important;
+}
+.receipt-export-light .receipt-item-pending .receipt-debt-amount {
+  color: #dc2626 !important;
+}
+.receipt-export-light .receipt-item-pending .receipt-debt-sub {
+  color: #64748b !important;
+}
+
+/* Deudas pagadas */
+.receipt-export-light .receipt-section-paid-title {
+  color: #15803d !important;
+}
+.receipt-export-light .receipt-item-paid {
+  background-color: #ffffff !important;
+  border: 1px solid #bbf7d0 !important;
+  border-left: 4px solid #10b981 !important;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05) !important;
+}
+.receipt-export-light .receipt-item-paid .receipt-debt-title {
+  color: #0f172a !important;
+}
+.receipt-export-light .receipt-item-paid .receipt-debt-amount {
+  color: #15803d !important;
+}
+.receipt-export-light .receipt-item-paid .receipt-debt-sub {
+  color: #64748b !important;
+}
+.receipt-export-light .receipt-payment-badge {
+  background-color: #d1fae5 !important;
+  color: #065f46 !important;
+  border: 1px solid #a7f3d0 !important;
+}
+

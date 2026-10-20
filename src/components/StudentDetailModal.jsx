@@ -107,7 +107,7 @@ const StudentDetailModal = ({ student, usersMap = {}, onClose, isModal = false }
     setIsCapturing(true);
 
     // Damos un breve tiempo para que React re-renderice quitando el scroll
-    await new Promise(resolve => setTimeout(resolve, 50));
+    await new Promise(resolve => setTimeout(resolve, 60));
 
     try {
       if (!detailRef.current) return;
@@ -117,9 +117,42 @@ const StudentDetailModal = ({ student, usersMap = {}, onClose, isModal = false }
       if (actionsDiv) actionsDiv.style.display = 'none';
 
       const canvas = await html2canvas(detailRef.current, {
-        backgroundColor: '#0f172a', // Fondo dark elegante
+        backgroundColor: '#ffffff', // Fondo blanco limpio y formal (Opción A)
         scale: 2,
-        windowHeight: detailRef.current.scrollHeight // Asegura la altura total
+        useCORS: true,
+        logging: false,
+        windowHeight: detailRef.current.scrollHeight,
+        onclone: (clonedDoc) => {
+          const card = clonedDoc.getElementById(`student-detail-card-${student.id}`);
+          if (card) {
+            card.classList.add('receipt-export-light');
+            card.classList.remove('glass-panel', 'animate-fade-in');
+            
+            // Ocultar botones interactivos (como "Ver comprobante")
+            const buttons = card.querySelectorAll('button');
+            buttons.forEach(b => b.style.display = 'none');
+            
+            // Encabezado institucional de la ficha
+            const headerBanner = clonedDoc.createElement('div');
+            headerBanner.style.cssText = 'display:flex;justify-content:space-between;align-items:center;padding-bottom:12px;margin-bottom:18px;border-bottom:2px solid #e2e8f0;';
+            headerBanner.innerHTML = `
+              <div>
+                <span style="font-size:11px;font-weight:700;color:#4f46e5;text-transform:uppercase;letter-spacing:0.5px;">CONTROL CURSO • ESTADO DE CUENTA</span>
+                <h4 style="margin:2px 0 0 0;font-size:15px;color:#1e293b;font-weight:700;">Ficha Individual de Alumno</h4>
+              </div>
+              <div style="text-align:right;font-size:11px;color:#64748b;">
+                Fecha: ${new Date().toLocaleDateString('es-CL')}
+              </div>
+            `;
+            card.insertBefore(headerBanner, card.firstChild);
+            
+            // Pie de página institucional
+            const footerBanner = clonedDoc.createElement('div');
+            footerBanner.style.cssText = 'text-align:center;margin-top:20px;padding-top:12px;border-top:1px solid #e2e8f0;font-size:11px;color:#94a3b8;';
+            footerBanner.innerHTML = 'Documento informativo generado por Control Curso • Válido al día de emisión';
+            card.appendChild(footerBanner);
+          }
+        }
       });
       
       if (actionsDiv) actionsDiv.style.display = 'flex';
@@ -158,7 +191,8 @@ const StudentDetailModal = ({ student, usersMap = {}, onClose, isModal = false }
   const content = (
     <div 
       ref={detailRef} 
-      className="glass-panel animate-fade-in" 
+      id={`student-detail-card-${student.id}`}
+      className={`glass-panel ${isCapturing ? '' : 'animate-fade-in'}`}
       style={{ 
         width: '100%', 
         maxWidth: isModal ? '850px' : '100%',
@@ -170,10 +204,10 @@ const StudentDetailModal = ({ student, usersMap = {}, onClose, isModal = false }
       }}
     >
       {/* Header Ficha */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '1.5rem', borderBottom: '1px solid var(--border-color)', paddingBottom: '1.25rem', gap: '1rem', flexWrap: 'wrap' }}>
+      <div className="receipt-border-b" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '1.5rem', borderBottom: '1px solid var(--border-color)', paddingBottom: '1.25rem', gap: '1rem', flexWrap: 'wrap' }}>
         <div>
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap', marginBottom: '0.25rem' }}>
-            <span style={{ 
+            <span className="receipt-student-badge" style={{ 
               fontSize: '0.8rem', 
               fontWeight: '700', 
               padding: '0.2rem 0.6rem', 
@@ -183,11 +217,11 @@ const StudentDetailModal = ({ student, usersMap = {}, onClose, isModal = false }
             }}>
               N° {student.listNumber || '-'}
             </span>
-            <h2 style={{ margin: 0, color: 'var(--text-main)', fontSize: '1.4rem' }}>
+            <h2 className="receipt-student-name" style={{ margin: 0, color: 'var(--text-main)', fontSize: '1.4rem' }}>
               {formatStudentName(student)}
             </h2>
           </div>
-          <p style={{ margin: 0, color: 'var(--text-muted)', fontSize: '0.875rem' }}>
+          <p className="receipt-subtext" style={{ margin: 0, color: 'var(--text-muted)', fontSize: '0.875rem' }}>
             {student.rut ? `RUT: ${student.rut}` : 'Sin RUT registrado'}
           </p>
         </div>
@@ -221,7 +255,7 @@ const StudentDetailModal = ({ student, usersMap = {}, onClose, isModal = false }
         marginBottom: '1.5rem' 
       }}>
         {/* Total Pagado */}
-        <div style={{ padding: '1rem', backgroundColor: 'rgba(16, 185, 129, 0.08)', borderRadius: 'var(--radius-md)', border: '1px solid rgba(16, 185, 129, 0.2)' }}>
+        <div className="receipt-kpi-paid" style={{ padding: '1rem', backgroundColor: 'rgba(16, 185, 129, 0.08)', borderRadius: 'var(--radius-md)', border: '1px solid rgba(16, 185, 129, 0.2)' }}>
           <p style={{ margin: '0 0 0.25rem 0', fontSize: '0.75rem', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
             <CheckCircle size={14} style={{ color: 'var(--success)' }} /> Total Pagado
           </p>
@@ -229,7 +263,7 @@ const StudentDetailModal = ({ student, usersMap = {}, onClose, isModal = false }
         </div>
 
         {/* Total Pendiente */}
-        <div style={{ padding: '1rem', backgroundColor: totalPending > 0 ? 'rgba(239, 68, 68, 0.08)' : 'rgba(255,255,255,0.02)', borderRadius: 'var(--radius-md)', border: totalPending > 0 ? '1px solid rgba(239, 68, 68, 0.2)' : '1px solid var(--border-color)' }}>
+        <div className={totalPending > 0 ? 'receipt-kpi-pending-danger' : 'receipt-kpi-pending-clean'} style={{ padding: '1rem', backgroundColor: totalPending > 0 ? 'rgba(239, 68, 68, 0.08)' : 'rgba(255,255,255,0.02)', borderRadius: 'var(--radius-md)', border: totalPending > 0 ? '1px solid rgba(239, 68, 68, 0.2)' : '1px solid var(--border-color)' }}>
           <p style={{ margin: '0 0 0.25rem 0', fontSize: '0.75rem', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
             <AlertCircle size={14} style={{ color: totalPending > 0 ? 'var(--danger)' : 'var(--text-muted)' }} /> Por Pagar / Pendiente
           </p>
@@ -239,7 +273,7 @@ const StudentDetailModal = ({ student, usersMap = {}, onClose, isModal = false }
         </div>
 
         {/* Saldo a Favor */}
-        <div style={{ padding: '1rem', backgroundColor: (student.balance || 0) > 0 ? 'rgba(16, 185, 129, 0.15)' : 'rgba(255,255,255,0.02)', borderRadius: 'var(--radius-md)', border: (student.balance || 0) > 0 ? '1px solid rgba(16, 185, 129, 0.3)' : '1px solid var(--border-color)' }}>
+        <div className={(student.balance || 0) > 0 ? 'receipt-kpi-balance-active' : 'receipt-kpi-balance-neutral'} style={{ padding: '1rem', backgroundColor: (student.balance || 0) > 0 ? 'rgba(16, 185, 129, 0.15)' : 'rgba(255,255,255,0.02)', borderRadius: 'var(--radius-md)', border: (student.balance || 0) > 0 ? '1px solid rgba(16, 185, 129, 0.3)' : '1px solid var(--border-color)' }}>
           <p style={{ margin: '0 0 0.25rem 0', fontSize: '0.75rem', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
             <Sparkles size={14} style={{ color: 'var(--success)' }} /> Saldo a Favor
           </p>
@@ -249,7 +283,7 @@ const StudentDetailModal = ({ student, usersMap = {}, onClose, isModal = false }
         </div>
 
         {/* Cuotas Registradas */}
-        <div style={{ padding: '1rem', backgroundColor: 'rgba(255,255,255,0.02)', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-color)' }}>
+        <div className="receipt-kpi-total" style={{ padding: '1rem', backgroundColor: 'rgba(255,255,255,0.02)', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-color)' }}>
           <p style={{ margin: '0 0 0.25rem 0', fontSize: '0.75rem', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
             <FileText size={14} /> Total Cuotas
           </p>
@@ -261,21 +295,21 @@ const StudentDetailModal = ({ student, usersMap = {}, onClose, isModal = false }
 
       {/* Sección Apoderados */}
       <div style={{ marginBottom: '1.75rem' }}>
-        <h4 style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.75rem', fontSize: '0.95rem', color: 'var(--text-muted)' }}>
+        <h4 className="receipt-parent-title" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.75rem', fontSize: '0.95rem', color: 'var(--text-muted)' }}>
           <User size={16} /> Apoderados Vinculados
         </h4>
         {emails.length === 0 ? (
-          <p style={{ color: 'var(--text-muted)', fontStyle: 'italic', fontSize: '0.85rem' }}>No hay apoderados vinculados a este alumno.</p>
+          <p className="receipt-subtext" style={{ color: 'var(--text-muted)', fontStyle: 'italic', fontSize: '0.85rem' }}>No hay apoderados vinculados a este alumno.</p>
         ) : (
           <div style={{ display: 'grid', gap: '0.75rem', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))' }}>
             {emails.map((email, idx) => {
               const apName = usersMap[email.toLowerCase()] || usersMap[email];
               return (
-                <div key={idx} style={{ padding: '0.75rem 1rem', backgroundColor: 'rgba(255,255,255,0.03)', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-color)' }}>
+                <div className="receipt-parent-card" key={idx} style={{ padding: '0.75rem 1rem', backgroundColor: 'rgba(255,255,255,0.03)', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-color)' }}>
                   <p style={{ fontWeight: '600', margin: '0 0 0.15rem 0', fontSize: '0.95rem', color: 'var(--text-main)' }}>
                     {apName || 'Nombre no registrado'}
                   </p>
-                  <p style={{ margin: 0, color: 'var(--text-muted)', fontSize: '0.8rem' }}>{email}</p>
+                  <p className="receipt-subtext" style={{ margin: 0, color: 'var(--text-muted)', fontSize: '0.8rem' }}>{email}</p>
                 </div>
               );
             })}
@@ -288,17 +322,17 @@ const StudentDetailModal = ({ student, usersMap = {}, onClose, isModal = false }
         
         {/* Deudas Pendientes / Por Pagar */}
         <div style={{ display: 'flex', flexDirection: 'column' }}>
-          <h4 style={{ color: 'var(--danger)', display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.75rem', fontSize: '1rem' }}>
+          <h4 className="receipt-section-pending-title" style={{ color: 'var(--danger)', display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.75rem', fontSize: '1rem' }}>
             <AlertCircle size={18} /> Por Pagar / En Revisión ({pendingDebts.length})
           </h4>
           
           {loading ? (
-            <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>Cargando cuotas...</p>
+            <p className="receipt-subtext" style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>Cargando cuotas...</p>
           ) : pendingDebts.length === 0 ? (
-            <div style={{ padding: '1.5rem', textAlign: 'center', backgroundColor: 'rgba(16, 185, 129, 0.04)', borderRadius: 'var(--radius-md)', border: '1px dashed rgba(16, 185, 129, 0.3)', color: 'var(--success)' }}>
+            <div className="receipt-clean-banner" style={{ padding: '1.5rem', textAlign: 'center', backgroundColor: 'rgba(16, 185, 129, 0.04)', borderRadius: 'var(--radius-md)', border: '1px dashed rgba(16, 185, 129, 0.3)', color: 'var(--success)' }}>
               <CheckCircle size={24} style={{ margin: '0 auto 0.5rem auto' }} />
-              <p style={{ margin: 0, fontWeight: '500' }}>¡Al día!</p>
-              <p style={{ margin: 0, fontSize: '0.8rem', opacity: 0.8 }}>No tiene cuotas pendientes por pagar.</p>
+              <p style={{ margin: 0, fontWeight: '600' }}>¡Al día!</p>
+              <p style={{ margin: 0, fontSize: '0.8rem', opacity: 0.85 }}>No tiene cuotas pendientes por pagar.</p>
             </div>
           ) : (
             <ul style={{ listStyle: 'none', padding: 0, margin: 0, display: 'grid', gap: '0.75rem', maxHeight: (isModal && !isCapturing) ? '350px' : 'none', overflowY: (isModal && !isCapturing) ? 'auto' : 'visible' }}>
@@ -312,6 +346,7 @@ const StudentDetailModal = ({ student, usersMap = {}, onClose, isModal = false }
                 return (
                   <li 
                     key={d.id} 
+                    className="receipt-item-pending"
                     style={{ 
                       padding: '0.85rem 1rem', 
                       backgroundColor: 'rgba(255,255,255,0.02)', 
@@ -322,8 +357,8 @@ const StudentDetailModal = ({ student, usersMap = {}, onClose, isModal = false }
                     }}
                   >
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '0.35rem', gap: '0.5rem' }}>
-                      <span style={{ fontWeight: '600', color: 'var(--text-main)', fontSize: '0.95rem' }}>{d.title}</span>
-                      <span style={{ fontWeight: '700', color: 'var(--danger)', fontSize: '1rem', whiteSpace: 'nowrap' }}>
+                      <span className="receipt-debt-title" style={{ fontWeight: '600', color: 'var(--text-main)', fontSize: '0.95rem' }}>{d.title}</span>
+                      <span className="receipt-debt-amount" style={{ fontWeight: '700', color: 'var(--danger)', fontSize: '1rem', whiteSpace: 'nowrap' }}>
                         {formatMoney(remaining)}
                       </span>
                     </div>
@@ -336,7 +371,7 @@ const StudentDetailModal = ({ student, usersMap = {}, onClose, isModal = false }
                     )}
 
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.8rem', color: 'var(--text-muted)', flexWrap: 'wrap', gap: '0.5rem' }}>
-                      <span>Emitido: {d.date || (d.createdAt ? new Date(d.createdAt).toLocaleDateString() : '-')}</span>
+                      <span className="receipt-debt-sub">Emitido: {d.date || (d.createdAt ? new Date(d.createdAt).toLocaleDateString() : '-')}</span>
                       
                       <div style={{ display: 'flex', gap: '0.4rem', alignItems: 'center' }}>
                         {isReview && (
@@ -348,6 +383,7 @@ const StudentDetailModal = ({ student, usersMap = {}, onClose, isModal = false }
                         {d.receiptUrl && (
                           <button
                             onClick={() => setPreviewReceipt(d.receiptUrl)}
+                            className="btn-view-receipt"
                             style={{
                               background: 'none',
                               border: 'none',
@@ -374,15 +410,15 @@ const StudentDetailModal = ({ student, usersMap = {}, onClose, isModal = false }
 
         {/* Historial de Pagos Realizados */}
         <div style={{ display: 'flex', flexDirection: 'column' }}>
-          <h4 style={{ color: 'var(--success)', display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.75rem', fontSize: '1rem' }}>
+          <h4 className="receipt-section-paid-title" style={{ color: 'var(--success)', display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.75rem', fontSize: '1rem' }}>
             <CheckCircle size={18} /> Pagos Realizados ({paidDebts.length})
           </h4>
           
           {loading ? (
-            <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>Cargando historial...</p>
+            <p className="receipt-subtext" style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>Cargando historial...</p>
           ) : paidDebts.length === 0 ? (
             <div style={{ padding: '1.5rem', textAlign: 'center', backgroundColor: 'rgba(255,255,255,0.02)', borderRadius: 'var(--radius-md)', border: '1px dashed var(--border-color)', color: 'var(--text-muted)' }}>
-              <p style={{ margin: 0 }}>No tiene pagos registrados todavía.</p>
+              <p className="receipt-subtext" style={{ margin: 0 }}>No tiene pagos registrados todavía.</p>
             </div>
           ) : (
             <ul style={{ listStyle: 'none', padding: 0, margin: 0, display: 'grid', gap: '0.75rem', maxHeight: (isModal && !isCapturing) ? '350px' : 'none', overflowY: (isModal && !isCapturing) ? 'auto' : 'visible' }}>
@@ -393,6 +429,7 @@ const StudentDetailModal = ({ student, usersMap = {}, onClose, isModal = false }
                 return (
                   <li 
                     key={d.id} 
+                    className="receipt-item-paid"
                     style={{ 
                       padding: '0.85rem 1rem', 
                       backgroundColor: 'rgba(255,255,255,0.02)', 
@@ -403,17 +440,17 @@ const StudentDetailModal = ({ student, usersMap = {}, onClose, isModal = false }
                     }}
                   >
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '0.35rem', gap: '0.5rem' }}>
-                      <span style={{ fontWeight: '600', color: 'var(--text-main)', fontSize: '0.95rem' }}>{d.title}</span>
-                      <span style={{ fontWeight: '700', color: 'var(--success)', fontSize: '1rem', whiteSpace: 'nowrap' }}>
+                      <span className="receipt-debt-title" style={{ fontWeight: '600', color: 'var(--text-main)', fontSize: '0.95rem' }}>{d.title}</span>
+                      <span className="receipt-debt-amount" style={{ fontWeight: '700', color: 'var(--success)', fontSize: '1rem', whiteSpace: 'nowrap' }}>
                         {formatMoney(d.paidAmount || d.amount)}
                       </span>
                     </div>
 
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.8rem', color: 'var(--text-muted)', flexWrap: 'wrap', gap: '0.5rem' }}>
-                      <span>Fecha pago: {paidDate}</span>
+                      <span className="receipt-debt-sub">Fecha pago: {paidDate}</span>
                       
                       <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
-                        <span style={{ 
+                        <span className="receipt-payment-badge" style={{ 
                           fontSize: '0.75rem', 
                           padding: '0.15rem 0.5rem', 
                           borderRadius: '12px', 
@@ -427,6 +464,7 @@ const StudentDetailModal = ({ student, usersMap = {}, onClose, isModal = false }
                         {d.receiptUrl && (
                           <button
                             onClick={() => setPreviewReceipt(d.receiptUrl)}
+                            className="btn-view-receipt"
                             style={{
                               background: 'none',
                               border: 'none',

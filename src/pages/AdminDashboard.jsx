@@ -227,9 +227,28 @@ const AdminDashboard = () => {
         }
       });
       
-      // Asignar lo recaudado a cada cuota en la lista
+      // Contar estados y alumnos reales de cada cuota desde las deudas reales
+      const expenseDebtsStatsMap = {};
+      allDebtsSnap.docs.forEach(doc => {
+        const data = doc.data();
+        if (data.expenseId) {
+          if (!expenseDebtsStatsMap[data.expenseId]) {
+            expenseDebtsStatsMap[data.expenseId] = { total: 0, paid: 0 };
+          }
+          expenseDebtsStatsMap[data.expenseId].total += 1;
+          if (data.status === 'paid') {
+            expenseDebtsStatsMap[data.expenseId].paid += 1;
+          }
+        }
+      });
+
+      // Asignar lo recaudado y conteos reales a cada cuota en la lista
       expensesList.forEach(exp => {
         exp.collectedAmount = expenseCollectedMap[exp.id] || 0;
+        if (expenseDebtsStatsMap[exp.id] && expenseDebtsStatsMap[exp.id].total > 0) {
+          exp.paidCount = expenseDebtsStatsMap[exp.id].paid;
+          exp.studentsCount = expenseDebtsStatsMap[exp.id].total;
+        }
       });
 
       // 5. Gastos Directiva (Egresos)

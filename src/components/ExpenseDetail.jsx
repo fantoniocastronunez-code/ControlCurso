@@ -77,9 +77,6 @@ const ExpenseDetail = ({ expenseId, onBack }) => {
       // Obtener el gasto
       const expenseRef = doc(db, 'expenses', expenseId);
       const expenseSnap = await getDoc(expenseRef);
-      if (expenseSnap.exists()) {
-        setExpense({ id: expenseSnap.id, ...expenseSnap.data() });
-      }
 
       // Obtener alumnos para el orden y saldos a favor
       const studentsSnap = await getDocs(query(collection(db, 'students'), where('courseId', '==', selectedCourse.id)));
@@ -122,6 +119,23 @@ const ExpenseDetail = ({ expenseId, onBack }) => {
       });
       
       setDebts(debtsData);
+
+      // Sincronización y auto-reparación en Firestore de contadores
+      if (expenseSnap.exists()) {
+        const expData = expenseSnap.data();
+        const realPaidCount = debtsData.filter(d => d.status === 'paid').length;
+        const realStudentsCount = debtsData.length;
+
+        if (realStudentsCount > 0 && (expData.paidCount !== realPaidCount || expData.studentsCount !== realStudentsCount)) {
+          updateDoc(expenseRef, {
+            paidCount: realPaidCount,
+            studentsCount: realStudentsCount
+          }).catch(err => console.error("Error auto-sincronizando cuota:", err));
+          expData.paidCount = realPaidCount;
+          expData.studentsCount = realStudentsCount;
+        }
+        setExpense({ id: expenseSnap.id, ...expData });
+      }
     } catch (error) {
       console.error("Error fetching expense details:", error);
     } finally {

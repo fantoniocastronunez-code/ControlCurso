@@ -119,9 +119,13 @@ const EventAttendance = ({ event }) => {
       
       if (absentCount > 0) {
         if (fineSnap.exists()) {
+          const fineDebtsSnap = await getDocs(query(collection(db, 'debts'), where('expenseId', '==', fineExpenseId)));
+          const currentPaidCount = fineDebtsSnap.docs.filter(d => d.data().status === 'paid').length;
+
           await updateDoc(fineExpenseRef, {
             studentsCount: absentCount,
-            totalAmount: absentCount * event.noShowAmount
+            totalAmount: absentCount * event.noShowAmount,
+            paidCount: currentPaidCount
           });
         } else {
           await setDoc(fineExpenseRef, {
