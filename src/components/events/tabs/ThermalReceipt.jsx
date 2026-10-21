@@ -32,15 +32,15 @@ const ThermalReceipt = ({ sale, eventName }) => {
               <React.Fragment key={idx}>
                 <tr>
                   <td style={{ verticalAlign: 'top' }}>{item.quantity}x</td>
-                  <td>{item.name.substring(0, 15)}</td>
+                  <td style={{ wordBreak: 'break-word', paddingRight: '4px' }}>{item.name}</td>
                   <td style={{ textAlign: 'right', verticalAlign: 'top' }}>{formatMoney(item.price * item.quantity)}</td>
                 </tr>
                 {item.selectedSubproducts && item.selectedSubproducts.length > 0 && (
                   item.selectedSubproducts.map((sp, spIdx) => (
                     <tr key={`sp-${spIdx}`}>
                       <td></td>
-                      <td style={{ paddingLeft: '8px', fontSize: '10px' }}>+ {sp.name.substring(0, 13)}</td>
-                      <td style={{ textAlign: 'right', fontSize: '10px' }}>{formatMoney(sp.price * item.quantity)}</td>
+                      <td style={{ paddingLeft: '8px', fontSize: '10px', wordBreak: 'break-word', paddingRight: '4px' }}>+ {sp.name}</td>
+                      <td style={{ textAlign: 'right', fontSize: '10px', verticalAlign: 'top' }}>{formatMoney(sp.price * item.quantity)}</td>
                     </tr>
                   ))
                 )}

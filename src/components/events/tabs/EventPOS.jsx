@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { db } from '../../../firebase/config';
 import { collection, getDocs, doc, setDoc, query, where, orderBy, updateDoc, deleteDoc } from 'firebase/firestore';
-import { ShoppingCart, Plus, Minus, Trash2, Printer, Maximize, Minimize } from 'lucide-react';
+import { ShoppingCart, Plus, Minus, Trash2, Printer, Maximize, Minimize, Check } from 'lucide-react';
 import { useModal } from '../../../context/ModalContext';
 import { useAuth } from '../../../context/AuthContext';
 import ThermalReceipt from './ThermalReceipt';
@@ -177,6 +177,7 @@ const EventPOS = ({ event }) => {
         paymentMethod,
         fundId: event.fundId,
         eventId: event.id,
+        courseId: event.courseId,
         saleId: saleId,
         createdAt: new Date().toISOString(),
         createdBy: user?.email || user?.displayName || 'Unknown User'
@@ -328,50 +329,133 @@ const EventPOS = ({ event }) => {
       {showSubproductModal && selectedItemForSubproducts && (
         <div style={{
           position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
-          backgroundColor: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)',
+          backgroundColor: 'rgba(0,0,0,0.65)', backdropFilter: 'blur(5px)',
           display: 'flex', alignItems: 'center', justifyContent: 'center',
           zIndex: 1000
         }}>
-          <div className="glass-panel" style={{ width: '90%', maxWidth: '400px', padding: '2rem' }}>
-            <h3 style={{ marginBottom: '0.5rem' }}>Opciones para {selectedItemForSubproducts.name}</h3>
-            <p style={{ color: 'var(--text-muted)', marginBottom: '1.5rem', fontSize: '0.9rem' }}>
-              Precio base: {formatMoney(selectedItemForSubproducts.price)}
+          <div className="glass-panel" style={{ width: '92%', maxWidth: '440px', maxHeight: '90vh', overflowY: 'auto', padding: '1.75rem', borderRadius: 'var(--radius-lg)' }}>
+            <h3 style={{ marginBottom: '0.25rem', color: 'var(--text-main)' }}>Opciones para {selectedItemForSubproducts.name}</h3>
+            <p style={{ color: 'var(--text-muted)', marginBottom: '1.25rem', fontSize: '0.9rem' }}>
+              Precio base: <span style={{ color: 'var(--primary)', fontWeight: 'bold' }}>{formatMoney(selectedItemForSubproducts.price)}</span>
             </p>
             
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', marginBottom: '2rem' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem', marginBottom: '1.5rem' }}>
               {selectedItemForSubproducts.subproducts.map((sp, idx) => {
-                const isSelected = selectedSubproducts.some(s => s.name === sp.name);
+                const currentSelection = selectedSubproducts.find(s => s.baseName === sp.name || s.name === sp.name);
+                const isSelected = !!currentSelection;
+                const hasOptions = Boolean(sp.hasOptions && sp.options && sp.options.length > 0);
+
                 return (
-                  <label key={idx} style={{ 
-                    display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                    padding: '0.75rem', backgroundColor: isSelected ? 'rgba(99,102,241,0.1)' : 'rgba(255,255,255,0.05)',
-                    borderRadius: 'var(--radius-md)', cursor: 'pointer', border: isSelected ? '1px solid var(--primary)' : '1px solid transparent'
-                  }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                      <input 
-                        type="checkbox"
-                        checked={isSelected}
-                        onChange={(e) => {
-                          if (e.target.checked) {
-                            setSelectedSubproducts([...selectedSubproducts, sp]);
-                          } else {
-                            setSelectedSubproducts(selectedSubproducts.filter(s => s.name !== sp.name));
-                          }
-                        }}
-                        style={{ accentColor: 'var(--primary)' }}
-                      />
-                      <span>{sp.name}</span>
-                    </div>
-                    <span style={{ color: 'var(--primary)' }}>+{formatMoney(sp.price)}</span>
-                  </label>
+                  <div 
+                    key={idx} 
+                    style={{ 
+                      padding: '0.85rem', 
+                      backgroundColor: isSelected ? 'rgba(99,102,241,0.08)' : 'rgba(255,255,255,0.03)',
+                      borderRadius: 'var(--radius-md)', 
+                      border: isSelected ? '1px solid var(--primary)' : '1px solid rgba(255,255,255,0.1)',
+                      transition: 'all 0.15s ease'
+                    }}
+                  >
+                    <label style={{ 
+                      display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                      cursor: 'pointer', userSelect: 'none'
+                    }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                        <input 
+                          type="checkbox"
+                          checked={isSelected}
+                          onChange={(e) => {
+                            if (e.target.checked) {
+                              const defaultOption = hasOptions ? sp.options[0] : null;
+                              const displayName = defaultOption ? `${sp.name} (${defaultOption})` : sp.name;
+                              setSelectedSubproducts([
+                                ...selectedSubproducts, 
+                                { 
+                                  baseName: sp.name, 
+                                  name: displayName, 
+                                  selectedOption: defaultOption, 
+                                  price: parseFloat(sp.price || 0) 
+                                }
+                              ]);
+                            } else {
+                              setSelectedSubproducts(selectedSubproducts.filter(s => s.baseName !== sp.name && s.name !== sp.name));
+                            }
+                          }}
+                          style={{ accentColor: 'var(--primary)', width: '18px', height: '18px' }}
+                        />
+                        <span style={{ fontWeight: isSelected ? '600' : 'normal', color: 'var(--text-main)' }}>
+                          {sp.name}
+                        </span>
+                      </div>
+                      <span style={{ color: 'var(--primary)', fontWeight: 'bold', fontSize: '0.9rem' }}>
+                        {parseFloat(sp.price || 0) > 0 ? `+${formatMoney(sp.price)}` : 'Incluido'}
+                      </span>
+                    </label>
+
+                    {/* Submenú de tipos / opciones si está marcado */}
+                    {hasOptions && isSelected && (
+                      <div style={{ 
+                        marginTop: '0.75rem', 
+                        paddingTop: '0.75rem', 
+                        borderTop: '1px solid rgba(255,255,255,0.08)',
+                        paddingLeft: '0.25rem'
+                      }}>
+                        <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginBottom: '0.5rem', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                          <span>Elegir tipo de {sp.name}:</span>
+                          <strong style={{ color: 'var(--primary)' }}>{currentSelection.selectedOption}</strong>
+                        </div>
+                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.4rem' }}>
+                          {sp.options.map((opt, optIdx) => {
+                            const isOptActive = currentSelection.selectedOption === opt;
+                            return (
+                              <button
+                                key={optIdx}
+                                type="button"
+                                onClick={() => {
+                                  setSelectedSubproducts(selectedSubproducts.map(s => {
+                                    if (s.baseName === sp.name || s.name.startsWith(sp.name)) {
+                                      return {
+                                        ...s,
+                                        baseName: sp.name,
+                                        name: `${sp.name} (${opt})`,
+                                        selectedOption: opt
+                                      };
+                                    }
+                                    return s;
+                                  }));
+                                }}
+                                style={{
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  gap: '0.35rem',
+                                  padding: '0.35rem 0.75rem',
+                                  fontSize: '0.8rem',
+                                  fontWeight: isOptActive ? 'bold' : 'normal',
+                                  borderRadius: '20px',
+                                  border: isOptActive ? '1px solid var(--primary)' : '1px solid rgba(255,255,255,0.15)',
+                                  backgroundColor: isOptActive ? 'var(--primary)' : 'rgba(255,255,255,0.05)',
+                                  color: isOptActive ? '#ffffff' : 'var(--text-main)',
+                                  cursor: 'pointer',
+                                  transition: 'all 0.15s ease'
+                                }}
+                              >
+                                {isOptActive && <Check size={12} />}
+                                {opt}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
+                  </div>
                 );
               })}
             </div>
             
-            <div style={{ display: 'flex', gap: '1rem' }}>
+            <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center' }}>
               <button 
                 className="btn btn-outline" 
-                style={{ flex: 1 }}
+                style={{ flex: 1, padding: '0.75rem' }}
                 onClick={() => {
                   setShowSubproductModal(false);
                   setSelectedItemForSubproducts(null);
@@ -382,10 +466,10 @@ const EventPOS = ({ event }) => {
               </button>
               <button 
                 className="btn btn-primary" 
-                style={{ flex: 1 }}
+                style={{ flex: 2, padding: '0.75rem', fontWeight: 'bold' }}
                 onClick={() => addToCart(selectedItemForSubproducts, selectedSubproducts)}
               >
-                Agregar
+                Agregar • {formatMoney(selectedItemForSubproducts.price + selectedSubproducts.reduce((acc, s) => acc + parseFloat(s.price || 0), 0))}
               </button>
             </div>
           </div>

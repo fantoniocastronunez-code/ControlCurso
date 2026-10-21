@@ -12,7 +12,11 @@ service cloud.firestore {
     }
     
     function getUserData() {
-      return get(/databases/$(database)/documents/users/$(request.auth.token.email)).data;
+      return exists(/databases/$(database)/documents/users/$(request.auth.token.email))
+        ? get(/databases/$(database)/documents/users/$(request.auth.token.email)).data
+        : (exists(/databases/$(database)/documents/users/$(request.auth.uid))
+          ? get(/databases/$(database)/documents/users/$(request.auth.uid)).data
+          : {});
     }
     
     function isSuperAdmin() {
@@ -23,6 +27,7 @@ service cloud.firestore {
       return isAuthenticated() && (
         isSuperAdmin() ||
         (
+          courseId != null &&
           'roles' in getUserData() && 
           courseId in getUserData().roles && 
           (getUserData().roles[courseId] == 'tesorero' || getUserData().roles[courseId] == 'admin')
@@ -129,14 +134,26 @@ service cloud.firestore {
     
     match /outcomes/{outcomeId} {
       allow read: if isAuthenticated();
-      allow create: if isAuthenticated() && isCourseAdmin(request.resource.data.courseId);
-      allow update, delete: if isAuthenticated() && isCourseAdmin(resource.data.courseId);
+      allow create: if isAuthenticated() && (
+        ('courseId' in request.resource.data && isCourseAdmin(request.resource.data.courseId)) ||
+        ('eventId' in request.resource.data && ('roles' in getUserData()))
+      );
+      allow update, delete: if isAuthenticated() && (
+        ('courseId' in resource.data && isCourseAdmin(resource.data.courseId)) ||
+        ('eventId' in resource.data && ('roles' in getUserData()))
+      );
     }
     
     match /incomes/{incomeId} {
       allow read: if isAuthenticated();
-      allow create: if isAuthenticated() && isCourseAdmin(request.resource.data.courseId);
-      allow update, delete: if isAuthenticated() && isCourseAdmin(resource.data.courseId);
+      allow create: if isAuthenticated() && (
+        ('courseId' in request.resource.data && isCourseAdmin(request.resource.data.courseId)) ||
+        ('eventId' in request.resource.data && ('roles' in getUserData()))
+      );
+      allow update, delete: if isAuthenticated() && (
+        ('courseId' in resource.data && isCourseAdmin(resource.data.courseId)) ||
+        ('eventId' in resource.data && ('roles' in getUserData()))
+      );
     }
     
     // -- APPROVALS (SISTEMA DE APROBACIONES) --
@@ -152,11 +169,34 @@ service cloud.firestore {
       allow update, delete: if isAuthenticated() && isCourseAdmin(resource.data.courseId);
     }
     
-    // -- EVENTS, TICKETS, INVENTORY, SALES (PUNTO DE VENTA) --
+    // -- EVENTS, EVENT ITEMS, EVENT SALES, TICKETS (PUNTO DE VENTA) --
     match /events/{eventId} {
       allow read: if isAuthenticated();
       allow create: if isAuthenticated() && isCourseAdmin(request.resource.data.courseId);
       allow update, delete: if isAuthenticated() && isCourseAdmin(resource.data.courseId);
+    }
+
+    match /eventItems/{itemId} {
+      allow read: if isAuthenticated();
+      allow create, update, delete: if isAuthenticated() && (
+        isSuperAdmin() ||
+        ('roles' in getUserData() && getUserData().roles.values().hasAny(['admin', 'tesorero'])) ||
+        ('role' in getUserData() && (getUserData().role == 'superadmin' || getUserData().role == 'admin' || getUserData().role == 'tesorero'))
+      );
+    }
+
+    match /eventSales/{saleId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated() && (
+        isSuperAdmin() ||
+        ('roles' in getUserData() && getUserData().roles.values().hasAny(['admin', 'tesorero', 'apoderado'])) ||
+        ('role' in getUserData() && getUserData().role != null)
+      );
+      allow update, delete: if isAuthenticated() && (
+        isSuperAdmin() ||
+        ('roles' in getUserData() && getUserData().roles.values().hasAny(['admin', 'tesorero'])) ||
+        ('role' in getUserData() && (getUserData().role == 'superadmin' || getUserData().role == 'admin' || getUserData().role == 'tesorero'))
+      );
     }
     
     match /inventory/{itemId} {

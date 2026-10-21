@@ -1,0 +1,12 @@
+{
+  "firestore": [
+    {
+      "database": "controlcurso2",
+      "rules": "firestore.rules"
+    },
+    {
+      "database": "(default)",
+      "rules": "firestore.rules"
+    }
+  ]
+}
