@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { LogOut, Users, DollarSign, Activity, FileText, RefreshCw, Trash2, CreditCard, Search, Menu, X, PlusCircle, Settings, AlertTriangle, CheckCircle } from 'lucide-react';
+import { LogOut, Users, DollarSign, Activity, FileText, RefreshCw, Trash2, CreditCard, Search, Menu, X, PlusCircle, Settings, AlertTriangle, CheckCircle, Download } from 'lucide-react';
 import { db } from '../firebase/config';
 import { collection, getDocs, query, where, addDoc, doc, setDoc, getDoc } from 'firebase/firestore';
 import { useNavigate } from 'react-router-dom';
@@ -24,6 +24,7 @@ import RegisteredApoderadosModal from '../components/RegisteredApoderadosModal';
 import StudentsWithoutApoderadosModal from '../components/StudentsWithoutApoderadosModal';
 import CourseManagement from '../components/CourseManagement';
 import ApprovalsManagement from '../components/ApprovalsManagement';
+import CuotaReportModal from '../components/CuotaReportModal';
 import { useCourse } from '../context/CourseContext';
 
 const AdminDashboard = () => {
@@ -58,6 +59,7 @@ const AdminDashboard = () => {
   const [isApoderadosModalOpen, setIsApoderadosModalOpen] = useState(false);
   const [isNoApoderadosModalOpen, setIsNoApoderadosModalOpen] = useState(false);
   const [showAllExpenses, setShowAllExpenses] = useState(false);
+  const [isCuotaReportOpen, setIsCuotaReportOpen] = useState(false);
   
   // Lista de cuotas
   const [expenses, setExpenses] = useState([]);
@@ -837,16 +839,34 @@ const AdminDashboard = () => {
 
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(350px, 1fr))', gap: '1.5rem' }}>
                 <div className="glass-panel" style={{ padding: '2rem' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem', flexWrap: 'wrap', gap: '0.75rem' }}>
                     <h3 style={{ margin: 0 }}>Últimas Cuotas Emitidas</h3>
-                    {expenses.length > 5 && (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
                       <button 
-                        onClick={() => setShowAllExpenses(!showAllExpenses)} 
-                        style={{ background: 'none', border: 'none', color: 'var(--primary)', cursor: 'pointer', fontSize: '0.9rem', fontWeight: '500', textDecoration: 'underline', padding: 0 }}
+                        onClick={() => setIsCuotaReportOpen(true)}
+                        className="btn btn-outline"
+                        style={{
+                          borderColor: '#107C41',
+                          color: '#34d399',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '0.4rem',
+                          padding: '0.35rem 0.75rem',
+                          fontSize: '0.85rem'
+                        }}
+                        title="Descargar reporte de cuotas en PDF (Estilo Excel)"
                       >
-                        {showAllExpenses ? "Ver menos" : "Ver todas"}
+                        <Download size={15} /> Reporte PDF
                       </button>
-                    )}
+                      {expenses.length > 5 && (
+                        <button 
+                          onClick={() => setShowAllExpenses(!showAllExpenses)} 
+                          style={{ background: 'none', border: 'none', color: 'var(--primary)', cursor: 'pointer', fontSize: '0.9rem', fontWeight: '500', textDecoration: 'underline', padding: 0 }}
+                        >
+                          {showAllExpenses ? "Ver menos" : "Ver todas"}
+                        </button>
+                      )}
+                    </div>
                   </div>
                   {expenses.length === 0 ? (
                     <p style={{ color: 'var(--text-muted)', textAlign: 'center', padding: '1rem' }}>No hay cuotas emitidas todavía.</p>
@@ -987,6 +1007,13 @@ const AdminDashboard = () => {
         onClose={() => setIsSearchOpen(false)}
       />
     )}
+
+    <CuotaReportModal
+      isOpen={isCuotaReportOpen}
+      onClose={() => setIsCuotaReportOpen(false)}
+      selectedCourse={selectedCourse}
+      preloadedExpenses={expenses}
+    />
 
     {/* Liquid Bottom Navigation */}
     <nav className="bottom-nav">

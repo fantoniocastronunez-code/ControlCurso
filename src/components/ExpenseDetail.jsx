@@ -9,6 +9,7 @@ import { useLockBodyScroll } from '../hooks/useLockBodyScroll';
 import { useCourse } from '../context/CourseContext';
 import { useAuth } from '../context/AuthContext';
 import { requestApproval } from '../services/approvalService';
+import CuotaReportModal from './CuotaReportModal';
 
 const ExpenseDetail = ({ expenseId, onBack }) => {
   const { showAlert, showConfirm, showPrompt } = useModal();
@@ -25,6 +26,7 @@ const ExpenseDetail = ({ expenseId, onBack }) => {
   const [usersMap, setUsersMap] = useState({});
   const [loading, setLoading] = useState(true);
   const [copiedPending, setCopiedPending] = useState(false);
+  const [isReportModalOpen, setIsReportModalOpen] = useState(false);
   
   // Modo Auditoría
   const [isAuditMode, setIsAuditMode] = useState(false);
@@ -1335,6 +1337,24 @@ const ExpenseDetail = ({ expenseId, onBack }) => {
                   {copiedPending ? <Check size={16}/> : <Copy size={16}/>}
                   {copiedPending ? '¡Copiado!' : 'Copiar pendientes'}
                 </button>
+                <button
+                  type="button"
+                  onClick={() => setIsReportModalOpen(true)}
+                  className="btn btn-outline"
+                  style={{
+                    padding: '0.3rem 0.7rem',
+                    fontSize: '0.85rem',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '0.35rem',
+                    borderColor: '#107C41',
+                    color: '#34d399',
+                    transition: 'all 0.2s ease'
+                  }}
+                  title="Descargar reporte PDF estilo Excel (Totales, Impagos o Pagados)"
+                >
+                  <Download size={16}/> Reporte PDF
+                </button>
               </div>
               <p style={{ color: 'var(--text-muted)' }}>Emitido el: {expense.date}</p>
             </div>
@@ -1917,6 +1937,17 @@ const ExpenseDetail = ({ expenseId, onBack }) => {
           </div>
         )}
       </div>
+
+      {/* Modal para descargar reporte en PDF (Estilo Excel) */}
+      <CuotaReportModal
+        isOpen={isReportModalOpen}
+        onClose={() => setIsReportModalOpen(false)}
+        selectedCourse={selectedCourse}
+        initialExpenseId={expenseId}
+        preloadedExpenses={expense ? [expense] : null}
+        preloadedStudents={students}
+        preloadedDebts={debts}
+      />
     </div>
   );
 };
