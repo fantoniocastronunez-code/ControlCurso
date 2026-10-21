@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useMemo, useCallback } from 'react';
 import { db } from '../firebase/config';
-import { collection, getDocs, doc, setDoc, deleteDoc, updateDoc, query, where } from 'firebase/firestore';
-import { ArrowLeft, UserPlus, CheckCircle, Trash2, Edit2, X, Save, Eye, Search, Receipt } from 'lucide-react';
+import { collection, getDocs, doc, setDoc, deleteDoc, updateDoc, writeBatch, query, where } from 'firebase/firestore';
+import { ArrowLeft, UserPlus, CheckCircle, Trash2, Edit2, X, Save, Eye, EyeOff, Search, Receipt } from 'lucide-react';
 import BulkImport from './BulkImport';
 import StudentDetailModal from './StudentDetailModal';
 import { useNavigate } from 'react-router-dom';
@@ -316,6 +316,14 @@ const StudentManagement = ({ onBack }) => {
     });
   }, [students, tableSearch, showWithdrawn]);
 
+  const totalActiveCount = useMemo(() => {
+    return students.filter(s => s.status !== 'retirado').length;
+  }, [students]);
+
+  const activeExpensesCount = useMemo(() => {
+    return students.filter(s => s.status !== 'retirado' && s.showExpensesInPortal).length;
+  }, [students]);
+
   const toggleExpand = useCallback((id, e) => {
     if (e && (e.target.tagName === 'BUTTON' || e.target.tagName === 'INPUT' || e.target.closest('button'))) return;
     setExpandedRowId(prev => prev === id ? null : id);
@@ -436,6 +444,46 @@ const StudentManagement = ({ onBack }) => {
       console.error("Error al cambiar estado de vista de gastos:", error);
       setMessage('Error al actualizar permisos de visualización');
       setTimeout(() => setMessage(''), 3000);
+    }
+  };
+
+  const handleBulkToggleExpenseView = async (enable) => {
+    const targetStudents = students.filter(s => s.status !== 'retirado');
+    if (targetStudents.length === 0) {
+      showAlert('No hay alumnos activos en el curso.');
+      return;
+    }
+
+    const actionText = enable ? 'ACTIVAR' : 'DESACTIVAR';
+    const confirmMsg = `¿Estás seguro de que deseas ${actionText} la visualización de gastos para los ${targetStudents.length} alumnos del curso?`;
+    if (!(await showConfirm(confirmMsg))) return;
+
+    setLoading(true);
+    try {
+      const batch = writeBatch(db);
+      targetStudents.forEach(s => {
+        const sRef = doc(db, 'students', s.id);
+        batch.update(sRef, { showExpensesInPortal: enable });
+      });
+      await batch.commit();
+
+      setStudents(prev => prev.map(s => {
+        if (s.status === 'retirado') return s;
+        return { ...s, showExpensesInPortal: enable };
+      }));
+
+      if (selectedStudent && selectedStudent.status !== 'retirado') {
+        setSelectedStudent(prev => ({ ...prev, showExpensesInPortal: enable }));
+      }
+
+      showAlert(`Visualización de gastos ${enable ? 'activada' : 'desactivada'} para todos los alumnos (${targetStudents.length}).`);
+      setMessage(`Visualización de gastos ${enable ? 'activada' : 'desactivada'} para todos.`);
+      setTimeout(() => setMessage(''), 3000);
+    } catch (error) {
+      console.error("Error al actualizar visualización masiva de gastos:", error);
+      showAlert('Error al actualizar permisos de visualización masiva.');
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -583,7 +631,55 @@ const StudentManagement = ({ onBack }) => {
         <button onClick={onBack} className="btn btn-outline" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
           <ArrowLeft size={18} /> Volver al Panel
         </button>
-        <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>
+        <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap', alignItems: 'center' }}>
+          {role === 'superadmin' && (
+            <div style={{ 
+              display: 'flex', 
+              alignItems: 'center', 
+              gap: '0.4rem', 
+              padding: '0.2rem 0.4rem', 
+              backgroundColor: 'rgba(255, 255, 255, 0.03)', 
+              borderRadius: 'var(--radius-md)', 
+              border: '1px solid var(--border-color)' 
+            }}>
+              <button 
+                type="button"
+                onClick={() => handleBulkToggleExpenseView(true)}
+                className="btn btn-outline"
+                style={{ 
+                  display: 'flex', 
+                  alignItems: 'center', 
+                  gap: '0.35rem', 
+                  borderColor: 'rgba(16, 185, 129, 0.4)', 
+                  color: 'var(--success)', 
+                  backgroundColor: 'rgba(16, 185, 129, 0.08)',
+                  fontSize: '0.85rem',
+                  padding: '0.45rem 0.75rem'
+                }}
+                title="Habilitar visualización de gastos para TODOS los alumnos en su portal"
+              >
+                <Receipt size={16} /> Activar Gastos a Todos
+              </button>
+              <button 
+                type="button"
+                onClick={() => handleBulkToggleExpenseView(false)}
+                className="btn btn-outline"
+                style={{ 
+                  display: 'flex', 
+                  alignItems: 'center', 
+                  gap: '0.35rem', 
+                  borderColor: 'rgba(239, 68, 68, 0.4)', 
+                  color: '#f87171', 
+                  backgroundColor: 'rgba(239, 68, 68, 0.08)',
+                  fontSize: '0.85rem',
+                  padding: '0.45rem 0.75rem'
+                }}
+                title="Desactivar visualización de gastos para TODOS los alumnos en su portal"
+              >
+                <EyeOff size={16} /> Desactivar a Todos
+              </button>
+            </div>
+          )}
           <button 
             onClick={generatePendingReport}
             className="btn btn-outline"
@@ -742,9 +838,26 @@ const StudentManagement = ({ onBack }) => {
             </button>
           )}
         </div>
-        <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>
-          {filteredStudents.length} de {students.length} alumnos
-        </span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', flexWrap: 'wrap' }}>
+          {role === 'superadmin' && (
+            <div style={{ 
+              fontSize: '0.8rem', 
+              padding: '0.3rem 0.65rem', 
+              borderRadius: 'var(--radius-sm)',
+              backgroundColor: activeExpensesCount > 0 ? 'rgba(16, 185, 129, 0.12)' : 'rgba(255, 255, 255, 0.04)',
+              border: `1px solid ${activeExpensesCount > 0 ? 'rgba(16, 185, 129, 0.3)' : 'var(--border-color)'}`,
+              color: activeExpensesCount > 0 ? 'var(--success)' : 'var(--text-muted)',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '0.4rem'
+            }}>
+              <Receipt size={14} /> Gastos en portal: <strong>{activeExpensesCount} de {totalActiveCount} alumnos</strong>
+            </div>
+          )}
+          <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>
+            {filteredStudents.length} de {students.length} alumnos
+          </span>
+        </div>
       </div>
 
       <div className="glass-panel" style={{ overflowX: 'auto' }}>
