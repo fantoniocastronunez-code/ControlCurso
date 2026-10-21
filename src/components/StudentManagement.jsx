@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useMemo, useCallback } from 'react';
 import { db } from '../firebase/config';
 import { collection, getDocs, doc, setDoc, deleteDoc, updateDoc, query, where } from 'firebase/firestore';
-import { ArrowLeft, UserPlus, CheckCircle, Trash2, Edit2, X, Save, Eye, Search } from 'lucide-react';
+import { ArrowLeft, UserPlus, CheckCircle, Trash2, Edit2, X, Save, Eye, Search, Receipt } from 'lucide-react';
 import BulkImport from './BulkImport';
 import StudentDetailModal from './StudentDetailModal';
 import { useNavigate } from 'react-router-dom';
@@ -33,7 +33,8 @@ const StudentRow = React.memo(({
   startEditing, 
   handleDelete,
   isExpanded,
-  toggleExpand
+  toggleExpand,
+  handleToggleExpenseView
 }) => {
   return (
     <React.Fragment key={s.id}>
@@ -165,6 +166,16 @@ const StudentRow = React.memo(({
                 />
                 Retirado
               </label>
+              {role === 'superadmin' && (
+                <label style={{ fontSize: '0.8rem', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '0.5rem' }} title="Habilita el recuadro de gastos en el portal del apoderado">
+                  <input 
+                    type="checkbox"
+                    checked={Boolean(editData.showExpensesInPortal)}
+                    onChange={(e) => setEditData({...editData, showExpensesInPortal: e.target.checked})}
+                  />
+                  Ver Gastos Portal
+                </label>
+              )}
               <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.5rem' }}>
                 <button onClick={handleSaveEdit} className="btn btn-primary" style={{ padding: '0.4rem 0.75rem', gap: '0.5rem', display: 'flex', alignItems: 'center' }}>
                   <Save size={16} /> Guardar
@@ -219,14 +230,32 @@ const StudentRow = React.memo(({
           <td data-label="Acciones" style={{ padding: '0.5rem 1rem' }}>
             <div style={{ display: 'flex', gap: '0.5rem' }}>
               {role === 'superadmin' && (
-                <button 
-                  onClick={(e) => { e.stopPropagation(); navigate('/apoderado', { state: { impersonateStudentId: s.id } }); }}
-                  className="btn btn-outline" 
-                  style={{ padding: '0.5rem', color: 'var(--success)', borderColor: 'rgba(16, 185, 129, 0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-                  title="Ver portal como apoderado"
-                >
-                  <Eye size={18} />
-                </button>
+                <>
+                  <button 
+                    onClick={(e) => { e.stopPropagation(); navigate('/apoderado', { state: { impersonateStudentId: s.id } }); }}
+                    className="btn btn-outline" 
+                    style={{ padding: '0.5rem', color: 'var(--success)', borderColor: 'rgba(16, 185, 129, 0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                    title="Ver portal como apoderado"
+                  >
+                    <Eye size={18} />
+                  </button>
+                  <button 
+                    onClick={(e) => { e.stopPropagation(); handleToggleExpenseView && handleToggleExpenseView(s); }}
+                    className="btn btn-outline" 
+                    style={{ 
+                      padding: '0.5rem', 
+                      color: s.showExpensesInPortal ? '#10b981' : 'var(--text-muted)', 
+                      borderColor: s.showExpensesInPortal ? 'rgba(16, 185, 129, 0.5)' : 'var(--border-color)', 
+                      backgroundColor: s.showExpensesInPortal ? 'rgba(16, 185, 129, 0.12)' : 'transparent',
+                      display: 'flex', 
+                      alignItems: 'center', 
+                      justifyContent: 'center' 
+                    }}
+                    title={s.showExpensesInPortal ? "Vista de gastos activada en portal (Click para desactivar)" : "Habilitar vista de gastos en portal para este alumno (Modo prueba)"}
+                  >
+                    <Receipt size={18} />
+                  </button>
+                </>
               )}
               <button onClick={(e) => { e.stopPropagation(); startEditing(s); }} className="btn btn-outline" style={{ padding: '0.5rem', color: 'var(--primary)', borderColor: 'rgba(99, 102, 241, 0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center' }} title="Editar">
                 <Edit2 size={18} />
@@ -361,6 +390,7 @@ const StudentManagement = ({ onBack }) => {
         balance: Number(newBalance) || 0,
         rut: newRut.trim(),
         status: 'activo',
+        courseId: selectedCourse.id,
         createdAt: new Date().toISOString(),
       };
       
@@ -385,6 +415,26 @@ const StudentManagement = ({ onBack }) => {
     } catch (error) {
       console.error("Error agregando alumno:", error);
       setMessage('Error al agregar alumno');
+      setTimeout(() => setMessage(''), 3000);
+    }
+  };
+
+  const handleToggleExpenseView = async (student) => {
+    try {
+      const newStatus = !student.showExpensesInPortal;
+      const studentRef = doc(db, 'students', student.id);
+      await updateDoc(studentRef, {
+        showExpensesInPortal: newStatus
+      });
+      setStudents(prev => prev.map(s => s.id === student.id ? { ...s, showExpensesInPortal: newStatus } : s));
+      if (selectedStudent?.id === student.id) {
+        setSelectedStudent(prev => ({ ...prev, showExpensesInPortal: newStatus }));
+      }
+      setMessage(`Vista de gastos ${newStatus ? 'habilitada' : 'deshabilitada'} para ${student.firstName || student.name}`);
+      setTimeout(() => setMessage(''), 3000);
+    } catch (error) {
+      console.error("Error al cambiar estado de vista de gastos:", error);
+      setMessage('Error al actualizar permisos de visualización');
       setTimeout(() => setMessage(''), 3000);
     }
   };
@@ -415,13 +465,14 @@ const StudentManagement = ({ onBack }) => {
       listNumber: student.listNumber || '',
       balance: student.balance || 0,
       rut: student.rut || '',
-      status: student.status || 'activo'
+      status: student.status || 'activo',
+      showExpensesInPortal: Boolean(student.showExpensesInPortal)
     });
   };
 
   const cancelEditing = () => {
     setEditingId(null);
-    setEditData({ firstName: '', lastNamePaternal: '', lastNameMaternal: '', apoderadoEmail1: '', apoderadoEmail2: '', apoderadoName1: '', apoderadoName2: '', listNumber: '', balance: '', rut: '', status: '' });
+    setEditData({ firstName: '', lastNamePaternal: '', lastNameMaternal: '', apoderadoEmail1: '', apoderadoEmail2: '', apoderadoName1: '', apoderadoName2: '', listNumber: '', balance: '', rut: '', status: '', showExpensesInPortal: false });
   };
 
   const handleSaveEdit = async () => {
@@ -450,7 +501,7 @@ const StudentManagement = ({ onBack }) => {
       await updateApoderadoName(editData.apoderadoEmail1, editData.apoderadoName1);
       await updateApoderadoName(editData.apoderadoEmail2, editData.apoderadoName2);
 
-      await updateDoc(studentRef, {
+      const studentUpdateData = {
         name: fullName,
         firstName: editData.firstName.trim(),
         lastNamePaternal: editData.lastNamePaternal.trim(),
@@ -460,10 +511,23 @@ const StudentManagement = ({ onBack }) => {
         balance: Number(editData.balance) || 0,
         rut: editData.rut.trim(),
         status: editData.status
-      });
+      };
+      if (role === 'superadmin') {
+        studentUpdateData.showExpensesInPortal = Boolean(editData.showExpensesInPortal);
+      }
+
+      await updateDoc(studentRef, studentUpdateData);
       
       let updatedList = students.map(s => 
-        s.id === editingId ? { ...s, ...editData, apoderadoEmails: emails, balance: Number(editData.balance) || 0, rut: editData.rut.trim(), status: editData.status } : s
+        s.id === editingId ? { 
+          ...s, 
+          ...editData, 
+          apoderadoEmails: emails, 
+          balance: Number(editData.balance) || 0, 
+          rut: editData.rut.trim(), 
+          status: editData.status,
+          ...(role === 'superadmin' ? { showExpensesInPortal: Boolean(editData.showExpensesInPortal) } : {})
+        } : s
       );
       updatedList.sort((a, b) => {
         const aNum = parseInt(a.listNumber) || 999;
@@ -715,6 +779,7 @@ const StudentManagement = ({ onBack }) => {
                 handleDelete={handleDelete}
                 isExpanded={expandedRowId === s.id}
                 toggleExpand={toggleExpand}
+                handleToggleExpenseView={handleToggleExpenseView}
               />
             ))}
           </tbody>

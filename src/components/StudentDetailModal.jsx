@@ -1,25 +1,52 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { db } from '../firebase/config';
-import { collection, query, where, getDocs } from 'firebase/firestore';
+import { collection, query, where, getDocs, doc, updateDoc } from 'firebase/firestore';
 import { 
   X, User, AlertCircle, CheckCircle, Clock, Download, 
-  DollarSign, Sparkles, CreditCard, Eye, FileText, AlertTriangle 
+  DollarSign, Sparkles, CreditCard, Eye, FileText, AlertTriangle, Receipt 
 } from 'lucide-react';
 import { formatStudentName } from '../utils/nameUtils';
 import { useModal } from '../context/ModalContext';
+import { useAuth } from '../context/AuthContext';
 import html2canvas from 'html2canvas';
 import { useLockBodyScroll } from '../hooks/useLockBodyScroll';
 
 const StudentDetailModal = ({ student, usersMap = {}, onClose, isModal = false }) => {
   const { showAlert } = useModal();
+  const { role } = useAuth();
   const [debts, setDebts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [sharing, setSharing] = useState(false);
   const [isCapturing, setIsCapturing] = useState(false);
   const [previewReceipt, setPreviewReceipt] = useState(null);
+  const [expensesEnabled, setExpensesEnabled] = useState(Boolean(student?.showExpensesInPortal));
+  const [togglingExpenses, setTogglingExpenses] = useState(false);
   const detailRef = useRef(null);
 
   useLockBodyScroll(isModal);
+
+  useEffect(() => {
+    setExpensesEnabled(Boolean(student?.showExpensesInPortal));
+  }, [student?.showExpensesInPortal]);
+
+  const handleToggleExpensesInPortal = async () => {
+    if (!student?.id || togglingExpenses) return;
+    setTogglingExpenses(true);
+    try {
+      const nextStatus = !expensesEnabled;
+      await updateDoc(doc(db, 'students', student.id), {
+        showExpensesInPortal: nextStatus
+      });
+      student.showExpensesInPortal = nextStatus;
+      setExpensesEnabled(nextStatus);
+      await showAlert(`Vista de gastos en portal ${nextStatus ? 'habilitada' : 'deshabilitada'} para este alumno.`);
+    } catch (err) {
+      console.error("Error toggling expenses view:", err);
+      await showAlert("Error al cambiar la visualización de gastos.");
+    } finally {
+      setTogglingExpenses(false);
+    }
+  };
 
   useEffect(() => {
     if (student?.id) {
@@ -227,6 +254,26 @@ const StudentDetailModal = ({ student, usersMap = {}, onClose, isModal = false }
         </div>
 
         <div id={`actions-${student.id}`} style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+          {role === 'superadmin' && (
+            <button 
+              onClick={handleToggleExpensesInPortal}
+              disabled={togglingExpenses}
+              className="btn btn-outline" 
+              style={{ 
+                padding: '0.5rem 0.85rem', 
+                display: 'flex', 
+                alignItems: 'center', 
+                gap: '0.4rem', 
+                borderColor: expensesEnabled ? 'rgba(16, 185, 129, 0.5)' : 'var(--border-color)', 
+                color: expensesEnabled ? '#10b981' : 'var(--text-muted)',
+                backgroundColor: expensesEnabled ? 'rgba(16, 185, 129, 0.1)' : 'transparent',
+                fontSize: '0.85rem'
+              }}
+              title={expensesEnabled ? "Deshabilitar vista de gastos en portal de este alumno" : "Habilitar vista de gastos en portal (Modo prueba)"}
+            >
+              <Receipt size={16} /> {expensesEnabled ? 'Gastos Portal: Habilitado' : 'Gastos Portal: Deshabilitado'}
+            </button>
+          )}
           <button 
             onClick={handleShare} 
             disabled={sharing} 

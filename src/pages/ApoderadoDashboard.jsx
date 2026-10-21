@@ -1,6 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { LogOut, CheckCircle, Clock, Search, UserPlus, Upload, AlertCircle, MessageCircle } from 'lucide-react';
+import { 
+  LogOut, CheckCircle, Clock, Search, UserPlus, Upload, AlertCircle, MessageCircle,
+  Receipt, TrendingDown, Eye, X, Sparkles, ExternalLink 
+} from 'lucide-react';
 import { db, storage } from '../firebase/config';
 import { collection, query, where, getDocs, getDoc, doc, updateDoc, setDoc, or, addDoc, onSnapshot } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
@@ -39,6 +42,14 @@ const ApoderadoDashboard = () => {
   // Settings
   const [transferData, setTransferData] = useState(null);
   const [whatsappContact, setWhatsappContact] = useState('');
+
+  // Course expenses transparency
+  const [outcomes, setOutcomes] = useState([]);
+  const [outcomesLoading, setOutcomesLoading] = useState(false);
+  const [courseStudentsCount, setCourseStudentsCount] = useState(1);
+  const [fundsMap, setFundsMap] = useState({});
+  const [expenseSearch, setExpenseSearch] = useState('');
+  const [previewReceiptUrl, setPreviewReceiptUrl] = useState(null);
 
   // RUT linking state
   const [linkingStudentId, setLinkingStudentId] = useState(null);
@@ -135,10 +146,12 @@ const ApoderadoDashboard = () => {
     const fetchCourseSettings = async () => {
       if (!activeStudentId) return;
       const student = myStudents.find(s => s.id === activeStudentId);
-      if (!student || !student.courseId) return;
+      if (!student) return;
+      const courseId = student.courseId || debts.find(d => d.studentId === student.id)?.courseId;
+      if (!courseId) return;
 
       try {
-        const settingsDocRef = doc(db, 'settings', student.courseId);
+        const settingsDocRef = doc(db, 'settings', courseId);
         const settingsSnap = await getDoc(settingsDocRef);
         if (settingsSnap.exists()) {
           const data = settingsSnap.data();
@@ -159,7 +172,141 @@ const ApoderadoDashboard = () => {
       }
     };
     fetchCourseSettings();
-  }, [activeStudentId, myStudents]);
+  }, [activeStudentId, myStudents, debts]);
+
+  const activeStudent = myStudents.find(s => s.id === activeStudentId);
+  const canViewExpenses = role === 'superadmin' || Boolean(activeStudent?.showExpensesInPortal);
+
+  useEffect(() => {
+    if (!activeStudentId || !canViewExpenses) return;
+
+    const student = myStudents.find(s => s.id === activeStudentId);
+    if (!student) return;
+
+    const courseId = student.courseId || debts.find(d => d.studentId === student.id)?.courseId;
+    if (!courseId) return;
+
+    let isMounted = true;
+    setOutcomesLoading(true);
+
+    const loadCourseExpenses = async () => {
+      try {
+        // 1. Fetch active students count in course
+        const qStudents = query(collection(db, 'students'), where('courseId', '==', courseId));
+        const studentsSnap = await getDocs(qStudents);
+        const activeCount = studentsSnap.docs.filter(d => d.data().status !== 'retirado').length || 1;
+
+        // 2. Fetch funds to get readable names
+        const qFunds = query(collection(db, 'funds'), where('courseId', '==', courseId));
+        const fundsSnap = await getDocs(qFunds);
+        const fMap = { general: 'Fondo General' };
+        fundsSnap.docs.forEach(d => {
+          fMap[d.id] = d.data().name || d.id;
+        });
+
+        // 3. Fetch outcomes for this course
+        const qOutcomes = query(collection(db, 'outcomes'), where('courseId', '==', courseId));
+        const outcomesSnap = await getDocs(qOutcomes);
+        const loadedOutcomes = outcomesSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+
+        loadedOutcomes.sort((a, b) => new Date(b.date || b.createdAt || 0) - new Date(a.date || a.createdAt || 0));
+
+        if (isMounted) {
+          setCourseStudentsCount(activeCount);
+          setFundsMap(fMap);
+          setOutcomes(loadedOutcomes);
+        }
+      } catch (err) {
+        console.error("Error fetching course outcomes:", err);
+      } finally {
+        if (isMounted) setOutcomesLoading(false);
+      }
+    };
+
+    loadCourseExpenses();
+
+    return () => { isMounted = false; };
+  }, [activeStudentId, canViewExpenses, myStudents, debts]);
+
+  const handleToggleActiveStudentExpenses = async () => {
+    if (!activeStudentId) return;
+    const student = myStudents.find(s => s.id === activeStudentId);
+    if (!student) return;
+    try {
+      const nextStatus = !student.showExpensesInPortal;
+      await updateDoc(doc(db, 'students', student.id), {
+        showExpensesInPortal: nextStatus
+      });
+      setMyStudents(prev => prev.map(s => s.id === student.id ? { ...s, showExpensesInPortal: nextStatus } : s));
+      showAlert(`Vista de gastos ${nextStatus ? 'habilitada' : 'deshabilitada'} para ${student.name || 'este alumno'}.`);
+    } catch (err) {
+      console.error("Error al actualizar visibilidad de gastos:", err);
+      showAlert("Error al actualizar visibilidad de gastos.");
+    }
+  };
+
+  const formatMoney = (amount) => {
+    return new Intl.NumberFormat('es-CL', { style: 'currency', currency: 'CLP' }).format(amount || 0);
+  };
+
+  const formatExpenseDate = (dateStr) => {
+    if (!dateStr) return 'Sin fecha';
+    try {
+      const d = dateStr.includes('T') ? new Date(dateStr) : new Date(dateStr + 'T12:00:00');
+      if (isNaN(d.getTime())) return dateStr;
+      return d.toLocaleDateString('es-CL', { year: 'numeric', month: 'short', day: 'numeric' });
+    } catch (e) {
+      return dateStr;
+    }
+  };
+
+  const getOutcomeBreakdown = (outcome, studentId) => {
+    const totalAmount = outcome.amount || 0;
+    
+    // Check if outcome has explicit student participants
+    if (Array.isArray(outcome.participantStudentIds) && outcome.participantStudentIds.length > 0) {
+      const assignedCount = outcome.participantStudentIds.length;
+      const isAssigned = outcome.participantStudentIds.includes(studentId);
+      const percent = assignedCount > 0 ? (100 / assignedCount) : 0;
+      const share = isAssigned ? Math.round(totalAmount / assignedCount) : 0;
+      return {
+        assignedCount,
+        percent,
+        share,
+        isAssigned,
+        type: 'specific',
+        label: `${assignedCount} alumnos asignados`
+      };
+    }
+
+    // Check if custom studentsCount was provided
+    if (typeof outcome.studentsCount === 'number' && outcome.studentsCount > 0) {
+      const assignedCount = outcome.studentsCount;
+      const percent = (100 / assignedCount);
+      const share = Math.round(totalAmount / assignedCount);
+      return {
+        assignedCount,
+        percent,
+        share,
+        isAssigned: true,
+        type: 'count',
+        label: `${assignedCount} alumnos`
+      };
+    }
+
+    // Default: distributed among all active students in course
+    const assignedCount = courseStudentsCount > 0 ? courseStudentsCount : 1;
+    const percent = (100 / assignedCount);
+    const share = Math.round(totalAmount / assignedCount);
+    return {
+      assignedCount,
+      percent,
+      share,
+      isAssigned: true,
+      type: 'course',
+      label: `General (${assignedCount} alumnos)`
+    };
+  };
 
   const handleSearch = async (e) => {
     e.preventDefault();
@@ -590,7 +737,8 @@ const ApoderadoDashboard = () => {
             });
             
             return (
-              <div key={student.id} className="glass-panel" style={{ padding: '2rem', marginBottom: '2rem' }}>
+              <React.Fragment key={student.id}>
+                <div className="glass-panel" style={{ padding: '2rem', marginBottom: '2rem' }}>
                 <h3 style={{ marginBottom: '1.5rem', color: 'var(--primary)' }}>Estado de Pagos: {formatStudentName(student)}</h3>
                 
                 {parseFloat(student.balance) > 0 && (
@@ -663,6 +811,293 @@ const ApoderadoDashboard = () => {
                   </div>
                 )}
               </div>
+
+              {/* Transparencia de Gastos del Curso */}
+              {canViewExpenses && (
+                <div className="glass-panel" style={{ padding: '2rem', marginBottom: '2rem' }}>
+                  {/* Header */}
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '1rem', marginBottom: '1.5rem', borderBottom: '1px solid var(--border-color)', paddingBottom: '1.25rem' }}>
+                    <div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', marginBottom: '0.35rem' }}>
+                        <div style={{ backgroundColor: 'rgba(239, 68, 68, 0.1)', padding: '0.5rem', borderRadius: 'var(--radius-sm)', color: 'var(--danger)', display: 'flex', alignItems: 'center' }}>
+                          <Receipt size={22} />
+                        </div>
+                        <h3 style={{ margin: 0, color: 'var(--text-main)', fontSize: '1.3rem' }}>
+                          Transparencia de Gastos del Curso
+                        </h3>
+                      </div>
+                      <p style={{ margin: 0, color: 'var(--text-muted)', fontSize: '0.875rem' }}>
+                        Detalle de compras y egresos del curso con la cuota proporcional calculada para <strong>{formatStudentName(student)}</strong>.
+                      </p>
+                    </div>
+
+                    {role === 'superadmin' && (
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                        <button 
+                          type="button"
+                          onClick={handleToggleActiveStudentExpenses}
+                          className="btn btn-outline"
+                          style={{ 
+                            fontSize: '0.8rem', 
+                            padding: '0.4rem 0.75rem',
+                            borderColor: student.showExpensesInPortal ? 'rgba(16, 185, 129, 0.4)' : 'var(--border-color)',
+                            color: student.showExpensesInPortal ? '#10b981' : 'var(--text-muted)',
+                            backgroundColor: student.showExpensesInPortal ? 'rgba(16, 185, 129, 0.1)' : 'transparent'
+                          }}
+                          title="Habilitar o deshabilitar visibilidad de este recuadro para el apoderado"
+                        >
+                          {student.showExpensesInPortal ? 'Visible en Portal: SÍ' : 'Visible en Portal: NO'}
+                        </button>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Banner Modo Prueba para Superadmin */}
+                  {role === 'superadmin' && !student.showExpensesInPortal && (
+                    <div style={{ 
+                      backgroundColor: 'rgba(245, 158, 11, 0.08)', 
+                      border: '1px solid rgba(245, 158, 11, 0.3)', 
+                      borderRadius: 'var(--radius-md)', 
+                      padding: '0.75rem 1rem', 
+                      marginBottom: '1.5rem', 
+                      display: 'flex', 
+                      alignItems: 'center', 
+                      justifyContent: 'space-between', 
+                      flexWrap: 'wrap', 
+                      gap: '0.75rem' 
+                    }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', color: '#f59e0b', fontSize: '0.875rem' }}>
+                        <Sparkles size={18} />
+                        <span>
+                          <strong>🧪 Modo Prueba (Superadmin):</strong> Esta sección de gastos está actualmente <u>oculta</u> para el apoderado de este alumno.
+                        </span>
+                      </div>
+                      <button 
+                        type="button"
+                        onClick={handleToggleActiveStudentExpenses}
+                        className="btn btn-primary"
+                        style={{ padding: '0.35rem 0.75rem', fontSize: '0.8rem', backgroundColor: '#10b981', borderColor: '#10b981' }}
+                      >
+                        Habilitar vista a este alumno
+                      </button>
+                    </div>
+                  )}
+
+                  {/* KPI Financial Summary Cards */}
+                  {(() => {
+                    const totalCourseExpenses = outcomes.reduce((sum, o) => sum + (o.amount || 0), 0);
+                    const totalStudentExpenses = outcomes.reduce((sum, o) => {
+                      const bd = getOutcomeBreakdown(o, student.id);
+                      return sum + (bd.isAssigned ? bd.share : 0);
+                    }, 0);
+
+                    const filteredOutcomes = outcomes.filter(o => {
+                      if (!expenseSearch.trim()) return true;
+                      const term = expenseSearch.toLowerCase();
+                      const titleMatch = (o.title || '').toLowerCase().includes(term);
+                      const dateMatch = (o.date || '').toLowerCase().includes(term);
+                      const fundMatch = (fundsMap[o.fundId] || '').toLowerCase().includes(term);
+                      const responsableMatch = (o.responsable || '').toLowerCase().includes(term);
+                      return titleMatch || dateMatch || fundMatch || responsableMatch;
+                    });
+
+                    return (
+                      <>
+                        <div style={{ 
+                          display: 'grid', 
+                          gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', 
+                          gap: '1rem', 
+                          marginBottom: '1.5rem' 
+                        }}>
+                          {/* Total Gastos Curso */}
+                          <div style={{ padding: '1rem', backgroundColor: 'rgba(239, 68, 68, 0.06)', borderRadius: 'var(--radius-md)', border: '1px solid rgba(239, 68, 68, 0.2)' }}>
+                            <p style={{ margin: '0 0 0.25rem 0', fontSize: '0.75rem', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
+                              <TrendingDown size={14} style={{ color: 'var(--danger)' }} /> Total Gastos del Curso
+                            </p>
+                            <h3 style={{ margin: 0, color: 'var(--danger)', fontSize: '1.3rem' }}>
+                              {formatMoney(totalCourseExpenses)}
+                            </h3>
+                            <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                              {outcomes.length} gastos registrados
+                            </span>
+                          </div>
+
+                          {/* Cuota Alumno */}
+                          <div style={{ padding: '1rem', backgroundColor: 'rgba(99, 102, 241, 0.06)', borderRadius: 'var(--radius-md)', border: '1px solid rgba(99, 102, 241, 0.2)' }}>
+                            <p style={{ margin: '0 0 0.25rem 0', fontSize: '0.75rem', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
+                              <Receipt size={14} style={{ color: 'var(--primary)' }} /> Proporcional a este Alumno
+                            </p>
+                            <h3 style={{ margin: 0, color: 'var(--primary)', fontSize: '1.3rem' }}>
+                              {formatMoney(totalStudentExpenses)}
+                            </h3>
+                            <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                              Suma correspondiente al alumno
+                            </span>
+                          </div>
+
+                          {/* Alumnos en Curso */}
+                          <div style={{ padding: '1rem', backgroundColor: 'rgba(255, 255, 255, 0.02)', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-color)' }}>
+                            <p style={{ margin: '0 0 0.25rem 0', fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                              Alumnos Activos en Curso
+                            </p>
+                            <h3 style={{ margin: 0, color: 'var(--text-main)', fontSize: '1.3rem' }}>
+                              {courseStudentsCount}
+                            </h3>
+                            <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                              Base división general (~{(100 / (courseStudentsCount || 1)).toFixed(1)}% c/u)
+                            </span>
+                          </div>
+                        </div>
+
+                        {/* Buscador de Gastos */}
+                        <div style={{ marginBottom: '1.25rem', display: 'flex', gap: '0.75rem', alignItems: 'center', flexWrap: 'wrap' }}>
+                          <div style={{ position: 'relative', flex: 1, minWidth: '220px', maxWidth: '350px' }}>
+                            <input 
+                              type="text"
+                              className="input-field"
+                              placeholder="Buscar gasto por detalle, fecha o fondo..."
+                              value={expenseSearch}
+                              onChange={(e) => setExpenseSearch(e.target.value)}
+                              style={{ width: '100%', paddingLeft: '2.2rem', fontSize: '0.9rem' }}
+                            />
+                            <Search size={15} style={{ position: 'absolute', left: '0.75rem', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
+                          </div>
+                          {expenseSearch && (
+                            <button type="button" onClick={() => setExpenseSearch('')} className="btn btn-outline" style={{ padding: '0.4rem 0.75rem', fontSize: '0.85rem' }}>
+                              Limpiar filtro
+                            </button>
+                          )}
+                          <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginLeft: 'auto' }}>
+                            Mostrando {filteredOutcomes.length} de {outcomes.length} gastos
+                          </span>
+                        </div>
+
+                        {/* Listado de Gastos */}
+                        {outcomesLoading ? (
+                          <div style={{ padding: '2rem', textAlign: 'center', color: 'var(--text-muted)' }}>
+                            Cargando registro de gastos del curso...
+                          </div>
+                        ) : filteredOutcomes.length === 0 ? (
+                          <div style={{ padding: '2rem', textAlign: 'center', color: 'var(--text-muted)', backgroundColor: 'rgba(255,255,255,0.02)', borderRadius: 'var(--radius-md)' }}>
+                            {outcomes.length === 0 ? 'No hay gastos registrados en este curso aún.' : 'No se encontraron gastos que coincidan con la búsqueda.'}
+                          </div>
+                        ) : (
+                          <div style={{ display: 'grid', gap: '0.75rem' }}>
+                            {filteredOutcomes.map(outcome => {
+                              const bd = getOutcomeBreakdown(outcome, student.id);
+                              const receipt = outcome.receiptUrl || outcome.receiptUrls?.[0] || outcome.voucherUrl;
+
+                              return (
+                                <div 
+                                  key={outcome.id} 
+                                  style={{ 
+                                    padding: '1rem 1.25rem', 
+                                    backgroundColor: 'rgba(255, 255, 255, 0.03)', 
+                                    borderRadius: 'var(--radius-md)', 
+                                    border: '1px solid var(--border-color)',
+                                    display: 'flex', 
+                                    flexWrap: 'wrap', 
+                                    alignItems: 'center', 
+                                    justifyContent: 'space-between', 
+                                    gap: '1rem',
+                                    borderLeft: bd.isAssigned ? '4px solid var(--primary)' : '4px solid rgba(255,255,255,0.2)'
+                                  }}
+                                >
+                                  {/* Left: Detalle, Fecha, Fondo */}
+                                  <div style={{ flex: '1 1 260px', minWidth: '220px' }}>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap', marginBottom: '0.25rem' }}>
+                                      <h4 style={{ margin: 0, fontSize: '1.05rem', color: 'var(--text-main)', fontWeight: '600' }}>
+                                        {outcome.title}
+                                      </h4>
+                                      {outcome.fundId && (
+                                        <span style={{ 
+                                          fontSize: '0.7rem', 
+                                          padding: '0.15rem 0.5rem', 
+                                          borderRadius: '12px', 
+                                          backgroundColor: 'rgba(99, 102, 241, 0.15)', 
+                                          color: 'var(--primary)',
+                                          fontWeight: '500'
+                                        }}>
+                                          {fundsMap[outcome.fundId] || outcome.fundId}
+                                        </span>
+                                      )}
+                                    </div>
+
+                                    <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap', fontSize: '0.825rem', color: 'var(--text-muted)' }}>
+                                      <span>📅 {formatExpenseDate(outcome.date)}</span>
+                                      {outcome.paymentMethod && <span>💳 {outcome.paymentMethod === 'transfer' ? 'Transferencia' : outcome.paymentMethod === 'cash' ? 'Efectivo' : outcome.paymentMethod}</span>}
+                                      {outcome.responsable && <span>👤 {outcome.responsable}</span>}
+                                    </div>
+                                  </div>
+
+                                  {/* Middle: Gasto Total y Asignación */}
+                                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', minWidth: '130px' }}>
+                                    <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Gasto Total</span>
+                                    <span style={{ fontSize: '1.1rem', fontWeight: '700', color: 'var(--danger)' }}>
+                                      {formatMoney(outcome.amount)}
+                                    </span>
+                                    <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                                      {bd.label} ({bd.percent.toFixed(1)}%)
+                                    </span>
+                                  </div>
+
+                                  {/* Right: Cuota que le corresponde al alumno */}
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', flexWrap: 'wrap' }}>
+                                    <div style={{ 
+                                      textAlign: 'right', 
+                                      minWidth: '130px',
+                                      padding: '0.5rem 0.75rem',
+                                      borderRadius: 'var(--radius-sm)',
+                                      backgroundColor: bd.isAssigned ? 'rgba(99, 102, 241, 0.08)' : 'rgba(255, 255, 255, 0.02)',
+                                      border: bd.isAssigned ? '1px solid rgba(99, 102, 241, 0.25)' : '1px solid var(--border-color)'
+                                    }}>
+                                      <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', display: 'block', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                                        Le Corresponde
+                                      </span>
+                                      {bd.isAssigned ? (
+                                        <>
+                                          <span style={{ fontSize: '1.15rem', fontWeight: '800', color: 'var(--text-main)' }}>
+                                            {formatMoney(bd.share)}
+                                          </span>
+                                          <span style={{ display: 'block', fontSize: '0.7rem', color: 'var(--primary)', fontWeight: '600' }}>
+                                            {bd.percent.toFixed(1)}% del gasto
+                                          </span>
+                                        </>
+                                      ) : (
+                                        <>
+                                          <span style={{ fontSize: '1rem', fontWeight: '600', color: 'var(--text-muted)' }}>
+                                            $0
+                                          </span>
+                                          <span style={{ display: 'block', fontSize: '0.7rem', color: 'var(--text-muted)' }}>
+                                            No asignado
+                                          </span>
+                                        </>
+                                      )}
+                                    </div>
+
+                                    {receipt && (
+                                      <button 
+                                        type="button"
+                                        onClick={() => setPreviewReceiptUrl(receipt)}
+                                        className="btn btn-outline"
+                                        style={{ padding: '0.45rem 0.75rem', fontSize: '0.8rem', display: 'flex', alignItems: 'center', gap: '0.4rem', color: 'var(--primary)', borderColor: 'rgba(99, 102, 241, 0.3)' }}
+                                        title="Ver boleta o comprobante"
+                                      >
+                                        <Eye size={15} /> Boleta
+                                      </button>
+                                    )}
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        )}
+                      </>
+                    );
+                  })()}
+                </div>
+              )}
+              </React.Fragment>
             );
           })}
 
@@ -763,6 +1198,33 @@ const ApoderadoDashboard = () => {
               </button>
             </div>
           </form>
+        </div>
+      </div>
+    )}
+
+    {/* MODAL DE COMPROBANTE DE GASTO */}
+    {previewReceiptUrl && (
+      <div 
+        style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.85)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem' }} 
+        onClick={() => setPreviewReceiptUrl(null)}
+      >
+        <div className="glass-panel" style={{ maxWidth: '650px', width: '100%', maxHeight: '90vh', overflowY: 'auto', padding: '1.5rem', backgroundColor: 'var(--bg-main)', position: 'relative' }} onClick={(e) => e.stopPropagation()}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem', borderBottom: '1px solid var(--border-color)', paddingBottom: '0.75rem' }}>
+            <h4 style={{ margin: 0 }}>Comprobante de Gasto</h4>
+            <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+              <a href={previewReceiptUrl} target="_blank" rel="noopener noreferrer" className="btn btn-outline" style={{ padding: '0.35rem 0.75rem', fontSize: '0.8rem', display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
+                <ExternalLink size={14} /> Abrir original
+              </a>
+              <button type="button" onClick={() => setPreviewReceiptUrl(null)} className="btn btn-outline" style={{ padding: '0.35rem 0.6rem' }}>
+                <X size={16} />
+              </button>
+            </div>
+          </div>
+          {previewReceiptUrl.toLowerCase().includes('.pdf') ? (
+            <iframe src={previewReceiptUrl} style={{ width: '100%', height: '500px', border: 'none', borderRadius: 'var(--radius-sm)' }} title="Boleta PDF" />
+          ) : (
+            <img src={previewReceiptUrl} alt="Comprobante" style={{ width: '100%', height: 'auto', maxHeight: '70vh', objectFit: 'contain', borderRadius: 'var(--radius-sm)' }} />
+          )}
         </div>
       </div>
     )}
