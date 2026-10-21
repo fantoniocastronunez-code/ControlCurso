@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { db } from '../../firebase/config';
 import { collection, getDocs, doc, setDoc, query, orderBy, deleteDoc, where } from 'firebase/firestore';
-import { ArrowLeft, PlusCircle, CheckCircle, Calendar, X, Save, Trash2 } from 'lucide-react';
+import { ArrowLeft, PlusCircle, CheckCircle, Calendar, X, Save, Trash2, Users, UserCheck, Search } from 'lucide-react';
 import { useModal } from '../../context/ModalContext';
 import { formatStudentName } from '../../utils/nameUtils';
 import { useAuth } from '../../context/AuthContext';
@@ -27,6 +27,12 @@ const EventManagement = ({ onBack }) => {
   const [noShowAmount, setNoShowAmount] = useState('');
   const [isTestEvent, setIsTestEvent] = useState(false);
 
+  // Selección de alumnos para el evento
+  const [courseStudents, setCourseStudents] = useState([]);
+  const [studentSelectionMode, setStudentSelectionMode] = useState('all'); // 'all' | 'custom'
+  const [selectedStudentIds, setSelectedStudentIds] = useState(new Set());
+  const [studentSearchTerm, setStudentSearchTerm] = useState('');
+
   const fetchEvents = useCallback(async () => {
     if (!selectedCourse) return;
     setLoading(true);
@@ -43,11 +49,54 @@ const EventManagement = ({ onBack }) => {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [selectedCourse]);
+
+  const fetchCourseStudents = useCallback(async () => {
+    if (!selectedCourse?.id) return;
+    try {
+      const q = query(collection(db, 'students'), where('courseId', '==', selectedCourse.id));
+      const snap = await getDocs(q);
+      const list = snap.docs.map(d => ({ id: d.id, ...d.data() })).filter(s => s.status !== 'retirado');
+      list.sort((a, b) => {
+        const aNum = parseInt(a.listNumber, 10) || 999;
+        const bNum = parseInt(b.listNumber, 10) || 999;
+        return aNum - bNum;
+      });
+      setCourseStudents(list);
+      setSelectedStudentIds(new Set(list.map(s => s.id)));
+    } catch (error) {
+      console.error("Error al obtener alumnos del curso:", error);
+    }
+  }, [selectedCourse]);
 
   useEffect(() => {
     fetchEvents();
-  }, [fetchEvents, selectedCourse]);
+    fetchCourseStudents();
+  }, [fetchEvents, fetchCourseStudents]);
+
+  const handleOpenCreateModal = () => {
+    setEventName('');
+    setEventDate(new Date().toISOString().split('T')[0]);
+    setMandatoryAmount('');
+    setNoShowAmount('');
+    setIsTestEvent(false);
+    setStudentSelectionMode('all');
+    setSelectedStudentIds(new Set(courseStudents.map(s => s.id)));
+    setStudentSearchTerm('');
+    setShowCreateModal(true);
+  };
+
+  const handleToggleStudent = (studentId) => {
+    setSelectedStudentIds(prev => {
+      const next = new Set(prev);
+      if (next.has(studentId)) {
+        next.delete(studentId);
+      } else {
+        next.add(studentId);
+      }
+      return next;
+    });
+  };
 
   const handleCreateEvent = async (e) => {
     e.preventDefault();
@@ -56,7 +105,20 @@ const EventManagement = ({ onBack }) => {
       return;
     }
 
-    if (!(await showConfirm(`¿Estás seguro de crear el evento "${eventName}"?${isTestEvent ? '\nES UN EVENTO DE PRUEBA. No se cobrará nada a los alumnos.' : `\nEsto cobrará automáticamente $${mandatoryAmount} a todos los alumnos.`}`))) {
+    if (studentSelectionMode === 'custom' && selectedStudentIds.size === 0) {
+      await showAlert('Debes seleccionar al menos un alumno para participar en el evento.');
+      return;
+    }
+
+    const targetStudents = studentSelectionMode === 'all'
+      ? courseStudents
+      : courseStudents.filter(s => selectedStudentIds.has(s.id));
+
+    const confirmMessage = isTestEvent
+      ? `¿Estás seguro de crear el evento "${eventName}"?\nES UN EVENTO DE PRUEBA. No se cobrará nada a los alumnos.`
+      : `¿Estás seguro de crear el evento "${eventName}"?\nEsto cobrará automáticamente $${mandatoryAmount} a los ${targetStudents.length} alumno(s) ${studentSelectionMode === 'all' ? '(todos)' : 'seleccionados'}.`;
+
+    if (!(await showConfirm(confirmMessage))) {
       return;
     }
 
@@ -83,24 +145,23 @@ const EventManagement = ({ onBack }) => {
         createdAt: new Date().toISOString(),
         createdBy: user?.email || user?.displayName || 'Unknown User',
         status: 'active',
-        isTestEvent: isTestEvent
+        isTestEvent: isTestEvent,
+        studentSelectionMode: studentSelectionMode,
+        participantStudentIds: targetStudents.map(s => s.id),
+        studentsCount: targetStudents.length
       };
       await setDoc(doc(db, 'events', eventId), newEvent);
 
       if (!isTestEvent) {
         // 3. Crear el Gasto General (Expense)
         const expenseId = `exp_evt_${eventId}`;
-        
-        // Obtener alumnos activos
-        const studentsSnap = await getDocs(query(collection(db, 'students'), where('courseId', '==', selectedCourse.id)));
-        const studentsList = studentsSnap.docs.map(d => ({ id: d.id, ...d.data() })).filter(s => s.status !== 'retirado');
 
         await setDoc(doc(db, 'expenses', expenseId), {
           title: `Cuota Obligatoria: ${eventName.trim()}`,
           date: eventDate,
-          totalAmount: parseFloat(mandatoryAmount) * studentsList.length,
+          totalAmount: parseFloat(mandatoryAmount) * targetStudents.length,
           amountPerStudent: parseFloat(mandatoryAmount),
-          studentsCount: studentsList.length,
+          studentsCount: targetStudents.length,
           paidCount: 0,
           fundId: fundId,
           courseId: selectedCourse.id,
@@ -108,8 +169,8 @@ const EventManagement = ({ onBack }) => {
           createdAt: new Date().toISOString()
         });
 
-        // 4. Crear deudas individuales para cada alumno
-        for (const student of studentsList) {
+        // 4. Crear deudas individuales sólo para los alumnos seleccionados
+        for (const student of targetStudents) {
           const debtId = `debt_${expenseId}_${student.id}`;
           await setDoc(doc(db, 'debts', debtId), {
             expenseId,
@@ -134,6 +195,9 @@ const EventManagement = ({ onBack }) => {
       setMandatoryAmount('');
       setNoShowAmount('');
       setIsTestEvent(false);
+      setStudentSelectionMode('all');
+      setSelectedStudentIds(new Set(courseStudents.map(s => s.id)));
+      setStudentSearchTerm('');
       
       fetchEvents();
       setTimeout(() => setMessage(''), 3000);
@@ -190,6 +254,19 @@ const EventManagement = ({ onBack }) => {
     return <EventDetail eventId={selectedEventId} onBack={() => setSelectedEventId(null)} />;
   }
 
+  // Alumnos filtrados para el selector
+  const filteredCourseStudents = courseStudents.filter(student => {
+    if (!studentSearchTerm) return true;
+    const name = formatStudentName(student).toLowerCase();
+    const listNum = String(student.listNumber || '');
+    const term = studentSearchTerm.toLowerCase();
+    return name.includes(term) || listNum.includes(term);
+  });
+
+  const targetStudentsCount = studentSelectionMode === 'all'
+    ? courseStudents.length
+    : selectedStudentIds.size;
+
   return (
     <div className="animate-fade-in">
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem' }}>
@@ -200,7 +277,7 @@ const EventManagement = ({ onBack }) => {
           <h3 style={{ margin: 0 }}>Gestión de Eventos y Ventas</h3>
         </div>
         <button 
-          onClick={() => setShowCreateModal(true)} 
+          onClick={handleOpenCreateModal} 
           className="btn btn-primary"
           style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}
         >
@@ -244,7 +321,17 @@ const EventManagement = ({ onBack }) => {
                       {event.name}
                       {event.isTestEvent && <span style={{ fontSize: '0.65rem', padding: '0.2rem 0.5rem', backgroundColor: 'var(--warning)', color: '#000', borderRadius: '1rem', fontWeight: 'bold' }}>PRUEBA</span>}
                     </h4>
-                    <p style={{ margin: 0, fontSize: '0.85rem', color: 'var(--text-muted)' }}>{new Date(event.date).toLocaleDateString('es-CL')}</p>
+                    <p style={{ margin: 0, fontSize: '0.85rem', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '0.4rem', flexWrap: 'wrap' }}>
+                      <span>{new Date(event.date).toLocaleDateString('es-CL')}</span>
+                      {typeof event.studentsCount === 'number' && (
+                        <span>• {event.studentsCount} alumnos</span>
+                      )}
+                      {event.studentSelectionMode === 'custom' && (
+                        <span style={{ fontSize: '0.7rem', padding: '0.1rem 0.4rem', backgroundColor: 'rgba(99,102,241,0.2)', color: '#a5b4fc', borderRadius: '4px' }}>
+                          Sólo algunos
+                        </span>
+                      )}
+                    </p>
                   </div>
                 </div>
                 <button 
@@ -280,11 +367,12 @@ const EventManagement = ({ onBack }) => {
 
       {/* Modal de Creación */}
       {showCreateModal && (
-        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.7)', zIndex: 1000, display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
-          <div className="glass-panel animate-fade-in" style={{ padding: '2rem', width: '90%', maxWidth: '500px', position: 'relative' }}>
+        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.7)', zIndex: 1000, display: 'flex', justifyContent: 'center', alignItems: 'center', padding: '1rem' }}>
+          <div className="glass-panel animate-fade-in" style={{ padding: '2rem', width: '90%', maxWidth: '540px', maxHeight: '90vh', overflowY: 'auto', position: 'relative', borderRadius: 'var(--radius-lg)' }}>
             <button 
               onClick={() => setShowCreateModal(false)}
               style={{ position: 'absolute', top: '1rem', right: '1rem', background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer' }}
+              title="Cerrar"
             >
               <X size={24} />
             </button>
@@ -314,7 +402,7 @@ const EventManagement = ({ onBack }) => {
                 />
               </div>
               
-              <div style={{ margin: '1.5rem 0', display: 'flex', alignItems: 'center', gap: '0.5rem', backgroundColor: 'rgba(245, 158, 11, 0.1)', padding: '1rem', borderRadius: 'var(--radius-md)' }}>
+              <div style={{ margin: '1.25rem 0', display: 'flex', alignItems: 'center', gap: '0.5rem', backgroundColor: 'rgba(245, 158, 11, 0.1)', padding: '0.85rem 1rem', borderRadius: 'var(--radius-md)' }}>
                 <input 
                   type="checkbox" 
                   id="isTestEvent"
@@ -322,41 +410,198 @@ const EventManagement = ({ onBack }) => {
                   onChange={(e) => setIsTestEvent(e.target.checked)}
                   style={{ width: '18px', height: '18px', accentColor: 'var(--warning)', cursor: 'pointer' }}
                 />
-                <label htmlFor="isTestEvent" style={{ fontSize: '0.9rem', color: 'var(--warning)', cursor: 'pointer' }}>
+                <label htmlFor="isTestEvent" style={{ fontSize: '0.85rem', color: 'var(--warning)', cursor: 'pointer' }}>
                   Crear como <strong>Evento de Prueba</strong> (No generará cuotas ni deudas reales, ideal para probar el POS)
                 </label>
               </div>
+
+              {/* Opción de Selección de Alumnos (Todos o sólo algunos) */}
+              <div style={{ margin: '1.25rem 0' }}>
+                <label className="input-label" style={{ marginBottom: '0.5rem', display: 'block' }}>
+                  Alumnos participantes en este evento
+                </label>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem', marginBottom: '0.75rem' }}>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setStudentSelectionMode('all');
+                      setSelectedStudentIds(new Set(courseStudents.map(s => s.id)));
+                    }}
+                    style={{
+                      padding: '0.75rem 0.5rem',
+                      borderRadius: 'var(--radius-md)',
+                      border: studentSelectionMode === 'all' ? '2px solid var(--primary)' : '1px solid var(--border-color)',
+                      backgroundColor: studentSelectionMode === 'all' ? 'rgba(99, 102, 241, 0.15)' : 'rgba(255, 255, 255, 0.03)',
+                      color: studentSelectionMode === 'all' ? '#a5b4fc' : 'var(--text-main)',
+                      cursor: 'pointer',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      alignItems: 'center',
+                      gap: '0.25rem',
+                      textAlign: 'center',
+                      transition: 'all 0.15s ease'
+                    }}
+                  >
+                    <Users size={20} style={{ color: studentSelectionMode === 'all' ? 'var(--primary)' : 'var(--text-muted)' }} />
+                    <strong style={{ fontSize: '0.85rem' }}>Todos los alumnos</strong>
+                    <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                      {courseStudents.length} alumnos del curso
+                    </span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setStudentSelectionMode('custom')}
+                    style={{
+                      padding: '0.75rem 0.5rem',
+                      borderRadius: 'var(--radius-md)',
+                      border: studentSelectionMode === 'custom' ? '2px solid var(--primary)' : '1px solid var(--border-color)',
+                      backgroundColor: studentSelectionMode === 'custom' ? 'rgba(99, 102, 241, 0.15)' : 'rgba(255, 255, 255, 0.03)',
+                      color: studentSelectionMode === 'custom' ? '#a5b4fc' : 'var(--text-main)',
+                      cursor: 'pointer',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      alignItems: 'center',
+                      gap: '0.25rem',
+                      textAlign: 'center',
+                      transition: 'all 0.15s ease'
+                    }}
+                  >
+                    <UserCheck size={20} style={{ color: studentSelectionMode === 'custom' ? 'var(--primary)' : 'var(--text-muted)' }} />
+                    <strong style={{ fontSize: '0.85rem' }}>Sólo algunos</strong>
+                    <span style={{ fontSize: '0.75rem', color: studentSelectionMode === 'custom' ? 'var(--primary)' : 'var(--text-muted)' }}>
+                      {selectedStudentIds.size} de {courseStudents.length} seleccionados
+                    </span>
+                  </button>
+                </div>
+
+                {studentSelectionMode === 'custom' && (
+                  <div style={{
+                    backgroundColor: 'rgba(255, 255, 255, 0.03)',
+                    border: '1px solid var(--border-color)',
+                    borderRadius: 'var(--radius-md)',
+                    padding: '0.85rem',
+                    marginTop: '0.5rem'
+                  }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.5rem', marginBottom: '0.75rem', flexWrap: 'wrap' }}>
+                      <div style={{ position: 'relative', flex: 1, minWidth: '150px' }}>
+                        <input
+                          type="text"
+                          placeholder="Buscar por nombre o N°..."
+                          value={studentSearchTerm}
+                          onChange={(e) => setStudentSearchTerm(e.target.value)}
+                          className="input-field"
+                          style={{ padding: '0.35rem 0.5rem 0.35rem 1.8rem', fontSize: '0.85rem' }}
+                        />
+                        <Search size={14} style={{ position: 'absolute', left: '0.55rem', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
+                      </div>
+                      <div style={{ display: 'flex', gap: '0.4rem' }}>
+                        <button
+                          type="button"
+                          onClick={() => setSelectedStudentIds(new Set(courseStudents.map(s => s.id)))}
+                          className="btn btn-outline"
+                          style={{ padding: '0.3rem 0.6rem', fontSize: '0.75rem' }}
+                        >
+                          Todos
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setSelectedStudentIds(new Set())}
+                          className="btn btn-outline"
+                          style={{ padding: '0.3rem 0.6rem', fontSize: '0.75rem' }}
+                        >
+                          Ninguno
+                        </button>
+                      </div>
+                    </div>
+
+                    <div style={{ maxHeight: '180px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '0.35rem', paddingRight: '0.2rem' }}>
+                      {filteredCourseStudents.map(student => {
+                        const isSelected = selectedStudentIds.has(student.id);
+                        return (
+                          <div
+                            key={student.id}
+                            onClick={() => handleToggleStudent(student.id)}
+                            style={{
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: '0.6rem',
+                              padding: '0.45rem 0.65rem',
+                              backgroundColor: isSelected ? 'rgba(99, 102, 241, 0.12)' : 'rgba(255, 255, 255, 0.02)',
+                              border: isSelected ? '1px solid rgba(99, 102, 241, 0.4)' : '1px solid rgba(255, 255, 255, 0.06)',
+                              borderRadius: 'var(--radius-sm)',
+                              cursor: 'pointer',
+                              transition: 'all 0.15s ease'
+                            }}
+                          >
+                            <input
+                              type="checkbox"
+                              checked={isSelected}
+                              onChange={() => handleToggleStudent(student.id)}
+                              style={{ width: '16px', height: '16px', accentColor: 'var(--primary)', cursor: 'pointer' }}
+                            />
+                            <span style={{ fontSize: '0.85rem', color: isSelected ? '#fff' : 'var(--text-main)', fontWeight: isSelected ? '600' : 'normal' }}>
+                              {student.listNumber ? `${student.listNumber}. ` : ''}{formatStudentName(student)}
+                            </span>
+                          </div>
+                        );
+                      })}
+                      {filteredCourseStudents.length === 0 && (
+                        <div style={{ textAlign: 'center', padding: '1rem', color: 'var(--text-muted)', fontSize: '0.85rem' }}>
+                          No se encontraron alumnos con esa búsqueda.
+                        </div>
+                      )}
+                    </div>
+
+                    <div style={{ marginTop: '0.5rem', fontSize: '0.75rem', color: 'var(--text-muted)', textAlign: 'right' }}>
+                      {selectedStudentIds.size} de {courseStudents.length} alumnos seleccionados
+                    </div>
+                  </div>
+                )}
+              </div>
               
               {!isTestEvent && (
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
-                  <div className="input-group">
-                    <label className="input-label">Monto Obligatorio ($)</label>
-                    <input 
-                      type="number" 
-                      min="1"
-                      required={!isTestEvent}
-                      className="input-field" 
-                      placeholder="Ej. 1500"
-                      value={mandatoryAmount}
-                      onChange={(e) => setMandatoryAmount(e.target.value)}
-                    />
-                    <small style={{ color: 'var(--text-muted)', fontSize: '0.75rem', marginTop: '0.25rem', display: 'block' }}>Se cobrará a todos al crear el evento.</small>
+                <>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                    <div className="input-group">
+                      <label className="input-label">Monto Obligatorio ($)</label>
+                      <input 
+                        type="number" 
+                        min="1"
+                        required={!isTestEvent}
+                        className="input-field" 
+                        placeholder="Ej. 1500"
+                        value={mandatoryAmount}
+                        onChange={(e) => setMandatoryAmount(e.target.value)}
+                      />
+                      <small style={{ color: 'var(--text-muted)', fontSize: '0.75rem', marginTop: '0.25rem', display: 'block' }}>
+                        Se cobrará a los alumnos asignados.
+                      </small>
+                    </div>
+                    
+                    <div className="input-group">
+                      <label className="input-label">Monto si NO Asiste ($)</label>
+                      <input 
+                        type="number" 
+                        min="1"
+                        required={!isTestEvent}
+                        className="input-field" 
+                        placeholder="Ej. 3000"
+                        value={noShowAmount}
+                        onChange={(e) => setNoShowAmount(e.target.value)}
+                      />
+                      <small style={{ color: 'var(--text-muted)', fontSize: '0.75rem', marginTop: '0.25rem', display: 'block' }}>
+                        Multa aplicable si falta.
+                      </small>
+                    </div>
                   </div>
-                  
-                  <div className="input-group">
-                    <label className="input-label">Monto si NO Asiste ($)</label>
-                    <input 
-                      type="number" 
-                      min="1"
-                      required={!isTestEvent}
-                      className="input-field" 
-                      placeholder="Ej. 3000"
-                      value={noShowAmount}
-                      onChange={(e) => setNoShowAmount(e.target.value)}
-                    />
-                    <small style={{ color: 'var(--text-muted)', fontSize: '0.75rem', marginTop: '0.25rem', display: 'block' }}>Multa aplicable después del evento.</small>
-                  </div>
-                </div>
+
+                  {mandatoryAmount && (
+                    <div style={{ marginTop: '0.5rem', padding: '0.75rem 1rem', backgroundColor: 'rgba(99, 102, 241, 0.08)', borderRadius: 'var(--radius-md)', border: '1px solid rgba(99, 102, 241, 0.25)', fontSize: '0.85rem' }}>
+                      <strong>Resumen de cuota:</strong> Se cobrará <strong>{formatMoney(parseFloat(mandatoryAmount) || 0)}</strong> a <strong>{targetStudentsCount}</strong> alumno(s) {studentSelectionMode === 'all' ? '(todo el curso)' : '(seleccionados)'} (Total inicial: <strong>{formatMoney((parseFloat(mandatoryAmount) || 0) * targetStudentsCount)}</strong>).
+                    </div>
+                  )}
+                </>
               )}
               
               <div style={{ marginTop: '2rem', display: 'flex', justifyContent: 'flex-end', gap: '1rem' }}>
