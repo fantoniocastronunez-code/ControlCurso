@@ -116,7 +116,9 @@ const MeetingReport = ({ onBack }) => {
   }, []);
 
   const formatMoney = (amount) => {
-    return new Intl.NumberFormat('es-CL', { style: 'currency', currency: 'CLP' }).format(amount || 0);
+    const num = Number(amount);
+    if (isNaN(num)) return '$0';
+    return new Intl.NumberFormat('es-CL', { style: 'currency', currency: 'CLP' }).format(num);
   };
 
   // -------------------------------------------------------------
@@ -535,21 +537,29 @@ const MeetingReport = ({ onBack }) => {
         }
 
         const expDebts = debts.filter(d => d.expenseId === exp.id);
-        const expCollected = expDebts.reduce((sum, d) => sum + (d.status === 'paid' ? (d.amount || 0) : (d.paidAmount || 0)), 0);
+        const expCollected = expDebts.reduce((sum, d) => sum + (d.status === 'paid' ? (Number(d.amount) || 0) : (Number(d.paidAmount) || 0)), 0);
         
-        let unitAmount = parseFloat(exp.amountPerStudent);
-        if (isNaN(unitAmount)) unitAmount = parseFloat(exp.amount);
-        if (isNaN(unitAmount) && expDebts.length > 0) unitAmount = parseFloat(expDebts[0].amount);
-        if (isNaN(unitAmount)) unitAmount = 0;
+        const debtSum = expDebts.reduce((sum, d) => sum + (Number(d.amount) || 0), 0);
+        const expExpected = debtSum > 0 ? debtSum : (Number(exp.totalAmount) || (Number(exp.amount) || 0) * (expDebts.length || students.length || 1));
+        const expPct = expExpected > 0 ? Math.min(100, Math.round((expCollected / expExpected) * 100)) : 0;
 
-        const expExpected = unitAmount * (expDebts.length || students.length || 1);
-        const expPct = expExpected > 0 ? ((expCollected / expExpected) * 100).toFixed(0) : 0;
+        const uniqueAmounts = [...new Set(expDebts.map(d => Number(d.amount) || 0).filter(a => a > 0))];
+        let unitText;
+        if (typeof exp.amountPerStudent === 'number' && !isNaN(exp.amountPerStudent) && exp.amountPerStudent > 0) {
+          unitText = formatMoney(exp.amountPerStudent);
+        } else if (uniqueAmounts.length === 1) {
+          unitText = formatMoney(uniqueAmounts[0]);
+        } else if (uniqueAmounts.length > 1 || exp.amountPerStudent === 'Variable') {
+          unitText = 'Variable';
+        } else {
+          unitText = formatMoney(exp.amount || 0);
+        }
 
         doc.setFont('helvetica', 'normal');
         doc.setFontSize(8);
         doc.setTextColor(textMain[0], textMain[1], textMain[2]);
         doc.text(exp.title || 'Cuota', 18, y + 4);
-        doc.text(formatMoney(unitAmount), 85, y + 4, { align: 'right' });
+        doc.text(unitText, 85, y + 4, { align: 'right' });
         doc.text(formatMoney(expCollected), 130, y + 4, { align: 'right' });
         doc.setFont('helvetica', 'bold');
         doc.text(`${expPct}%`, pageWidth - 18, y + 4, { align: 'right' });
@@ -1204,9 +1214,29 @@ const MeetingReport = ({ onBack }) => {
                   const pendingCount = expDebts.filter(d => d.status === 'pending' || d.status === 'review').length;
                   const totalCount = expDebts.length || students.length || 1;
 
-                  const collected = expDebts.reduce((sum, d) => sum + (d.status === 'paid' ? (d.amount || 0) : (d.paidAmount || 0)), 0);
-                  const expected = (exp.amountPerStudent || exp.amount || 0) * totalCount;
-                  const pct = expected > 0 ? ((collected / expected) * 100).toFixed(0) : 0;
+                  const collected = expDebts.reduce((sum, d) => sum + (d.status === 'paid' ? (Number(d.amount) || 0) : (Number(d.paidAmount) || 0)), 0);
+                  
+                  // Total esperado de la cuota: suma de las deudas generadas (soporta cuotas fijas y personalizadas/variables)
+                  const debtSum = expDebts.reduce((sum, d) => sum + (Number(d.amount) || 0), 0);
+                  const expected = debtSum > 0 ? debtSum : (Number(exp.totalAmount) || (Number(exp.amount) || 0) * totalCount);
+                  const pct = expected > 0 ? Math.min(100, Math.round((collected / expected) * 100)) : 0;
+
+                  // Valor cuota unitario o variable
+                  const uniqueAmounts = [...new Set(expDebts.map(d => Number(d.amount) || 0).filter(a => a > 0))];
+                  let valorCuotaText;
+                  if (typeof exp.amountPerStudent === 'number' && !isNaN(exp.amountPerStudent) && exp.amountPerStudent > 0) {
+                    valorCuotaText = formatMoney(exp.amountPerStudent);
+                  } else if (uniqueAmounts.length === 1) {
+                    valorCuotaText = formatMoney(uniqueAmounts[0]);
+                  } else if (typeof exp.amount === 'number' && !isNaN(exp.amount) && exp.amount > 0) {
+                    valorCuotaText = formatMoney(exp.amount);
+                  } else if (uniqueAmounts.length > 1 || exp.amountPerStudent === 'Variable') {
+                    valorCuotaText = 'Variable';
+                  } else if (exp.totalAmount && totalCount > 0) {
+                    valorCuotaText = formatMoney(Math.round(exp.totalAmount / totalCount));
+                  } else {
+                    valorCuotaText = formatMoney(0);
+                  }
 
                   return (
                     <div 
@@ -1225,7 +1255,7 @@ const MeetingReport = ({ onBack }) => {
                         <div>
                           <h4 style={{ margin: 0, fontSize: '1.1rem' }}>{exp.title}</h4>
                           <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>
-                            Valor Cuota: {formatMoney(exp.amountPerStudent || exp.amount || 0)} • Emitida: {exp.date || '-'}
+                            Valor Cuota: {valorCuotaText} • Emitida: {exp.date || '-'}
                           </span>
                         </div>
 
