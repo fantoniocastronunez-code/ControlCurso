@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { db } from '../firebase/config';
 import { collection, doc, getDoc, getDocs, query, updateDoc, where, deleteDoc, setDoc, writeBatch, addDoc } from 'firebase/firestore';
-import { ArrowLeft, CheckCircle, Clock, XCircle, FileText, Download, Trash2, Edit2, Save, X, Calculator, CheckSquare, AlertTriangle, RotateCcw, Sparkles, Check, RefreshCw, MessageCircle, Copy } from 'lucide-react';
+import { ArrowLeft, CheckCircle, Clock, XCircle, FileText, Download, Trash2, Edit2, Save, X, Calculator, CheckSquare, AlertTriangle, RotateCcw, Sparkles, Check, RefreshCw, MessageCircle, Copy, Eye, EyeOff } from 'lucide-react';
 import { formatStudentName } from '../utils/nameUtils';
 import { useModal } from '../context/ModalContext';
 import { useLockBodyScroll } from '../hooks/useLockBodyScroll';
@@ -47,7 +47,7 @@ const ExpenseDetail = ({ expenseId, onBack }) => {
 
   // Estados de Edición
   const [isEditing, setIsEditing] = useState(false);
-  const [editData, setEditData] = useState({ title: '', totalAmount: '', accountId: '', fundId: '' });
+  const [editData, setEditData] = useState({ title: '', totalAmount: '', accountId: '', fundId: '', visibleInPortal: true });
   const [transferAccounts, setTransferAccounts] = useState([]);
   const [funds, setFunds] = useState([]);
 
@@ -816,9 +816,43 @@ const ExpenseDetail = ({ expenseId, onBack }) => {
       title: expense.title, 
       totalAmount: expense.totalAmount,
       accountId: expense.transferData ? expense.transferData.id : (expense.transferData?.alias ? 'acc_legacy' : ''),
-      fundId: expense.fundId || 'general'
+      fundId: expense.fundId || 'general',
+      visibleInPortal: expense.visibleInPortal !== false
     });
     setIsEditing(true);
+  };
+
+  const handleToggleVisibility = async () => {
+    const currentVis = expense?.visibleInPortal !== false;
+    const nextVis = !currentVis;
+    const confirmMsg = nextVis
+      ? '¿Hacer esta cuota VISIBLE para todos los apoderados en su portal?'
+      : '¿OCULTAR esta cuota del portal de todos los apoderados? Solo administradores y tesoreros podrán verla.';
+    if (!(await showConfirm(confirmMsg))) return;
+
+    try {
+      setLoading(true);
+      await updateDoc(doc(db, 'expenses', expenseId), {
+        visibleInPortal: nextVis
+      });
+
+      const batch = writeBatch(db);
+      for (const debt of debts) {
+        batch.update(doc(db, 'debts', debt.id), {
+          visibleInPortal: nextVis
+        });
+      }
+      await batch.commit();
+
+      setExpense(prev => prev ? { ...prev, visibleInPortal: nextVis } : prev);
+      setDebts(prev => prev.map(d => ({ ...d, visibleInPortal: nextVis })));
+      await showAlert(nextVis ? 'La cuota ahora es visible para los apoderados en su portal.' : 'La cuota ahora está oculta para los apoderados.');
+    } catch (err) {
+      console.error("Error cambiando visibilidad:", err);
+      await showAlert('Error al actualizar visibilidad de la cuota.');
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleSaveEdit = async () => {
@@ -826,16 +860,19 @@ const ExpenseDetail = ({ expenseId, onBack }) => {
     try {
       const newAmount = Number(editData.totalAmount);
       const selectedAccount = transferAccounts.find(a => a.id === editData.accountId) || null;
+      const newVisibleInPortal = editData.visibleInPortal !== false;
       
       // 1. Actualizar Cuota
       await updateDoc(doc(db, 'expenses', expenseId), {
         title: editData.title,
         totalAmount: newAmount,
         transferData: selectedAccount,
-        fundId: editData.fundId
+        fundId: editData.fundId,
+        visibleInPortal: newVisibleInPortal
       });
 
-      // 2. Actualizar monto, datos de transferencia y fondo en deudas
+      // 2. Actualizar monto, datos de transferencia, fondo y visibilidad en deudas
+      const batch = writeBatch(db);
       for (const debt of debts) {
         const updates = {};
         if ((debt.status === 'pending' || debt.status === 'partial') && newAmount !== expense.totalAmount) {
@@ -847,13 +884,18 @@ const ExpenseDetail = ({ expenseId, onBack }) => {
         if (editData.fundId !== expense.fundId) {
           updates.fundId = editData.fundId;
         }
+        if (debt.visibleInPortal !== newVisibleInPortal) {
+          updates.visibleInPortal = newVisibleInPortal;
+        }
         
         if (Object.keys(updates).length > 0) {
-          await updateDoc(doc(db, 'debts', debt.id), updates);
+          batch.update(doc(db, 'debts', debt.id), updates);
         }
       }
+      await batch.commit();
 
-      setExpense({ ...expense, title: editData.title, totalAmount: newAmount, transferData: selectedAccount, fundId: editData.fundId });
+      setExpense({ ...expense, title: editData.title, totalAmount: newAmount, transferData: selectedAccount, fundId: editData.fundId, visibleInPortal: newVisibleInPortal });
+      setDebts(prev => prev.map(d => ({ ...d, visibleInPortal: newVisibleInPortal })));
       setIsEditing(false);
       fetchDetail(false);
     } catch (error) {
@@ -914,6 +956,7 @@ const ExpenseDetail = ({ expenseId, onBack }) => {
           date: expense.date,
           fundId: expense.fundId || 'general',
           transferData: expense.transferData || null,
+          visibleInPortal: expense.visibleInPortal !== false,
           createdAt: new Date().toISOString()
         });
         addedAmount += defaultAmount;
@@ -1248,6 +1291,22 @@ const ExpenseDetail = ({ expenseId, onBack }) => {
                 ))}
               </select>
             </div>
+            <div className="input-group">
+              <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer', fontSize: '0.9rem', fontWeight: 500 }}>
+                <input 
+                  type="checkbox" 
+                  checked={editData.visibleInPortal} 
+                  onChange={e => setEditData({...editData, visibleInPortal: e.target.checked})} 
+                  style={{ width: '18px', height: '18px', accentColor: 'var(--primary)', cursor: 'pointer' }}
+                />
+                Visible para apoderados en su portal
+              </label>
+              <small style={{ color: 'var(--text-muted)' }}>
+                {editData.visibleInPortal 
+                  ? 'Los apoderados podrán ver esta cuota y pagarla desde su portal.' 
+                  : 'Oculto: los apoderados no verán esta cuota en su portal ni en alertas.'}
+              </small>
+            </div>
             <div style={{ display: 'flex', gap: '1rem' }}>
               <button onClick={handleSaveEdit} className="btn btn-primary" style={{ backgroundColor: 'var(--success)' }}><Save size={18}/> Guardar Cambios</button>
               <button onClick={() => setIsEditing(false)} className="btn btn-outline"><X size={18}/> Cancelar</button>
@@ -1318,6 +1377,25 @@ const ExpenseDetail = ({ expenseId, onBack }) => {
                 <button onClick={handleStartEdit} className="btn btn-outline" style={{ padding: '0.3rem', borderColor: 'var(--primary)', color: 'var(--primary)' }} title="Editar Cuota"><Edit2 size={16}/></button>
                 <button onClick={handleStartManageStudents} className="btn btn-outline" style={{ padding: '0.3rem', color: 'var(--text)' }} title="Agregar/Quitar Alumnos"><FileText size={16}/></button>
                 <button onClick={handleDeleteExpense} className="btn btn-outline" style={{ padding: '0.3rem', borderColor: 'rgba(239, 68, 68, 0.3)', color: 'var(--danger)' }} title="Eliminar Cuota"><Trash2 size={16}/></button>
+                <button
+                  type="button"
+                  onClick={handleToggleVisibility}
+                  className="btn btn-outline"
+                  style={{
+                    padding: '0.3rem 0.75rem',
+                    fontSize: '0.85rem',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '0.4rem',
+                    borderColor: expense.visibleInPortal !== false ? 'rgba(16, 185, 129, 0.4)' : 'rgba(239, 68, 68, 0.4)',
+                    color: expense.visibleInPortal !== false ? 'var(--success)' : '#f87171',
+                    backgroundColor: expense.visibleInPortal !== false ? 'rgba(16, 185, 129, 0.08)' : 'rgba(239, 68, 68, 0.08)'
+                  }}
+                  title="Haz clic para alternar si los apoderados pueden ver esta cuota en su portal"
+                >
+                  {expense.visibleInPortal !== false ? <Eye size={15}/> : <EyeOff size={15}/>}
+                  {expense.visibleInPortal !== false ? 'Visible en Portal' : 'Oculta en Portal'}
+                </button>
                 <button onClick={handleGenerateWhatsappReport} className="btn btn-outline" style={{ padding: '0.3rem', borderColor: '#25D366', color: '#25D366' }} title="Generar reporte WhatsApp de deudas"><MessageCircle size={16}/></button>
                 <button
                   onClick={handleCopyPendingApoderados}

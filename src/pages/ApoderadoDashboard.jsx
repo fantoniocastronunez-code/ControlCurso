@@ -580,7 +580,7 @@ const ApoderadoDashboard = () => {
       )}
 
       {/* BANNER URGENTE */}
-      {isProfileComplete && debts.some(d => d.urgentNotice && (d.status === 'pending' || d.status === 'partial')) && (
+      {isProfileComplete && debts.some(d => (role === 'superadmin' || d.visibleInPortal !== false) && d.urgentNotice && (d.status === 'pending' || d.status === 'partial')) && (
         <div className="glass-panel" style={{ backgroundColor: 'rgba(239, 68, 68, 0.1)', border: '1px solid var(--danger)', padding: '1rem', marginBottom: '2rem', display: 'flex', alignItems: 'center', gap: '1rem', color: 'var(--danger)' }}>
           <AlertCircle size={24} />
           <div>
@@ -715,7 +715,7 @@ const ApoderadoDashboard = () => {
       ) : (
         <>
           {myStudents.filter(student => student.id === activeStudentId).map(student => {
-            const allStudentDebts = debts.filter(d => d.studentId === student.id);
+            const allStudentDebts = debts.filter(d => d.studentId === student.id && (role === 'superadmin' || d.visibleInPortal !== false));
             const studentDebts = allStudentDebts.filter(d => {
               const baseTitle = d.title.replace('(Saldo Restante)', '').trim();
               
@@ -766,7 +766,22 @@ const ApoderadoDashboard = () => {
                         borderLeft: `4px solid ${debt.status === 'paid' ? 'var(--success)' : debt.status === 'review' ? 'var(--warning)' : (debt.status === 'partial' || isPartial) ? '#eab308' : 'var(--danger)'}` 
                       }}>
                         <div>
-                          <p style={{ fontWeight: '500', fontSize: '1.1rem', marginBottom: '0.2rem' }}>{debt.title}</p>
+                          <p style={{ fontWeight: '500', fontSize: '1.1rem', marginBottom: '0.2rem', display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+                            {debt.title}
+                            {debt.visibleInPortal === false && (
+                              <span style={{ 
+                                fontSize: '0.75rem', 
+                                padding: '0.15rem 0.5rem', 
+                                borderRadius: '4px', 
+                                backgroundColor: 'rgba(239, 68, 68, 0.15)', 
+                                color: '#f87171', 
+                                border: '1px solid rgba(239, 68, 68, 0.3)', 
+                                fontWeight: '600' 
+                              }}>
+                                🧪 Oculto para apoderados (Modo Superadmin)
+                              </span>
+                            )}
+                          </p>
                           <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>
                             {isPartial ? `Saldo Restante: ` : `Monto de la cuota: `} <strong>${isPartial ? remainingAmount : debt.amount}</strong> 
                             {paidAmt > 0 && <span style={{opacity: 0.7}}> (Pagado: ${paidAmt})</span>}

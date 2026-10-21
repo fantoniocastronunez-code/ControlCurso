@@ -891,7 +891,22 @@ const AdminDashboard = () => {
                                <FileText size={20} />
                              </div>
                              <div>
-                               <h4 style={{ margin: 0 }}>{exp.title}</h4>
+                               <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+                                 <h4 style={{ margin: 0 }}>{exp.title}</h4>
+                                 {exp.visibleInPortal === false && (
+                                   <span style={{ 
+                                     fontSize: '0.7rem', 
+                                     padding: '0.1rem 0.4rem', 
+                                     borderRadius: '4px', 
+                                     backgroundColor: 'rgba(239, 68, 68, 0.15)', 
+                                     color: '#f87171', 
+                                     border: '1px solid rgba(239, 68, 68, 0.3)', 
+                                     fontWeight: '600' 
+                                   }}>
+                                     Oculta en Portal
+                                   </span>
+                                 )}
+                               </div>
                                <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', margin: 0 }}>Emitido: {exp.date} • {exp.studentsCount} Alumnos</p>
                              </div>
                           </div>

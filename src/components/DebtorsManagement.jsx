@@ -435,6 +435,7 @@ const DebtorsManagement = ({ onBack }) => {
                               {studentDebts.map(d => (
                                 <li key={d.id} style={{ marginBottom: '0.25rem' }}>
                                   {d.title}{d.status === 'partial' ? ' (Saldo Restante)' : ''}: <strong style={{ color: 'var(--text-main)' }}>{formatMoney(d.remainingAmount || d.amount)}</strong>
+                                  {d.visibleInPortal === false && <span style={{ color: '#f87171', marginLeft: '0.5rem', fontSize: '0.75rem', fontWeight: 'bold' }}>(Oculta en portal)</span>}
                                   {d.urgentNotice && <span style={{ color: 'var(--warning)', marginLeft: '0.5rem', fontSize: '0.75rem' }}>(Notificado)</span>}
                                 </li>
                               ))}

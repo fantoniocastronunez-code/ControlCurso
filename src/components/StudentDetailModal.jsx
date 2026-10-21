@@ -404,7 +404,14 @@ const StudentDetailModal = ({ student, usersMap = {}, onClose, isModal = false }
                     }}
                   >
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '0.35rem', gap: '0.5rem' }}>
-                      <span className="receipt-debt-title" style={{ fontWeight: '600', color: 'var(--text-main)', fontSize: '0.95rem' }}>{d.title}</span>
+                      <span className="receipt-debt-title" style={{ fontWeight: '600', color: 'var(--text-main)', fontSize: '0.95rem', display: 'flex', alignItems: 'center', gap: '0.4rem', flexWrap: 'wrap' }}>
+                        {d.title}
+                        {d.visibleInPortal === false && (
+                          <span style={{ fontSize: '0.7rem', padding: '0.1rem 0.4rem', borderRadius: '4px', backgroundColor: 'rgba(239, 68, 68, 0.15)', color: '#f87171', border: '1px solid rgba(239, 68, 68, 0.3)', fontWeight: '600' }}>
+                            🔒 Oculta en portal
+                          </span>
+                        )}
+                      </span>
                       <span className="receipt-debt-amount" style={{ fontWeight: '700', color: 'var(--danger)', fontSize: '1rem', whiteSpace: 'nowrap' }}>
                         {formatMoney(remaining)}
                       </span>
@@ -487,7 +494,14 @@ const StudentDetailModal = ({ student, usersMap = {}, onClose, isModal = false }
                     }}
                   >
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '0.35rem', gap: '0.5rem' }}>
-                      <span className="receipt-debt-title" style={{ fontWeight: '600', color: 'var(--text-main)', fontSize: '0.95rem' }}>{d.title}</span>
+                      <span className="receipt-debt-title" style={{ fontWeight: '600', color: 'var(--text-main)', fontSize: '0.95rem', display: 'flex', alignItems: 'center', gap: '0.4rem', flexWrap: 'wrap' }}>
+                        {d.title}
+                        {d.visibleInPortal === false && (
+                          <span style={{ fontSize: '0.7rem', padding: '0.1rem 0.4rem', borderRadius: '4px', backgroundColor: 'rgba(239, 68, 68, 0.15)', color: '#f87171', border: '1px solid rgba(239, 68, 68, 0.3)', fontWeight: '600' }}>
+                            🔒 Oculta en portal
+                          </span>
+                        )}
+                      </span>
                       <span className="receipt-debt-amount" style={{ fontWeight: '700', color: 'var(--success)', fontSize: '1rem', whiteSpace: 'nowrap' }}>
                         {formatMoney(d.paidAmount || d.amount)}
                       </span>

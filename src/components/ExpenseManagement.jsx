@@ -33,6 +33,7 @@ const ExpenseManagement = ({ onBack }) => {
   
   const [transferAccounts, setTransferAccounts] = useState([]);
   const [selectedAccountId, setSelectedAccountId] = useState('');
+  const [visibleInPortal, setVisibleInPortal] = useState(true);
 
   const fetchData = useCallback(async () => {
     if (!selectedCourse) return;
@@ -151,6 +152,29 @@ const ExpenseManagement = ({ onBack }) => {
       }
       
       let finalFundId = selectedFundId;
+      if (createAutoFund) {
+        finalFundId = 'fund_' + Date.now().toString();
+      }
+
+      const expenseId = 'exp_' + Date.now().toString();
+      const expenseRef = doc(db, 'expenses', expenseId);
+      const selectedAccount = transferAccounts.find(a => a.id === selectedAccountId) || null;
+
+      const newExpense = {
+        title,
+        date,
+        totalAmount: finalTotalAmount,
+        amountPerStudent,
+        calculationMode,
+        targetStudentCount: selectedStudents.size,
+        fundId: finalFundId,
+        courseId: selectedCourse.id,
+        transferAccountId: selectedAccountId || null,
+        transferData: selectedAccount,
+        visibleInPortal,
+        createdAt: new Date().toISOString()
+      };
+
       let fullyPaidCount = 0;
       
       const debtsData = [];
@@ -207,6 +231,7 @@ const ExpenseManagement = ({ onBack }) => {
             fundId: finalFundId,
             courseId: selectedCourse.id,
             transferData: selectedAccount,
+            visibleInPortal,
             createdAt: new Date().toISOString()
           }
         });
@@ -393,6 +418,40 @@ const ExpenseManagement = ({ onBack }) => {
                   <option key={acc.id} value={acc.id}>{acc.alias} ({acc.bank})</option>
                 ))}
               </select>
+            </div>
+
+            <div className="input-group" style={{ gridColumn: '1 / -1' }}>
+              <div style={{
+                padding: '1rem',
+                backgroundColor: visibleInPortal ? 'rgba(16, 185, 129, 0.08)' : 'rgba(239, 68, 68, 0.08)',
+                border: `1px solid ${visibleInPortal ? 'rgba(16, 185, 129, 0.3)' : 'rgba(239, 68, 68, 0.3)'}`,
+                borderRadius: 'var(--radius-md)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                gap: '1rem',
+                flexWrap: 'wrap'
+              }}>
+                <div>
+                  <div style={{ fontWeight: 600, fontSize: '0.95rem', display: 'flex', alignItems: 'center', gap: '0.5rem', color: visibleInPortal ? 'var(--success)' : 'var(--danger)' }}>
+                    <span>{visibleInPortal ? '👁️ Visible para los apoderados' : '🔒 Oculta para los apoderados'}</span>
+                  </div>
+                  <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginTop: '0.25rem' }}>
+                    {visibleInPortal 
+                      ? 'Los apoderados podrán ver esta cuota y su estado de pago en su portal.'
+                      : 'Esta cuota estará oculta en el portal de los apoderados. Solo administradores y tesoreros podrán verla.'}
+                  </div>
+                </div>
+                <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer', fontWeight: 500, fontSize: '0.9rem' }}>
+                  <input 
+                    type="checkbox" 
+                    checked={visibleInPortal}
+                    onChange={(e) => setVisibleInPortal(e.target.checked)}
+                    style={{ width: '18px', height: '18px', accentColor: 'var(--primary)', cursor: 'pointer' }}
+                  />
+                  Visible en Portal de Apoderados
+                </label>
+              </div>
             </div>
           </div>
 
