@@ -43,11 +43,6 @@ const ApoderadoDashboard = () => {
   const [transferData, setTransferData] = useState(null);
   const [whatsappContact, setWhatsappContact] = useState('');
 
-  // Fondo Total transparency
-  const [showTotalFundInPortal, setShowTotalFundInPortal] = useState(false);
-  const [courseTotalAvailable, setCourseTotalAvailable] = useState(0);
-  const [courseFundsBalances, setCourseFundsBalances] = useState([]);
-
   // Course expenses transparency
   const [outcomes, setOutcomes] = useState([]);
   const [outcomesLoading, setOutcomesLoading] = useState(false);
@@ -169,15 +164,6 @@ const ApoderadoDashboard = () => {
           } else {
             setWhatsappContact('');
           }
-          if (data.showTotalFundInPortal !== undefined) {
-            setShowTotalFundInPortal(Boolean(data.showTotalFundInPortal));
-          }
-          if (typeof data.totalAvailable === 'number') {
-            setCourseTotalAvailable(data.totalAvailable);
-          }
-          if (Array.isArray(data.fundsBalances)) {
-            setCourseFundsBalances(data.fundsBalances);
-          }
         } else {
           setWhatsappContact('');
           setTransferData(null);
@@ -193,25 +179,7 @@ const ApoderadoDashboard = () => {
   }, [activeStudentId, myStudents, debts]);
 
   const activeStudent = myStudents.find(s => s.id === activeStudentId);
-  const canViewExpenses = role === 'superadmin' || Boolean(activeStudent?.showExpensesInPortal);
-  const canViewTotalFund = role === 'superadmin' || showTotalFundInPortal;
-
-  const handleToggleShowTotalFund = async () => {
-    const student = myStudents.find(s => s.id === activeStudentId);
-    const courseId = student?.courseId || debts.find(d => d.studentId === student?.id)?.courseId;
-    if (!courseId) return;
-    const nextVal = !showTotalFundInPortal;
-    try {
-      await updateDoc(doc(db, 'settings', courseId), {
-        showTotalFundInPortal: nextVal
-      });
-      setShowTotalFundInPortal(nextVal);
-      showAlert(`Fondo Total en Portal ${nextVal ? 'habilitado y visible' : 'desactivado y oculto'} para los apoderados.`);
-    } catch (err) {
-      console.error("Error al actualizar visibilidad de fondo total:", err);
-      showAlert("Error al actualizar visibilidad de fondo total.");
-    }
-  };
+  const canViewExpenses = Boolean(activeStudent?.showExpensesInPortal);
 
   useEffect(() => {
     if (!activeStudentId || !canViewExpenses) return;
@@ -263,23 +231,6 @@ const ApoderadoDashboard = () => {
 
     return () => { isMounted = false; };
   }, [activeStudentId, canViewExpenses, myStudents, debts]);
-
-  const handleToggleActiveStudentExpenses = async () => {
-    if (!activeStudentId) return;
-    const student = myStudents.find(s => s.id === activeStudentId);
-    if (!student) return;
-    try {
-      const nextStatus = !student.showExpensesInPortal;
-      await updateDoc(doc(db, 'students', student.id), {
-        showExpensesInPortal: nextStatus
-      });
-      setMyStudents(prev => prev.map(s => s.id === student.id ? { ...s, showExpensesInPortal: nextStatus } : s));
-      showAlert(`Vista de gastos ${nextStatus ? 'habilitada' : 'deshabilitada'} para ${student.name || 'este alumno'}.`);
-    } catch (err) {
-      console.error("Error al actualizar visibilidad de gastos:", err);
-      showAlert("Error al actualizar visibilidad de gastos.");
-    }
-  };
 
   const formatMoney = (amount) => {
     return new Intl.NumberFormat('es-CL', { style: 'currency', currency: 'CLP' }).format(amount || 0);
@@ -751,7 +702,7 @@ const ApoderadoDashboard = () => {
       ) : (
         <>
           {myStudents.filter(student => student.id === activeStudentId).map(student => {
-            const allStudentDebts = debts.filter(d => d.studentId === student.id && (role === 'superadmin' || d.visibleInPortal !== false));
+            const allStudentDebts = debts.filter(d => d.studentId === student.id);
             const studentDebts = allStudentDebts.filter(d => {
               const baseTitle = d.title.replace('(Saldo Restante)', '').trim();
               
@@ -802,21 +753,8 @@ const ApoderadoDashboard = () => {
                         borderLeft: `4px solid ${debt.status === 'paid' ? 'var(--success)' : debt.status === 'review' ? 'var(--warning)' : (debt.status === 'partial' || isPartial) ? '#eab308' : 'var(--danger)'}` 
                       }}>
                         <div>
-                          <p style={{ fontWeight: '500', fontSize: '1.1rem', marginBottom: '0.2rem', display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+                          <p style={{ fontWeight: '500', fontSize: '1.1rem', marginBottom: '0.2rem' }}>
                             {debt.title}
-                            {debt.visibleInPortal === false && (
-                              <span style={{ 
-                                fontSize: '0.75rem', 
-                                padding: '0.15rem 0.5rem', 
-                                borderRadius: '4px', 
-                                backgroundColor: 'rgba(239, 68, 68, 0.15)', 
-                                color: '#f87171', 
-                                border: '1px solid rgba(239, 68, 68, 0.3)', 
-                                fontWeight: '600' 
-                              }}>
-                                🧪 Oculto para apoderados (Modo Superadmin)
-                              </span>
-                            )}
                           </p>
                           <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>
                             {isPartial ? `Saldo Restante: ` : `Monto de la cuota: `} <strong>${isPartial ? remainingAmount : debt.amount}</strong> 
@@ -863,206 +801,27 @@ const ApoderadoDashboard = () => {
                 )}
               </div>
 
-              {/* Fondo Total del Curso */}
-              {canViewTotalFund && (
-                <div className="glass-panel" style={{ padding: '2rem', marginBottom: '2rem' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '1rem', marginBottom: '1.25rem', borderBottom: '1px solid var(--border-color)', paddingBottom: '1rem' }}>
-                    <div>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', marginBottom: '0.35rem' }}>
-                        <div style={{ backgroundColor: 'rgba(16, 185, 129, 0.1)', padding: '0.5rem', borderRadius: 'var(--radius-sm)', color: 'var(--success)', display: 'flex', alignItems: 'center' }}>
-                          <DollarSign size={22} />
-                        </div>
-                        <h3 style={{ margin: 0, color: 'var(--text-main)', fontSize: '1.3rem' }}>
-                          Fondo Total del Curso
-                        </h3>
-                      </div>
-                      <p style={{ margin: 0, color: 'var(--text-muted)', fontSize: '0.875rem' }}>
-                        Total acumulado y disponible en las cuentas y caja del curso.
-                      </p>
-                    </div>
-
-                    {role === 'superadmin' && (
-                      <button
-                        type="button"
-                        onClick={handleToggleShowTotalFund}
-                        className="btn btn-outline"
-                        style={{
-                          fontSize: '0.8rem',
-                          padding: '0.4rem 0.75rem',
-                          borderColor: showTotalFundInPortal ? 'rgba(16, 185, 129, 0.4)' : 'var(--border-color)',
-                          color: showTotalFundInPortal ? '#10b981' : 'var(--text-muted)',
-                          backgroundColor: showTotalFundInPortal ? 'rgba(16, 185, 129, 0.1)' : 'transparent'
-                        }}
-                        title="Habilitar o deshabilitar visibilidad del fondo total para los apoderados"
-                      >
-                        {showTotalFundInPortal ? 'Visible en Portal: SÍ' : 'Visible en Portal: NO'}
-                      </button>
-                    )}
-                  </div>
-
-                  {/* Banner Modo Prueba para Superadmin si está oculto */}
-                  {role === 'superadmin' && !showTotalFundInPortal && (
-                    <div style={{
-                      backgroundColor: 'rgba(245, 158, 11, 0.08)',
-                      border: '1px solid rgba(245, 158, 11, 0.3)',
-                      borderRadius: 'var(--radius-md)',
-                      padding: '0.75rem 1rem',
-                      marginBottom: '1.5rem',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'space-between',
-                      flexWrap: 'wrap',
-                      gap: '0.75rem'
-                    }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', color: '#f59e0b', fontSize: '0.875rem' }}>
-                        <Sparkles size={18} />
-                        <span>
-                          <strong>🧪 Modo Prueba (Superadmin):</strong> El Fondo Total está actualmente <u>oculto</u> para los apoderados.
-                        </span>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={handleToggleShowTotalFund}
-                        className="btn btn-primary"
-                        style={{ padding: '0.35rem 0.75rem', fontSize: '0.8rem', backgroundColor: '#10b981', borderColor: '#10b981' }}
-                      >
-                        Hacer visible para apoderados
-                      </button>
-                    </div>
-                  )}
-
-                  {/* Card Monto Total */}
-                  <div style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'space-between',
-                    padding: '1.25rem 1.5rem',
-                    backgroundColor: 'rgba(16, 185, 129, 0.08)',
-                    borderRadius: 'var(--radius-md)',
-                    border: '1px solid rgba(16, 185, 129, 0.25)',
-                    marginBottom: courseFundsBalances.length > 0 ? '1.5rem' : 0,
-                    flexWrap: 'wrap',
-                    gap: '1rem'
-                  }}>
-                    <div>
-                      <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                        Fondo Total Disponible
-                      </span>
-                      <h2 style={{ fontSize: '2.2rem', margin: '0.25rem 0 0 0', color: 'var(--success)', fontWeight: 'bold' }}>
-                        {formatMoney(courseTotalAvailable)}
-                      </h2>
-                    </div>
-                    <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)', maxWidth: '320px' }}>
-                      Fondos resguardados y auditados para actividades, paseos y proyectos del curso.
-                    </div>
-                  </div>
-
-                  {/* Desglose por Fondo */}
-                  {courseFundsBalances.length > 0 && (
-                    <div>
-                      <h4 style={{ fontSize: '0.9rem', color: 'var(--text-muted)', marginBottom: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                        Distribución por Fondos
-                      </h4>
-                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '0.75rem' }}>
-                        {courseFundsBalances.map(f => (
-                          <div key={f.id} style={{
-                            padding: '0.85rem 1rem',
-                            backgroundColor: 'rgba(255, 255, 255, 0.03)',
-                            borderRadius: 'var(--radius-sm)',
-                            border: '1px solid var(--border-color)',
-                            display: 'flex',
-                            flexDirection: 'column',
-                            gap: '0.25rem'
-                          }}>
-                            <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>{f.name}</span>
-                            <strong style={{ fontSize: '1.1rem', color: (f.balance || 0) >= 0 ? 'var(--text-main)' : 'var(--danger)' }}>
-                              {formatMoney(f.balance)}
-                            </strong>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-                </div>
-              )}
-
               {/* Transparencia de Gastos del Curso */}
               {canViewExpenses && (
                 <div className="glass-panel" style={{ padding: '2rem', marginBottom: '2rem' }}>
                   {/* Header */}
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '1rem', marginBottom: '1.5rem', borderBottom: '1px solid var(--border-color)', paddingBottom: '1.25rem' }}>
-                    <div>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', marginBottom: '0.35rem' }}>
-                        <div style={{ backgroundColor: 'rgba(239, 68, 68, 0.1)', padding: '0.5rem', borderRadius: 'var(--radius-sm)', color: 'var(--danger)', display: 'flex', alignItems: 'center' }}>
-                          <Receipt size={22} />
-                        </div>
-                        <h3 style={{ margin: 0, color: 'var(--text-main)', fontSize: '1.3rem' }}>
-                          Transparencia de Gastos del Curso
-                        </h3>
+                  <div style={{ marginBottom: '1.5rem', borderBottom: '1px solid var(--border-color)', paddingBottom: '1.25rem' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', marginBottom: '0.35rem' }}>
+                      <div style={{ backgroundColor: 'rgba(239, 68, 68, 0.1)', padding: '0.5rem', borderRadius: 'var(--radius-sm)', color: 'var(--danger)', display: 'flex', alignItems: 'center' }}>
+                        <Receipt size={22} />
                       </div>
-                      <p style={{ margin: 0, color: 'var(--text-muted)', fontSize: '0.875rem' }}>
-                        Detalle de compras y egresos del curso con la cuota proporcional calculada para <strong>{formatStudentName(student)}</strong>.
-                      </p>
+                      <h3 style={{ margin: 0, color: 'var(--text-main)', fontSize: '1.3rem' }}>
+                        Transparencia de Gastos del Curso
+                      </h3>
                     </div>
-
-                    {role === 'superadmin' && (
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                        <button 
-                          type="button"
-                          onClick={handleToggleActiveStudentExpenses}
-                          className="btn btn-outline"
-                          style={{ 
-                            fontSize: '0.8rem', 
-                            padding: '0.4rem 0.75rem',
-                            borderColor: student.showExpensesInPortal ? 'rgba(16, 185, 129, 0.4)' : 'var(--border-color)',
-                            color: student.showExpensesInPortal ? '#10b981' : 'var(--text-muted)',
-                            backgroundColor: student.showExpensesInPortal ? 'rgba(16, 185, 129, 0.1)' : 'transparent'
-                          }}
-                          title="Habilitar o deshabilitar visibilidad de este recuadro para el apoderado"
-                        >
-                          {student.showExpensesInPortal ? 'Visible en Portal: SÍ' : 'Visible en Portal: NO'}
-                        </button>
-                      </div>
-                    )}
+                    <p style={{ margin: 0, color: 'var(--text-muted)', fontSize: '0.875rem' }}>
+                      Detalle de compras y egresos del curso con la cuota proporcional calculada para <strong>{formatStudentName(student)}</strong>.
+                    </p>
                   </div>
-
-                  {/* Banner Modo Prueba para Superadmin */}
-                  {role === 'superadmin' && !student.showExpensesInPortal && (
-                    <div style={{ 
-                      backgroundColor: 'rgba(245, 158, 11, 0.08)', 
-                      border: '1px solid rgba(245, 158, 11, 0.3)', 
-                      borderRadius: 'var(--radius-md)', 
-                      padding: '0.75rem 1rem', 
-                      marginBottom: '1.5rem', 
-                      display: 'flex', 
-                      alignItems: 'center', 
-                      justifyContent: 'space-between', 
-                      flexWrap: 'wrap', 
-                      gap: '0.75rem' 
-                    }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', color: '#f59e0b', fontSize: '0.875rem' }}>
-                        <Sparkles size={18} />
-                        <span>
-                          <strong>🧪 Modo Prueba (Superadmin):</strong> Esta sección de gastos está actualmente <u>oculta</u> para el apoderado de este alumno.
-                        </span>
-                      </div>
-                      <button 
-                        type="button"
-                        onClick={handleToggleActiveStudentExpenses}
-                        className="btn btn-primary"
-                        style={{ padding: '0.35rem 0.75rem', fontSize: '0.8rem', backgroundColor: '#10b981', borderColor: '#10b981' }}
-                      >
-                        Habilitar vista a este alumno
-                      </button>
-                    </div>
-                  )}
 
                   {/* KPI Financial Summary Cards */}
                   {(() => {
-                    const visibleOutcomes = outcomes.filter(o => {
-                      if (role !== 'superadmin' && o.visibleInPortal === false) return false;
-                      return true;
-                    });
+                    const visibleOutcomes = outcomes.filter(o => o.visibleInPortal !== false);
 
                     const totalCourseExpenses = visibleOutcomes.reduce((sum, o) => sum + (o.amount || 0), 0);
                     const totalStudentExpenses = visibleOutcomes.reduce((sum, o) => {
@@ -1188,19 +947,6 @@ const ApoderadoDashboard = () => {
                                       <h4 style={{ margin: 0, fontSize: '1.05rem', color: 'var(--text-main)', fontWeight: '600' }}>
                                         {outcome.title}
                                       </h4>
-                                      {outcome.visibleInPortal === false && (
-                                        <span style={{ 
-                                          fontSize: '0.75rem', 
-                                          padding: '0.15rem 0.5rem', 
-                                          borderRadius: '4px', 
-                                          backgroundColor: 'rgba(239, 68, 68, 0.15)', 
-                                          color: '#f87171', 
-                                          border: '1px solid rgba(239, 68, 68, 0.3)', 
-                                          fontWeight: '600' 
-                                        }}>
-                                          🧪 Oculto para apoderados (Modo Superadmin)
-                                        </span>
-                                      )}
                                       {outcome.fundId && (
                                         <span style={{ 
                                           fontSize: '0.7rem', 

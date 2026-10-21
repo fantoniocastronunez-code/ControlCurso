@@ -41,6 +41,7 @@ const EventSummary = ({ event }) => {
       const itemsMap = new Map();
       snapSales.forEach(d => {
         const data = d.data();
+        if (data.status === 'cancelled' || data.status === 'anulada') return;
         salesT += data.total || 0;
         
         if (data.items && Array.isArray(data.items)) {

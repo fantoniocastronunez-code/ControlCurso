@@ -269,7 +269,7 @@ const StudentDetailModal = ({ student, usersMap = {}, onClose, isModal = false }
                 backgroundColor: expensesEnabled ? 'rgba(16, 185, 129, 0.1)' : 'transparent',
                 fontSize: '0.85rem'
               }}
-              title={expensesEnabled ? "Deshabilitar vista de gastos en portal de este alumno" : "Habilitar vista de gastos en portal (Modo prueba)"}
+              title={expensesEnabled ? "Deshabilitar vista de gastos en portal de este alumno" : "Habilitar vista de gastos en portal para este alumno"}
             >
               <Receipt size={16} /> {expensesEnabled ? 'Gastos Portal: Habilitado' : 'Gastos Portal: Deshabilitado'}
             </button>

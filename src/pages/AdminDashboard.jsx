@@ -60,7 +60,6 @@ const AdminDashboard = () => {
   const [isNoApoderadosModalOpen, setIsNoApoderadosModalOpen] = useState(false);
   const [showAllExpenses, setShowAllExpenses] = useState(false);
   const [isCuotaReportOpen, setIsCuotaReportOpen] = useState(false);
-  const [showTotalFundInPortal, setShowTotalFundInPortal] = useState(false);
   
   // Lista de cuotas
   const [expenses, setExpenses] = useState([]);
@@ -108,7 +107,6 @@ const AdminDashboard = () => {
       const studentsPromise = getDocs(query(collection(db, 'students'), where('courseId', '==', selectedCourse.id)));
       // Note: bankInfo might need to be isolated. For now we use the global settings document, but ideal to migrate to per-course
       const bankInfoPromise = getDoc(doc(db, 'settings', 'bankInfo'));
-      const courseSettingsPromise = getDoc(doc(db, 'settings', selectedCourse.id));
       const expensesPromise = getDocs(query(collection(db, 'expenses'), where('courseId', '==', selectedCourse.id)));
       const fundsPromise = getDocs(query(collection(db, 'funds'), where('courseId', '==', selectedCourse.id)));
       // Filter by courseId, and locally filter status to avoid composite index requirements
@@ -123,19 +121,12 @@ const AdminDashboard = () => {
           : Promise.resolve({ docs: [], size: 0, forEach: () => {} });
 
       const [
-        studentsSnap, bankInfoSnap, courseSettingsSnap, expensesSnap, fundsSnap, 
+        studentsSnap, bankInfoSnap, expensesSnap, fundsSnap, 
         allDebtsSnap, outcomesSnap, incomesSnap, transfersSnap, usersSnap, paymentsSnap
       ] = await Promise.all([
-        studentsPromise, bankInfoPromise, courseSettingsPromise, expensesPromise, fundsPromise,
+        studentsPromise, bankInfoPromise, expensesPromise, fundsPromise,
         debtsPromise, outcomesPromise, incomesPromise, transfersPromise, usersPromise, paymentsPromise
       ]);
-
-      if (courseSettingsSnap && courseSettingsSnap.exists()) {
-        const sData = courseSettingsSnap.data();
-        if (sData.showTotalFundInPortal !== undefined) {
-          setShowTotalFundInPortal(Boolean(sData.showTotalFundInPortal));
-        }
-      }
       
       let pendingApprovalsCount = 0;
       
@@ -449,11 +440,6 @@ const AdminDashboard = () => {
       });
       setExpenses(expensesList);
 
-      // Sincronizar fondos calculados en settings para acceso rápido y limpio desde el portal de apoderados
-      setDoc(doc(db, 'settings', selectedCourse.id), {
-        totalAvailable,
-        fundsBalances: fundsBalances.map(f => ({ id: f.id, name: f.name, balance: f.balance }))
-      }, { merge: true }).catch(err => console.error("Error caching total funds in settings:", err));
 
     } catch (error) {
       console.error("Error fetching dashboard data:", error);
@@ -473,27 +459,6 @@ const AdminDashboard = () => {
     return new Intl.NumberFormat('es-CL', { style: 'currency', currency: 'CLP' }).format(amount);
   };
 
-  const handleToggleShowTotalFundInPortal = async () => {
-    if (!selectedCourse) return;
-    const nextVal = !showTotalFundInPortal;
-    const confirmMsg = nextVal
-      ? '¿Hacer visible el Fondo Total del Curso para todos los apoderados en su portal?'
-      : '¿Ocultar el Fondo Total del Curso del portal de los apoderados?';
-    if (!(await showConfirm(confirmMsg))) return;
-
-    try {
-      await setDoc(doc(db, 'settings', selectedCourse.id), {
-        showTotalFundInPortal: nextVal,
-        totalAvailable: stats.totalAvailable || 0,
-        fundsBalances: (stats.fundsBalances || []).map(f => ({ id: f.id, name: f.name, balance: f.balance }))
-      }, { merge: true });
-      setShowTotalFundInPortal(nextVal);
-      await showAlert(nextVal ? 'El Fondo Total ahora es visible para los apoderados en su portal.' : 'El Fondo Total ahora está oculto para los apoderados.');
-    } catch (error) {
-      console.error("Error updating total fund visibility:", error);
-      await showAlert("Error al actualizar la visibilidad del fondo total.");
-    }
-  };
 
   const handleUpdateRealBankBalance = async () => {
     const amountStr = await showPrompt("Ingresa el monto real actual que tienes en la cuenta de banco:", stats.realBankBalance);
@@ -762,35 +727,14 @@ const AdminDashboard = () => {
                   </div>
                 )}
 
-                <div className="glass-panel" style={{ padding: '1.5rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '1rem', gridColumn: '1 / -1', flexWrap: 'wrap' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-                    <div style={{ backgroundColor: 'rgba(239,68,68,0.2)', padding: '1.5rem', borderRadius: '50%', color: 'var(--danger)' }}>
-                      <FileText size={32} />
-                    </div>
-                    <div>
-                      <h3 style={{ fontSize: '2rem', margin: 0 }}>{formatMoney(stats.totalAvailable)}</h3>
-                      <p style={{ color: 'var(--text-muted)', fontSize: '1rem', margin: 0 }}>Fondo Total Disponible (Suma de todos los fondos)</p>
-                    </div>
+                <div className="glass-panel" style={{ padding: '1.5rem', display: 'flex', alignItems: 'center', gap: '1rem', gridColumn: '1 / -1' }}>
+                  <div style={{ backgroundColor: 'rgba(239,68,68,0.2)', padding: '1.5rem', borderRadius: '50%', color: 'var(--danger)' }}>
+                    <FileText size={32} />
                   </div>
-                  <button
-                    type="button"
-                    onClick={handleToggleShowTotalFundInPortal}
-                    className="btn btn-outline"
-                    style={{
-                      padding: '0.45rem 0.85rem',
-                      fontSize: '0.85rem',
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '0.4rem',
-                      borderColor: showTotalFundInPortal ? 'rgba(16, 185, 129, 0.4)' : 'rgba(239, 68, 68, 0.4)',
-                      color: showTotalFundInPortal ? 'var(--success)' : '#f87171',
-                      backgroundColor: showTotalFundInPortal ? 'rgba(16, 185, 129, 0.08)' : 'rgba(239, 68, 68, 0.08)'
-                    }}
-                    title="Haz clic para cambiar si los apoderados pueden ver el Fondo Total en su portal"
-                  >
-                    {showTotalFundInPortal ? <Eye size={16} /> : <EyeOff size={16} />}
-                    {showTotalFundInPortal ? 'Visible en Portal Apoderados' : 'Oculto en Portal Apoderados'}
-                  </button>
+                  <div>
+                    <h3 style={{ fontSize: '2rem', margin: 0 }}>{formatMoney(stats.totalAvailable)}</h3>
+                    <p style={{ color: 'var(--text-muted)', fontSize: '1rem', margin: 0 }}>Fondo Total Disponible (Suma de todos los fondos)</p>
+                  </div>
                 </div>
 
                 <div 

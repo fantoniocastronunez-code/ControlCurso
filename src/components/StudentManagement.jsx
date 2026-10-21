@@ -251,7 +251,7 @@ const StudentRow = React.memo(({
                       alignItems: 'center', 
                       justifyContent: 'center' 
                     }}
-                    title={s.showExpensesInPortal ? "Vista de gastos activada en portal (Click para desactivar)" : "Habilitar vista de gastos en portal para este alumno (Modo prueba)"}
+                    title={s.showExpensesInPortal ? "Vista de gastos activada en portal (Click para desactivar)" : "Habilitar vista de gastos en portal para este alumno"}
                   >
                     <Receipt size={18} />
                   </button>

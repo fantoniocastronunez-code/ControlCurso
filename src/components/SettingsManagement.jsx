@@ -15,7 +15,6 @@ const SettingsManagement = ({ onBack }) => {
   const [accounts, setAccounts] = useState([]);
   const [whatsappContact, setWhatsappContact] = useState('');
   const [inviteCode, setInviteCode] = useState('');
-  const [showTotalFundInPortal, setShowTotalFundInPortal] = useState(false);
   
   // Modal/Form state
   const [isEditing, setIsEditing] = useState(false);
@@ -46,9 +45,6 @@ const SettingsManagement = ({ onBack }) => {
         }
         if (data.whatsappContact) {
           setWhatsappContact(data.whatsappContact);
-        }
-        if (data.showTotalFundInPortal !== undefined) {
-          setShowTotalFundInPortal(Boolean(data.showTotalFundInPortal));
         }
       }
     } catch (error) {
@@ -96,19 +92,6 @@ const SettingsManagement = ({ onBack }) => {
     }
   };
 
-  const handleToggleShowTotalFund = async () => {
-    if (!selectedCourse) return;
-    const nextVal = !showTotalFundInPortal;
-    try {
-      const docRef = doc(db, 'settings', selectedCourse.id);
-      await setDoc(docRef, { showTotalFundInPortal: nextVal }, { merge: true });
-      setShowTotalFundInPortal(nextVal);
-      await showAlert(`Fondo Total en Portal ${nextVal ? 'activado y visible' : 'desactivado y oculto'} para los apoderados.`);
-    } catch (error) {
-      console.error("Error saving total fund visibility:", error);
-      await showAlert("Error al actualizar la visibilidad del fondo total.");
-    }
-  };
 
   const handleSaveInviteCode = async () => {
     if (!selectedCourse || !inviteCode.trim()) return;
@@ -281,46 +264,7 @@ const SettingsManagement = ({ onBack }) => {
             </button>
           </div>
           
-          <hr style={{ border: 'none', borderTop: '1px solid rgba(255,255,255,0.1)', margin: '2rem 0' }} />
 
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: 'var(--primary)', marginBottom: '1.5rem' }}>
-            <DollarSign size={20} />
-            <h4 style={{ margin: 0 }}>Transparencia del Fondo del Curso</h4>
-          </div>
-          <p style={{ color: 'var(--text-muted)', marginBottom: '1.5rem' }}>
-            Decide si los apoderados pueden ver el Fondo Total disponible recaudado por el curso en su portal.
-          </p>
-          <div style={{
-            padding: '1.25rem',
-            backgroundColor: showTotalFundInPortal ? 'rgba(16, 185, 129, 0.08)' : 'rgba(255, 255, 255, 0.02)',
-            border: `1px solid ${showTotalFundInPortal ? 'rgba(16, 185, 129, 0.3)' : 'var(--border-color)'}`,
-            borderRadius: 'var(--radius-md)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            gap: '1rem',
-            flexWrap: 'wrap'
-          }}>
-            <div>
-              <div style={{ fontWeight: 600, color: showTotalFundInPortal ? 'var(--success)' : 'var(--text-main)', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                {showTotalFundInPortal ? <Eye size={18} /> : <EyeOff size={18} />}
-                <span>{showTotalFundInPortal ? 'Fondo Total Visible en Portal de Apoderados' : 'Fondo Total Oculto para Apoderados'}</span>
-              </div>
-              <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginTop: '0.35rem' }}>
-                {showTotalFundInPortal 
-                  ? 'Los apoderados pueden ver en su portal el monto total disponible acumulado por el curso y la distribución de fondos.' 
-                  : 'Los apoderados solo ven el estado de sus cobros individuales.'}
-              </div>
-            </div>
-            <button
-              type="button"
-              onClick={handleToggleShowTotalFund}
-              className={`btn ${showTotalFundInPortal ? 'btn-primary' : 'btn-outline'}`}
-              style={{ padding: '0.5rem 1rem', fontSize: '0.85rem', backgroundColor: showTotalFundInPortal ? 'var(--success)' : 'transparent', borderColor: showTotalFundInPortal ? 'var(--success)' : 'var(--border-color)' }}
-            >
-              {showTotalFundInPortal ? 'Ocultar a Apoderados' : 'Hacer Visible a Apoderados'}
-            </button>
-          </div>
           
           <hr style={{ border: 'none', borderTop: '1px solid rgba(255,255,255,0.1)', margin: '2rem 0' }} />
           
