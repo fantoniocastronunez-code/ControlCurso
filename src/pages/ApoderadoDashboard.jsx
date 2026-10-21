@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { 
   LogOut, CheckCircle, Clock, Search, UserPlus, Upload, AlertCircle, MessageCircle,
-  Receipt, TrendingDown, Eye, X, Sparkles, ExternalLink 
+  Receipt, TrendingDown, Eye, X, Sparkles, ExternalLink, DollarSign 
 } from 'lucide-react';
 import { db, storage } from '../firebase/config';
 import { collection, query, where, getDocs, getDoc, doc, updateDoc, setDoc, or, addDoc, onSnapshot } from 'firebase/firestore';
@@ -42,6 +42,11 @@ const ApoderadoDashboard = () => {
   // Settings
   const [transferData, setTransferData] = useState(null);
   const [whatsappContact, setWhatsappContact] = useState('');
+
+  // Fondo Total transparency
+  const [showTotalFundInPortal, setShowTotalFundInPortal] = useState(false);
+  const [courseTotalAvailable, setCourseTotalAvailable] = useState(0);
+  const [courseFundsBalances, setCourseFundsBalances] = useState([]);
 
   // Course expenses transparency
   const [outcomes, setOutcomes] = useState([]);
@@ -143,39 +148,70 @@ const ApoderadoDashboard = () => {
   }, [myStudents, activeStudentId]);
 
   useEffect(() => {
-    const fetchCourseSettings = async () => {
-      if (!activeStudentId) return;
-      const student = myStudents.find(s => s.id === activeStudentId);
-      if (!student) return;
-      const courseId = student.courseId || debts.find(d => d.studentId === student.id)?.courseId;
-      if (!courseId) return;
+    if (!activeStudentId) return;
+    const student = myStudents.find(s => s.id === activeStudentId);
+    if (!student) return;
+    const courseId = student.courseId || debts.find(d => d.studentId === student.id)?.courseId;
+    if (!courseId) return;
 
-      try {
-        const settingsDocRef = doc(db, 'settings', courseId);
-        const settingsSnap = await getDoc(settingsDocRef);
+    try {
+      const settingsDocRef = doc(db, 'settings', courseId);
+      const unsubscribe = onSnapshot(settingsDocRef, (settingsSnap) => {
         if (settingsSnap.exists()) {
           const data = settingsSnap.data();
           if (data.transferData) {
             setTransferData(data.transferData);
+          } else {
+            setTransferData(null);
           }
           if (data.whatsappContact) {
             setWhatsappContact(data.whatsappContact);
           } else {
             setWhatsappContact('');
           }
+          if (data.showTotalFundInPortal !== undefined) {
+            setShowTotalFundInPortal(Boolean(data.showTotalFundInPortal));
+          }
+          if (typeof data.totalAvailable === 'number') {
+            setCourseTotalAvailable(data.totalAvailable);
+          }
+          if (Array.isArray(data.fundsBalances)) {
+            setCourseFundsBalances(data.fundsBalances);
+          }
         } else {
           setWhatsappContact('');
           setTransferData(null);
         }
-      } catch (error) {
-        console.error("Error fetching course settings:", error);
-      }
-    };
-    fetchCourseSettings();
+      }, (error) => {
+        console.error("Error fetching course settings in real-time:", error);
+      });
+
+      return () => unsubscribe();
+    } catch (error) {
+      console.error("Error setting up course settings listener:", error);
+    }
   }, [activeStudentId, myStudents, debts]);
 
   const activeStudent = myStudents.find(s => s.id === activeStudentId);
   const canViewExpenses = role === 'superadmin' || Boolean(activeStudent?.showExpensesInPortal);
+  const canViewTotalFund = role === 'superadmin' || showTotalFundInPortal;
+
+  const handleToggleShowTotalFund = async () => {
+    const student = myStudents.find(s => s.id === activeStudentId);
+    const courseId = student?.courseId || debts.find(d => d.studentId === student?.id)?.courseId;
+    if (!courseId) return;
+    const nextVal = !showTotalFundInPortal;
+    try {
+      await updateDoc(doc(db, 'settings', courseId), {
+        showTotalFundInPortal: nextVal
+      });
+      setShowTotalFundInPortal(nextVal);
+      showAlert(`Fondo Total en Portal ${nextVal ? 'habilitado y visible' : 'desactivado y oculto'} para los apoderados.`);
+    } catch (err) {
+      console.error("Error al actualizar visibilidad de fondo total:", err);
+      showAlert("Error al actualizar visibilidad de fondo total.");
+    }
+  };
 
   useEffect(() => {
     if (!activeStudentId || !canViewExpenses) return;
@@ -827,6 +863,129 @@ const ApoderadoDashboard = () => {
                 )}
               </div>
 
+              {/* Fondo Total del Curso */}
+              {canViewTotalFund && (
+                <div className="glass-panel" style={{ padding: '2rem', marginBottom: '2rem' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '1rem', marginBottom: '1.25rem', borderBottom: '1px solid var(--border-color)', paddingBottom: '1rem' }}>
+                    <div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', marginBottom: '0.35rem' }}>
+                        <div style={{ backgroundColor: 'rgba(16, 185, 129, 0.1)', padding: '0.5rem', borderRadius: 'var(--radius-sm)', color: 'var(--success)', display: 'flex', alignItems: 'center' }}>
+                          <DollarSign size={22} />
+                        </div>
+                        <h3 style={{ margin: 0, color: 'var(--text-main)', fontSize: '1.3rem' }}>
+                          Fondo Total del Curso
+                        </h3>
+                      </div>
+                      <p style={{ margin: 0, color: 'var(--text-muted)', fontSize: '0.875rem' }}>
+                        Total acumulado y disponible en las cuentas y caja del curso.
+                      </p>
+                    </div>
+
+                    {role === 'superadmin' && (
+                      <button
+                        type="button"
+                        onClick={handleToggleShowTotalFund}
+                        className="btn btn-outline"
+                        style={{
+                          fontSize: '0.8rem',
+                          padding: '0.4rem 0.75rem',
+                          borderColor: showTotalFundInPortal ? 'rgba(16, 185, 129, 0.4)' : 'var(--border-color)',
+                          color: showTotalFundInPortal ? '#10b981' : 'var(--text-muted)',
+                          backgroundColor: showTotalFundInPortal ? 'rgba(16, 185, 129, 0.1)' : 'transparent'
+                        }}
+                        title="Habilitar o deshabilitar visibilidad del fondo total para los apoderados"
+                      >
+                        {showTotalFundInPortal ? 'Visible en Portal: SÍ' : 'Visible en Portal: NO'}
+                      </button>
+                    )}
+                  </div>
+
+                  {/* Banner Modo Prueba para Superadmin si está oculto */}
+                  {role === 'superadmin' && !showTotalFundInPortal && (
+                    <div style={{
+                      backgroundColor: 'rgba(245, 158, 11, 0.08)',
+                      border: '1px solid rgba(245, 158, 11, 0.3)',
+                      borderRadius: 'var(--radius-md)',
+                      padding: '0.75rem 1rem',
+                      marginBottom: '1.5rem',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      flexWrap: 'wrap',
+                      gap: '0.75rem'
+                    }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', color: '#f59e0b', fontSize: '0.875rem' }}>
+                        <Sparkles size={18} />
+                        <span>
+                          <strong>🧪 Modo Prueba (Superadmin):</strong> El Fondo Total está actualmente <u>oculto</u> para los apoderados.
+                        </span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={handleToggleShowTotalFund}
+                        className="btn btn-primary"
+                        style={{ padding: '0.35rem 0.75rem', fontSize: '0.8rem', backgroundColor: '#10b981', borderColor: '#10b981' }}
+                      >
+                        Hacer visible para apoderados
+                      </button>
+                    </div>
+                  )}
+
+                  {/* Card Monto Total */}
+                  <div style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    padding: '1.25rem 1.5rem',
+                    backgroundColor: 'rgba(16, 185, 129, 0.08)',
+                    borderRadius: 'var(--radius-md)',
+                    border: '1px solid rgba(16, 185, 129, 0.25)',
+                    marginBottom: courseFundsBalances.length > 0 ? '1.5rem' : 0,
+                    flexWrap: 'wrap',
+                    gap: '1rem'
+                  }}>
+                    <div>
+                      <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                        Fondo Total Disponible
+                      </span>
+                      <h2 style={{ fontSize: '2.2rem', margin: '0.25rem 0 0 0', color: 'var(--success)', fontWeight: 'bold' }}>
+                        {formatMoney(courseTotalAvailable)}
+                      </h2>
+                    </div>
+                    <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)', maxWidth: '320px' }}>
+                      Fondos resguardados y auditados para actividades, paseos y proyectos del curso.
+                    </div>
+                  </div>
+
+                  {/* Desglose por Fondo */}
+                  {courseFundsBalances.length > 0 && (
+                    <div>
+                      <h4 style={{ fontSize: '0.9rem', color: 'var(--text-muted)', marginBottom: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                        Distribución por Fondos
+                      </h4>
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '0.75rem' }}>
+                        {courseFundsBalances.map(f => (
+                          <div key={f.id} style={{
+                            padding: '0.85rem 1rem',
+                            backgroundColor: 'rgba(255, 255, 255, 0.03)',
+                            borderRadius: 'var(--radius-sm)',
+                            border: '1px solid var(--border-color)',
+                            display: 'flex',
+                            flexDirection: 'column',
+                            gap: '0.25rem'
+                          }}>
+                            <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>{f.name}</span>
+                            <strong style={{ fontSize: '1.1rem', color: (f.balance || 0) >= 0 ? 'var(--text-main)' : 'var(--danger)' }}>
+                              {formatMoney(f.balance)}
+                            </strong>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+
               {/* Transparencia de Gastos del Curso */}
               {canViewExpenses && (
                 <div className="glass-panel" style={{ padding: '2rem', marginBottom: '2rem' }}>
@@ -900,13 +1059,18 @@ const ApoderadoDashboard = () => {
 
                   {/* KPI Financial Summary Cards */}
                   {(() => {
-                    const totalCourseExpenses = outcomes.reduce((sum, o) => sum + (o.amount || 0), 0);
-                    const totalStudentExpenses = outcomes.reduce((sum, o) => {
+                    const visibleOutcomes = outcomes.filter(o => {
+                      if (role !== 'superadmin' && o.visibleInPortal === false) return false;
+                      return true;
+                    });
+
+                    const totalCourseExpenses = visibleOutcomes.reduce((sum, o) => sum + (o.amount || 0), 0);
+                    const totalStudentExpenses = visibleOutcomes.reduce((sum, o) => {
                       const bd = getOutcomeBreakdown(o, student.id);
                       return sum + (bd.isAssigned ? bd.share : 0);
                     }, 0);
 
-                    const filteredOutcomes = outcomes.filter(o => {
+                    const filteredOutcomes = visibleOutcomes.filter(o => {
                       if (!expenseSearch.trim()) return true;
                       const term = expenseSearch.toLowerCase();
                       const titleMatch = (o.title || '').toLowerCase().includes(term);
@@ -933,7 +1097,7 @@ const ApoderadoDashboard = () => {
                               {formatMoney(totalCourseExpenses)}
                             </h3>
                             <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
-                              {outcomes.length} gastos registrados
+                              {visibleOutcomes.length} gastos registrados
                             </span>
                           </div>
 
@@ -983,7 +1147,7 @@ const ApoderadoDashboard = () => {
                             </button>
                           )}
                           <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginLeft: 'auto' }}>
-                            Mostrando {filteredOutcomes.length} de {outcomes.length} gastos
+                            Mostrando {filteredOutcomes.length} de {visibleOutcomes.length} gastos
                           </span>
                         </div>
 
@@ -994,7 +1158,7 @@ const ApoderadoDashboard = () => {
                           </div>
                         ) : filteredOutcomes.length === 0 ? (
                           <div style={{ padding: '2rem', textAlign: 'center', color: 'var(--text-muted)', backgroundColor: 'rgba(255,255,255,0.02)', borderRadius: 'var(--radius-md)' }}>
-                            {outcomes.length === 0 ? 'No hay gastos registrados en este curso aún.' : 'No se encontraron gastos que coincidan con la búsqueda.'}
+                            {visibleOutcomes.length === 0 ? 'No hay gastos registrados en este curso aún.' : 'No se encontraron gastos que coincidan con la búsqueda.'}
                           </div>
                         ) : (
                           <div style={{ display: 'grid', gap: '0.75rem' }}>
@@ -1009,7 +1173,7 @@ const ApoderadoDashboard = () => {
                                     padding: '1rem 1.25rem', 
                                     backgroundColor: 'rgba(255, 255, 255, 0.03)', 
                                     borderRadius: 'var(--radius-md)', 
-                                    border: '1px solid var(--border-color)',
+                                    border: '1px solid var(--border-color)', 
                                     display: 'flex', 
                                     flexWrap: 'wrap', 
                                     alignItems: 'center', 
@@ -1024,6 +1188,19 @@ const ApoderadoDashboard = () => {
                                       <h4 style={{ margin: 0, fontSize: '1.05rem', color: 'var(--text-main)', fontWeight: '600' }}>
                                         {outcome.title}
                                       </h4>
+                                      {outcome.visibleInPortal === false && (
+                                        <span style={{ 
+                                          fontSize: '0.75rem', 
+                                          padding: '0.15rem 0.5rem', 
+                                          borderRadius: '4px', 
+                                          backgroundColor: 'rgba(239, 68, 68, 0.15)', 
+                                          color: '#f87171', 
+                                          border: '1px solid rgba(239, 68, 68, 0.3)', 
+                                          fontWeight: '600' 
+                                        }}>
+                                          🧪 Oculto para apoderados (Modo Superadmin)
+                                        </span>
+                                      )}
                                       {outcome.fundId && (
                                         <span style={{ 
                                           fontSize: '0.7rem', 

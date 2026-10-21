@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { db } from '../firebase/config';
 import { collection, getDocs, doc, setDoc, deleteDoc, updateDoc, query, where } from 'firebase/firestore';
-import { ArrowLeft, CheckCircle, Trash2, TrendingDown, Edit2, Calculator, CheckSquare, Sparkles, RotateCcw, Save, AlertTriangle, ShieldCheck, Check } from 'lucide-react';
+import { ArrowLeft, CheckCircle, Trash2, TrendingDown, Edit2, Calculator, CheckSquare, Sparkles, RotateCcw, Save, AlertTriangle, ShieldCheck, Check, Eye, EyeOff } from 'lucide-react';
 import { useModal } from '../context/ModalContext';
 import { useCourse } from '../context/CourseContext';
 import { useAuth } from '../context/AuthContext';
@@ -30,6 +30,8 @@ const OutcomeManagement = ({ onBack }) => {
   const [editOutcomeDate, setEditOutcomeDate] = useState('');
   const [editOutcomeMethod, setEditOutcomeMethod] = useState('cash');
   const [editOutcomeFund, setEditOutcomeFund] = useState('general');
+  const [newVisibleInPortal, setNewVisibleInPortal] = useState(true);
+  const [editOutcomeVisibleInPortal, setEditOutcomeVisibleInPortal] = useState(true);
 
   // Modo Auditoría
   const [isAuditMode, setIsAuditMode] = useState(false);
@@ -71,6 +73,18 @@ const OutcomeManagement = ({ onBack }) => {
     fetchData();
   }, [selectedCourse]);
 
+  const handleToggleOutcomeVisibility = async (id, currentVal) => {
+    const nextVal = !currentVal;
+    try {
+      await updateDoc(doc(db, 'outcomes', id), { visibleInPortal: nextVal });
+      setOutcomes(prev => prev.map(o => o.id === id ? { ...o, visibleInPortal: nextVal } : o));
+      showAlert(`Gasto marcado como ${nextVal ? 'VISIBLE' : 'OCULTO'} para los apoderados en su portal.`);
+    } catch (err) {
+      console.error("Error toggling outcome visibility:", err);
+      showAlert("Error al cambiar la visibilidad del gasto.");
+    }
+  };
+
   const handleAddOutcome = async (e) => {
     e.preventDefault();
     if (!newTitle || !newAmount) {
@@ -88,7 +102,8 @@ const OutcomeManagement = ({ onBack }) => {
         fundId: selectedFundId || 'general',
         courseId: selectedCourse.id,
         date: newDate || new Date().toISOString().split('T')[0],
-        createdAt: new Date().toISOString()
+        createdAt: new Date().toISOString(),
+        visibleInPortal: newVisibleInPortal
       };
       
       const requiresApproval = courseRole !== 'tesorero' && courseRole !== 'superadmin';
@@ -112,6 +127,7 @@ const OutcomeManagement = ({ onBack }) => {
       setNewAmount('');
       setNewMethod('cash');
       setNewDate('');
+      setNewVisibleInPortal(true);
       
       setTimeout(() => setMessage(''), 3000);
     } catch (error) {
@@ -129,7 +145,8 @@ const OutcomeManagement = ({ onBack }) => {
         amount: parseFloat(editOutcomeAmount),
         date: editOutcomeDate || new Date().toISOString().split('T')[0],
         paymentMethod: editOutcomeMethod,
-        fundId: editOutcomeFund
+        fundId: editOutcomeFund,
+        visibleInPortal: editOutcomeVisibleInPortal
       };
       
       await updateDoc(doc(db, 'outcomes', id), updatedData);
@@ -448,6 +465,25 @@ const OutcomeManagement = ({ onBack }) => {
               ))}
             </select>
           </div>
+          <button 
+            type="button" 
+            onClick={() => setNewVisibleInPortal(!newVisibleInPortal)}
+            className="btn btn-outline"
+            style={{ 
+              height: '42px', 
+              display: 'flex', 
+              alignItems: 'center', 
+              gap: '0.4rem',
+              borderColor: newVisibleInPortal ? 'rgba(16, 185, 129, 0.4)' : 'rgba(239, 68, 68, 0.4)',
+              color: newVisibleInPortal ? 'var(--success)' : '#f87171',
+              backgroundColor: newVisibleInPortal ? 'rgba(16, 185, 129, 0.08)' : 'rgba(239, 68, 68, 0.08)',
+              fontSize: '0.85rem'
+            }}
+            title="Determina si este gasto será visible para los apoderados en su portal"
+          >
+            {newVisibleInPortal ? <Eye size={16} /> : <EyeOff size={16} />}
+            <span>{newVisibleInPortal ? 'Visible en Portal' : 'Oculto en Portal'}</span>
+          </button>
           <button type="submit" className="btn btn-outline" style={{ height: '42px', color: 'var(--danger)', borderColor: 'rgba(239, 68, 68, 0.3)' }}>
             Registrar Gasto
           </button>
@@ -465,6 +501,7 @@ const OutcomeManagement = ({ onBack }) => {
               {isAuditMode && <th style={{ padding: '1rem' }}>Monto Manual ($)</th>}
               {isAuditMode && <th style={{ padding: '1rem' }}>Cuadratura</th>}
               <th style={{ padding: '1rem' }}>Medio/Fondo</th>
+              <th style={{ padding: '1rem' }}>Portal</th>
               <th style={{ padding: '1rem' }}>Acciones</th>
             </tr>
           </thead>
@@ -497,6 +534,16 @@ const OutcomeManagement = ({ onBack }) => {
                         </select>
                       </td>
                       <td style={{ padding: '1rem' }}>
+                        <label style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', cursor: 'pointer', fontSize: '0.8rem', color: editOutcomeVisibleInPortal ? 'var(--success)' : '#f87171' }}>
+                          <input
+                            type="checkbox"
+                            checked={editOutcomeVisibleInPortal}
+                            onChange={e => setEditOutcomeVisibleInPortal(e.target.checked)}
+                          />
+                          {editOutcomeVisibleInPortal ? 'Visible en portal' : 'Oculto'}
+                        </label>
+                      </td>
+                      <td style={{ padding: '1rem' }}>
                         <div style={{ display: 'flex', gap: '0.5rem' }}>
                           <button onClick={() => handleSaveEdit(o.id)} className="btn btn-primary" style={{ padding: '0.4rem 0.75rem', backgroundColor: 'var(--success)' }}>
                             <CheckCircle size={16} /> Guardar
@@ -521,7 +568,24 @@ const OutcomeManagement = ({ onBack }) => {
                         </div>
                       </td>
                       <td style={{ padding: '1rem', color: 'var(--text-muted)' }}>{o.date}</td>
-                      <td style={{ padding: '1rem', fontWeight: '500' }}>{o.title}</td>
+                      <td style={{ padding: '1rem', fontWeight: '500' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+                          <span>{o.title}</span>
+                          {o.visibleInPortal === false && (
+                            <span style={{ 
+                              fontSize: '0.7rem', 
+                              padding: '0.1rem 0.45rem', 
+                              borderRadius: '4px', 
+                              backgroundColor: 'rgba(239, 68, 68, 0.15)', 
+                              color: '#f87171', 
+                              border: '1px solid rgba(239, 68, 68, 0.3)',
+                              fontWeight: '600'
+                            }}>
+                              Oculto en portal
+                            </span>
+                          )}
+                        </div>
+                      </td>
                       <td style={{ padding: '1rem', color: 'var(--danger)', fontWeight: 'bold' }}>{formatMoney(o.amount)}</td>
                       
                       <td style={{ padding: '1rem' }}>
@@ -575,6 +639,27 @@ const OutcomeManagement = ({ onBack }) => {
 
                       <td style={{ padding: '1rem' }}>
                         <button
+                          type="button"
+                          onClick={() => handleToggleOutcomeVisibility(o.id, o.visibleInPortal !== false)}
+                          className="btn btn-outline"
+                          style={{
+                            padding: '0.35rem 0.6rem',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '0.35rem',
+                            borderColor: o.visibleInPortal === false ? 'rgba(239, 68, 68, 0.4)' : 'rgba(16, 185, 129, 0.4)',
+                            color: o.visibleInPortal === false ? '#f87171' : 'var(--success)',
+                            backgroundColor: o.visibleInPortal === false ? 'rgba(239, 68, 68, 0.08)' : 'rgba(16, 185, 129, 0.08)'
+                          }}
+                          title={o.visibleInPortal === false ? 'Gasto oculto en portal apoderados. Clic para hacerlo visible.' : 'Gasto visible en portal apoderados. Clic para ocultarlo.'}
+                        >
+                          {o.visibleInPortal === false ? <EyeOff size={14} /> : <Eye size={14} />}
+                          <span style={{ fontSize: '0.75rem' }}>{o.visibleInPortal === false ? 'Oculto' : 'Visible'}</span>
+                        </button>
+                      </td>
+
+                      <td style={{ padding: '1rem' }}>
+                        <button
                           onClick={(e) => { e.stopPropagation(); handleToggleAuditCheck(o.id); }}
                           className="btn btn-outline"
                           style={{ padding: '0.3rem 0.6rem', fontSize: '0.8rem', borderColor: auditChecks[o.id] ? 'var(--success)' : '#8b5cf6', color: auditChecks[o.id] ? 'var(--success)' : '#c4b5fd' }}
@@ -586,11 +671,48 @@ const OutcomeManagement = ({ onBack }) => {
                   ) : (
                     <>
                       <td style={{ padding: '1rem', color: 'var(--text-muted)' }}>{o.date}</td>
-                      <td style={{ padding: '1rem', fontWeight: '500' }}>{o.title}</td>
+                      <td style={{ padding: '1rem', fontWeight: '500' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+                          <span>{o.title}</span>
+                          {o.visibleInPortal === false && (
+                            <span style={{ 
+                              fontSize: '0.7rem', 
+                              padding: '0.1rem 0.45rem', 
+                              borderRadius: '4px', 
+                              backgroundColor: 'rgba(239, 68, 68, 0.15)', 
+                              color: '#f87171', 
+                              border: '1px solid rgba(239, 68, 68, 0.3)',
+                              fontWeight: '600'
+                            }}>
+                              Oculto en portal
+                            </span>
+                          )}
+                        </div>
+                      </td>
                       <td style={{ padding: '1rem', color: 'var(--danger)', fontWeight: 'bold' }}>- {formatMoney(o.amount)}</td>
                       <td style={{ padding: '1rem' }}>
                         <div style={{ fontSize: '0.9rem' }}>{o.paymentMethod === 'cash' ? '💵 Efectivo' : '🏦 Transferencia'}</div>
                         <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>{f ? f.name : 'Fondo General'}</div>
+                      </td>
+                      <td style={{ padding: '1rem' }}>
+                        <button
+                          type="button"
+                          onClick={() => handleToggleOutcomeVisibility(o.id, o.visibleInPortal !== false)}
+                          className="btn btn-outline"
+                          style={{
+                            padding: '0.35rem 0.6rem',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '0.35rem',
+                            borderColor: o.visibleInPortal === false ? 'rgba(239, 68, 68, 0.4)' : 'rgba(16, 185, 129, 0.4)',
+                            color: o.visibleInPortal === false ? '#f87171' : 'var(--success)',
+                            backgroundColor: o.visibleInPortal === false ? 'rgba(239, 68, 68, 0.08)' : 'rgba(16, 185, 129, 0.08)'
+                          }}
+                          title={o.visibleInPortal === false ? 'Gasto oculto en portal apoderados. Clic para hacerlo visible.' : 'Gasto visible en portal apoderados. Clic para ocultarlo.'}
+                        >
+                          {o.visibleInPortal === false ? <EyeOff size={14} /> : <Eye size={14} />}
+                          <span style={{ fontSize: '0.75rem' }}>{o.visibleInPortal === false ? 'Oculto' : 'Visible'}</span>
+                        </button>
                       </td>
                       <td style={{ padding: '1rem' }}>
                         <div style={{ display: 'flex', gap: '0.5rem' }}>
@@ -601,6 +723,7 @@ const OutcomeManagement = ({ onBack }) => {
                             setEditOutcomeDate(o.date); 
                             setEditOutcomeMethod(o.paymentMethod || 'cash'); 
                             setEditOutcomeFund(o.fundId || 'general'); 
+                            setEditOutcomeVisibleInPortal(o.visibleInPortal !== false);
                           }} className="btn btn-outline" style={{ padding: '0.4rem 0.75rem', gap: '0.5rem', display: 'flex', alignItems: 'center' }}>
                             <Edit2 size={16} /> Editar
                           </button>
