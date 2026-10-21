@@ -1,12 +1,14 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import { db } from '../../firebase/config';
-import { collection, getDocs, doc, setDoc, query, orderBy, deleteDoc, where } from 'firebase/firestore';
+import { collection, getDocs, doc, setDoc, query, deleteDoc, where } from 'firebase/firestore';
 import { ArrowLeft, PlusCircle, CheckCircle, Calendar, X, Save, Trash2, Users, UserCheck, Search } from 'lucide-react';
 import { useModal } from '../../context/ModalContext';
 import { formatStudentName } from '../../utils/nameUtils';
 import { useAuth } from '../../context/AuthContext';
 import EventDetail from './EventDetail';
 import { useCourse } from '../../context/CourseContext';
+import { useLockBodyScroll } from '../../hooks/useLockBodyScroll';
 
 const EventManagement = ({ onBack }) => {
   const { user } = useAuth();
@@ -21,6 +23,7 @@ const EventManagement = ({ onBack }) => {
 
   // Estados del modal de creación
   const [showCreateModal, setShowCreateModal] = useState(false);
+  useLockBodyScroll(showCreateModal);
   const [eventName, setEventName] = useState('');
   const [eventDate, setEventDate] = useState(new Date().toISOString().split('T')[0]);
   const [mandatoryAmount, setMandatoryAmount] = useState('');
@@ -37,12 +40,13 @@ const EventManagement = ({ onBack }) => {
     if (!selectedCourse) return;
     setLoading(true);
     try {
-      const q = query(collection(db, 'events'), where('courseId', '==', selectedCourse.id), orderBy('createdAt', 'desc'));
+      const q = query(collection(db, 'events'), where('courseId', '==', selectedCourse.id));
       const querySnapshot = await getDocs(q);
       const eventsList = querySnapshot.docs.map(doc => ({
         id: doc.id,
         ...doc.data()
       }));
+      eventsList.sort((a, b) => new Date(b.createdAt || b.date || 0) - new Date(a.createdAt || a.date || 0));
       setEvents(eventsList);
     } catch (error) {
       console.error("Error al obtener eventos:", error);
@@ -73,6 +77,16 @@ const EventManagement = ({ onBack }) => {
     fetchEvents();
     fetchCourseStudents();
   }, [fetchEvents, fetchCourseStudents]);
+
+  useEffect(() => {
+    if (showCreateModal) {
+      const originalOverflow = document.body.style.overflow;
+      document.body.style.overflow = 'hidden';
+      return () => {
+        document.body.style.overflow = originalOverflow;
+      };
+    }
+  }, [showCreateModal]);
 
   const handleOpenCreateModal = () => {
     setEventName('');
@@ -366,255 +380,336 @@ const EventManagement = ({ onBack }) => {
       )}
 
       {/* Modal de Creación */}
-      {showCreateModal && (
-        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.7)', zIndex: 1000, display: 'flex', justifyContent: 'center', alignItems: 'center', padding: '1rem' }}>
-          <div className="glass-panel animate-fade-in" style={{ padding: '2rem', width: '90%', maxWidth: '540px', maxHeight: '90vh', overflowY: 'auto', position: 'relative', borderRadius: 'var(--radius-lg)' }}>
-            <button 
-              onClick={() => setShowCreateModal(false)}
-              style={{ position: 'absolute', top: '1rem', right: '1rem', background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer' }}
-              title="Cerrar"
-            >
-              <X size={24} />
-            </button>
+      {showCreateModal && createPortal(
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          backgroundColor: 'rgba(15, 23, 42, 0.8)',
+          backdropFilter: 'blur(6px)',
+          zIndex: 9999,
+          display: 'flex',
+          justifyContent: 'center',
+          alignItems: 'center',
+          padding: '1rem',
+          overflowY: 'auto'
+        }}>
+          <div className="glass-panel animate-fade-in" style={{
+            width: '100%',
+            maxWidth: '560px',
+            maxHeight: 'min(90vh, 700px)',
+            margin: 'auto',
+            backgroundColor: '#0f172a',
+            border: '1px solid rgba(99, 102, 241, 0.35)',
+            borderRadius: 'var(--radius-lg)',
+            display: 'flex',
+            flexDirection: 'column',
+            overflow: 'hidden',
+            boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.5), 0 0 25px rgba(99, 102, 241, 0.15)'
+          }}>
+            {/* 1. Encabezado Fijo del Modal (Siempre visible) */}
+            <div style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              padding: '1.25rem 1.5rem',
+              borderBottom: '1px solid rgba(255,255,255,0.08)',
+              background: 'linear-gradient(135deg, rgba(99, 102, 241, 0.15) 0%, rgba(15, 23, 42, 0) 100%)',
+              flexShrink: 0
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                <div style={{
+                  width: '38px',
+                  height: '38px',
+                  borderRadius: '10px',
+                  backgroundColor: 'rgba(99, 102, 241, 0.2)',
+                  border: '1px solid rgba(99, 102, 241, 0.4)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  color: 'var(--primary)'
+                }}>
+                  <Calendar size={20} />
+                </div>
+                <div>
+                  <h3 style={{ margin: 0, fontSize: '1.15rem', color: '#fff', fontWeight: '700' }}>
+                    Crear Nuevo Evento
+                  </h3>
+                  <p style={{ margin: '0.15rem 0 0 0', color: 'var(--text-muted)', fontSize: '0.8rem' }}>
+                    Configura los detalles, participantes y cobros del evento
+                  </p>
+                </div>
+              </div>
+              <button 
+                type="button"
+                onClick={() => setShowCreateModal(false)}
+                style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', padding: '0.4rem', borderRadius: '6px' }}
+                title="Cerrar"
+              >
+                <X size={20} />
+              </button>
+            </div>
             
-            <h3 style={{ marginBottom: '1.5rem', marginTop: 0 }}>Crear Nuevo Evento</h3>
-            
-            <form onSubmit={handleCreateEvent}>
-              <div className="input-group">
-                <label className="input-label">Nombre del Evento (Ej. Kermesse Solidaria)</label>
-                <input 
-                  type="text" 
-                  required
-                  className="input-field" 
-                  value={eventName}
-                  onChange={(e) => setEventName(e.target.value)}
-                />
-              </div>
-              
-              <div className="input-group">
-                <label className="input-label">Fecha del Evento</label>
-                <input 
-                  type="date" 
-                  required
-                  className="input-field" 
-                  value={eventDate}
-                  onChange={(e) => setEventDate(e.target.value)}
-                />
-              </div>
-              
-              <div style={{ margin: '1.25rem 0', display: 'flex', alignItems: 'center', gap: '0.5rem', backgroundColor: 'rgba(245, 158, 11, 0.1)', padding: '0.85rem 1rem', borderRadius: 'var(--radius-md)' }}>
-                <input 
-                  type="checkbox" 
-                  id="isTestEvent"
-                  checked={isTestEvent}
-                  onChange={(e) => setIsTestEvent(e.target.checked)}
-                  style={{ width: '18px', height: '18px', accentColor: 'var(--warning)', cursor: 'pointer' }}
-                />
-                <label htmlFor="isTestEvent" style={{ fontSize: '0.85rem', color: 'var(--warning)', cursor: 'pointer' }}>
-                  Crear como <strong>Evento de Prueba</strong> (No generará cuotas ni deudas reales, ideal para probar el POS)
-                </label>
-              </div>
-
-              {/* Opción de Selección de Alumnos (Todos o sólo algunos) */}
-              <div style={{ margin: '1.25rem 0' }}>
-                <label className="input-label" style={{ marginBottom: '0.5rem', display: 'block' }}>
-                  Alumnos participantes en este evento
-                </label>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem', marginBottom: '0.75rem' }}>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setStudentSelectionMode('all');
-                      setSelectedStudentIds(new Set(courseStudents.map(s => s.id)));
-                    }}
-                    style={{
-                      padding: '0.75rem 0.5rem',
-                      borderRadius: 'var(--radius-md)',
-                      border: studentSelectionMode === 'all' ? '2px solid var(--primary)' : '1px solid var(--border-color)',
-                      backgroundColor: studentSelectionMode === 'all' ? 'rgba(99, 102, 241, 0.15)' : 'rgba(255, 255, 255, 0.03)',
-                      color: studentSelectionMode === 'all' ? '#a5b4fc' : 'var(--text-main)',
-                      cursor: 'pointer',
-                      display: 'flex',
-                      flexDirection: 'column',
-                      alignItems: 'center',
-                      gap: '0.25rem',
-                      textAlign: 'center',
-                      transition: 'all 0.15s ease'
-                    }}
-                  >
-                    <Users size={20} style={{ color: studentSelectionMode === 'all' ? 'var(--primary)' : 'var(--text-muted)' }} />
-                    <strong style={{ fontSize: '0.85rem' }}>Todos los alumnos</strong>
-                    <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
-                      {courseStudents.length} alumnos del curso
-                    </span>
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => setStudentSelectionMode('custom')}
-                    style={{
-                      padding: '0.75rem 0.5rem',
-                      borderRadius: 'var(--radius-md)',
-                      border: studentSelectionMode === 'custom' ? '2px solid var(--primary)' : '1px solid var(--border-color)',
-                      backgroundColor: studentSelectionMode === 'custom' ? 'rgba(99, 102, 241, 0.15)' : 'rgba(255, 255, 255, 0.03)',
-                      color: studentSelectionMode === 'custom' ? '#a5b4fc' : 'var(--text-main)',
-                      cursor: 'pointer',
-                      display: 'flex',
-                      flexDirection: 'column',
-                      alignItems: 'center',
-                      gap: '0.25rem',
-                      textAlign: 'center',
-                      transition: 'all 0.15s ease'
-                    }}
-                  >
-                    <UserCheck size={20} style={{ color: studentSelectionMode === 'custom' ? 'var(--primary)' : 'var(--text-muted)' }} />
-                    <strong style={{ fontSize: '0.85rem' }}>Sólo algunos</strong>
-                    <span style={{ fontSize: '0.75rem', color: studentSelectionMode === 'custom' ? 'var(--primary)' : 'var(--text-muted)' }}>
-                      {selectedStudentIds.size} de {courseStudents.length} seleccionados
-                    </span>
-                  </button>
+            {/* 2. Cuerpo Desplazable del Formulario (Scroll interno) */}
+            <form onSubmit={handleCreateEvent} style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0, overflow: 'hidden' }}>
+              <div style={{
+                padding: '1.5rem',
+                overflowY: 'auto',
+                flex: 1,
+                minHeight: 0,
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '1.25rem'
+              }}>
+                <div className="input-group">
+                  <label className="input-label">Nombre del Evento (Ej. Kermesse Solidaria)</label>
+                  <input 
+                    type="text" 
+                    required
+                    className="input-field" 
+                    value={eventName}
+                    onChange={(e) => setEventName(e.target.value)}
+                    placeholder="Nombre del evento..."
+                  />
+                </div>
+                
+                <div className="input-group">
+                  <label className="input-label">Fecha del Evento</label>
+                  <input 
+                    type="date" 
+                    required
+                    className="input-field" 
+                    value={eventDate}
+                    onChange={(e) => setEventDate(e.target.value)}
+                  />
+                </div>
+                
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', backgroundColor: 'rgba(245, 158, 11, 0.1)', padding: '0.85rem 1rem', borderRadius: 'var(--radius-md)', border: '1px solid rgba(245, 158, 11, 0.2)' }}>
+                  <input 
+                    type="checkbox" 
+                    id="isTestEvent"
+                    checked={isTestEvent}
+                    onChange={(e) => setIsTestEvent(e.target.checked)}
+                    style={{ width: '18px', height: '18px', accentColor: 'var(--warning)', cursor: 'pointer' }}
+                  />
+                  <label htmlFor="isTestEvent" style={{ fontSize: '0.85rem', color: 'var(--warning)', cursor: 'pointer' }}>
+                    Crear como <strong>Evento de Prueba</strong> (No generará cuotas ni deudas reales, ideal para probar el POS)
+                  </label>
                 </div>
 
-                {studentSelectionMode === 'custom' && (
-                  <div style={{
-                    backgroundColor: 'rgba(255, 255, 255, 0.03)',
-                    border: '1px solid var(--border-color)',
-                    borderRadius: 'var(--radius-md)',
-                    padding: '0.85rem',
-                    marginTop: '0.5rem'
-                  }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.5rem', marginBottom: '0.75rem', flexWrap: 'wrap' }}>
-                      <div style={{ position: 'relative', flex: 1, minWidth: '150px' }}>
-                        <input
-                          type="text"
-                          placeholder="Buscar por nombre o N°..."
-                          value={studentSearchTerm}
-                          onChange={(e) => setStudentSearchTerm(e.target.value)}
-                          className="input-field"
-                          style={{ padding: '0.35rem 0.5rem 0.35rem 1.8rem', fontSize: '0.85rem' }}
-                        />
-                        <Search size={14} style={{ position: 'absolute', left: '0.55rem', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
-                      </div>
-                      <div style={{ display: 'flex', gap: '0.4rem' }}>
-                        <button
-                          type="button"
-                          onClick={() => setSelectedStudentIds(new Set(courseStudents.map(s => s.id)))}
-                          className="btn btn-outline"
-                          style={{ padding: '0.3rem 0.6rem', fontSize: '0.75rem' }}
-                        >
-                          Todos
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => setSelectedStudentIds(new Set())}
-                          className="btn btn-outline"
-                          style={{ padding: '0.3rem 0.6rem', fontSize: '0.75rem' }}
-                        >
-                          Ninguno
-                        </button>
-                      </div>
-                    </div>
+                {/* Opción de Selección de Alumnos (Todos o sólo algunos) */}
+                <div>
+                  <label className="input-label" style={{ marginBottom: '0.5rem', display: 'block' }}>
+                    Alumnos participantes en este evento
+                  </label>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem', marginBottom: '0.75rem' }}>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setStudentSelectionMode('all');
+                        setSelectedStudentIds(new Set(courseStudents.map(s => s.id)));
+                      }}
+                      style={{
+                        padding: '0.75rem 0.5rem',
+                        borderRadius: 'var(--radius-md)',
+                        border: studentSelectionMode === 'all' ? '2px solid var(--primary)' : '1px solid var(--border-color)',
+                        backgroundColor: studentSelectionMode === 'all' ? 'rgba(99, 102, 241, 0.15)' : 'rgba(255, 255, 255, 0.03)',
+                        color: studentSelectionMode === 'all' ? '#a5b4fc' : 'var(--text-main)',
+                        cursor: 'pointer',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        alignItems: 'center',
+                        gap: '0.25rem',
+                        textAlign: 'center',
+                        transition: 'all 0.15s ease'
+                      }}
+                    >
+                      <Users size={20} style={{ color: studentSelectionMode === 'all' ? 'var(--primary)' : 'var(--text-muted)' }} />
+                      <strong style={{ fontSize: '0.85rem' }}>Todos los alumnos</strong>
+                      <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                        {courseStudents.length} alumnos del curso
+                      </span>
+                    </button>
 
-                    <div style={{ maxHeight: '180px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '0.35rem', paddingRight: '0.2rem' }}>
-                      {filteredCourseStudents.map(student => {
-                        const isSelected = selectedStudentIds.has(student.id);
-                        return (
-                          <div
-                            key={student.id}
-                            onClick={() => handleToggleStudent(student.id)}
-                            style={{
-                              display: 'flex',
-                              alignItems: 'center',
-                              gap: '0.6rem',
-                              padding: '0.45rem 0.65rem',
-                              backgroundColor: isSelected ? 'rgba(99, 102, 241, 0.12)' : 'rgba(255, 255, 255, 0.02)',
-                              border: isSelected ? '1px solid rgba(99, 102, 241, 0.4)' : '1px solid rgba(255, 255, 255, 0.06)',
-                              borderRadius: 'var(--radius-sm)',
-                              cursor: 'pointer',
-                              transition: 'all 0.15s ease'
-                            }}
-                          >
-                            <input
-                              type="checkbox"
-                              checked={isSelected}
-                              onChange={() => handleToggleStudent(student.id)}
-                              style={{ width: '16px', height: '16px', accentColor: 'var(--primary)', cursor: 'pointer' }}
-                            />
-                            <span style={{ fontSize: '0.85rem', color: isSelected ? '#fff' : 'var(--text-main)', fontWeight: isSelected ? '600' : 'normal' }}>
-                              {student.listNumber ? `${student.listNumber}. ` : ''}{formatStudentName(student)}
-                            </span>
-                          </div>
-                        );
-                      })}
-                      {filteredCourseStudents.length === 0 && (
-                        <div style={{ textAlign: 'center', padding: '1rem', color: 'var(--text-muted)', fontSize: '0.85rem' }}>
-                          No se encontraron alumnos con esa búsqueda.
-                        </div>
-                      )}
-                    </div>
-
-                    <div style={{ marginTop: '0.5rem', fontSize: '0.75rem', color: 'var(--text-muted)', textAlign: 'right' }}>
-                      {selectedStudentIds.size} de {courseStudents.length} alumnos seleccionados
-                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setStudentSelectionMode('custom')}
+                      style={{
+                        padding: '0.75rem 0.5rem',
+                        borderRadius: 'var(--radius-md)',
+                        border: studentSelectionMode === 'custom' ? '2px solid var(--primary)' : '1px solid var(--border-color)',
+                        backgroundColor: studentSelectionMode === 'custom' ? 'rgba(99, 102, 241, 0.15)' : 'rgba(255, 255, 255, 0.03)',
+                        color: studentSelectionMode === 'custom' ? '#a5b4fc' : 'var(--text-main)',
+                        cursor: 'pointer',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        alignItems: 'center',
+                        gap: '0.25rem',
+                        textAlign: 'center',
+                        transition: 'all 0.15s ease'
+                      }}
+                    >
+                      <UserCheck size={20} style={{ color: studentSelectionMode === 'custom' ? 'var(--primary)' : 'var(--text-muted)' }} />
+                      <strong style={{ fontSize: '0.85rem' }}>Sólo algunos</strong>
+                      <span style={{ fontSize: '0.75rem', color: studentSelectionMode === 'custom' ? 'var(--primary)' : 'var(--text-muted)' }}>
+                        {selectedStudentIds.size} de {courseStudents.length} seleccionados
+                      </span>
+                    </button>
                   </div>
+
+                  {studentSelectionMode === 'custom' && (
+                    <div style={{
+                      backgroundColor: 'rgba(255, 255, 255, 0.03)',
+                      border: '1px solid var(--border-color)',
+                      borderRadius: 'var(--radius-md)',
+                      padding: '0.85rem',
+                      marginTop: '0.5rem'
+                    }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.5rem', marginBottom: '0.75rem', flexWrap: 'wrap' }}>
+                        <div style={{ position: 'relative', flex: 1, minWidth: '150px' }}>
+                          <input
+                            type="text"
+                            placeholder="Buscar por nombre o N°..."
+                            value={studentSearchTerm}
+                            onChange={(e) => setStudentSearchTerm(e.target.value)}
+                            className="input-field"
+                            style={{ padding: '0.35rem 0.5rem 0.35rem 1.8rem', fontSize: '0.85rem' }}
+                          />
+                          <Search size={14} style={{ position: 'absolute', left: '0.55rem', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
+                        </div>
+                        <div style={{ display: 'flex', gap: '0.4rem' }}>
+                          <button
+                            type="button"
+                            onClick={() => setSelectedStudentIds(new Set(courseStudents.map(s => s.id)))}
+                            className="btn btn-outline"
+                            style={{ padding: '0.3rem 0.6rem', fontSize: '0.75rem' }}
+                          >
+                            Todos
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setSelectedStudentIds(new Set())}
+                            className="btn btn-outline"
+                            style={{ padding: '0.3rem 0.6rem', fontSize: '0.75rem' }}
+                          >
+                            Ninguno
+                          </button>
+                        </div>
+                      </div>
+
+                      <div style={{ maxHeight: '160px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '0.35rem', paddingRight: '0.2rem' }}>
+                        {filteredCourseStudents.map(student => {
+                          const isSelected = selectedStudentIds.has(student.id);
+                          return (
+                            <div
+                              key={student.id}
+                              onClick={() => handleToggleStudent(student.id)}
+                              style={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '0.6rem',
+                                padding: '0.45rem 0.65rem',
+                                backgroundColor: isSelected ? 'rgba(99, 102, 241, 0.12)' : 'rgba(255, 255, 255, 0.02)',
+                                border: isSelected ? '1px solid rgba(99, 102, 241, 0.4)' : '1px solid rgba(255, 255, 255, 0.06)',
+                                borderRadius: 'var(--radius-sm)',
+                                cursor: 'pointer',
+                                transition: 'all 0.15s ease'
+                              }}
+                            >
+                              <input
+                                type="checkbox"
+                                checked={isSelected}
+                                onChange={() => handleToggleStudent(student.id)}
+                                style={{ width: '16px', height: '16px', accentColor: 'var(--primary)', cursor: 'pointer' }}
+                              />
+                              <span style={{ fontSize: '0.85rem', color: isSelected ? '#fff' : 'var(--text-main)', fontWeight: isSelected ? '600' : 'normal' }}>
+                                {student.listNumber ? `${student.listNumber}. ` : ''}{formatStudentName(student)}
+                              </span>
+                            </div>
+                          );
+                        })}
+                        {filteredCourseStudents.length === 0 && (
+                          <div style={{ textAlign: 'center', padding: '1rem', color: 'var(--text-muted)', fontSize: '0.85rem' }}>
+                            No se encontraron alumnos con esa búsqueda.
+                          </div>
+                        )}
+                      </div>
+
+                      <div style={{ marginTop: '0.5rem', fontSize: '0.75rem', color: 'var(--text-muted)', textAlign: 'right' }}>
+                        {selectedStudentIds.size} de {courseStudents.length} alumnos seleccionados
+                      </div>
+                    </div>
+                  )}
+                </div>
+                
+                {!isTestEvent && (
+                  <>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                      <div className="input-group">
+                        <label className="input-label">Monto Obligatorio ($)</label>
+                        <input 
+                          type="number" 
+                          min="1"
+                          required={!isTestEvent}
+                          className="input-field" 
+                          placeholder="Ej. 1500"
+                          value={mandatoryAmount}
+                          onChange={(e) => setMandatoryAmount(e.target.value)}
+                        />
+                        <small style={{ color: 'var(--text-muted)', fontSize: '0.75rem', marginTop: '0.25rem', display: 'block' }}>
+                          Se cobrará a los alumnos asignados.
+                        </small>
+                      </div>
+                      
+                      <div className="input-group">
+                        <label className="input-label">Monto si NO Asiste ($)</label>
+                        <input 
+                          type="number" 
+                          min="1"
+                          required={!isTestEvent}
+                          className="input-field" 
+                          placeholder="Ej. 3000"
+                          value={noShowAmount}
+                          onChange={(e) => setNoShowAmount(e.target.value)}
+                        />
+                        <small style={{ color: 'var(--text-muted)', fontSize: '0.75rem', marginTop: '0.25rem', display: 'block' }}>
+                          Multa aplicable si falta.
+                        </small>
+                      </div>
+                    </div>
+
+                    {mandatoryAmount && (
+                      <div style={{ padding: '0.75rem 1rem', backgroundColor: 'rgba(99, 102, 241, 0.08)', borderRadius: 'var(--radius-md)', border: '1px solid rgba(99, 102, 241, 0.25)', fontSize: '0.85rem' }}>
+                        <strong>Resumen de cuota:</strong> Se cobrará <strong>{formatMoney(parseFloat(mandatoryAmount) || 0)}</strong> a <strong>{targetStudentsCount}</strong> alumno(s) {studentSelectionMode === 'all' ? '(todo el curso)' : '(seleccionados)'} (Total inicial: <strong>{formatMoney((parseFloat(mandatoryAmount) || 0) * targetStudentsCount)}</strong>).
+                      </div>
+                    )}
+                  </>
                 )}
               </div>
               
-              {!isTestEvent && (
-                <>
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
-                    <div className="input-group">
-                      <label className="input-label">Monto Obligatorio ($)</label>
-                      <input 
-                        type="number" 
-                        min="1"
-                        required={!isTestEvent}
-                        className="input-field" 
-                        placeholder="Ej. 1500"
-                        value={mandatoryAmount}
-                        onChange={(e) => setMandatoryAmount(e.target.value)}
-                      />
-                      <small style={{ color: 'var(--text-muted)', fontSize: '0.75rem', marginTop: '0.25rem', display: 'block' }}>
-                        Se cobrará a los alumnos asignados.
-                      </small>
-                    </div>
-                    
-                    <div className="input-group">
-                      <label className="input-label">Monto si NO Asiste ($)</label>
-                      <input 
-                        type="number" 
-                        min="1"
-                        required={!isTestEvent}
-                        className="input-field" 
-                        placeholder="Ej. 3000"
-                        value={noShowAmount}
-                        onChange={(e) => setNoShowAmount(e.target.value)}
-                      />
-                      <small style={{ color: 'var(--text-muted)', fontSize: '0.75rem', marginTop: '0.25rem', display: 'block' }}>
-                        Multa aplicable si falta.
-                      </small>
-                    </div>
-                  </div>
-
-                  {mandatoryAmount && (
-                    <div style={{ marginTop: '0.5rem', padding: '0.75rem 1rem', backgroundColor: 'rgba(99, 102, 241, 0.08)', borderRadius: 'var(--radius-md)', border: '1px solid rgba(99, 102, 241, 0.25)', fontSize: '0.85rem' }}>
-                      <strong>Resumen de cuota:</strong> Se cobrará <strong>{formatMoney(parseFloat(mandatoryAmount) || 0)}</strong> a <strong>{targetStudentsCount}</strong> alumno(s) {studentSelectionMode === 'all' ? '(todo el curso)' : '(seleccionados)'} (Total inicial: <strong>{formatMoney((parseFloat(mandatoryAmount) || 0) * targetStudentsCount)}</strong>).
-                    </div>
-                  )}
-                </>
-              )}
-              
-              <div style={{ marginTop: '2rem', display: 'flex', justifyContent: 'flex-end', gap: '1rem' }}>
-                <button type="button" onClick={() => setShowCreateModal(false)} className="btn btn-outline">
+              {/* 3. Pie Fijo de Acciones (Botones siempre visibles) */}
+              <div style={{
+                display: 'flex',
+                justifyContent: 'flex-end',
+                gap: '0.75rem',
+                padding: '1rem 1.5rem',
+                borderTop: '1px solid rgba(255,255,255,0.08)',
+                backgroundColor: '#0f172a',
+                flexShrink: 0
+              }}>
+                <button type="button" onClick={() => setShowCreateModal(false)} className="btn btn-outline" style={{ padding: '0.55rem 1.25rem' }}>
                   Cancelar
                 </button>
-                <button type="submit" disabled={loading} className="btn btn-primary" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                <button type="submit" disabled={loading} className="btn btn-primary" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.55rem 1.4rem' }}>
                   {loading ? 'Creando...' : <><Save size={18} /> Guardar y Generar Cuotas</>}
                 </button>
               </div>
             </form>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   );
