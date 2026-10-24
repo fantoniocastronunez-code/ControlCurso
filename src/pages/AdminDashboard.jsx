@@ -400,7 +400,7 @@ const AdminDashboard = () => {
         const data = doc.data();
         if (data.balance && parseFloat(data.balance) > 0) {
           totalFavorBalance += parseFloat(data.balance);
-          studentsWithBalance.push({ name: data.name, balance: parseFloat(data.balance) });
+          studentsWithBalance.push({ id: doc.id, name: data.name, balance: parseFloat(data.balance), courseId: selectedCourse?.id });
         }
       });
       
@@ -1003,6 +1003,7 @@ const AdminDashboard = () => {
         fund={selectedFundForHistory}
         transactions={stats.allTransactions}
         onClose={() => setSelectedFundForHistory(null)}
+        onRefresh={fetchData}
       />
     )}
 

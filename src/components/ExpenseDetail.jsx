@@ -20,6 +20,10 @@ const ExpenseDetail = ({ expenseId, onBack }) => {
     : (userData?.roles?.[selectedCourse?.id] || null);
   const requiresApproval = courseRole !== 'tesorero' && courseRole !== 'superadmin';
 
+  const formatMoney = (amount) => {
+    return new Intl.NumberFormat('es-CL', { style: 'currency', currency: 'CLP' }).format(amount || 0);
+  };
+
   const [expense, setExpense] = useState(null);
   const [debts, setDebts] = useState([]);
   const [students, setStudents] = useState([]);
@@ -756,6 +760,195 @@ const ExpenseDetail = ({ expenseId, onBack }) => {
     }
   };
 
+  const debtsWithBalance = useMemo(() => {
+    return debts.filter(d => {
+      if (d.status !== 'pending' && d.status !== 'partial') return false;
+      const student = students.find(s => s.id === d.studentId || s.name === d.studentName);
+      return student && parseFloat(student.balance) > 0;
+    });
+  }, [debts, students]);
+
+  const handleBulkPayWithBalance = async (targetDebtIds = null) => {
+    const isSelectedMode = Array.isArray(targetDebtIds);
+    const candidateDebts = isSelectedMode
+      ? debts.filter(d => targetDebtIds.includes(d.id) && (d.status === 'pending' || d.status === 'partial'))
+      : debtsWithBalance;
+
+    if (candidateDebts.length === 0) {
+      await showAlert(isSelectedMode 
+        ? "Ninguno de los alumnos seleccionados tiene saldo a favor disponible o cuota pendiente."
+        : "No hay alumnos con saldo a favor pendiente en esta cuota."
+      );
+      return;
+    }
+
+    // Mapeo de saldos simulados para no descontar de más si un alumno tiene múltiples cuotas
+    const simulatedBalances = new Map();
+    students.forEach(s => simulatedBalances.set(s.id, parseFloat(s.balance) || 0));
+
+    const plan = [];
+    let totalDiscountAmount = 0;
+
+    for (const debt of candidateDebts) {
+      const student = students.find(s => s.id === debt.studentId || s.name === debt.studentName);
+      if (!student) continue;
+
+      const currentBalance = simulatedBalances.get(student.id) || 0;
+      if (currentBalance <= 0) continue;
+
+      const currentPaid = debt.paidAmount || 0;
+      const remaining = Math.max(0, (debt.amount || 0) - currentPaid);
+      if (remaining <= 0) continue;
+
+      const amountToUse = Math.min(currentBalance, remaining);
+      const newBalance = currentBalance - amountToUse;
+      const newPaidAmount = currentPaid + amountToUse;
+      const isFullyPaid = newPaidAmount >= debt.amount;
+
+      simulatedBalances.set(student.id, newBalance);
+      totalDiscountAmount += amountToUse;
+
+      plan.push({
+        debt,
+        student,
+        amountToUse,
+        newBalance,
+        newPaidAmount,
+        isFullyPaid
+      });
+    }
+
+    if (plan.length === 0) {
+      await showAlert(isSelectedMode
+        ? "Los alumnos seleccionados no tienen saldo a favor suficiente o ya cubrieron su cuota."
+        : "No hay saldo a favor disponible para aplicar en esta cuota."
+      );
+      return;
+    }
+
+    const confirmMessage = `¿Descontar el saldo a favor a ${plan.length} apoderado(s) por un total de ${formatMoney(totalDiscountAmount)}?\n\n` +
+      plan.slice(0, 10).map(p => `• ${p.student.name}: ${formatMoney(p.amountToUse)} (le quedarán ${formatMoney(p.newBalance)} a favor)`).join('\n') +
+      (plan.length > 10 ? `\n... y ${plan.length - 10} alumno(s) más` : '');
+
+    if (!(await showConfirm(confirmMessage))) return;
+
+    if (isSelectedMode) {
+      setSelectedDebts([]);
+    }
+
+    const currentPaidCount = expense?.paidCount || 0;
+    let newlyPaidCount = 0;
+    const debtsToUpdate = [];
+    const studentBalancesMap = new Map();
+
+    for (const p of plan) {
+      if (p.isFullyPaid && p.debt.status !== 'paid') newlyPaidCount++;
+      debtsToUpdate.push({
+        debtId: p.debt.id,
+        updates: {
+          status: p.isFullyPaid ? 'paid' : 'partial',
+          paidAmount: p.newPaidAmount,
+          paymentMethod: 'balance'
+        }
+      });
+      studentBalancesMap.set(p.student.id, {
+        studentId: p.student.id,
+        newBalance: p.newBalance
+      });
+    }
+
+    const studentBalances = Array.from(studentBalancesMap.values());
+    const expensePaidCount = currentPaidCount + newlyPaidCount;
+
+    if (requiresApproval) {
+      const payload = {
+        expenseId,
+        expensePaidCount,
+        debtsToUpdate,
+        studentBalances
+      };
+      await requestApproval('REGISTER_PAYMENTS', `Descuento con saldo masivo (${plan.length} alumnos)`, payload, user, selectedCourse.id);
+      await showAlert('Solicitud de descuento con saldo a favor enviada a la tesorera.');
+      fetchDetail(false);
+      return;
+    }
+
+    // Actualización optimista
+    setDebts(prev => prev.map(d => {
+      const item = plan.find(p => p.debt.id === d.id);
+      if (item) {
+        return {
+          ...d,
+          status: item.isFullyPaid ? 'paid' : 'partial',
+          paidAmount: item.newPaidAmount,
+          paymentMethod: 'balance',
+          approvedAt: new Date().toISOString()
+        };
+      }
+      return d;
+    }));
+
+    setStudents(prev => prev.map(s => {
+      if (simulatedBalances.has(s.id)) {
+        return { ...s, balance: simulatedBalances.get(s.id) };
+      }
+      return s;
+    }));
+
+    if (newlyPaidCount > 0) {
+      setExpense(prev => prev ? { ...prev, paidCount: expensePaidCount } : prev);
+    }
+
+    try {
+      for (const p of plan) {
+        // 1. Actualizar deuda
+        await updateDoc(doc(db, 'debts', p.debt.id), {
+          status: p.isFullyPaid ? 'paid' : 'partial',
+          paidAmount: p.newPaidAmount,
+          paymentMethod: 'balance',
+          approvedAt: new Date().toISOString()
+        });
+
+        // 2. Registrar en payments
+        await addDoc(collection(db, 'payments'), {
+          debtId: p.debt.id,
+          courseId: selectedCourse.id,
+          fundId: p.debt.fundId || expense.fundId || 'general',
+          amount: p.amountToUse,
+          paymentMethod: 'balance',
+          studentName: p.debt.studentName,
+          title: p.debt.title,
+          status: p.isFullyPaid ? 'paid' : 'partial',
+          createdAt: new Date().toISOString()
+        });
+      }
+
+      // 3. Actualizar saldos de estudiantes en Firestore
+      for (const [studentId, finalBal] of simulatedBalances.entries()) {
+        const origStudent = students.find(s => s.id === studentId);
+        if (origStudent && origStudent.balance !== finalBal) {
+          await updateDoc(doc(db, 'students', studentId), {
+            balance: finalBal
+          });
+        }
+      }
+
+      // 4. Actualizar contador del gasto
+      if (newlyPaidCount > 0) {
+        await updateDoc(doc(db, 'expenses', expenseId), {
+          paidCount: expensePaidCount
+        });
+      }
+
+      fetchDetail(false);
+      await showAlert(`¡Se descontó el saldo a favor a ${plan.length} apoderado(s) exitosamente! Total descontado: ${formatMoney(totalDiscountAmount)}.`);
+    } catch (error) {
+      console.error("Error al descontar saldo a favor masivo:", error);
+      await showAlert("Error al registrar el descuento con saldo a favor.");
+      fetchDetail(false);
+    }
+  };
+
   const toggleSelectDebt = (id) => {
     setSelectedDebts(prev => prev.includes(id) ? prev.filter(d => d !== id) : [...prev, id]);
   };
@@ -981,9 +1174,6 @@ const ExpenseDetail = ({ expenseId, onBack }) => {
     }
   };
 
-  const formatMoney = (amount) => {
-    return new Intl.NumberFormat('es-CL', { style: 'currency', currency: 'CLP' }).format(amount);
-  };
 
   // Calculate statuses
   const studentStatusMap = {};
@@ -1433,6 +1623,30 @@ const ExpenseDetail = ({ expenseId, onBack }) => {
                 >
                   <Download size={16}/> Reporte PDF
                 </button>
+                <button
+                  type="button"
+                  onClick={() => handleBulkPayWithBalance(null)}
+                  disabled={debtsWithBalance.length === 0}
+                  className="btn btn-outline"
+                  style={{
+                    padding: '0.3rem 0.75rem',
+                    fontSize: '0.85rem',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '0.4rem',
+                    borderColor: debtsWithBalance.length > 0 ? 'var(--success)' : 'var(--border-color)',
+                    color: debtsWithBalance.length > 0 ? 'var(--success)' : 'var(--text-muted)',
+                    backgroundColor: debtsWithBalance.length > 0 ? 'rgba(16, 185, 129, 0.12)' : 'transparent',
+                    cursor: debtsWithBalance.length > 0 ? 'pointer' : 'not-allowed',
+                    transition: 'all 0.2s ease',
+                    fontWeight: debtsWithBalance.length > 0 ? '600' : 'normal'
+                  }}
+                  title={debtsWithBalance.length > 0 
+                    ? `Descontar saldo a favor automáticamente a los ${debtsWithBalance.length} apoderados con saldo disponible` 
+                    : "No hay apoderados con saldo a favor pendiente en esta cuota"}
+                >
+                  <Sparkles size={16}/> Descontar Saldo a Favor {debtsWithBalance.length > 0 ? `(${debtsWithBalance.length})` : ''}
+                </button>
               </div>
               <p style={{ color: 'var(--text-muted)' }}>Emitido el: {expense.date}</p>
             </div>
@@ -1586,6 +1800,23 @@ const ExpenseDetail = ({ expenseId, onBack }) => {
             <span style={{ fontSize: '0.9rem' }}>Marcar como pagado por:</span>
             <button onClick={() => handleBulkPayment('cash')} className="btn btn-primary" style={{ padding: '0.4rem 1rem', fontSize: '0.85rem' }}>Efectivo</button>
             <button onClick={() => handleBulkPayment('transfer')} className="btn btn-outline" style={{ padding: '0.4rem 1rem', fontSize: '0.85rem', color: 'var(--primary)', borderColor: 'var(--primary)' }}>Transferencia</button>
+            <button 
+              onClick={() => handleBulkPayWithBalance(selectedDebts)} 
+              className="btn btn-outline" 
+              style={{ 
+                padding: '0.4rem 1rem', 
+                fontSize: '0.85rem', 
+                color: 'var(--success)', 
+                borderColor: 'var(--success)', 
+                backgroundColor: 'rgba(16, 185, 129, 0.08)',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '0.35rem'
+              }}
+              title="Descontar saldo a favor a los alumnos seleccionados que tengan saldo disponible"
+            >
+              <Sparkles size={15}/> Saldo a Favor
+            </button>
           </div>
         )}
       </div>

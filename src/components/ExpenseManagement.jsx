@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { db } from '../firebase/config';
 import { collection, getDocs, doc, setDoc, updateDoc, getDoc, query, where } from 'firebase/firestore';
-import { ArrowLeft, PlusCircle, CheckCircle } from 'lucide-react';
+import { ArrowLeft, PlusCircle, CheckCircle, Sparkles } from 'lucide-react';
 import { useModal } from '../context/ModalContext';
 import { formatStudentName } from '../utils/nameUtils';
 import { useCourse } from '../context/CourseContext';
@@ -110,6 +110,37 @@ const ExpenseManagement = ({ onBack }) => {
     } else {
       setSelectedStudents(new Set(students.map(s => s.id))); // Seleccionar todos
     }
+  };
+
+  const handleApplyAllBalances = () => {
+    const studentsWithBal = students.filter(s => selectedStudents.has(s.id) && (parseFloat(s.balance) || 0) > 0);
+    if (studentsWithBal.length === 0) {
+      showAlert("Ninguno de los alumnos seleccionados tiene saldo a favor disponible.");
+      return;
+    }
+
+    const perStudentAmount = calculationMode === 'divide'
+      ? (totalAmount && selectedStudents.size > 0 ? Math.round(parseFloat(totalAmount) / selectedStudents.size) : 0)
+      : calculationMode === 'custom'
+        ? 0
+        : parseFloat(totalAmount || 0);
+
+    const newBalanceToUse = { ...balanceToUse };
+    let totalApplied = 0;
+    let count = 0;
+
+    studentsWithBal.forEach(s => {
+      const targetAmount = calculationMode === 'custom' ? (parseFloat(customAmounts[s.id]) || 0) : perStudentAmount;
+      const amt = targetAmount > 0 ? Math.min(s.balance, targetAmount) : s.balance;
+      if (amt > 0) {
+        newBalanceToUse[s.id] = amt;
+        totalApplied += amt;
+        count++;
+      }
+    });
+
+    setBalanceToUse(newBalanceToUse);
+    showAlert(`Se aplicó el saldo a favor a ${count} alumno(s) por un total de $${totalApplied.toLocaleString('es-CL')}.`);
   };
 
   const handleSubmit = async (e) => {
@@ -474,11 +505,33 @@ const ExpenseManagement = ({ onBack }) => {
         </div>
 
         <div className="glass-panel" style={{ padding: '2rem', marginBottom: '2rem' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem', flexWrap: 'wrap', gap: '0.75rem' }}>
             <h4 style={{ color: 'var(--primary)', margin: 0 }}>Alumnos Involucrados</h4>
-            <button type="button" onClick={handleSelectAll} className="btn btn-outline" style={{ fontSize: '0.85rem', padding: '0.4rem 0.75rem' }}>
-              {selectedStudents.size === students.length ? 'Deseleccionar Todos' : 'Seleccionar Todos'}
-            </button>
+            <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', alignItems: 'center' }}>
+              {students.some(s => selectedStudents.has(s.id) && (parseFloat(s.balance) || 0) > 0) && (
+                <button 
+                  type="button" 
+                  onClick={handleApplyAllBalances} 
+                  className="btn btn-outline" 
+                  style={{ 
+                    fontSize: '0.85rem', 
+                    padding: '0.4rem 0.75rem', 
+                    borderColor: 'var(--success)', 
+                    color: 'var(--success)', 
+                    backgroundColor: 'rgba(16, 185, 129, 0.08)',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '0.35rem'
+                  }}
+                  title="Descontar automáticamente el saldo a favor a todos los alumnos seleccionados que lo tengan"
+                >
+                  <Sparkles size={15} /> Descontar Saldo a Favor a Todos
+                </button>
+              )}
+              <button type="button" onClick={handleSelectAll} className="btn btn-outline" style={{ fontSize: '0.85rem', padding: '0.4rem 0.75rem' }}>
+                {selectedStudents.size === students.length ? 'Deseleccionar Todos' : 'Seleccionar Todos'}
+              </button>
+            </div>
           </div>
           
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(340px, 1fr))', gap: '1rem' }}>

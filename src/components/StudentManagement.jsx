@@ -1,9 +1,10 @@
 import React, { useEffect, useState, useMemo, useCallback } from 'react';
 import { db } from '../firebase/config';
 import { collection, getDocs, doc, setDoc, deleteDoc, updateDoc, writeBatch, query, where } from 'firebase/firestore';
-import { ArrowLeft, UserPlus, CheckCircle, Trash2, Edit2, X, Save, Eye, EyeOff, Search, Receipt } from 'lucide-react';
+import { ArrowLeft, UserPlus, CheckCircle, Trash2, Edit2, X, Save, Eye, EyeOff, Search, Receipt, MinusCircle } from 'lucide-react';
 import BulkImport from './BulkImport';
 import StudentDetailModal from './StudentDetailModal';
+import DiscountBalanceModal from './DiscountBalanceModal';
 import { useNavigate } from 'react-router-dom';
 
 import { formatStudentName } from '../utils/nameUtils';
@@ -34,7 +35,8 @@ const StudentRow = React.memo(({
   handleDelete,
   isExpanded,
   toggleExpand,
-  handleToggleExpenseView
+  handleToggleExpenseView,
+  onDiscountBalance
 }) => {
   return (
     <React.Fragment key={s.id}>
@@ -222,7 +224,28 @@ const StudentRow = React.memo(({
           </td>
           <td data-label="Saldo a Favor" style={{ padding: '0.5rem 1rem' }}>
             {s.balance > 0 ? (
-              <span style={{ color: 'var(--success)', fontWeight: 'bold' }}>{formatMoney(s.balance)}</span>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+                <span style={{ color: 'var(--success)', fontWeight: 'bold' }}>{formatMoney(s.balance)}</span>
+                <button
+                  type="button"
+                  onClick={(e) => { e.stopPropagation(); onDiscountBalance && onDiscountBalance(s); }}
+                  className="btn btn-outline"
+                  style={{
+                    padding: '0.2rem 0.5rem',
+                    fontSize: '0.75rem',
+                    color: '#f59e0b',
+                    borderColor: 'rgba(245, 158, 11, 0.4)',
+                    backgroundColor: 'rgba(245, 158, 11, 0.08)',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '0.25rem',
+                    borderRadius: 'var(--radius-sm)'
+                  }}
+                  title="Descontar una parte o la totalidad de este saldo a favor"
+                >
+                  <MinusCircle size={12} /> Descontar
+                </button>
+              </div>
             ) : (
               <span style={{ color: 'var(--text-muted)' }}>-</span>
             )}
@@ -296,6 +319,7 @@ const StudentManagement = ({ onBack }) => {
   
   const [showBulkImport, setShowBulkImport] = useState(false);
   const [selectedStudent, setSelectedStudent] = useState(null);
+  const [discountStudent, setDiscountStudent] = useState(null);
   const [expandedRowId, setExpandedRowId] = useState(null);
 
   // Estados para edición
@@ -893,6 +917,7 @@ const StudentManagement = ({ onBack }) => {
                 isExpanded={expandedRowId === s.id}
                 toggleExpand={toggleExpand}
                 handleToggleExpenseView={handleToggleExpenseView}
+                onDiscountBalance={setDiscountStudent}
               />
             ))}
           </tbody>
@@ -925,6 +950,20 @@ const StudentManagement = ({ onBack }) => {
             isModal={true}
           />
         </div>
+      )}
+
+      {/* Modal para Descontar Saldo a Favor Independiente */}
+      {discountStudent && (
+        <DiscountBalanceModal
+          student={discountStudent}
+          onClose={() => setDiscountStudent(null)}
+          onSuccess={(newBalance) => {
+            setStudents(prev => prev.map(s => s.id === discountStudent.id ? { ...s, balance: newBalance } : s));
+            if (selectedStudent && selectedStudent.id === discountStudent.id) {
+              setSelectedStudent(prev => ({ ...prev, balance: newBalance }));
+            }
+          }}
+        />
       )}
     </div>
   );

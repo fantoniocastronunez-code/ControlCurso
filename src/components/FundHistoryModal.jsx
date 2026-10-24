@@ -1,12 +1,14 @@
-import React from 'react';
-import { X, ArrowDownRight, ArrowUpRight, DollarSign, Download } from 'lucide-react';
+import React, { useState } from 'react';
+import { X, ArrowDownRight, ArrowUpRight, DollarSign, Download, MinusCircle } from 'lucide-react';
 import { useLockBodyScroll } from '../hooks/useLockBodyScroll';
+import DiscountBalanceModal from './DiscountBalanceModal';
 
 const formatMoney = (amount) => {
   return new Intl.NumberFormat('es-CL', { style: 'currency', currency: 'CLP' }).format(amount);
 };
 
-const FundHistoryModal = ({ fund, transactions, onClose }) => {
+const FundHistoryModal = ({ fund, transactions, onClose, onRefresh }) => {
+  const [discountStudent, setDiscountStudent] = useState(null);
   useLockBodyScroll(!!fund);
 
   if (!fund) return null;
@@ -126,8 +128,31 @@ const FundHistoryModal = ({ fund, transactions, onClose }) => {
                         <p style={{ margin: 0, fontWeight: '500', color: 'var(--text-primary)' }}>{student.name}</p>
                       </div>
                     </div>
-                    <div style={{ fontWeight: '600', color: 'var(--success)' }}>
-                      {formatMoney(student.balance)}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                      <div style={{ fontWeight: '600', color: 'var(--success)' }}>
+                        {formatMoney(student.balance)}
+                      </div>
+                      {student.id && student.balance > 0 && (
+                        <button
+                          type="button"
+                          onClick={() => setDiscountStudent(student)}
+                          className="btn btn-outline"
+                          style={{
+                            padding: '0.25rem 0.5rem',
+                            fontSize: '0.75rem',
+                            color: '#f59e0b',
+                            borderColor: 'rgba(245, 158, 11, 0.4)',
+                            backgroundColor: 'rgba(245, 158, 11, 0.08)',
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '0.25rem',
+                            borderRadius: 'var(--radius-sm)'
+                          }}
+                          title="Descontar una parte o la totalidad de este saldo a favor"
+                        >
+                          <MinusCircle size={12} /> Descontar
+                        </button>
+                      )}
                     </div>
                   </div>
                 ))}
@@ -185,6 +210,18 @@ const FundHistoryModal = ({ fund, transactions, onClose }) => {
           )}
         </div>
       </div>
+
+      {discountStudent && (
+        <DiscountBalanceModal
+          student={discountStudent}
+          onClose={() => setDiscountStudent(null)}
+          onSuccess={(newBalance, deductedAmt) => {
+            discountStudent.balance = newBalance;
+            fund.balance = Math.max(0, (fund.balance || 0) - deductedAmt);
+            if (onRefresh) onRefresh();
+          }}
+        />
+      )}
     </div>
   );
 };

@@ -1,18 +1,19 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { db } from '../firebase/config';
-import { collection, query, where, getDocs, doc, updateDoc } from 'firebase/firestore';
+import { collection, query, where, getDocs, doc, updateDoc, addDoc, getDoc } from 'firebase/firestore';
 import { 
   X, User, AlertCircle, CheckCircle, Clock, Download, 
-  DollarSign, Sparkles, CreditCard, Eye, FileText, AlertTriangle, Receipt 
+  DollarSign, Sparkles, CreditCard, Eye, FileText, AlertTriangle, Receipt, MinusCircle 
 } from 'lucide-react';
 import { formatStudentName } from '../utils/nameUtils';
 import { useModal } from '../context/ModalContext';
 import { useAuth } from '../context/AuthContext';
 import html2canvas from 'html2canvas';
 import { useLockBodyScroll } from '../hooks/useLockBodyScroll';
+import DiscountBalanceModal from './DiscountBalanceModal';
 
 const StudentDetailModal = ({ student, usersMap = {}, onClose, isModal = false }) => {
-  const { showAlert } = useModal();
+  const { showAlert, showConfirm } = useModal();
   const { role } = useAuth();
   const [debts, setDebts] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -21,6 +22,8 @@ const StudentDetailModal = ({ student, usersMap = {}, onClose, isModal = false }
   const [previewReceipt, setPreviewReceipt] = useState(null);
   const [expensesEnabled, setExpensesEnabled] = useState(Boolean(student?.showExpensesInPortal));
   const [togglingExpenses, setTogglingExpenses] = useState(false);
+  const [applyingBalance, setApplyingBalance] = useState(false);
+  const [showDiscountModal, setShowDiscountModal] = useState(false);
   const detailRef = useRef(null);
 
   useLockBodyScroll(isModal);
@@ -105,6 +108,169 @@ const StudentDetailModal = ({ student, usersMap = {}, onClose, isModal = false }
 
   const pendingDebts = debts.filter(d => d.status === 'pending' || d.status === 'review' || d.status === 'partial');
   const paidDebts = debts.filter(d => d.status === 'paid');
+
+  const handlePayDebtWithBalance = async (debt) => {
+    if (!student?.id || (student.balance || 0) <= 0) {
+      await showAlert("El alumno no tiene saldo a favor disponible.");
+      return;
+    }
+
+    const currentPaid = debt.paidAmount || 0;
+    const remaining = Math.max(0, (debt.amount || 0) - currentPaid);
+    if (remaining <= 0) return;
+
+    const amountToUse = Math.min(student.balance, remaining);
+    const newBalance = student.balance - amountToUse;
+    const newPaidAmount = currentPaid + amountToUse;
+    const isFullyPaid = newPaidAmount >= debt.amount;
+
+    if (!(await showConfirm(`¿Usar ${formatMoney(amountToUse)} del saldo a favor de ${formatStudentName(student)} para la cuota "${debt.title}"? Le quedarán ${formatMoney(newBalance)} a favor.`))) {
+      return;
+    }
+
+    setApplyingBalance(true);
+    try {
+      // 1. Actualizar deuda
+      await updateDoc(doc(db, 'debts', debt.id), {
+        status: isFullyPaid ? 'paid' : 'partial',
+        paidAmount: newPaidAmount,
+        paymentMethod: 'balance',
+        approvedAt: new Date().toISOString()
+      });
+
+      // 2. Registrar pago
+      await addDoc(collection(db, 'payments'), {
+        debtId: debt.id,
+        courseId: debt.courseId || student.courseId,
+        fundId: debt.fundId || 'general',
+        amount: amountToUse,
+        paymentMethod: 'balance',
+        studentName: student.name,
+        title: debt.title,
+        status: isFullyPaid ? 'paid' : 'partial',
+        createdAt: new Date().toISOString()
+      });
+
+      // 3. Descontar saldo del estudiante
+      await updateDoc(doc(db, 'students', student.id), {
+        balance: newBalance
+      });
+      student.balance = newBalance;
+
+      // 4. Actualizar contador del gasto si corresponde
+      if (isFullyPaid && debt.expenseId && debt.status !== 'paid') {
+        try {
+          const expenseRef = doc(db, 'expenses', debt.expenseId);
+          const expenseSnap = await getDoc(expenseRef);
+          if (expenseSnap.exists()) {
+            const currentCount = expenseSnap.data().paidCount || 0;
+            await updateDoc(expenseRef, { paidCount: currentCount + 1 });
+          }
+        } catch (e) {
+          console.warn("No se pudo actualizar paidCount del gasto:", e);
+        }
+      }
+
+      await fetchDebts();
+      await showAlert(`¡Se aplicó ${formatMoney(amountToUse)} de saldo a favor exitosamente!`);
+    } catch (err) {
+      console.error("Error al aplicar saldo a favor:", err);
+      await showAlert("Error al registrar el pago con saldo a favor.");
+    } finally {
+      setApplyingBalance(false);
+    }
+  };
+
+  const handleApplyBalanceToAllDebts = async () => {
+    if (!student?.id || (student.balance || 0) <= 0) {
+      await showAlert("El alumno no tiene saldo a favor disponible.");
+      return;
+    }
+
+    const pendings = debts.filter(d => d.status === 'pending' || d.status === 'partial');
+    if (pendings.length === 0) {
+      await showAlert("El alumno no tiene cuotas pendientes.");
+      return;
+    }
+
+    let currentBal = student.balance;
+    const plan = [];
+    let totalDiscount = 0;
+
+    for (const d of pendings) {
+      if (currentBal <= 0) break;
+      const currentPaid = d.paidAmount || 0;
+      const remaining = Math.max(0, (d.amount || 0) - currentPaid);
+      if (remaining <= 0) continue;
+
+      const amountToUse = Math.min(currentBal, remaining);
+      const newBal = currentBal - amountToUse;
+      const newPaidAmount = currentPaid + amountToUse;
+      const isFullyPaid = newPaidAmount >= d.amount;
+
+      currentBal = newBal;
+      totalDiscount += amountToUse;
+      plan.push({ debt: d, amountToUse, newBalance: newBal, newPaidAmount, isFullyPaid });
+    }
+
+    if (plan.length === 0) {
+      await showAlert("No hay saldo a favor disponible para aplicar a las cuotas pendientes.");
+      return;
+    }
+
+    const confirmMsg = `¿Descontar ${formatMoney(totalDiscount)} del saldo a favor de ${formatStudentName(student)} para pagar ${plan.length} cuota(s) pendiente(s)? Le quedarán ${formatMoney(currentBal)} a favor.`;
+    if (!(await showConfirm(confirmMsg))) return;
+
+    setApplyingBalance(true);
+    try {
+      for (const p of plan) {
+        await updateDoc(doc(db, 'debts', p.debt.id), {
+          status: p.isFullyPaid ? 'paid' : 'partial',
+          paidAmount: p.newPaidAmount,
+          paymentMethod: 'balance',
+          approvedAt: new Date().toISOString()
+        });
+
+        await addDoc(collection(db, 'payments'), {
+          debtId: p.debt.id,
+          courseId: p.debt.courseId || student.courseId,
+          fundId: p.debt.fundId || 'general',
+          amount: p.amountToUse,
+          paymentMethod: 'balance',
+          studentName: student.name,
+          title: p.debt.title,
+          status: p.isFullyPaid ? 'paid' : 'partial',
+          createdAt: new Date().toISOString()
+        });
+
+        if (p.isFullyPaid && p.debt.expenseId && p.debt.status !== 'paid') {
+          try {
+            const expRef = doc(db, 'expenses', p.debt.expenseId);
+            const expSnap = await getDoc(expRef);
+            if (expSnap.exists()) {
+              const currentCount = expSnap.data().paidCount || 0;
+              await updateDoc(expRef, { paidCount: currentCount + 1 });
+            }
+          } catch (e) {
+            console.warn("No se pudo actualizar paidCount:", e);
+          }
+        }
+      }
+
+      await updateDoc(doc(db, 'students', student.id), {
+        balance: currentBal
+      });
+      student.balance = currentBal;
+
+      await fetchDebts();
+      await showAlert(`¡Se descontó ${formatMoney(totalDiscount)} de saldo a favor exitosamente!`);
+    } catch (err) {
+      console.error("Error al descontar saldos a favor:", err);
+      await showAlert("Error al registrar los pagos con saldo a favor.");
+    } finally {
+      setApplyingBalance(false);
+    }
+  };
 
   // Calculations
   const totalPaid = debts.reduce((sum, d) => {
@@ -327,6 +493,53 @@ const StudentDetailModal = ({ student, usersMap = {}, onClose, isModal = false }
           <h3 style={{ margin: 0, color: (student.balance || 0) > 0 ? 'var(--success)' : 'var(--text-muted)', fontSize: '1.25rem' }}>
             {formatMoney(student.balance || 0)}
           </h3>
+          {(student.balance || 0) > 0 && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem', marginTop: '0.6rem' }}>
+              <button
+                type="button"
+                onClick={() => setShowDiscountModal(true)}
+                className="btn btn-outline"
+                style={{
+                  padding: '0.35rem 0.6rem',
+                  fontSize: '0.75rem',
+                  width: '100%',
+                  borderColor: 'rgba(245, 158, 11, 0.5)',
+                  color: '#f59e0b',
+                  backgroundColor: 'rgba(245, 158, 11, 0.1)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '0.35rem',
+                  fontWeight: '600'
+                }}
+                title="Descontar una parte o la totalidad de este saldo a favor (sin asociar a cuotas)"
+              >
+                <MinusCircle size={13} /> Descontar Saldo
+              </button>
+              {pendingDebts.length > 0 && (
+                <button
+                  type="button"
+                  onClick={handleApplyBalanceToAllDebts}
+                  disabled={applyingBalance}
+                  className="btn btn-primary"
+                  style={{
+                    padding: '0.35rem 0.6rem',
+                    fontSize: '0.75rem',
+                    width: '100%',
+                    backgroundColor: 'var(--success)',
+                    border: 'none',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '0.35rem'
+                  }}
+                  title="Descontar saldo a favor de las cuotas pendientes de este alumno"
+                >
+                  <Sparkles size={13} /> {applyingBalance ? 'Procesando...' : 'Aplicar a Cuotas'}
+                </button>
+              )}
+            </div>
+          )}
         </div>
 
         {/* Cuotas Registradas */}
@@ -432,6 +645,29 @@ const StudentDetailModal = ({ student, usersMap = {}, onClose, isModal = false }
                           <span style={{ color: 'var(--warning)', display: 'inline-flex', alignItems: 'center', gap: '0.25rem', fontWeight: '500' }}>
                             <Clock size={13} /> En Revisión
                           </span>
+                        )}
+
+                        {(student.balance || 0) > 0 && (
+                          <button
+                            type="button"
+                            onClick={() => handlePayDebtWithBalance(d)}
+                            disabled={applyingBalance}
+                            className="btn btn-outline"
+                            style={{
+                              padding: '0.25rem 0.55rem',
+                              fontSize: '0.75rem',
+                              color: 'var(--success)',
+                              borderColor: 'rgba(16, 185, 129, 0.4)',
+                              backgroundColor: 'rgba(16, 185, 129, 0.08)',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '0.25rem',
+                              borderRadius: 'var(--radius-sm)'
+                            }}
+                            title={`Usar saldo a favor de ${formatMoney(student.balance)} para esta cuota`}
+                          >
+                            <Sparkles size={12} /> Usar Saldo
+                          </button>
                         )}
 
                         {d.receiptUrl && (
@@ -597,6 +833,17 @@ const StudentDetailModal = ({ student, usersMap = {}, onClose, isModal = false }
             />
           </div>
         </div>
+      )}
+
+      {showDiscountModal && (
+        <DiscountBalanceModal
+          student={student}
+          onClose={() => setShowDiscountModal(false)}
+          onSuccess={(newBal) => {
+            student.balance = newBal;
+            fetchDebts();
+          }}
+        />
       )}
     </div>
   );
