@@ -365,3 +365,4 @@ const PrinterSettingsModal = ({ isOpen, onClose, eventName }) => {
 };
 
 export default PrinterSettingsModal;
+
