@@ -1,8 +1,8 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { db } from '../../../firebase/config';
 import { collection, getDocs, doc, setDoc, updateDoc, deleteDoc, query, where } from 'firebase/firestore';
-import { 
-  Package, Plus, Trash2, Edit2, AlertTriangle, CheckCircle, 
+import {
+  Package, Plus, Trash2, Edit2, AlertTriangle, CheckCircle,
   DollarSign, RefreshCw, ClipboardList, Save, Check, X, Info, Sparkles
 } from 'lucide-react';
 import { useModal } from '../../../context/ModalContext';
@@ -23,7 +23,7 @@ const UNIT_OPTIONS = [
 const EventInventory = ({ event }) => {
   const { user } = useAuth();
   const { showAlert, showConfirm } = useModal();
-  
+
   const [inventory, setInventory] = useState([]);
   const [loading, setLoading] = useState(true);
 
@@ -275,9 +275,9 @@ const EventInventory = ({ event }) => {
       for (const item of inventory) {
         const countVal = physicalCounts[item.id];
         const notesVal = finalNotesMap[item.id] || '';
-        
-        const countNum = countVal !== undefined && countVal !== '' && countVal !== null 
-          ? parseFloat(countVal) 
+
+        const countNum = countVal !== undefined && countVal !== '' && countVal !== null
+          ? parseFloat(countVal)
           : null;
 
         const docRef = doc(db, 'eventInventory', item.id);
@@ -314,7 +314,7 @@ const EventInventory = ({ event }) => {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
-      
+
       {/* Tarjetas de Estadísticas de Inventario */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1rem' }}>
         <div className="glass-panel" style={{ padding: '1.25rem', display: 'flex', alignItems: 'center', gap: '1rem' }}>
@@ -364,12 +364,12 @@ const EventInventory = ({ event }) => {
           <Package size={20} />
           {editingItemId ? 'Editar Insumo de Inventario' : 'Registrar Compra / Stock Inicial'}
         </h3>
-        
+
         <form onSubmit={handleSaveItem}>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1rem', marginBottom: '1rem' }}>
             <div className="input-group" style={{ marginBottom: 0 }}>
               <label className="input-label">Nombre del Insumo *</label>
-              <input 
+              <input
                 type="text"
                 required
                 className="input-field"
@@ -381,7 +381,7 @@ const EventInventory = ({ event }) => {
 
             <div className="input-group" style={{ marginBottom: 0 }}>
               <label className="input-label">Cantidad Comprada / Inicial *</label>
-              <input 
+              <input
                 type="number"
                 step="any"
                 min="0"
@@ -395,7 +395,7 @@ const EventInventory = ({ event }) => {
 
             <div className="input-group" style={{ marginBottom: 0 }}>
               <label className="input-label">Unidad de Medida</label>
-              <select 
+              <select
                 className="input-field"
                 value={unit}
                 onChange={(e) => setUnit(e.target.value)}
@@ -409,7 +409,7 @@ const EventInventory = ({ event }) => {
             {unit === 'otro' && (
               <div className="input-group" style={{ marginBottom: 0 }}>
                 <label className="input-label">Especificar Unidad</label>
-                <input 
+                <input
                   type="text"
                   className="input-field"
                   placeholder="Ej. gramos, botellas, sobres..."
@@ -421,7 +421,7 @@ const EventInventory = ({ event }) => {
 
             <div className="input-group" style={{ marginBottom: 0 }}>
               <label className="input-label">Costo Total Compra ($)</label>
-              <input 
+              <input
                 type="number"
                 min="0"
                 className="input-field"
@@ -435,7 +435,7 @@ const EventInventory = ({ event }) => {
           <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', marginBottom: '1.25rem' }}>
             <div className="input-group" style={{ marginBottom: 0 }}>
               <label className="input-label">Notas / Proveedor (Opcional)</label>
-              <input 
+              <input
                 type="text"
                 className="input-field"
                 placeholder="Ej. Panadería San José, Paquetes de 20 un..."
@@ -446,7 +446,7 @@ const EventInventory = ({ event }) => {
 
             {!editingItemId && cost && parseFloat(cost) > 0 && event.fundId && (
               <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer', fontSize: '0.9rem', color: 'var(--text-main)' }}>
-                <input 
+                <input
                   type="checkbox"
                   checked={recordExpense}
                   onChange={(e) => setRecordExpense(e.target.checked)}
@@ -479,10 +479,10 @@ const EventInventory = ({ event }) => {
               Cada vez que vendas en el Punto de Venta (POS) un completo o producto vinculado, el stock se descontará automáticamente.
             </p>
           </div>
-          <button 
-            type="button" 
-            onClick={fetchInventory} 
-            className="btn btn-outline" 
+          <button
+            type="button"
+            onClick={fetchInventory}
+            className="btn btn-outline"
             style={{ padding: '0.4rem 0.75rem', fontSize: '0.85rem', display: 'flex', alignItems: 'center', gap: '0.35rem' }}
           >
             <RefreshCw size={14} /> Actualizar Stock
@@ -561,14 +561,14 @@ const EventInventory = ({ event }) => {
                         <span>{consumed} {item.unit}</span>
                       </td>
                       <td style={{ padding: '0.85rem 0.5rem', textAlign: 'center' }}>
-                        <span style={{ 
-                          display: 'inline-flex', 
-                          alignItems: 'center', 
-                          gap: '0.35rem', 
-                          padding: '0.3rem 0.75rem', 
-                          borderRadius: '20px', 
-                          backgroundColor: stockBadgeBg, 
-                          color: stockBadgeColor, 
+                        <span style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '0.35rem',
+                          padding: '0.3rem 0.75rem',
+                          borderRadius: '20px',
+                          backgroundColor: stockBadgeBg,
+                          color: stockBadgeColor,
                           fontWeight: 'bold',
                           fontSize: '0.85rem'
                         }}>
@@ -642,12 +642,12 @@ const EventInventory = ({ event }) => {
             <form onSubmit={handleRestockSubmit}>
               <div className="input-group" style={{ marginBottom: '1rem' }}>
                 <label className="input-label">Cantidad Adicional a Sumar ({restockItem.unit}) *</label>
-                <input 
-                  type="number" 
+                <input
+                  type="number"
                   step="any"
                   min="0.1"
                   required
-                  className="input-field" 
+                  className="input-field"
                   placeholder="Ej. 30"
                   value={restockQuantity}
                   onChange={(e) => setRestockQuantity(e.target.value)}
@@ -657,10 +657,10 @@ const EventInventory = ({ event }) => {
 
               <div className="input-group" style={{ marginBottom: '1rem' }}>
                 <label className="input-label">Costo de la Compra Adicional ($)</label>
-                <input 
-                  type="number" 
+                <input
+                  type="number"
                   min="0"
-                  className="input-field" 
+                  className="input-field"
                   placeholder="Ej. 5000 (opcional)"
                   value={restockCost}
                   onChange={(e) => setRestockCost(e.target.value)}
@@ -669,7 +669,7 @@ const EventInventory = ({ event }) => {
 
               {restockCost && parseFloat(restockCost) > 0 && event.fundId && (
                 <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer', fontSize: '0.85rem', marginBottom: '1.5rem', color: 'var(--text-main)' }}>
-                  <input 
+                  <input
                     type="checkbox"
                     checked={restockRecordExpense}
                     onChange={(e) => setRestockRecordExpense(e.target.checked)}
@@ -680,15 +680,15 @@ const EventInventory = ({ event }) => {
               )}
 
               <div style={{ display: 'flex', gap: '0.75rem', justifyContent: 'flex-end' }}>
-                <button 
-                  type="button" 
-                  className="btn btn-outline" 
+                <button
+                  type="button"
+                  className="btn btn-outline"
                   onClick={() => setRestockItem(null)}
                 >
                   Cancelar
                 </button>
-                <button 
-                  type="submit" 
+                <button
+                  type="submit"
                   className="btn btn-primary"
                 >
                   Confirmar Reabastecimiento
@@ -710,7 +710,7 @@ const EventInventory = ({ event }) => {
               Al terminar el evento y cerrar caja, anota el conteo físico de lo que realmente sobró de cada cosa para calcular mermas y diferencias con respecto al stock teórico del sistema.
             </p>
           </div>
-          <button 
+          <button
             type="button"
             onClick={handleSaveFinalClosure}
             disabled={savingClosure || inventory.length === 0}
@@ -765,7 +765,7 @@ const EventInventory = ({ event }) => {
                       </td>
                       <td style={{ padding: '0.75rem 0.5rem', textAlign: 'center' }}>
                         <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}>
-                          <input 
+                          <input
                             type="number"
                             step="any"
                             min="0"
@@ -801,7 +801,7 @@ const EventInventory = ({ event }) => {
                         )}
                       </td>
                       <td style={{ padding: '0.75rem 0.5rem' }}>
-                        <input 
+                        <input
                           type="text"
                           placeholder="Ej. 2 panes quemados..."
                           className="input-field"

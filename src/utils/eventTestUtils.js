@@ -91,6 +91,7 @@ export const loadDemoEventData = async (eventId, courseId, user) => {
     {
       id: `item_completo_${eventId}`,
       eventId,
+      courseId: courseId || '',
       name: 'Completo Italiano',
       price: 2500,
       ingredients: [
@@ -110,6 +111,7 @@ export const loadDemoEventData = async (eventId, courseId, user) => {
     {
       id: `item_promo_${eventId}`,
       eventId,
+      courseId: courseId || '',
       name: 'Promo 2 Completos + Bebida',
       price: 5500,
       ingredients: [
@@ -130,6 +132,7 @@ export const loadDemoEventData = async (eventId, courseId, user) => {
     {
       id: `item_bebida_${eventId}`,
       eventId,
+      courseId: courseId || '',
       name: 'Bebida en Lata',
       price: 1200,
       ingredients: [

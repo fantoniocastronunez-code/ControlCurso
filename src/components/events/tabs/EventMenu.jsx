@@ -106,7 +106,7 @@ const EventMenu = ({ event }) => {
         }) : [],
         createdBy: user?.email || user?.displayName || 'Unknown User'
       };
-      
+
       if (editingItemId) {
         await updateDoc(doc(db, 'eventItems', editingItemId), item);
         setItems(items.map(i => i.id === editingItemId ? { ...i, ...item } : i).sort((a, b) => a.name.localeCompare(b.name)));
@@ -128,7 +128,7 @@ const EventMenu = ({ event }) => {
     setEditingItemId(item.id);
     setNewItemName(item.name);
     setNewItemPrice(item.price.toString());
-    
+
     if (item.ingredients && item.ingredients.length > 0) {
       setHasIngredients(true);
       setIngredients(item.ingredients.map(ing => ({
@@ -176,11 +176,11 @@ const EventMenu = ({ event }) => {
   return (
     <div className="glass-panel" style={{ padding: '2rem' }}>
       <h3 style={{ marginBottom: '1.5rem', color: 'var(--primary)' }}>Menú / Inventario del Evento</h3>
-      
+
       <form onSubmit={handleAddItem} style={{ display: 'flex', gap: '1rem', alignItems: 'flex-end', marginBottom: '2rem', flexWrap: 'wrap' }}>
         <div className="input-group" style={{ flex: 1, minWidth: '200px' }}>
           <label className="input-label">Nombre del Producto (Ej. Promo Completo, Bebida)</label>
-          <input 
+          <input
             type="text"
             required
             className="input-field"
@@ -190,7 +190,7 @@ const EventMenu = ({ event }) => {
         </div>
         <div className="input-group" style={{ flex: 1, minWidth: '150px' }}>
           <label className="input-label">Precio de Venta ($)</label>
-          <input 
+          <input
             type="number"
             min="0"
             required
@@ -203,11 +203,11 @@ const EventMenu = ({ event }) => {
           <button type="submit" className="btn btn-primary" style={{ padding: '0.65rem 1.5rem' }}>
             {editingItemId ? <><Edit2 size={18} /> Actualizar</> : <><Plus size={18} /> Agregar</>}
           </button>
-          
+
           {editingItemId && (
-            <button 
+            <button
               type="button"
-              className="btn btn-outline" 
+              className="btn btn-outline"
               style={{ padding: '0.65rem 1.5rem' }}
               onClick={resetForm}
             >
@@ -218,7 +218,7 @@ const EventMenu = ({ event }) => {
 
         <div style={{ width: '100%', marginTop: '0.5rem' }}>
           <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer' }}>
-            <input 
+            <input
               type="checkbox"
               checked={hasSubproducts}
               onChange={(e) => setHasSubproducts(e.target.checked)}
@@ -231,20 +231,20 @@ const EventMenu = ({ event }) => {
           <div style={{ width: '100%', padding: '1rem', backgroundColor: 'rgba(255,255,255,0.05)', borderRadius: 'var(--radius-md)', marginTop: '0.5rem' }}>
             <h4 style={{ marginBottom: '1rem' }}>Opciones / Agregados</h4>
             {subproducts.map((sp, idx) => (
-              <div 
-                key={idx} 
-                style={{ 
-                  padding: '1rem', 
-                  backgroundColor: 'rgba(255,255,255,0.03)', 
-                  border: '1px solid rgba(255,255,255,0.08)', 
-                  borderRadius: 'var(--radius-md)', 
-                  marginBottom: '0.75rem' 
+              <div
+                key={idx}
+                style={{
+                  padding: '1rem',
+                  backgroundColor: 'rgba(255,255,255,0.03)',
+                  border: '1px solid rgba(255,255,255,0.08)',
+                  borderRadius: 'var(--radius-md)',
+                  marginBottom: '0.75rem'
                 }}
               >
                 <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', alignItems: 'center' }}>
                   <div className="input-group" style={{ flex: '1 1 180px', marginBottom: 0 }}>
                     <label style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginBottom: '0.25rem', display: 'block' }}>Nombre del agregado</label>
-                    <input 
+                    <input
                       type="text"
                       placeholder="Ej. Bebida, Salsa, Palta"
                       className="input-field"
@@ -258,7 +258,7 @@ const EventMenu = ({ event }) => {
                   </div>
                   <div className="input-group" style={{ flex: '1 1 120px', marginBottom: 0 }}>
                     <label style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginBottom: '0.25rem', display: 'block' }}>Precio extra ($)</label>
-                    <input 
+                    <input
                       type="number"
                       min="0"
                       placeholder="0 si ya está incluida"
@@ -272,7 +272,7 @@ const EventMenu = ({ event }) => {
                     />
                   </div>
                   {subproducts.length > 1 && (
-                    <button 
+                    <button
                       type="button"
                       className="btn btn-outline"
                       style={{ padding: '0.65rem 0.75rem', color: 'var(--danger)', borderColor: 'rgba(239, 68, 68, 0.4)', alignSelf: 'flex-end' }}
@@ -287,7 +287,7 @@ const EventMenu = ({ event }) => {
                 {/* Switch / Checkbox para tipos o sub-opciones */}
                 <div style={{ marginTop: '0.75rem', paddingTop: '0.5rem', borderTop: '1px dashed rgba(255,255,255,0.08)' }}>
                   <label style={{ display: 'inline-flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer', fontSize: '0.85rem', color: sp.hasOptions ? 'var(--primary)' : 'var(--text-muted)' }}>
-                    <input 
+                    <input
                       type="checkbox"
                       checked={!!sp.hasOptions}
                       onChange={(e) => {
@@ -306,10 +306,10 @@ const EventMenu = ({ event }) => {
 
                 {/* Subpanel de tipos / opciones */}
                 {sp.hasOptions && (
-                  <div style={{ 
-                    marginTop: '0.75rem', 
-                    padding: '0.75rem', 
-                    backgroundColor: 'rgba(0,0,0,0.2)', 
+                  <div style={{
+                    marginTop: '0.75rem',
+                    padding: '0.75rem',
+                    backgroundColor: 'rgba(0,0,0,0.2)',
                     borderRadius: 'var(--radius-sm)',
                     border: '1px solid rgba(99, 102, 241, 0.2)'
                   }}>
@@ -365,7 +365,7 @@ const EventMenu = ({ event }) => {
 
                     {/* Agregar opción manual */}
                     <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '0.5rem' }}>
-                      <input 
+                      <input
                         type="text"
                         placeholder="O escribe otro tipo (ej. Agua Mineral)..."
                         className="input-field"
@@ -387,7 +387,7 @@ const EventMenu = ({ event }) => {
                           }
                         }}
                       />
-                      <button 
+                      <button
                         type="button"
                         className="btn btn-outline"
                         style={{ padding: '0.4rem 0.75rem', fontSize: '0.8rem' }}
@@ -465,9 +465,9 @@ const EventMenu = ({ event }) => {
                 )}
               </div>
             ))}
-            <button 
-              type="button" 
-              className="btn btn-outline" 
+            <button
+              type="button"
+              className="btn btn-outline"
               style={{ marginTop: '0.5rem', fontSize: '0.85rem' }}
               onClick={() => setSubproducts([...subproducts, { name: '', price: '', hasOptions: false, options: [] }])}
             >
@@ -479,7 +479,7 @@ const EventMenu = ({ event }) => {
         {/* Sección de Receta / Descuento de Insumos del Inventario */}
         <div style={{ width: '100%', marginTop: '0.75rem' }}>
           <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer', fontWeight: '500' }}>
-            <input 
+            <input
               type="checkbox"
               checked={hasIngredients}
               onChange={(e) => setHasIngredients(e.target.checked)}
@@ -490,18 +490,18 @@ const EventMenu = ({ event }) => {
         </div>
 
         {hasIngredients && (
-          <div style={{ 
-            width: '100%', 
-            padding: '1rem', 
-            backgroundColor: 'rgba(99, 102, 241, 0.05)', 
-            border: '1px solid rgba(99, 102, 241, 0.2)', 
-            borderRadius: 'var(--radius-md)', 
-            marginTop: '0.5rem' 
+          <div style={{
+            width: '100%',
+            padding: '1rem',
+            backgroundColor: 'rgba(99, 102, 241, 0.05)',
+            border: '1px solid rgba(99, 102, 241, 0.2)',
+            borderRadius: 'var(--radius-md)',
+            marginTop: '0.5rem'
           }}>
             <h4 style={{ marginBottom: '0.75rem', display: 'flex', alignItems: 'center', gap: '0.5rem', color: 'var(--primary)' }}>
               <Package size={16} /> Insumos a descontar por cada unidad vendida de este producto
             </h4>
-            
+
             {inventoryList.length === 0 ? (
               <p style={{ color: 'var(--warning)', fontSize: '0.85rem', margin: 0 }}>
                 No hay insumos creados en la pestaña <strong>Inventario</strong> aún. Ve primero a la pestaña <strong>Inventario</strong> para registrar "Pan de Completo", "Vienesas", etc.
@@ -513,7 +513,7 @@ const EventMenu = ({ event }) => {
                   return (
                     <div key={idx} style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', marginBottom: '0.6rem', flexWrap: 'wrap' }}>
                       <div style={{ flex: '2 1 200px' }}>
-                        <select 
+                        <select
                           className="input-field"
                           value={ing.inventoryId}
                           onChange={(e) => {
@@ -532,7 +532,7 @@ const EventMenu = ({ event }) => {
                       </div>
 
                       <div style={{ flex: '1 1 120px', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
-                        <input 
+                        <input
                           type="number"
                           step="any"
                           min="0.01"
@@ -551,7 +551,7 @@ const EventMenu = ({ event }) => {
                       </div>
 
                       {ingredients.length > 1 && (
-                        <button 
+                        <button
                           type="button"
                           className="btn btn-outline"
                           style={{ padding: '0.5rem', color: 'var(--danger)', borderColor: 'rgba(239, 68, 68, 0.4)' }}
@@ -565,9 +565,9 @@ const EventMenu = ({ event }) => {
                   );
                 })}
 
-                <button 
-                  type="button" 
-                  className="btn btn-outline" 
+                <button
+                  type="button"
+                  className="btn btn-outline"
                   style={{ marginTop: '0.5rem', fontSize: '0.85rem', display: 'flex', alignItems: 'center', gap: '0.35rem' }}
                   onClick={() => setIngredients([...ingredients, { inventoryId: '', quantity: '1' }])}
                 >
@@ -602,7 +602,7 @@ const EventMenu = ({ event }) => {
               <div>
                 <strong style={{ display: 'block', fontSize: '1.1rem' }}>{item.name}</strong>
                 <span style={{ color: 'var(--primary)', fontWeight: 'bold' }}>{formatMoney(item.price)}</span>
-                
+
                 {item.ingredients && item.ingredients.length > 0 && (
                   <div style={{ fontSize: '0.8rem', color: 'var(--primary)', marginTop: '0.35rem', display: 'flex', alignItems: 'center', gap: '0.35rem', backgroundColor: 'rgba(99,102,241,0.1)', padding: '0.2rem 0.5rem', borderRadius: '4px', width: 'fit-content' }}>
                     <Package size={13} />
@@ -622,14 +622,14 @@ const EventMenu = ({ event }) => {
                 )}
               </div>
               <div style={{ display: 'flex', gap: '0.5rem' }}>
-                <button 
+                <button
                   onClick={() => handleEditClick(item)}
                   style={{ background: 'none', border: 'none', color: 'var(--primary)', cursor: 'pointer', padding: '0.5rem' }}
                   title="Editar producto"
                 >
                   <Edit2 size={18} />
                 </button>
-                <button 
+                <button
                   onClick={() => handleDeleteItem(item.id)}
                   style={{ background: 'none', border: 'none', color: 'var(--danger)', cursor: 'pointer', padding: '0.5rem' }}
                   title="Eliminar producto"

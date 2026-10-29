@@ -8,11 +8,11 @@ service cloud.firestore {
     // =======================================================
     
     function isAuthenticated() {
-      return request.auth != null && request.auth.token.email != null;
+      return request.auth != null;
     }
     
     function getUserData() {
-      return exists(/databases/$(database)/documents/users/$(request.auth.token.email))
+      return (request.auth.token.email != null && exists(/databases/$(database)/documents/users/$(request.auth.token.email)))
         ? get(/databases/$(database)/documents/users/$(request.auth.token.email)).data
         : (exists(/databases/$(database)/documents/users/$(request.auth.uid))
           ? get(/databases/$(database)/documents/users/$(request.auth.uid)).data
@@ -20,7 +20,11 @@ service cloud.firestore {
     }
     
     function isSuperAdmin() {
-      return isAuthenticated() && getUserData().role == 'superadmin';
+      return isAuthenticated() && (
+        (request.auth.token.email != null && request.auth.token.email == 'fantoniocastronunez@gmail.com') ||
+        ('role' in getUserData() && getUserData().role == 'superadmin') ||
+        ('roles' in getUserData() && 'global' in getUserData().roles && getUserData().roles.global == 'superadmin')
+      );
     }
     
     function isCourseAdmin(courseId) {
@@ -30,7 +34,7 @@ service cloud.firestore {
           courseId != null &&
           'roles' in getUserData() && 
           courseId in getUserData().roles && 
-          (getUserData().roles[courseId] == 'tesorero' || getUserData().roles[courseId] == 'admin')
+          (getUserData().roles[courseId] == 'tesorero' || getUserData().roles[courseId] == 'admin' || getUserData().roles[courseId] == 'presidente')
         )
       );
     }
@@ -78,12 +82,19 @@ service cloud.firestore {
     // -- STUDENTS --
     match /students/{studentId} {
       allow read: if isAuthenticated();
-      allow create: if isAuthenticated() && isCourseAdmin(request.resource.data.courseId);
-      allow delete: if isAuthenticated() && isCourseAdmin(resource.data.courseId);
+      allow create: if isAuthenticated() && (
+        isSuperAdmin() ||
+        ('courseId' in request.resource.data && isCourseAdmin(request.resource.data.courseId))
+      );
+      allow delete: if isAuthenticated() && (
+        isSuperAdmin() ||
+        ('courseId' in resource.data && isCourseAdmin(resource.data.courseId))
+      );
       
       // Apoderados pueden vincularse a sí mismos a un estudiante (solo tocan campos apoderadoEmails/rut)
       allow update: if isAuthenticated() && (
-        isCourseAdmin(resource.data.courseId) ||
+        isSuperAdmin() ||
+        ('courseId' in resource.data && isCourseAdmin(resource.data.courseId)) ||
         request.resource.data.diff(resource.data).affectedKeys().hasOnly(['apoderadoEmails', 'apoderadoEmail', 'rut'])
       );
     }
@@ -91,12 +102,19 @@ service cloud.firestore {
     // -- DEBTS (DEUDAS) --
     match /debts/{debtId} {
       allow read: if isAuthenticated();
-      allow create: if isAuthenticated() && isCourseAdmin(request.resource.data.courseId);
-      allow delete: if isAuthenticated() && isCourseAdmin(resource.data.courseId);
+      allow create: if isAuthenticated() && (
+        isSuperAdmin() ||
+        ('courseId' in request.resource.data && isCourseAdmin(request.resource.data.courseId))
+      );
+      allow delete: if isAuthenticated() && (
+        isSuperAdmin() ||
+        ('courseId' in resource.data && isCourseAdmin(resource.data.courseId))
+      );
       
       // Apoderados pueden actualizar SOLO deudas donde estén vinculados (para subir comprobantes)
       allow update: if isAuthenticated() && (
-        isCourseAdmin(resource.data.courseId) ||
+        isSuperAdmin() ||
+        ('courseId' in resource.data && isCourseAdmin(resource.data.courseId)) ||
         (request.auth.token.email in resource.data.apoderadoEmails) ||
         (request.auth.token.email == resource.data.apoderadoEmail)
       );
@@ -105,54 +123,125 @@ service cloud.firestore {
     // -- EXPENSES, FUNDS, TRANSACTIONS, OUTCOMES (FINANZAS NÚCLEO) --
     match /expenses/{expenseId} {
       allow read: if isAuthenticated();
-      allow create, update, delete: if isAuthenticated() && isCourseAdmin(resource.data.courseId);
+      allow create: if isAuthenticated() && (
+        isSuperAdmin() ||
+        ('courseId' in request.resource.data && isCourseAdmin(request.resource.data.courseId))
+      );
+      allow update, delete: if isAuthenticated() && (
+        isSuperAdmin() ||
+        ('courseId' in resource.data && isCourseAdmin(resource.data.courseId))
+      );
     }
     
     match /payments/{paymentId} {
       allow read: if isAuthenticated();
-      allow create: if isAuthenticated() && isCourseAdmin(request.resource.data.courseId);
-      allow update, delete: if isAuthenticated() && isCourseAdmin(resource.data.courseId);
+      allow create: if isAuthenticated() && (
+        isSuperAdmin() ||
+        ('courseId' in request.resource.data && isCourseAdmin(request.resource.data.courseId))
+      );
+      allow update, delete: if isAuthenticated() && (
+        isSuperAdmin() ||
+        ('courseId' in resource.data && isCourseAdmin(resource.data.courseId))
+      );
     }
     
     match /funds/{fundId} {
       allow read: if isAuthenticated();
-      allow create: if isAuthenticated() && isCourseAdmin(request.resource.data.courseId);
-      allow update, delete: if isAuthenticated() && isCourseAdmin(resource.data.courseId);
+      allow create: if isAuthenticated() && (
+        isSuperAdmin() ||
+        ('courseId' in request.resource.data && isCourseAdmin(request.resource.data.courseId))
+      );
+      allow update, delete: if isAuthenticated() && (
+        isSuperAdmin() ||
+        ('courseId' in resource.data && isCourseAdmin(resource.data.courseId))
+      );
     }
     
     match /transactions/{txId} {
       allow read: if isAuthenticated();
-      allow create: if isAuthenticated() && isCourseAdmin(request.resource.data.courseId);
-      allow update, delete: if isAuthenticated() && isCourseAdmin(resource.data.courseId);
+      allow create: if isAuthenticated() && (
+        isSuperAdmin() ||
+        ('courseId' in request.resource.data && isCourseAdmin(request.resource.data.courseId))
+      );
+      allow update, delete: if isAuthenticated() && (
+        isSuperAdmin() ||
+        ('courseId' in resource.data && isCourseAdmin(resource.data.courseId))
+      );
     }
     
     match /fund_transfers/{transferId} {
       allow read: if isAuthenticated();
-      allow create: if isAuthenticated() && isCourseAdmin(request.resource.data.courseId);
-      allow update, delete: if isAuthenticated() && isCourseAdmin(resource.data.courseId);
+      allow create: if isAuthenticated() && (
+        isSuperAdmin() ||
+        ('courseId' in request.resource.data && isCourseAdmin(request.resource.data.courseId))
+      );
+      allow update, delete: if isAuthenticated() && (
+        isSuperAdmin() ||
+        ('courseId' in resource.data && isCourseAdmin(resource.data.courseId))
+      );
     }
     
     match /outcomes/{outcomeId} {
       allow read: if isAuthenticated();
       allow create: if isAuthenticated() && (
+        isSuperAdmin() ||
         ('courseId' in request.resource.data && isCourseAdmin(request.resource.data.courseId)) ||
-        ('eventId' in request.resource.data && ('roles' in getUserData()))
+        (('eventId' in request.resource.data || 'fundId' in request.resource.data) && (
+          isSuperAdmin() ||
+          ('roles' in getUserData()) ||
+          ('role' in getUserData() && getUserData().role != null)
+        ))
       );
-      allow update, delete: if isAuthenticated() && (
+      allow update: if isAuthenticated() && (
+        isSuperAdmin() ||
         ('courseId' in resource.data && isCourseAdmin(resource.data.courseId)) ||
-        ('eventId' in resource.data && ('roles' in getUserData()))
+        ('courseId' in request.resource.data && isCourseAdmin(request.resource.data.courseId)) ||
+        (('eventId' in resource.data || 'fundId' in resource.data || 'eventId' in request.resource.data || 'fundId' in request.resource.data) && (
+          isSuperAdmin() ||
+          ('roles' in getUserData()) ||
+          ('role' in getUserData() && getUserData().role != null)
+        ))
+      );
+      allow delete: if isAuthenticated() && (
+        isSuperAdmin() ||
+        ('courseId' in resource.data && isCourseAdmin(resource.data.courseId)) ||
+        (('eventId' in resource.data || 'fundId' in resource.data) && (
+          isSuperAdmin() ||
+          ('roles' in getUserData()) ||
+          ('role' in getUserData() && getUserData().role != null)
+        ))
       );
     }
     
     match /incomes/{incomeId} {
       allow read: if isAuthenticated();
       allow create: if isAuthenticated() && (
+        isSuperAdmin() ||
         ('courseId' in request.resource.data && isCourseAdmin(request.resource.data.courseId)) ||
-        ('eventId' in request.resource.data && ('roles' in getUserData()))
+        (('eventId' in request.resource.data || 'fundId' in request.resource.data) && (
+          isSuperAdmin() ||
+          ('roles' in getUserData()) ||
+          ('role' in getUserData() && getUserData().role != null)
+        ))
       );
-      allow update, delete: if isAuthenticated() && (
+      allow update: if isAuthenticated() && (
+        isSuperAdmin() ||
         ('courseId' in resource.data && isCourseAdmin(resource.data.courseId)) ||
-        ('eventId' in resource.data && ('roles' in getUserData()))
+        ('courseId' in request.resource.data && isCourseAdmin(request.resource.data.courseId)) ||
+        (('eventId' in resource.data || 'fundId' in resource.data || 'eventId' in request.resource.data || 'fundId' in request.resource.data) && (
+          isSuperAdmin() ||
+          ('roles' in getUserData()) ||
+          ('role' in getUserData() && getUserData().role != null)
+        ))
+      );
+      allow delete: if isAuthenticated() && (
+        isSuperAdmin() ||
+        ('courseId' in resource.data && isCourseAdmin(resource.data.courseId)) ||
+        (('eventId' in resource.data || 'fundId' in resource.data) && (
+          isSuperAdmin() ||
+          ('roles' in getUserData()) ||
+          ('role' in getUserData() && getUserData().role != null)
+        ))
       );
     }
     
@@ -160,42 +249,77 @@ service cloud.firestore {
     match /approvals/{approvalId} {
       allow read: if isAuthenticated();
       allow create: if isAuthenticated(); 
-      allow update, delete: if isAuthenticated() && isCourseAdmin(resource.data.courseId);
+      allow update, delete: if isAuthenticated() && (
+        isSuperAdmin() ||
+        ('courseId' in resource.data && isCourseAdmin(resource.data.courseId))
+      );
     }
     
     match /pending_actions/{actionId} {
       allow read: if isAuthenticated();
       allow create: if isAuthenticated(); 
-      allow update, delete: if isAuthenticated() && isCourseAdmin(resource.data.courseId);
+      allow update, delete: if isAuthenticated() && (
+        isSuperAdmin() ||
+        ('courseId' in resource.data && isCourseAdmin(resource.data.courseId))
+      );
     }
     
     // -- EVENTS, EVENT ITEMS, EVENT SALES, TICKETS (PUNTO DE VENTA) --
     match /events/{eventId} {
       allow read: if isAuthenticated();
-      allow create: if isAuthenticated() && isCourseAdmin(request.resource.data.courseId);
-      allow update, delete: if isAuthenticated() && isCourseAdmin(resource.data.courseId);
+      allow create: if isAuthenticated() && (
+        isSuperAdmin() ||
+        ('courseId' in request.resource.data && isCourseAdmin(request.resource.data.courseId))
+      );
+      allow update, delete: if isAuthenticated() && (
+        isSuperAdmin() ||
+        ('courseId' in resource.data && isCourseAdmin(resource.data.courseId))
+      );
     }
 
     match /eventItems/{itemId} {
       allow read: if isAuthenticated();
-      allow create, update, delete: if isAuthenticated() && (
+      allow create: if isAuthenticated() && (
         isSuperAdmin() ||
-        ('roles' in getUserData() && getUserData().roles.values().hasAny(['admin', 'tesorero'])) ||
-        ('role' in getUserData() && (getUserData().role == 'superadmin' || getUserData().role == 'admin' || getUserData().role == 'tesorero'))
+        ('courseId' in request.resource.data && isCourseAdmin(request.resource.data.courseId)) ||
+        ('roles' in getUserData()) ||
+        ('role' in getUserData() && getUserData().role != null)
+      );
+      allow update: if isAuthenticated() && (
+        isSuperAdmin() ||
+        ('courseId' in resource.data && isCourseAdmin(resource.data.courseId)) ||
+        ('courseId' in request.resource.data && isCourseAdmin(request.resource.data.courseId)) ||
+        ('roles' in getUserData()) ||
+        ('role' in getUserData() && getUserData().role != null)
+      );
+      allow delete: if isAuthenticated() && (
+        isSuperAdmin() ||
+        ('courseId' in resource.data && isCourseAdmin(resource.data.courseId)) ||
+        ('roles' in getUserData()) ||
+        ('role' in getUserData() && getUserData().role != null)
       );
     }
 
     match /eventInventory/{itemId} {
       allow read: if isAuthenticated();
-      allow create, delete: if isAuthenticated() && (
+      allow create: if isAuthenticated() && (
         isSuperAdmin() ||
-        ('roles' in getUserData() && getUserData().roles.values().hasAny(['admin', 'tesorero'])) ||
-        ('role' in getUserData() && (getUserData().role == 'superadmin' || getUserData().role == 'admin' || getUserData().role == 'tesorero'))
+        ('courseId' in request.resource.data && isCourseAdmin(request.resource.data.courseId)) ||
+        ('roles' in getUserData()) ||
+        ('role' in getUserData() && getUserData().role != null)
       );
       allow update: if isAuthenticated() && (
         isSuperAdmin() ||
-        ('roles' in getUserData() && getUserData().roles.values().hasAny(['admin', 'tesorero', 'apoderado'])) ||
-        ('role' in getUserData() && (getUserData().role == 'superadmin' || getUserData().role == 'admin' || getUserData().role == 'tesorero' || getUserData().role == 'apoderado'))
+        ('courseId' in resource.data && isCourseAdmin(resource.data.courseId)) ||
+        ('courseId' in request.resource.data && isCourseAdmin(request.resource.data.courseId)) ||
+        ('roles' in getUserData()) ||
+        ('role' in getUserData() && getUserData().role != null)
+      );
+      allow delete: if isAuthenticated() && (
+        isSuperAdmin() ||
+        ('courseId' in resource.data && isCourseAdmin(resource.data.courseId)) ||
+        ('roles' in getUserData()) ||
+        ('role' in getUserData() && getUserData().role != null)
       );
     }
 
@@ -203,29 +327,50 @@ service cloud.firestore {
       allow read: if isAuthenticated();
       allow create: if isAuthenticated() && (
         isSuperAdmin() ||
-        ('roles' in getUserData() && getUserData().roles.values().hasAny(['admin', 'tesorero', 'apoderado'])) ||
+        ('courseId' in request.resource.data && isCourseAdmin(request.resource.data.courseId)) ||
+        ('roles' in getUserData()) ||
         ('role' in getUserData() && getUserData().role != null)
       );
-      allow update, delete: if isAuthenticated() && (
+      allow update: if isAuthenticated() && (
         isSuperAdmin() ||
-        ('roles' in getUserData() && getUserData().roles.values().hasAny(['admin', 'tesorero'])) ||
-        ('role' in getUserData() && (getUserData().role == 'superadmin' || getUserData().role == 'admin' || getUserData().role == 'tesorero'))
+        ('courseId' in resource.data && isCourseAdmin(resource.data.courseId)) ||
+        ('courseId' in request.resource.data && isCourseAdmin(request.resource.data.courseId)) ||
+        ('roles' in getUserData()) ||
+        ('role' in getUserData() && getUserData().role != null)
+      );
+      allow delete: if isAuthenticated() && (
+        isSuperAdmin() ||
+        ('courseId' in resource.data && isCourseAdmin(resource.data.courseId)) ||
+        ('roles' in getUserData()) ||
+        ('role' in getUserData() && getUserData().role != null)
       );
     }
     
     match /inventory/{itemId} {
       allow read: if isAuthenticated();
-      allow create, update, delete: if isAuthenticated() && ('roles' in getUserData());
+      allow create, update, delete: if isAuthenticated() && (
+        isSuperAdmin() ||
+        ('roles' in getUserData()) ||
+        ('role' in getUserData() && getUserData().role != null)
+      );
     }
     
     match /sales/{saleId} {
       allow read: if isAuthenticated();
-      allow create, update, delete: if isAuthenticated() && ('roles' in getUserData());
+      allow create, update, delete: if isAuthenticated() && (
+        isSuperAdmin() ||
+        ('roles' in getUserData()) ||
+        ('role' in getUserData() && getUserData().role != null)
+      );
     }
     
     match /tickets/{ticketId} {
       allow read: if isAuthenticated();
-      allow create, update, delete: if isAuthenticated() && ('roles' in getUserData());
+      allow create, update, delete: if isAuthenticated() && (
+        isSuperAdmin() ||
+        ('roles' in getUserData()) ||
+        ('role' in getUserData() && getUserData().role != null)
+      );
     }
 
     // -- MAIL (SISTEMA DE NOTIFICACIONES EXTENSION) --

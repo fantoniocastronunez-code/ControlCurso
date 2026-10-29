@@ -18,7 +18,7 @@ const EventManagement = ({ onBack }) => {
   const [events, setEvents] = useState([]);
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState('');
-  
+
   // Vista actual dentro de EventManagement
   const [selectedEventId, setSelectedEventId] = useState(null);
 
@@ -236,7 +236,7 @@ const EventManagement = ({ onBack }) => {
       setStudentSelectionMode('all');
       setSelectedStudentIds(new Set(courseStudents.map(s => s.id)));
       setStudentSearchTerm('');
-      
+
       fetchEvents();
       setTimeout(() => setMessage(''), 3000);
 
@@ -251,7 +251,7 @@ const EventManagement = ({ onBack }) => {
   const handleDeleteEvent = async (e, eventToDelete) => {
     e.stopPropagation();
     if (!(await showConfirm(`¿Estás seguro de ELIMINAR el evento "${eventToDelete.name}" y todos sus registros asociados? Esta acción no se puede deshacer.`))) return;
-    
+
     setLoading(true);
     try {
       await deleteDoc(doc(db, 'events', eventToDelete.id));
@@ -316,16 +316,16 @@ const EventManagement = ({ onBack }) => {
           <h3 style={{ margin: 0 }}>Gestión de Eventos y Ventas</h3>
         </div>
         <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
-          <button 
-            onClick={handleOpenQuickTestEvent} 
+          <button
+            onClick={handleOpenQuickTestEvent}
             className="btn btn-outline"
             style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', borderColor: 'var(--warning)', color: 'var(--warning)' }}
             title="Crear un evento de simulación para ensayar ventas, stock e impresora térmica"
           >
             🧪 Crear Evento de Prueba
           </button>
-          <button 
-            onClick={handleOpenCreateModal} 
+          <button
+            onClick={handleOpenCreateModal}
             className="btn btn-primary"
             style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}
           >
@@ -352,7 +352,7 @@ const EventManagement = ({ onBack }) => {
       ) : (
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: '1rem' }}>
           {events.map(event => (
-            <div 
+            <div
               key={event.id}
               onClick={() => setSelectedEventId(event.id)}
               className="glass-panel"
@@ -383,7 +383,7 @@ const EventManagement = ({ onBack }) => {
                     </p>
                   </div>
                 </div>
-                <button 
+                <button
                   onClick={(e) => handleDeleteEvent(e, event)}
                   style={{ background: 'none', border: 'none', color: 'var(--danger)', cursor: 'pointer', padding: '0.5rem', opacity: 0.7 }}
                   onMouseOver={(e) => e.currentTarget.style.opacity = 1}
@@ -477,7 +477,7 @@ const EventManagement = ({ onBack }) => {
                   </p>
                 </div>
               </div>
-              <button 
+              <button
                 type="button"
                 onClick={() => setShowCreateModal(false)}
                 style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', padding: '0.4rem', borderRadius: '6px' }}
@@ -486,7 +486,7 @@ const EventManagement = ({ onBack }) => {
                 <X size={20} />
               </button>
             </div>
-            
+
             {/* 2. Cuerpo Desplazable del Formulario (Scroll interno) */}
             <form onSubmit={handleCreateEvent} style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0, overflow: 'hidden' }}>
               <div style={{
@@ -500,31 +500,31 @@ const EventManagement = ({ onBack }) => {
               }}>
                 <div className="input-group">
                   <label className="input-label">Nombre del Evento (Ej. Kermesse Solidaria)</label>
-                  <input 
-                    type="text" 
+                  <input
+                    type="text"
                     required
-                    className="input-field" 
+                    className="input-field"
                     value={eventName}
                     onChange={(e) => setEventName(e.target.value)}
                     placeholder="Nombre del evento..."
                   />
                 </div>
-                
+
                 <div className="input-group">
                   <label className="input-label">Fecha del Evento</label>
-                  <input 
-                    type="date" 
+                  <input
+                    type="date"
                     required
-                    className="input-field" 
+                    className="input-field"
                     value={eventDate}
                     onChange={(e) => setEventDate(e.target.value)}
                   />
                 </div>
-                
+
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', backgroundColor: 'rgba(245, 158, 11, 0.1)', padding: '0.85rem 1rem', borderRadius: 'var(--radius-md)', border: '1px solid rgba(245, 158, 11, 0.25)' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
-                    <input 
-                      type="checkbox" 
+                    <input
+                      type="checkbox"
                       id="isTestEvent"
                       checked={isTestEvent}
                       onChange={(e) => {
@@ -541,7 +541,7 @@ const EventManagement = ({ onBack }) => {
                   {isTestEvent && (
                     <div style={{ paddingLeft: '1.75rem' }}>
                       <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer', fontSize: '0.85rem', color: 'var(--text-main)' }}>
-                        <input 
+                        <input
                           type="checkbox"
                           checked={preloadDemoData}
                           onChange={(e) => setPreloadDemoData(e.target.checked)}
@@ -697,17 +697,17 @@ const EventManagement = ({ onBack }) => {
                     </div>
                   )}
                 </div>
-                
+
                 {!isTestEvent && (
                   <>
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
                       <div className="input-group">
                         <label className="input-label">Monto Obligatorio ($)</label>
-                        <input 
-                          type="number" 
+                        <input
+                          type="number"
                           min="1"
                           required={!isTestEvent}
-                          className="input-field" 
+                          className="input-field"
                           placeholder="Ej. 1500"
                           value={mandatoryAmount}
                           onChange={(e) => setMandatoryAmount(e.target.value)}
@@ -716,14 +716,14 @@ const EventManagement = ({ onBack }) => {
                           Se cobrará a los alumnos asignados.
                         </small>
                       </div>
-                      
+
                       <div className="input-group">
                         <label className="input-label">Monto si NO Asiste ($)</label>
-                        <input 
-                          type="number" 
+                        <input
+                          type="number"
                           min="1"
                           required={!isTestEvent}
-                          className="input-field" 
+                          className="input-field"
                           placeholder="Ej. 3000"
                           value={noShowAmount}
                           onChange={(e) => setNoShowAmount(e.target.value)}
@@ -742,7 +742,7 @@ const EventManagement = ({ onBack }) => {
                   </>
                 )}
               </div>
-              
+
               {/* 3. Pie Fijo de Acciones (Botones siempre visibles) */}
               <div style={{
                 display: 'flex',
