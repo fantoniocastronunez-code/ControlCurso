@@ -24,6 +24,7 @@ const EventPOS = ({ event }) => {
 
   // Fullscreen State
   const posContainerRef = useRef(null);
+  const isPrintingRef = useRef(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
 
   // Cajero en turno (Gestión de turnos y relevos de caja)
@@ -99,25 +100,73 @@ const EventPOS = ({ event }) => {
 
   useEffect(() => {
     const handleFullscreenChange = () => {
-      setIsFullscreen(!!document.fullscreenElement);
+      // Si el navegador salió de pantalla completa debido a una impresión o cambio temporal a RawBT,
+      // NO apagamos el modo pantalla completa del POS
+      if (isPrintingRef.current) {
+        return;
+      }
+      if (!document.fullscreenElement) {
+        setIsFullscreen(false);
+      }
     };
+
+    const handleClearPrintingFlag = () => {
+      setTimeout(() => {
+        isPrintingRef.current = false;
+      }, 1500);
+    };
+
     document.addEventListener('fullscreenchange', handleFullscreenChange);
-    return () => document.removeEventListener('fullscreenchange', handleFullscreenChange);
+    window.addEventListener('afterprint', handleClearPrintingFlag);
+    window.addEventListener('focus', handleClearPrintingFlag);
+
+    return () => {
+      document.removeEventListener('fullscreenchange', handleFullscreenChange);
+      window.removeEventListener('afterprint', handleClearPrintingFlag);
+      window.removeEventListener('focus', handleClearPrintingFlag);
+    };
   }, []);
 
-  const toggleFullscreen = () => {
+  const tryRequestNativeFullscreen = () => {
     if (!document.fullscreenElement) {
-      if (posContainerRef.current?.requestFullscreen) {
-        posContainerRef.current.requestFullscreen().catch(err => {
-          console.error("Error attempting to enable fullscreen:", err);
-        });
-      }
-    } else {
-      if (document.exitFullscreen) {
-        document.exitFullscreen();
+      const el = posContainerRef.current || document.documentElement;
+      if (el?.requestFullscreen) {
+        el.requestFullscreen().catch(() => {});
       }
     }
   };
+
+  const toggleFullscreen = () => {
+    if (isFullscreen) {
+      setIsFullscreen(false);
+      if (document.fullscreenElement && document.exitFullscreen) {
+        document.exitFullscreen().catch(() => {});
+      }
+    } else {
+      setIsFullscreen(true);
+      tryRequestNativeFullscreen();
+    }
+  };
+
+  const handleContainerClickCapture = () => {
+    // Si el usuario está en modo pantalla completa pero el navegador salió de fullscreen nativo
+    // (por ejemplo al volver de imprimir en RawBT o cerrar el diálogo del sistema),
+    // reintentamos activar la pantalla completa nativa en el siguiente toque
+    if (isFullscreen && !document.fullscreenElement && !isPrintingRef.current) {
+      tryRequestNativeFullscreen();
+    }
+  };
+
+  useEffect(() => {
+    if (isFullscreen) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = '';
+    }
+    return () => {
+      document.body.style.overflow = '';
+    };
+  }, [isFullscreen]);
 
   // Calcular stock disponible para un ítem del menú según sus insumos
   const getItemStockInfo = (item) => {
@@ -352,6 +401,7 @@ const EventPOS = ({ event }) => {
       setPaymentMethod('cash');
 
       // Disparar impresión según el método configurado
+      isPrintingRef.current = true;
       const printMode = getPrinterConfig();
       if (printMode === 'rawbt') {
         printViaRawBT(buildSaleReceiptPayload(newSale, event.name));
@@ -459,6 +509,7 @@ const EventPOS = ({ event }) => {
   };
 
   const handlePrintTestTicket = async () => {
+    isPrintingRef.current = true;
     const printMode = getPrinterConfig();
     if (printMode === 'rawbt') {
       printViaRawBT(buildTestReceiptPayload(event.name, activeCashierDisplayName));
@@ -491,6 +542,7 @@ const EventPOS = ({ event }) => {
   };
 
   const handleReprintSale = async (sale) => {
+    isPrintingRef.current = true;
     const printMode = getPrinterConfig();
     if (printMode === 'rawbt') {
       printViaRawBT(buildSaleReceiptPayload(sale, event.name));
@@ -513,12 +565,30 @@ const EventPOS = ({ event }) => {
   return (
     <div 
       ref={posContainerRef}
-      style={{ 
-        display: 'flex', gap: '2rem', flexWrap: 'wrap', position: 'relative',
-        backgroundColor: isFullscreen ? '#0f172a' : 'transparent', // using slate-900 as fallback if var is not available
-        padding: isFullscreen ? '2rem' : '0',
-        overflowY: isFullscreen ? 'auto' : 'visible',
-        minHeight: isFullscreen ? '100vh' : 'auto'
+      onClickCapture={handleContainerClickCapture}
+      style={isFullscreen ? {
+        position: 'fixed',
+        top: 0,
+        left: 0,
+        width: '100vw',
+        height: '100vh',
+        zIndex: 9990,
+        backgroundColor: '#0f172a',
+        padding: '1.25rem',
+        overflowY: 'auto',
+        boxSizing: 'border-box',
+        display: 'flex',
+        gap: '1.5rem',
+        flexWrap: 'wrap'
+      } : { 
+        display: 'flex',
+        gap: '2rem',
+        flexWrap: 'wrap',
+        position: 'relative',
+        backgroundColor: 'transparent',
+        padding: '0',
+        overflowY: 'visible',
+        minHeight: 'auto'
       }}
     >
       {/* Barra Superior de Cajero en Turno y Controles */}
