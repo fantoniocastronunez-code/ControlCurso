@@ -8,8 +8,8 @@
  * 3. 'system': Impresión estándar mediante el diálogo de impresión del navegador (window.print).
  */
 
-// Ancho estándar en columnas para impresoras térmicas portátiles de 58mm (garantiza cero desbordes)
-export const DEFAULT_PAPER_WIDTH = 28;
+// Ancho estándar en columnas para impresoras térmicas portátiles de 58mm
+export const DEFAULT_PAPER_WIDTH = 40; // 40 caracteres en Fuente B compacta, 28 en Fuente A
 
 // Comandos ESC/POS estándar
 const ESC = '\x1b';
@@ -21,6 +21,12 @@ const CMD_ALIGN_CENTER = `${ESC}a\x01`;
 const CMD_ALIGN_RIGHT = `${ESC}a\x02`;
 const CMD_BOLD_ON = `${ESC}E\x01`;
 const CMD_BOLD_OFF = `${ESC}E\x00`;
+
+// Selección de Fuente: Font B (9x17 dots, compacta y estilizada) vs Font A (12x24 dots, normal)
+const CMD_FONT_B = `${ESC}M\x01${ESC}!\x01`; // Pequeña y estilizada como el diálogo del sistema
+const CMD_FONT_A = `${ESC}M\x00${ESC}!\x00`; // Normal estándar
+
+// Corte de papel con guillotina
 const CMD_CUT = `${GS}V\x41\x02`;
 
 // Servicios BLE comunes en impresoras térmicas portátiles
@@ -48,13 +54,46 @@ export const setPrinterConfig = (mode) => {
   localStorage.setItem('appcurso_printer_mode', mode);
 };
 
+export const getFontSize = () => {
+  const saved = localStorage.getItem('appcurso_font_size');
+  return saved || 'compact'; // 'compact' por defecto para que la tipografía sea fina y no gigante
+};
+
+export const setFontSize = (size) => {
+  localStorage.setItem('appcurso_font_size', size);
+};
+
+export const getCutterConfig = () => {
+  const saved = localStorage.getItem('appcurso_cutter_mode');
+  return saved || 'tear'; // 'tear' (manual / sin desperdicio) por defecto
+};
+
+export const setCutterConfig = (mode) => {
+  localStorage.setItem('appcurso_cutter_mode', mode);
+};
+
 export const getPaperWidth = () => {
   const saved = localStorage.getItem('appcurso_paper_width');
-  return saved ? parseInt(saved, 10) : DEFAULT_PAPER_WIDTH;
+  if (saved) return parseInt(saved, 10);
+  return getFontSize() === 'compact' ? 40 : 28;
 };
 
 export const setPaperWidth = (width) => {
   localStorage.setItem('appcurso_paper_width', String(width));
+};
+
+const getFontInit = () => {
+  return getFontSize() === 'compact' ? CMD_FONT_B : CMD_FONT_A;
+};
+
+const getEndFeed = () => {
+  if (getCutterConfig() === 'auto') {
+    return '\n\n\n\n' + CMD_CUT;
+  }
+  // En impresoras portátiles 58mm con corte manual:
+  // Solo 2 saltos de línea para que el texto salga por la ranura de corte manual,
+  // CERO desperdicio de papel en blanco (elimina los 35mm en blanco).
+  return '\n\n';
 };
 
 export const formatMoneyCLP = (amount) => {
@@ -155,6 +194,7 @@ export const buildSaleReceiptPayload = (sale, eventName, width = getPaperWidth()
 
   let p = '';
   p += CMD_INIT;
+  p += getFontInit();
 
   // 1. Encabezado Centrado
   p += CMD_ALIGN_CENTER;
@@ -226,8 +266,7 @@ export const buildSaleReceiptPayload = (sale, eventName, width = getPaperWidth()
   p += `\n`;
   p += CMD_ALIGN_CENTER;
   p += `¡Gracias por su colaboracion!\n`;
-  p += `\n\n\n\n`;
-  p += CMD_CUT;
+  p += getEndFeed();
 
   return p;
 };
@@ -241,6 +280,7 @@ export const buildTestReceiptPayload = (eventName, cashierName, width = getPaper
 
   let p = '';
   p += CMD_INIT;
+  p += getFontInit();
   p += CMD_ALIGN_CENTER;
   p += CMD_BOLD_ON;
   p += `*** TEST DE IMPRESORA ***\n`;
@@ -256,9 +296,9 @@ export const buildTestReceiptPayload = (eventName, cashierName, width = getPaper
   p += `${DOUBLE_LINE}\n`;
 
   p += CMD_ALIGN_LEFT;
-  p += `Formato: POS Termico 58mm\n`;
+  p += `Tipografia: ${getFontSize() === 'compact' ? 'Compacta (Font B)' : 'Normal (Font A)'}\n`;
   p += `Columnas: ${width} caracteres\n`;
-  p += `Impresion: Directa y limpia\n`;
+  p += `Corte: ${getCutterConfig() === 'auto' ? 'Automatico' : 'Manual (0 desperdicio)'}\n`;
   p += `Numeros: $1.000 / $25.990\n`;
   p += `${SEP_LINE}\n`;
 
@@ -267,8 +307,7 @@ export const buildTestReceiptPayload = (eventName, cashierName, width = getPaper
   p += `¡IMPRESION CORRECTA!\n`;
   p += CMD_BOLD_OFF;
   p += `Ticket ordenado y alineado\n`;
-  p += `\n\n\n\n`;
-  p += CMD_CUT;
+  p += getEndFeed();
 
   return p;
 };
@@ -282,6 +321,7 @@ export const buildClosureReceiptPayload = (event, stats, itemsSummary = [], expe
 
   let p = '';
   p += CMD_INIT;
+  p += getFontInit();
   p += CMD_ALIGN_CENTER;
   p += CMD_BOLD_ON;
   p += `CIERRE DE EVENTO\n`;
@@ -354,8 +394,7 @@ export const buildClosureReceiptPayload = (event, stats, itemsSummary = [], expe
   p += `\n`;
   p += CMD_ALIGN_CENTER;
   p += `--- FIN DEL CIERRE ---\n`;
-  p += `\n\n\n\n`;
-  p += CMD_CUT;
+  p += getEndFeed();
 
   return p;
 };

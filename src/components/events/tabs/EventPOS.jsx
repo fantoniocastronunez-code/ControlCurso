@@ -98,10 +98,18 @@ const EventPOS = ({ event }) => {
     fetchData();
   }, [event.id]);
 
-  // Salir de pantalla completa con la tecla ESC
+  // Manejo de Pantalla Completa y sincronización con el navegador
   useEffect(() => {
+    const handleFullscreenChange = () => {
+      // Si el navegador salió de pantalla completa debido a una impresión, NO desactivamos el modo POS
+      if (isPrintingRef.current) return;
+      if (!document.fullscreenElement) {
+        setIsFullscreen(false);
+      }
+    };
+
     const handleKeyDown = (e) => {
-      if (e.key === 'Escape' && isFullscreen && !isPrintingRef.current) {
+      if (e.key === 'Escape') {
         setIsFullscreen(false);
         if (document.fullscreenElement && document.exitFullscreen) {
           document.exitFullscreen().catch(() => {});
@@ -115,16 +123,18 @@ const EventPOS = ({ event }) => {
       }, 1500);
     };
 
+    document.addEventListener('fullscreenchange', handleFullscreenChange);
     window.addEventListener('keydown', handleKeyDown);
     window.addEventListener('afterprint', handleClearPrintingFlag);
     window.addEventListener('focus', handleClearPrintingFlag);
 
     return () => {
+      document.removeEventListener('fullscreenchange', handleFullscreenChange);
       window.removeEventListener('keydown', handleKeyDown);
       window.removeEventListener('afterprint', handleClearPrintingFlag);
       window.removeEventListener('focus', handleClearPrintingFlag);
     };
-  }, [isFullscreen]);
+  }, []);
 
   const toggleFullscreen = () => {
     if (isFullscreen) {
@@ -134,8 +144,9 @@ const EventPOS = ({ event }) => {
       }
     } else {
       setIsFullscreen(true);
-      // Intentar activar pantalla completa nativa en documentElement
-      if (document.documentElement.requestFullscreen) {
+      if (posContainerRef.current?.requestFullscreen) {
+        posContainerRef.current.requestFullscreen().catch(() => {});
+      } else if (document.documentElement.requestFullscreen) {
         document.documentElement.requestFullscreen().catch(() => {});
       }
     }
@@ -551,8 +562,7 @@ const EventPOS = ({ event }) => {
       ref={posContainerRef}
       style={isFullscreen ? {
         position: 'fixed',
-        top: 0,
-        left: 0,
+        inset: 0,
         width: '100vw',
         height: '100vh',
         zIndex: 9990,
@@ -560,18 +570,11 @@ const EventPOS = ({ event }) => {
         backgroundImage: 'radial-gradient(at 0% 0%, rgba(99, 102, 241, 0.15) 0px, transparent 50%), radial-gradient(at 100% 100%, rgba(236, 72, 153, 0.1) 0px, transparent 50%)',
         padding: '1.25rem',
         overflowY: 'auto',
-        boxSizing: 'border-box',
-        display: 'flex',
-        gap: '1.5rem',
-        flexWrap: 'wrap'
+        boxSizing: 'border-box'
       } : {
-        display: 'flex',
-        gap: '2rem',
-        flexWrap: 'wrap',
         position: 'relative',
         backgroundColor: 'transparent',
         padding: '0',
-        overflowY: 'visible',
         minHeight: 'auto'
       }}
     >
@@ -953,358 +956,397 @@ const EventPOS = ({ event }) => {
       {/* Impresión oculta */}
       <ThermalReceipt sale={lastSale} eventName={event.name} />
 
-      {/* Lado Izquierdo: Productos */}
-      <div style={{ flex: '1 1 400px', marginTop: isFullscreen ? '0' : '3rem' }}>
+      {/* Contenedor Principal en 2 Columnas (Izquierda: Catálogo + Historial | Derecha: Carrito) */}
+      <div style={{
+        width: '100%',
+        display: 'grid',
+        gridTemplateColumns: 'repeat(auto-fit, minmax(360px, 1fr))',
+        gap: '1.5rem',
+        alignItems: 'start',
+        marginTop: isFullscreen ? '1rem' : '1.5rem'
+      }}>
+        {/* Columna Izquierda: Insumos + Catálogo de Productos + Historial de Ventas */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem', minWidth: 0 }}>
 
-        {/* Barra en vivo de Stock de Insumos */}
-        {inventory.length > 0 && (
-          <div style={{
-            marginBottom: '1.25rem',
-            padding: '0.85rem 1rem',
-            backgroundColor: 'rgba(255,255,255,0.03)',
-            borderRadius: 'var(--radius-md)',
-            border: '1px solid rgba(255,255,255,0.08)'
-          }}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.5rem', flexWrap: 'wrap', gap: '0.5rem' }}>
-              <span style={{ fontSize: '0.8rem', fontWeight: 'bold', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
-                <Package size={15} color="var(--primary)" /> Stock de Insumos en Vivo:
-              </span>
-              <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
-                Se descuenta automáticamente al vender
-              </span>
+          {/* Barra en vivo de Stock de Insumos */}
+          {inventory.length > 0 && (
+            <div style={{
+              padding: '0.85rem 1rem',
+              backgroundColor: 'rgba(255,255,255,0.03)',
+              borderRadius: 'var(--radius-md)',
+              border: '1px solid rgba(255,255,255,0.08)'
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.5rem', flexWrap: 'wrap', gap: '0.5rem' }}>
+                <span style={{ fontSize: '0.8rem', fontWeight: 'bold', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                  <Package size={15} color="var(--primary)" /> Stock de Insumos en Vivo:
+                </span>
+                <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                  Se descuenta automáticamente al vender
+                </span>
+              </div>
+
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.4rem' }}>
+                {inventory.map(inv => {
+                  const stock = inv.currentStock !== undefined ? inv.currentStock : (inv.totalPurchased || inv.initialQuantity || 0);
+                  let color = 'var(--success)';
+                  let bg = 'rgba(16,185,129,0.12)';
+                  let border = '1px solid rgba(16,185,129,0.3)';
+
+                  if (stock <= 0) {
+                    color = 'var(--danger)';
+                    bg = 'rgba(239,68,68,0.15)';
+                    border = '1px solid rgba(239,68,68,0.4)';
+                  } else if (stock <= 10) {
+                    color = 'var(--warning)';
+                    bg = 'rgba(245,158,11,0.15)';
+                    border = '1px solid rgba(245,158,11,0.4)';
+                  }
+
+                  return (
+                    <div
+                      key={inv.id}
+                      style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '0.35rem',
+                        padding: '0.25rem 0.65rem',
+                        borderRadius: '16px',
+                        backgroundColor: bg,
+                        border,
+                        color,
+                        fontSize: '0.8rem',
+                        fontWeight: 'bold'
+                      }}
+                    >
+                      <span>{inv.name}:</span>
+                      <span>{stock} {inv.unit}</span>
+                    </div>
+                  );
+                })}
+              </div>
             </div>
+          )}
 
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.4rem' }}>
-              {inventory.map(inv => {
-                const stock = inv.currentStock !== undefined ? inv.currentStock : (inv.totalPurchased || inv.initialQuantity || 0);
-                let color = 'var(--success)';
-                let bg = 'rgba(16,185,129,0.12)';
-                let border = '1px solid rgba(16,185,129,0.3)';
+          {/* Catálogo de Productos Disponibles */}
+          <div>
+            <h3 style={{ marginBottom: '1rem', color: 'var(--primary)' }}>Productos Disponibles</h3>
+            {items.length === 0 ? (
+              <p style={{ color: 'var(--text-muted)' }}>No hay productos en el menú.</p>
+            ) : (
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(130px, 1fr))', gap: '0.75rem' }}>
+                {items.map(item => {
+                  const stockInfo = getItemStockInfo(item);
+                  const isOutOfStock = stockInfo.hasStockLimit && stockInfo.availableUnits <= 0;
+                  const isLowStock = stockInfo.hasStockLimit && stockInfo.availableUnits <= 10 && stockInfo.availableUnits > 0;
 
-                if (stock <= 0) {
-                  color = 'var(--danger)';
-                  bg = 'rgba(239,68,68,0.15)';
-                  border = '1px solid rgba(239,68,68,0.4)';
-                } else if (stock <= 10) {
-                  color = 'var(--warning)';
-                  bg = 'rgba(245,158,11,0.15)';
-                  border = '1px solid rgba(245,158,11,0.4)';
-                }
-
-                return (
-                  <div
-                    key={inv.id}
-                    style={{
-                      display: 'inline-flex',
-                      alignItems: 'center',
-                      gap: '0.35rem',
-                      padding: '0.25rem 0.65rem',
-                      borderRadius: '16px',
-                      backgroundColor: bg,
-                      border,
-                      color,
-                      fontSize: '0.8rem',
-                      fontWeight: 'bold'
-                    }}
-                  >
-                    <span>{inv.name}:</span>
-                    <span>{stock} {inv.unit}</span>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        )}
-
-        <h3 style={{ marginBottom: '1.25rem', color: 'var(--primary)' }}>Productos Disponibles</h3>
-        {items.length === 0 ? (
-          <p style={{ color: 'var(--text-muted)' }}>No hay productos en el menú.</p>
-        ) : (
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))', gap: '1rem' }}>
-            {items.map(item => {
-              const stockInfo = getItemStockInfo(item);
-              const isOutOfStock = stockInfo.hasStockLimit && stockInfo.availableUnits <= 0;
-              const isLowStock = stockInfo.hasStockLimit && stockInfo.availableUnits <= 10 && stockInfo.availableUnits > 0;
-
-              return (
-                <div
-                  key={item.id}
-                  onClick={() => !isOutOfStock && handleItemClick(item)}
-                  style={{
-                    backgroundColor: isOutOfStock ? 'rgba(255,255,255,0.02)' : 'rgba(99,102,241,0.1)',
-                    border: isOutOfStock ? '1px dashed rgba(239,68,68,0.4)' : isLowStock ? '1px solid var(--warning)' : '1px solid var(--primary)',
-                    borderRadius: 'var(--radius-md)',
-                    padding: '1rem',
-                    textAlign: 'center',
-                    cursor: isOutOfStock ? 'not-allowed' : 'pointer',
-                    opacity: isOutOfStock ? 0.5 : 1,
-                    userSelect: 'none',
-                    transition: 'transform 0.1s, opacity 0.2s',
-                    display: 'flex',
-                    flexDirection: 'column',
-                    justifyContent: 'space-between',
-                    minHeight: '115px'
-                  }}
-                  onMouseDown={(e) => !isOutOfStock && (e.currentTarget.style.transform = 'scale(0.95)')}
-                  onMouseUp={(e) => !isOutOfStock && (e.currentTarget.style.transform = 'scale(1)')}
-                  onMouseLeave={(e) => !isOutOfStock && (e.currentTarget.style.transform = 'scale(1)')}
-                >
-                  <div>
-                    <strong style={{ display: 'block', marginBottom: '0.25rem', fontSize: '1rem', color: isOutOfStock ? 'var(--text-muted)' : 'var(--text-main)' }}>
-                      {item.name}
-                    </strong>
-                    <span style={{ color: isOutOfStock ? 'var(--text-muted)' : 'var(--primary)', fontWeight: 'bold' }}>
-                      {formatMoney(item.price)}
-                    </span>
-                  </div>
-
-                  {stockInfo.hasStockLimit && (
-                    <div style={{ marginTop: '0.5rem' }}>
-                      {isOutOfStock ? (
-                        <span style={{
-                          display: 'inline-block',
-                          backgroundColor: 'rgba(239,68,68,0.2)',
-                          color: 'var(--danger)',
-                          padding: '2px 8px',
-                          borderRadius: '10px',
-                          fontSize: '0.75rem',
-                          fontWeight: 'bold'
-                        }}>
-                          AGOTADO (0 disp.)
+                  return (
+                    <div
+                      key={item.id}
+                      onClick={() => !isOutOfStock && handleItemClick(item)}
+                      style={{
+                        backgroundColor: isOutOfStock ? 'rgba(255,255,255,0.02)' : 'rgba(99,102,241,0.1)',
+                        border: isOutOfStock ? '1px dashed rgba(239,68,68,0.4)' : isLowStock ? '1px solid var(--warning)' : '1px solid var(--primary)',
+                        borderRadius: 'var(--radius-md)',
+                        padding: '0.85rem',
+                        textAlign: 'center',
+                        cursor: isOutOfStock ? 'not-allowed' : 'pointer',
+                        opacity: isOutOfStock ? 0.5 : 1,
+                        userSelect: 'none',
+                        transition: 'transform 0.1s, opacity 0.2s',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        justifyContent: 'space-between',
+                        minHeight: '105px'
+                      }}
+                      onMouseDown={(e) => !isOutOfStock && (e.currentTarget.style.transform = 'scale(0.96)')}
+                      onMouseUp={(e) => !isOutOfStock && (e.currentTarget.style.transform = 'scale(1)')}
+                      onMouseLeave={(e) => !isOutOfStock && (e.currentTarget.style.transform = 'scale(1)')}
+                    >
+                      <div>
+                        <strong style={{ display: 'block', marginBottom: '0.25rem', fontSize: '0.92rem', color: isOutOfStock ? 'var(--text-muted)' : 'var(--text-main)' }}>
+                          {item.name}
+                        </strong>
+                        <span style={{ color: isOutOfStock ? 'var(--text-muted)' : 'var(--primary)', fontWeight: 'bold', fontSize: '0.95rem' }}>
+                          {formatMoney(item.price)}
                         </span>
-                      ) : (
-                        <span style={{
-                          display: 'inline-block',
-                          backgroundColor: isLowStock ? 'rgba(245,158,11,0.2)' : 'rgba(16,185,129,0.2)',
-                          color: isLowStock ? 'var(--warning)' : 'var(--success)',
-                          padding: '2px 8px',
-                          borderRadius: '10px',
-                          fontSize: '0.75rem',
-                          fontWeight: 'bold'
-                        }}>
-                          {stockInfo.availableUnits} disp. {isLowStock && '⚠️'}
-                        </span>
+                      </div>
+
+                      {stockInfo.hasStockLimit && (
+                        <div style={{ marginTop: '0.4rem' }}>
+                          {isOutOfStock ? (
+                            <span style={{
+                              display: 'inline-block',
+                              backgroundColor: 'rgba(239,68,68,0.2)',
+                              color: 'var(--danger)',
+                              padding: '2px 6px',
+                              borderRadius: '8px',
+                              fontSize: '0.7rem',
+                              fontWeight: 'bold'
+                            }}>
+                              AGOTADO
+                            </span>
+                          ) : (
+                            <span style={{
+                              display: 'inline-block',
+                              backgroundColor: isLowStock ? 'rgba(245,158,11,0.2)' : 'rgba(16,185,129,0.2)',
+                              color: isLowStock ? 'var(--warning)' : 'var(--success)',
+                              padding: '2px 6px',
+                              borderRadius: '8px',
+                              fontSize: '0.7rem',
+                              fontWeight: 'bold'
+                            }}>
+                              {stockInfo.availableUnits} disp. {isLowStock && '⚠️'}
+                            </span>
+                          )}
+                        </div>
                       )}
                     </div>
-                  )}
+                  );
+                })}
+              </div>
+            )}
+          </div>
+
+          {/* Historial rápido (Directamente visible bajo los productos) */}
+          <div className="glass-panel" style={{ padding: '1.25rem', minWidth: 0, marginTop: '0.5rem' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.85rem', flexWrap: 'wrap', gap: '0.5rem' }}>
+              <h4 style={{ margin: 0, color: 'var(--text-main)', fontSize: '0.95rem', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                <span>Últimas Ventas Emitidas</span>
+                {cashierFilter !== 'all' && (
+                  <span style={{ fontSize: '0.72rem', color: 'var(--primary)', backgroundColor: 'rgba(99, 102, 241, 0.1)', padding: '2px 6px', borderRadius: '8px' }}>
+                    ({cashierFilter})
+                  </span>
+                )}
+              </h4>
+
+              {Array.from(new Set(sales.map(s => s.cashierName || s.createdBy || 'General'))).filter(Boolean).length > 1 && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                  <label style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Cajero:</label>
+                  <select
+                    className="input-field"
+                    style={{ padding: '0.2rem 0.4rem', fontSize: '0.75rem', width: 'auto' }}
+                    value={cashierFilter}
+                    onChange={(e) => setCashierFilter(e.target.value)}
+                  >
+                    <option value="all">Todos ({sales.length})</option>
+                    {Array.from(new Set(sales.map(s => s.cashierName || s.createdBy || 'General'))).filter(Boolean).map(c => (
+                      <option key={c} value={c}>{c}</option>
+                    ))}
+                  </select>
                 </div>
-              );
-            })}
-          </div>
-        )}
-      </div>
-
-      {/* Lado Derecho: Carrito */}
-      <div className="glass-panel" style={{ flex: '1 1 300px', padding: '1.5rem', display: 'flex', flexDirection: 'column' }}>
-        <h3 style={{ marginBottom: '1.5rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-          <ShoppingCart size={20} /> Venta Actual
-        </h3>
-
-        <div style={{ flex: 1, minHeight: '200px', overflowY: 'auto', marginBottom: '1.5rem' }}>
-          {cart.length === 0 ? (
-            <p style={{ color: 'var(--text-muted)', textAlign: 'center', marginTop: '3rem' }}>El carrito está vacío.</p>
-          ) : (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-              {cart.map(item => (
-                <div key={item.cartItemId} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', borderBottom: '1px solid rgba(255,255,255,0.1)', paddingBottom: '0.5rem' }}>
-                  <div style={{ flex: 1 }}>
-                    <strong style={{ display: 'block' }}>{item.name}</strong>
-                    {item.selectedSubproducts && item.selectedSubproducts.length > 0 && (
-                      <div style={{ paddingLeft: '0.5rem', fontSize: '0.85rem', color: 'var(--text-muted)' }}>
-                        {item.selectedSubproducts.map((sp, idx) => (
-                          <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', paddingRight: '1rem' }}>
-                            <span>+ {sp.name}</span>
-                            <span>{formatMoney(sp.price)}</span>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                    <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)', display: 'block', marginTop: '0.25rem' }}>{formatMoney(item.unitPrice)} c/u (total)</span>
-                  </div>
-
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginTop: '0.25rem' }}>
-                    <button onClick={() => updateQuantity(item.cartItemId, -1)} className="btn btn-outline" style={{ padding: '0.2rem' }}>
-                      <Minus size={14} />
-                    </button>
-                    <span style={{ width: '20px', textAlign: 'center' }}>{item.quantity}</span>
-                    <button onClick={() => updateQuantity(item.cartItemId, 1)} className="btn btn-outline" style={{ padding: '0.2rem' }}>
-                      <Plus size={14} />
-                    </button>
-                  </div>
-
-                  <div style={{ width: '80px', textAlign: 'right', fontWeight: 'bold', marginTop: '0.25rem' }}>
-                    {formatMoney(item.unitPrice * item.quantity)}
-                  </div>
-
-                  <button onClick={() => removeFromCart(item.cartItemId)} style={{ background: 'none', border: 'none', color: 'var(--danger)', cursor: 'pointer', marginLeft: '0.5rem', marginTop: '0.25rem' }}>
-                    <Trash2 size={16} />
-                  </button>
-                </div>
-              ))}
+              )}
             </div>
-          )}
+
+            {sales.filter(s => cashierFilter === 'all' || (s.cashierName || s.createdBy || 'General') === cashierFilter).length === 0 ? (
+              <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', margin: '0.5rem 0' }}>No hay ventas registradas con este filtro.</p>
+            ) : (
+              <div style={{ overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.82rem' }}>
+                  <thead>
+                    <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.1)', color: 'var(--text-muted)', fontSize: '0.75rem' }}>
+                      <th style={{ textAlign: 'left', padding: '0.4rem' }}>#</th>
+                      <th style={{ textAlign: 'left', padding: '0.4rem' }}>Hora</th>
+                      <th style={{ textAlign: 'left', padding: '0.4rem' }}>Cajero/a</th>
+                      <th style={{ textAlign: 'left', padding: '0.4rem' }}>Cliente</th>
+                      <th style={{ textAlign: 'left', padding: '0.4rem' }}>Ítems</th>
+                      <th style={{ textAlign: 'right', padding: '0.4rem' }}>Total</th>
+                      <th style={{ textAlign: 'center', padding: '0.4rem' }}>Acción</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {sales
+                      .filter(s => cashierFilter === 'all' || (s.cashierName || s.createdBy || 'General') === cashierFilter)
+                      .slice(0, 15)
+                      .map(sale => {
+                        const isCancelled = sale.status === 'cancelled';
+                        return (
+                          <tr key={sale.id} style={{ borderBottom: '1px solid rgba(255,255,255,0.05)', opacity: isCancelled ? 0.5 : 1 }}>
+                            <td style={{ padding: '0.4rem', fontWeight: 'bold' }}>{sale.correlative}</td>
+                            <td style={{ padding: '0.4rem', whiteSpace: 'nowrap', color: 'var(--text-muted)' }}>
+                              {new Date(sale.createdAt).toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit' })}
+                            </td>
+                            <td style={{ padding: '0.4rem', whiteSpace: 'nowrap' }}>
+                              <span style={{ fontSize: '0.78rem', color: 'var(--primary)', fontWeight: '600' }}>
+                                {sale.cashierName || sale.createdBy || 'General'}
+                              </span>
+                            </td>
+                            <td style={{ padding: '0.4rem', whiteSpace: 'nowrap' }}>
+                              {sale.clientName || 'General'}
+                              {isCancelled && <span style={{ marginLeft: '0.35rem', fontSize: '0.65rem', backgroundColor: 'var(--danger)', color: 'white', padding: '1px 4px', borderRadius: '4px' }}>ANULADA</span>}
+                            </td>
+                            <td 
+                              style={{ 
+                                padding: '0.4rem', 
+                                color: 'var(--text-muted)', 
+                                maxWidth: '200px', 
+                                overflow: 'hidden', 
+                                textOverflow: 'ellipsis', 
+                                whiteSpace: 'nowrap' 
+                              }} 
+                              title={sale.items.map(i => `${i.quantity}x ${i.name}`).join(', ')}
+                            >
+                              {sale.items.map(i => `${i.quantity}x ${i.name}`).join(', ')}
+                            </td>
+                            <td style={{ padding: '0.4rem', textAlign: 'right', fontWeight: 'bold', whiteSpace: 'nowrap', color: isCancelled ? 'var(--text-muted)' : 'var(--success)' }}>
+                              {formatMoney(sale.total)}
+                            </td>
+                            <td style={{ padding: '0.4rem', textAlign: 'center', whiteSpace: 'nowrap' }}>
+                              {!isCancelled && (
+                                <div style={{ display: 'flex', gap: '0.35rem', justifyContent: 'center' }}>
+                                  <button
+                                    onClick={() => handleReprintSale(sale)}
+                                    className="btn btn-outline"
+                                    style={{ padding: '0.2rem 0.4rem', fontSize: '0.72rem' }}
+                                    title="Reimprimir Ticket"
+                                  >
+                                    <Printer size={13} />
+                                  </button>
+                                  <button
+                                    onClick={() => handleDeleteSale(sale)}
+                                    className="btn btn-outline"
+                                    style={{ padding: '0.2rem 0.4rem', fontSize: '0.72rem', borderColor: 'rgba(239, 68, 68, 0.3)', color: 'var(--danger)' }}
+                                    title="Anular Venta"
+                                  >
+                                    <Trash2 size={13} />
+                                  </button>
+                                </div>
+                              )}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
         </div>
 
-        <div style={{ borderTop: '2px solid rgba(255,255,255,0.1)', paddingTop: '1.5rem' }}>
-          <div className="input-group" style={{ marginBottom: '1rem' }}>
-            <label className="input-label">Nombre del Cliente (Opcional)</label>
-            <input
-              type="text"
-              className="input-field"
-              placeholder="Ej. Familia Pérez"
-              value={clientName}
-              onChange={(e) => setClientName(e.target.value)}
-            />
-          </div>
+        {/* Columna Derecha: Carrito de Venta Actual (Sticky) */}
+        <div className="glass-panel" style={{
+          position: 'sticky',
+          top: '1rem',
+          padding: '1.25rem',
+          display: 'flex',
+          flexDirection: 'column',
+          maxHeight: isFullscreen ? 'calc(100vh - 5rem)' : 'auto',
+          overflowY: 'auto'
+        }}>
+          <h3 style={{ marginBottom: '1.25rem', display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '1.15rem' }}>
+            <ShoppingCart size={18} /> Venta Actual
+          </h3>
 
-          <div className="input-group" style={{ marginBottom: '1rem' }}>
-            <label className="input-label">Detalle a Imprimir (Opcional)</label>
-            <input
-              type="text"
-              className="input-field"
-              placeholder="Ej. Retira en puerta 2, Sin mayo..."
-              value={saleNote}
-              onChange={(e) => setSaleNote(e.target.value)}
-            />
-          </div>
-
-          <div className="input-group" style={{ marginBottom: '1.5rem' }}>
-            <label className="input-label">Medio de Pago</label>
-            <div style={{ display: 'flex', gap: '1rem' }}>
-              <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer' }}>
-                <input
-                  type="radio"
-                  name="paymentMethod"
-                  value="cash"
-                  checked={paymentMethod === 'cash'}
-                  onChange={(e) => setPaymentMethod(e.target.value)}
-                  style={{ accentColor: 'var(--primary)' }}
-                /> Efectivo
-              </label>
-              <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer' }}>
-                <input
-                  type="radio"
-                  name="paymentMethod"
-                  value="transfer"
-                  checked={paymentMethod === 'transfer'}
-                  onChange={(e) => setPaymentMethod(e.target.value)}
-                  style={{ accentColor: 'var(--primary)' }}
-                /> Transferencia
-              </label>
-            </div>
-          </div>
-
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem', fontSize: '1.25rem' }}>
-            <strong>TOTAL:</strong>
-            <strong style={{ color: 'var(--success)' }}>{formatMoney(cartTotal)}</strong>
-          </div>
-
-          <button
-            onClick={handleCompleteSaleClick}
-            disabled={cart.length === 0}
-            className="btn btn-primary"
-            style={{ width: '100%', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '0.5rem', padding: '1rem', fontSize: '1.1rem' }}
-          >
-            <Printer size={20} /> Vender e Imprimir Vale
-          </button>
-        </div>
-      </div>
-
-      {/* Historial rápido (abajo) */}
-      <div style={{ width: '100%', marginTop: '2rem' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem', flexWrap: 'wrap', gap: '0.75rem' }}>
-          <h4 style={{ margin: 0, color: 'var(--text-muted)' }}>
-            Últimas Ventas Emitidas {cashierFilter !== 'all' && `(Cajero: ${cashierFilter})`}
-          </h4>
-
-          {Array.from(new Set(sales.map(s => s.cashierName || s.createdBy || 'General'))).filter(Boolean).length > 1 && (
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-              <label style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Filtrar por Cajero:</label>
-              <select
-                className="input-field"
-                style={{ padding: '0.25rem 0.5rem', fontSize: '0.8rem', width: 'auto' }}
-                value={cashierFilter}
-                onChange={(e) => setCashierFilter(e.target.value)}
-              >
-                <option value="all">Todos los cajeros ({sales.length})</option>
-                {Array.from(new Set(sales.map(s => s.cashierName || s.createdBy || 'General'))).filter(Boolean).map(c => (
-                  <option key={c} value={c}>{c}</option>
-                ))}
-              </select>
-            </div>
-          )}
-        </div>
-
-        {sales.filter(s => cashierFilter === 'all' || (s.cashierName || s.createdBy || 'General') === cashierFilter).length === 0 ? (
-          <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem' }}>No hay ventas registradas con este filtro.</p>
-        ) : (
-          <div style={{ overflowX: 'auto' }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.9rem' }}>
-              <thead>
-                <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.1)' }}>
-                  <th style={{ textAlign: 'left', padding: '0.5rem' }}># Ticket</th>
-                  <th style={{ textAlign: 'left', padding: '0.5rem' }}>Hora</th>
-                  <th style={{ textAlign: 'left', padding: '0.5rem' }}>Cajero/a</th>
-                  <th style={{ textAlign: 'left', padding: '0.5rem' }}>Cliente</th>
-                  <th style={{ textAlign: 'left', padding: '0.5rem' }}>Ítems</th>
-                  <th style={{ textAlign: 'right', padding: '0.5rem' }}>Total</th>
-                  <th style={{ textAlign: 'center', padding: '0.5rem' }}>Acción</th>
-                </tr>
-              </thead>
-              <tbody>
-                {sales
-                  .filter(s => cashierFilter === 'all' || (s.cashierName || s.createdBy || 'General') === cashierFilter)
-                  .slice(0, 15)
-                  .map(sale => {
-                    const isCancelled = sale.status === 'cancelled';
-                    return (
-                      <tr key={sale.id} style={{ borderBottom: '1px solid rgba(255,255,255,0.05)', opacity: isCancelled ? 0.5 : 1 }}>
-                        <td style={{ padding: '0.5rem', textDecoration: isCancelled ? 'line-through' : 'none' }}>{sale.correlative}</td>
-                        <td style={{ padding: '0.5rem', textDecoration: isCancelled ? 'line-through' : 'none' }}>{new Date(sale.createdAt).toLocaleTimeString('es-CL')}</td>
-                        <td style={{ padding: '0.5rem', textDecoration: isCancelled ? 'line-through' : 'none' }}>
-                          <span style={{ fontSize: '0.8rem', color: 'var(--primary)', fontWeight: 'bold' }}>
-                            {sale.cashierName || sale.createdBy || 'General'}
-                          </span>
-                        </td>
-                        <td style={{ padding: '0.5rem', textDecoration: isCancelled ? 'line-through' : 'none' }}>
-                          {sale.clientName || 'General'}
-                          {isCancelled && <span style={{ marginLeft: '0.5rem', fontSize: '0.7rem', backgroundColor: 'var(--danger)', color: 'white', padding: '2px 4px', borderRadius: '4px' }}>ANULADA</span>}
-                        </td>
-                        <td style={{ padding: '0.5rem', color: 'var(--text-muted)', textDecoration: isCancelled ? 'line-through' : 'none' }}>
-                          {sale.items.map(i => `${i.quantity}x ${i.name}`).join(', ')}
-                        </td>
-                        <td style={{ padding: '0.5rem', textAlign: 'right', fontWeight: 'bold', color: isCancelled ? 'var(--text-muted)' : 'var(--success)', textDecoration: isCancelled ? 'line-through' : 'none' }}>
-                          {formatMoney(sale.total)}
-                        </td>
-                        <td style={{ padding: '0.5rem', textAlign: 'center' }}>
-                          {!isCancelled && (
-                            <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'center' }}>
-                              <button
-                                onClick={() => handleReprintSale(sale)}
-                                className="btn btn-outline"
-                                style={{ padding: '0.25rem 0.5rem', fontSize: '0.75rem' }}
-                                title="Reimprimir"
-                              >
-                                <Printer size={14} />
-                              </button>
-                              <button
-                                onClick={() => handleDeleteSale(sale)}
-                                className="btn btn-outline"
-                                style={{ padding: '0.25rem 0.5rem', fontSize: '0.75rem', borderColor: 'rgba(239, 68, 68, 0.3)', color: 'var(--danger)' }}
-                                title="Anular Venta"
-                              >
-                                <Trash2 size={14} />
-                              </button>
+          <div style={{ flex: 1, minHeight: '140px', maxHeight: '280px', overflowY: 'auto', marginBottom: '1.25rem' }}>
+            {cart.length === 0 ? (
+              <p style={{ color: 'var(--text-muted)', textAlign: 'center', marginTop: '2rem', fontSize: '0.9rem' }}>El carrito está vacío.</p>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                {cart.map(item => (
+                  <div key={item.cartItemId} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', borderBottom: '1px solid rgba(255,255,255,0.08)', paddingBottom: '0.5rem' }}>
+                    <div style={{ flex: 1 }}>
+                      <strong style={{ display: 'block', fontSize: '0.9rem' }}>{item.name}</strong>
+                      {item.selectedSubproducts && item.selectedSubproducts.length > 0 && (
+                        <div style={{ paddingLeft: '0.5rem', fontSize: '0.78rem', color: 'var(--text-muted)' }}>
+                          {item.selectedSubproducts.map((sp, idx) => (
+                            <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', paddingRight: '0.5rem' }}>
+                              <span>+ {sp.name}</span>
+                              <span>{formatMoney(sp.price)}</span>
                             </div>
-                          )}
-                        </td>
-                      </tr>
-                    );
-                  })}
-              </tbody>
-            </table>
+                          ))}
+                        </div>
+                      )}
+                      <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)', display: 'block', marginTop: '0.15rem' }}>{formatMoney(item.unitPrice)} c/u</span>
+                    </div>
+
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', marginTop: '0.2rem' }}>
+                      <button onClick={() => updateQuantity(item.cartItemId, -1)} className="btn btn-outline" style={{ padding: '0.15rem 0.35rem' }}>
+                        <Minus size={12} />
+                      </button>
+                      <span style={{ width: '18px', textAlign: 'center', fontSize: '0.85rem' }}>{item.quantity}</span>
+                      <button onClick={() => updateQuantity(item.cartItemId, 1)} className="btn btn-outline" style={{ padding: '0.15rem 0.35rem' }}>
+                        <Plus size={12} />
+                      </button>
+                    </div>
+
+                    <div style={{ width: '70px', textAlign: 'right', fontWeight: 'bold', fontSize: '0.9rem', marginTop: '0.2rem' }}>
+                      {formatMoney(item.unitPrice * item.quantity)}
+                    </div>
+
+                    <button onClick={() => removeFromCart(item.cartItemId)} style={{ background: 'none', border: 'none', color: 'var(--danger)', cursor: 'pointer', marginLeft: '0.35rem', marginTop: '0.2rem' }}>
+                      <Trash2 size={15} />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
-        )}
+
+          <div style={{ borderTop: '1px solid rgba(255,255,255,0.1)', paddingTop: '1rem' }}>
+            <div className="input-group" style={{ marginBottom: '0.75rem' }}>
+              <label className="input-label" style={{ fontSize: '0.8rem' }}>Nombre del Cliente (Opcional)</label>
+              <input
+                type="text"
+                className="input-field"
+                placeholder="Ej. Familia Pérez"
+                value={clientName}
+                onChange={(e) => setClientName(e.target.value)}
+                style={{ padding: '0.4rem 0.6rem', fontSize: '0.85rem' }}
+              />
+            </div>
+
+            <div className="input-group" style={{ marginBottom: '0.75rem' }}>
+              <label className="input-label" style={{ fontSize: '0.8rem' }}>Detalle a Imprimir (Opcional)</label>
+              <input
+                type="text"
+                className="input-field"
+                placeholder="Ej. Retira en puerta 2, Sin mayo..."
+                value={saleNote}
+                onChange={(e) => setSaleNote(e.target.value)}
+                style={{ padding: '0.4rem 0.6rem', fontSize: '0.85rem' }}
+              />
+            </div>
+
+            <div className="input-group" style={{ marginBottom: '1rem' }}>
+              <label className="input-label" style={{ fontSize: '0.8rem' }}>Medio de Pago</label>
+              <div style={{ display: 'flex', gap: '1rem', fontSize: '0.85rem' }}>
+                <label style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', cursor: 'pointer' }}>
+                  <input
+                    type="radio"
+                    name="paymentMethod"
+                    value="cash"
+                    checked={paymentMethod === 'cash'}
+                    onChange={(e) => setPaymentMethod(e.target.value)}
+                    style={{ accentColor: 'var(--primary)' }}
+                  /> Efectivo
+                </label>
+                <label style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', cursor: 'pointer' }}>
+                  <input
+                    type="radio"
+                    name="paymentMethod"
+                    value="transfer"
+                    checked={paymentMethod === 'transfer'}
+                    onChange={(e) => setPaymentMethod(e.target.value)}
+                    style={{ accentColor: 'var(--primary)' }}
+                  /> Transferencia
+                </label>
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem', fontSize: '1.2rem' }}>
+              <strong>TOTAL:</strong>
+              <strong style={{ color: 'var(--success)' }}>{formatMoney(cartTotal)}</strong>
+            </div>
+
+            <button
+              onClick={handleCompleteSaleClick}
+              disabled={cart.length === 0}
+              className="btn btn-primary"
+              style={{ width: '100%', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '0.5rem', padding: '0.85rem', fontSize: '1.05rem', fontWeight: 'bold' }}
+            >
+              <Printer size={18} /> Vender e Imprimir Vale
+            </button>
+          </div>
+        </div>
       </div>
 
       {/* Modal de Configuración de Impresora */}

@@ -6,6 +6,8 @@ import {
 import { 
   getPrinterConfig, setPrinterConfig, isAndroid,
   getPaperWidth, setPaperWidth,
+  getFontSize, setFontSize,
+  getCutterConfig, setCutterConfig,
   connectWebBluetooth, disconnectWebBluetooth, getConnectedBluetoothDevice,
   printViaRawBT, printViaWebBluetooth, buildTestReceiptPayload 
 } from '../../utils/thermalPrinterService';
@@ -15,6 +17,8 @@ const PrinterSettingsModal = ({ isOpen, onClose, eventName }) => {
   const { showAlert } = useModal();
   const [selectedMode, setSelectedMode] = useState(getPrinterConfig());
   const [paperWidth, setPaperWidthState] = useState(getPaperWidth());
+  const [fontSize, setFontSizeState] = useState(getFontSize());
+  const [cutterMode, setCutterModeState] = useState(getCutterConfig());
   const [bleDeviceName, setBleDeviceName] = useState(getConnectedBluetoothDevice());
   const [connectingBle, setConnectingBle] = useState(false);
 
@@ -28,6 +32,20 @@ const PrinterSettingsModal = ({ isOpen, onClose, eventName }) => {
   const handleSavePaperWidth = (width) => {
     setPaperWidthState(width);
     setPaperWidth(width);
+  };
+
+  const handleSaveFontSize = (size) => {
+    setFontSizeState(size);
+    setFontSize(size);
+    // Auto-ajustar columnas sugeridas
+    const newWidth = size === 'compact' ? 40 : 28;
+    setPaperWidthState(newWidth);
+    setPaperWidth(newWidth);
+  };
+
+  const handleSaveCutterMode = (mode) => {
+    setCutterModeState(mode);
+    setCutterConfig(mode);
   };
 
   const handleConnectBle = async () => {
@@ -347,76 +365,209 @@ const PrinterSettingsModal = ({ isOpen, onClose, eventName }) => {
               </p>
             </div>
 
-            {/* Ancho del Papel / Columnas para Impresión Térmica */}
+            {/* Opciones avanzadas para Impresión Térmica */}
             {(selectedMode === 'rawbt' || selectedMode === 'bluetooth') && (
-              <div style={{
-                marginTop: '0.5rem',
-                padding: '1rem',
-                backgroundColor: 'rgba(255, 255, 255, 0.03)',
-                borderRadius: '10px',
-                border: '1px solid rgba(255, 255, 255, 0.08)'
-              }}>
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.6rem' }}>
-                  <span style={{ fontSize: '0.88rem', fontWeight: 600, color: '#f8fafc' }}>
-                    Ancho de Línea (Caracteres por Fila)
-                  </span>
-                  <span style={{ fontSize: '0.75rem', color: '#94a3b8' }}>
-                    {paperWidth} columnas
-                  </span>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', marginTop: '0.5rem' }}>
+                
+                {/* 1. Tamaño de Letra */}
+                <div style={{
+                  padding: '1rem',
+                  backgroundColor: 'rgba(255, 255, 255, 0.03)',
+                  borderRadius: '10px',
+                  border: '1px solid rgba(255, 255, 255, 0.08)'
+                }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.4rem' }}>
+                    <span style={{ fontSize: '0.88rem', fontWeight: 600, color: '#f8fafc' }}>
+                      Tamaño de Letra en Ticket
+                    </span>
+                    <span style={{ fontSize: '0.75rem', color: fontSize === 'compact' ? '#10b981' : '#94a3b8', fontWeight: 600 }}>
+                      {fontSize === 'compact' ? 'Compacta / Pequeña' : 'Normal'}
+                    </span>
+                  </div>
+                  <p style={{ margin: '0 0 0.75rem 0', fontSize: '0.78rem', color: '#94a3b8', lineHeight: 1.4 }}>
+                    {fontSize === 'compact' 
+                      ? 'Fuente B compacta (como en la Foto 1). Letras más pequeñas, proporcionadas y elegantes.' 
+                      : 'Fuente A estándar. Letras más grandes (puede requerir más líneas).'}
+                  </p>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem' }}>
+                    <button
+                      type="button"
+                      onClick={() => handleSaveFontSize('compact')}
+                      style={{
+                        padding: '0.55rem',
+                        borderRadius: '6px',
+                        fontSize: '0.82rem',
+                        fontWeight: 600,
+                        border: fontSize === 'compact' ? '2px solid #6366f1' : '1px solid rgba(255,255,255,0.1)',
+                        backgroundColor: fontSize === 'compact' ? 'rgba(99, 102, 241, 0.2)' : 'rgba(255,255,255,0.05)',
+                        color: fontSize === 'compact' ? '#a5b4fc' : '#cbd5e1',
+                        cursor: 'pointer'
+                      }}
+                    >
+                      ✨ Compacta / Pequeña (Recomendada)
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleSaveFontSize('normal')}
+                      style={{
+                        padding: '0.55rem',
+                        borderRadius: '6px',
+                        fontSize: '0.82rem',
+                        fontWeight: 600,
+                        border: fontSize === 'normal' ? '2px solid #6366f1' : '1px solid rgba(255,255,255,0.1)',
+                        backgroundColor: fontSize === 'normal' ? 'rgba(99, 102, 241, 0.2)' : 'rgba(255,255,255,0.05)',
+                        color: fontSize === 'normal' ? '#a5b4fc' : '#cbd5e1',
+                        cursor: 'pointer'
+                      }}
+                    >
+                      Normal (Grande)
+                    </button>
+                  </div>
                 </div>
-                <p style={{ margin: '0 0 0.8rem 0', fontSize: '0.78rem', color: '#94a3b8', lineHeight: 1.4 }}>
-                  Las impresoras portátiles de 58mm suelen imprimir 28 caracteres por línea. Si es de 32 o de 80mm, puedes ajustarlo aquí.
-                </p>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '0.5rem' }}>
-                  <button
-                    type="button"
-                    onClick={() => handleSavePaperWidth(28)}
-                    style={{
-                      padding: '0.5rem',
-                      borderRadius: '6px',
-                      fontSize: '0.8rem',
-                      fontWeight: 600,
-                      border: paperWidth === 28 ? '2px solid #6366f1' : '1px solid rgba(255,255,255,0.1)',
-                      backgroundColor: paperWidth === 28 ? 'rgba(99, 102, 241, 0.2)' : 'rgba(255,255,255,0.05)',
-                      color: paperWidth === 28 ? '#a5b4fc' : '#cbd5e1',
-                      cursor: 'pointer'
-                    }}
-                  >
-                    28 col (58mm Ideal)
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => handleSavePaperWidth(32)}
-                    style={{
-                      padding: '0.5rem',
-                      borderRadius: '6px',
-                      fontSize: '0.8rem',
-                      fontWeight: 600,
-                      border: paperWidth === 32 ? '2px solid #6366f1' : '1px solid rgba(255,255,255,0.1)',
-                      backgroundColor: paperWidth === 32 ? 'rgba(99, 102, 241, 0.2)' : 'rgba(255,255,255,0.05)',
-                      color: paperWidth === 32 ? '#a5b4fc' : '#cbd5e1',
-                      cursor: 'pointer'
-                    }}
-                  >
-                    32 col (58mm)
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => handleSavePaperWidth(42)}
-                    style={{
-                      padding: '0.5rem',
-                      borderRadius: '6px',
-                      fontSize: '0.8rem',
-                      fontWeight: 600,
-                      border: paperWidth === 42 ? '2px solid #6366f1' : '1px solid rgba(255,255,255,0.1)',
-                      backgroundColor: paperWidth === 42 ? 'rgba(99, 102, 241, 0.2)' : 'rgba(255,255,255,0.05)',
-                      color: paperWidth === 42 ? '#a5b4fc' : '#cbd5e1',
-                      cursor: 'pointer'
-                    }}
-                  >
-                    42 col (80mm)
-                  </button>
+
+                {/* 2. Corte y Avance de Papel */}
+                <div style={{
+                  padding: '1rem',
+                  backgroundColor: 'rgba(255, 255, 255, 0.03)',
+                  borderRadius: '10px',
+                  border: '1px solid rgba(255, 255, 255, 0.08)'
+                }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.4rem' }}>
+                    <span style={{ fontSize: '0.88rem', fontWeight: 600, color: '#f8fafc' }}>
+                      Corte y Desperdicio de Papel
+                    </span>
+                    <span style={{ fontSize: '0.75rem', color: cutterMode === 'tear' ? '#10b981' : '#94a3b8', fontWeight: 600 }}>
+                      {cutterMode === 'tear' ? 'Cero Desperdicio' : 'Avance Largo'}
+                    </span>
+                  </div>
+                  <p style={{ margin: '0 0 0.75rem 0', fontSize: '0.78rem', color: '#94a3b8', lineHeight: 1.4 }}>
+                    {cutterMode === 'tear' 
+                      ? 'Para impresoras portátiles 58mm: avanza solo lo mínimo para cortar con los dientes manuales (elimina el trozo de 35mm en blanco).' 
+                      : 'Para impresoras de sobremesa con guillotina automática.'}
+                  </p>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem' }}>
+                    <button
+                      type="button"
+                      onClick={() => handleSaveCutterMode('tear')}
+                      style={{
+                        padding: '0.55rem',
+                        borderRadius: '6px',
+                        fontSize: '0.82rem',
+                        fontWeight: 600,
+                        border: cutterMode === 'tear' ? '2px solid #6366f1' : '1px solid rgba(255,255,255,0.1)',
+                        backgroundColor: cutterMode === 'tear' ? 'rgba(99, 102, 241, 0.2)' : 'rgba(255,255,255,0.05)',
+                        color: cutterMode === 'tear' ? '#a5b4fc' : '#cbd5e1',
+                        cursor: 'pointer'
+                      }}
+                    >
+                      ✂️ Corte Manual (Sin 35mm blanco)
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleSaveCutterMode('auto')}
+                      style={{
+                        padding: '0.55rem',
+                        borderRadius: '6px',
+                        fontSize: '0.82rem',
+                        fontWeight: 600,
+                        border: cutterMode === 'auto' ? '2px solid #6366f1' : '1px solid rgba(255,255,255,0.1)',
+                        backgroundColor: cutterMode === 'auto' ? 'rgba(99, 102, 241, 0.2)' : 'rgba(255,255,255,0.05)',
+                        color: cutterMode === 'auto' ? '#a5b4fc' : '#cbd5e1',
+                        cursor: 'pointer'
+                      }}
+                    >
+                      Guillotina Automática
+                    </button>
+                  </div>
                 </div>
+
+                {/* 3. Columnas de Línea */}
+                <div style={{
+                  padding: '1rem',
+                  backgroundColor: 'rgba(255, 255, 255, 0.03)',
+                  borderRadius: '10px',
+                  border: '1px solid rgba(255, 255, 255, 0.08)'
+                }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.4rem' }}>
+                    <span style={{ fontSize: '0.88rem', fontWeight: 600, color: '#f8fafc' }}>
+                      Ancho de Fila (Columnas)
+                    </span>
+                    <span style={{ fontSize: '0.75rem', color: '#94a3b8' }}>
+                      {paperWidth} columnas
+                    </span>
+                  </div>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '0.4rem', marginTop: '0.6rem' }}>
+                    <button
+                      type="button"
+                      onClick={() => handleSavePaperWidth(40)}
+                      style={{
+                        padding: '0.5rem 0.25rem',
+                        borderRadius: '6px',
+                        fontSize: '0.78rem',
+                        fontWeight: 600,
+                        border: paperWidth === 40 ? '2px solid #6366f1' : '1px solid rgba(255,255,255,0.1)',
+                        backgroundColor: paperWidth === 40 ? 'rgba(99, 102, 241, 0.2)' : 'rgba(255,255,255,0.05)',
+                        color: paperWidth === 40 ? '#a5b4fc' : '#cbd5e1',
+                        cursor: 'pointer',
+                        textAlign: 'center'
+                      }}
+                    >
+                      40 col (Ideal)
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleSavePaperWidth(28)}
+                      style={{
+                        padding: '0.5rem 0.25rem',
+                        borderRadius: '6px',
+                        fontSize: '0.78rem',
+                        fontWeight: 600,
+                        border: paperWidth === 28 ? '2px solid #6366f1' : '1px solid rgba(255,255,255,0.1)',
+                        backgroundColor: paperWidth === 28 ? 'rgba(99, 102, 241, 0.2)' : 'rgba(255,255,255,0.05)',
+                        color: paperWidth === 28 ? '#a5b4fc' : '#cbd5e1',
+                        cursor: 'pointer',
+                        textAlign: 'center'
+                      }}
+                    >
+                      28 col
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleSavePaperWidth(32)}
+                      style={{
+                        padding: '0.5rem 0.25rem',
+                        borderRadius: '6px',
+                        fontSize: '0.78rem',
+                        fontWeight: 600,
+                        border: paperWidth === 32 ? '2px solid #6366f1' : '1px solid rgba(255,255,255,0.1)',
+                        backgroundColor: paperWidth === 32 ? 'rgba(99, 102, 241, 0.2)' : 'rgba(255,255,255,0.05)',
+                        color: paperWidth === 32 ? '#a5b4fc' : '#cbd5e1',
+                        cursor: 'pointer',
+                        textAlign: 'center'
+                      }}
+                    >
+                      32 col
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleSavePaperWidth(42)}
+                      style={{
+                        padding: '0.5rem 0.25rem',
+                        borderRadius: '6px',
+                        fontSize: '0.78rem',
+                        fontWeight: 600,
+                        border: paperWidth === 42 ? '2px solid #6366f1' : '1px solid rgba(255,255,255,0.1)',
+                        backgroundColor: paperWidth === 42 ? 'rgba(99, 102, 241, 0.2)' : 'rgba(255,255,255,0.05)',
+                        color: paperWidth === 42 ? '#a5b4fc' : '#cbd5e1',
+                        cursor: 'pointer',
+                        textAlign: 'center'
+                      }}
+                    >
+                      42 col (80mm)
+                    </button>
+                  </div>
+                </div>
+
               </div>
             )}
           </div>
