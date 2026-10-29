@@ -6,12 +6,12 @@ import { useModal } from '../../../context/ModalContext';
 import { useAuth } from '../../../context/AuthContext';
 import ThermalReceipt from './ThermalReceipt';
 import PrinterSettingsModal from '../PrinterSettingsModal';
-import { 
-  getPrinterConfig, 
-  buildSaleReceiptPayload, 
-  buildTestReceiptPayload, 
-  printViaRawBT, 
-  printViaWebBluetooth 
+import {
+  getPrinterConfig,
+  buildSaleReceiptPayload,
+  buildTestReceiptPayload,
+  printViaRawBT,
+  printViaWebBluetooth
 } from '../../../utils/thermalPrinterService';
 
 const EventPOS = ({ event }) => {
@@ -39,16 +39,16 @@ const EventPOS = ({ event }) => {
   const [clientName, setClientName] = useState('');
   const [saleNote, setSaleNote] = useState('');
   const [paymentMethod, setPaymentMethod] = useState('cash'); // cash, transfer
-  
+
   // Subproducts Modal State
   const [showSubproductModal, setShowSubproductModal] = useState(false);
   const [selectedItemForSubproducts, setSelectedItemForSubproducts] = useState(null);
   const [selectedSubproducts, setSelectedSubproducts] = useState([]);
-  
+
   // Cash Calculator Modal State
   const [showCashModal, setShowCashModal] = useState(false);
   const [cashReceived, setCashReceived] = useState('');
-  
+
   // Printing State
   const [lastSale, setLastSale] = useState(null);
 
@@ -94,19 +94,18 @@ const EventPOS = ({ event }) => {
         setLoading(false);
       }
     };
-    
+
     fetchData();
   }, [event.id]);
 
+  // Salir de pantalla completa con la tecla ESC
   useEffect(() => {
-    const handleFullscreenChange = () => {
-      // Si el navegador salió de pantalla completa debido a una impresión o cambio temporal a RawBT,
-      // NO apagamos el modo pantalla completa del POS
-      if (isPrintingRef.current) {
-        return;
-      }
-      if (!document.fullscreenElement) {
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape' && isFullscreen && !isPrintingRef.current) {
         setIsFullscreen(false);
+        if (document.fullscreenElement && document.exitFullscreen) {
+          document.exitFullscreen().catch(() => {});
+        }
       }
     };
 
@@ -116,25 +115,16 @@ const EventPOS = ({ event }) => {
       }, 1500);
     };
 
-    document.addEventListener('fullscreenchange', handleFullscreenChange);
+    window.addEventListener('keydown', handleKeyDown);
     window.addEventListener('afterprint', handleClearPrintingFlag);
     window.addEventListener('focus', handleClearPrintingFlag);
 
     return () => {
-      document.removeEventListener('fullscreenchange', handleFullscreenChange);
+      window.removeEventListener('keydown', handleKeyDown);
       window.removeEventListener('afterprint', handleClearPrintingFlag);
       window.removeEventListener('focus', handleClearPrintingFlag);
     };
-  }, []);
-
-  const tryRequestNativeFullscreen = () => {
-    if (!document.fullscreenElement) {
-      const el = posContainerRef.current || document.documentElement;
-      if (el?.requestFullscreen) {
-        el.requestFullscreen().catch(() => {});
-      }
-    }
-  };
+  }, [isFullscreen]);
 
   const toggleFullscreen = () => {
     if (isFullscreen) {
@@ -144,16 +134,10 @@ const EventPOS = ({ event }) => {
       }
     } else {
       setIsFullscreen(true);
-      tryRequestNativeFullscreen();
-    }
-  };
-
-  const handleContainerClickCapture = () => {
-    // Si el usuario está en modo pantalla completa pero el navegador salió de fullscreen nativo
-    // (por ejemplo al volver de imprimir en RawBT o cerrar el diálogo del sistema),
-    // reintentamos activar la pantalla completa nativa en el siguiente toque
-    if (isFullscreen && !document.fullscreenElement && !isPrintingRef.current) {
-      tryRequestNativeFullscreen();
+      // Intentar activar pantalla completa nativa en documentElement
+      if (document.documentElement.requestFullscreen) {
+        document.documentElement.requestFullscreen().catch(() => {});
+      }
     }
   };
 
@@ -249,23 +233,23 @@ const EventPOS = ({ event }) => {
   const addToCart = (item, selectedSp) => {
     const spIds = selectedSp.map(sp => sp.name).sort().join('_');
     const cartItemId = `${item.id}_${spIds}`;
-    
+
     setCart(prev => {
       const existing = prev.find(c => c.cartItemId === cartItemId);
       if (existing) {
         return prev.map(c => c.cartItemId === cartItemId ? { ...c, quantity: c.quantity + 1 } : c);
       }
-      
+
       const spTotal = selectedSp.reduce((sum, sp) => sum + parseFloat(sp.price || 0), 0);
-      return [...prev, { 
-        ...item, 
+      return [...prev, {
+        ...item,
         cartItemId,
         selectedSubproducts: selectedSp,
         unitPrice: item.price + spTotal,
-        quantity: 1 
+        quantity: 1
       }];
     });
-    
+
     setShowSubproductModal(false);
     setSelectedItemForSubproducts(null);
     setSelectedSubproducts([]);
@@ -300,7 +284,7 @@ const EventPOS = ({ event }) => {
 
   const handleCompleteSaleClick = () => {
     if (cart.length === 0) return;
-    
+
     if (paymentMethod === 'cash') {
       setCashReceived('');
       setShowCashModal(true);
@@ -313,7 +297,7 @@ const EventPOS = ({ event }) => {
     try {
       // Generate next correlative
       const nextCorrelative = sales.length > 0 ? sales[0].correlative + 1 : 1;
-      
+
       // Calcular deducciones de inventario según insumos de los productos
       const deductions = {};
       cart.forEach(cartItem => {
@@ -391,9 +375,9 @@ const EventPOS = ({ event }) => {
       });
 
       // Actualizar estado local
-      setSales([ { id: saleId, ...newSale }, ...sales ]);
+      setSales([{ id: saleId, ...newSale }, ...sales]);
       setLastSale(newSale); // Para imprimir
-      
+
       // Limpiar carrito
       setCart([]);
       setClientName('');
@@ -430,7 +414,7 @@ const EventPOS = ({ event }) => {
     if (sale.status === 'cancelled') return;
     const confirm = await showConfirm(`¿Estás seguro que deseas anular la venta #${sale.correlative}? Esta acción no se puede deshacer.`);
     if (!confirm) return;
-    
+
     try {
       // 1. Marcar venta como anulada
       await updateDoc(doc(db, 'eventSales', sale.id), { status: 'cancelled' });
@@ -469,17 +453,17 @@ const EventPOS = ({ event }) => {
         }
         return inv;
       }));
-      
+
       // 3. Eliminar el ingreso asociado en la colección incomes
       const qIncome = query(collection(db, 'incomes'), where('saleId', '==', sale.id));
       const snapIncome = await getDocs(qIncome);
       for (const docSnap of snapIncome.docs) {
         await deleteDoc(doc(db, 'incomes', docSnap.id));
       }
-      
+
       // 4. Actualizar estado local
       setSales(prev => prev.map(s => s.id === sale.id ? { ...s, status: 'cancelled' } : s));
-      
+
       await showAlert(`Venta #${sale.correlative} anulada correctamente y el stock de insumos fue restaurado.`);
     } catch (error) {
       console.error("Error al anular venta:", error);
@@ -563,9 +547,8 @@ const EventPOS = ({ event }) => {
   if (loading) return <div>Cargando Punto de Venta...</div>;
 
   return (
-    <div 
+    <div
       ref={posContainerRef}
-      onClickCapture={handleContainerClickCapture}
       style={isFullscreen ? {
         position: 'fixed',
         top: 0,
@@ -574,13 +557,14 @@ const EventPOS = ({ event }) => {
         height: '100vh',
         zIndex: 9990,
         backgroundColor: '#0f172a',
+        backgroundImage: 'radial-gradient(at 0% 0%, rgba(99, 102, 241, 0.15) 0px, transparent 50%), radial-gradient(at 100% 100%, rgba(236, 72, 153, 0.1) 0px, transparent 50%)',
         padding: '1.25rem',
         overflowY: 'auto',
         boxSizing: 'border-box',
         display: 'flex',
         gap: '1.5rem',
         flexWrap: 'wrap'
-      } : { 
+      } : {
         display: 'flex',
         gap: '2rem',
         flexWrap: 'wrap',
@@ -592,12 +576,12 @@ const EventPOS = ({ event }) => {
       }}
     >
       {/* Barra Superior de Cajero en Turno y Controles */}
-      <div style={{ 
-        width: '100%', 
-        display: 'flex', 
-        justifyContent: 'space-between', 
-        alignItems: 'center', 
-        flexWrap: 'wrap', 
+      <div style={{
+        width: '100%',
+        display: 'flex',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        flexWrap: 'wrap',
         gap: '0.75rem',
         padding: '0.75rem 1.25rem',
         backgroundColor: 'rgba(255, 255, 255, 0.04)',
@@ -605,14 +589,14 @@ const EventPOS = ({ event }) => {
         border: '1px solid rgba(255, 255, 255, 0.08)'
       }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
-          <div style={{ 
-            display: 'inline-flex', 
-            alignItems: 'center', 
-            gap: '0.4rem', 
-            backgroundColor: 'rgba(99, 102, 241, 0.15)', 
-            border: '1px solid var(--primary)', 
-            padding: '0.35rem 0.85rem', 
-            borderRadius: '20px' 
+          <div style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: '0.4rem',
+            backgroundColor: 'rgba(99, 102, 241, 0.15)',
+            border: '1px solid var(--primary)',
+            padding: '0.35rem 0.85rem',
+            borderRadius: '20px'
           }}>
             <UserCheck size={16} color="var(--primary)" />
             <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Cajero(a) en turno:</span>
@@ -663,14 +647,23 @@ const EventPOS = ({ event }) => {
             <Settings size={15} /> Impresora
           </button>
 
-          <button 
+          <button
             onClick={toggleFullscreen}
             className="btn btn-outline"
-            style={{ padding: '0.4rem 0.75rem', display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.8rem' }}
-            title="Pantalla Completa"
+            style={{ 
+              padding: '0.4rem 0.75rem', 
+              display: 'flex', 
+              alignItems: 'center', 
+              gap: '0.4rem', 
+              fontSize: '0.8rem',
+              backgroundColor: isFullscreen ? 'rgba(99, 102, 241, 0.2)' : 'transparent',
+              borderColor: isFullscreen ? 'var(--primary)' : 'rgba(255, 255, 255, 0.2)',
+              color: isFullscreen ? '#fff' : 'inherit'
+            }}
+            title={isFullscreen ? 'Salir de Pantalla Completa' : 'Entrar a Pantalla Completa'}
           >
             {isFullscreen ? <Minimize size={16} /> : <Maximize size={16} />}
-            <span>{isFullscreen ? 'Salir' : 'Pantalla Completa'}</span>
+            <span>{isFullscreen ? 'Salir de Pantalla Completa' : 'Pantalla Completa'}</span>
           </button>
         </div>
       </div>
@@ -694,7 +687,7 @@ const EventPOS = ({ event }) => {
             <form onSubmit={(e) => { e.preventDefault(); handleSaveCashier(newCashierInput); }}>
               <div className="input-group" style={{ marginBottom: '1rem' }}>
                 <label className="input-label">Nombre del nuevo cajero(a) *</label>
-                <input 
+                <input
                   type="text"
                   required
                   autoFocus
@@ -748,7 +741,7 @@ const EventPOS = ({ event }) => {
         }}>
           <div className="glass-panel" style={{ width: '90%', maxWidth: '400px', padding: '2rem' }}>
             <h3 style={{ marginBottom: '1.5rem', textAlign: 'center', color: 'var(--primary)' }}>Pago en Efectivo</h3>
-            
+
             <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '1.2rem', marginBottom: '1rem' }}>
               <span>Total a Cobrar:</span>
               <strong style={{ color: 'var(--text-main)' }}>{formatMoney(cartTotal)}</strong>
@@ -756,9 +749,9 @@ const EventPOS = ({ event }) => {
 
             <div className="input-group" style={{ marginBottom: '1.5rem' }}>
               <label className="input-label">Monto Recibido</label>
-              <input 
-                type="number" 
-                className="input-field" 
+              <input
+                type="number"
+                className="input-field"
                 style={{ fontSize: '1.5rem', textAlign: 'right' }}
                 placeholder="Ej. 10000"
                 value={cashReceived}
@@ -766,13 +759,13 @@ const EventPOS = ({ event }) => {
                 autoFocus
               />
             </div>
-            
+
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem', marginBottom: '1.5rem' }}>
-               <button className="btn btn-outline" onClick={() => setCashReceived(cartTotal)}>Exacto</button>
-               <button className="btn btn-outline" onClick={() => setCashReceived(Math.ceil(cartTotal / 1000) * 1000)}>Redondear (Mil)</button>
-               <button className="btn btn-outline" onClick={() => setCashReceived(5000)}>$5.000</button>
-               <button className="btn btn-outline" onClick={() => setCashReceived(10000)}>$10.000</button>
-               <button className="btn btn-outline" onClick={() => setCashReceived(20000)}>$20.000</button>
+              <button className="btn btn-outline" onClick={() => setCashReceived(cartTotal)}>Exacto</button>
+              <button className="btn btn-outline" onClick={() => setCashReceived(Math.ceil(cartTotal / 1000) * 1000)}>Redondear (Mil)</button>
+              <button className="btn btn-outline" onClick={() => setCashReceived(5000)}>$5.000</button>
+              <button className="btn btn-outline" onClick={() => setCashReceived(10000)}>$10.000</button>
+              <button className="btn btn-outline" onClick={() => setCashReceived(20000)}>$20.000</button>
             </div>
 
             <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '1.5rem', marginBottom: '2rem', borderTop: '1px solid rgba(255,255,255,0.1)', paddingTop: '1rem' }}>
@@ -783,15 +776,15 @@ const EventPOS = ({ event }) => {
             </div>
 
             <div style={{ display: 'flex', gap: '1rem' }}>
-              <button 
-                className="btn btn-outline" 
+              <button
+                className="btn btn-outline"
                 style={{ flex: 1 }}
                 onClick={() => { setShowCashModal(false); setCashReceived(''); }}
               >
                 Cancelar
               </button>
-              <button 
-                className="btn btn-primary" 
+              <button
+                className="btn btn-primary"
                 style={{ flex: 2 }}
                 disabled={!cashReceived || Number(cashReceived) < cartTotal}
                 onClick={() => {
@@ -805,7 +798,7 @@ const EventPOS = ({ event }) => {
           </div>
         </div>
       )}
-      
+
       {/* Modal Subproductos */}
       {showSubproductModal && selectedItemForSubproducts && (
         <div style={{
@@ -819,7 +812,7 @@ const EventPOS = ({ event }) => {
             <p style={{ color: 'var(--text-muted)', marginBottom: '1.25rem', fontSize: '0.9rem' }}>
               Precio base: <span style={{ color: 'var(--primary)', fontWeight: 'bold' }}>{formatMoney(selectedItemForSubproducts.price)}</span>
             </p>
-            
+
             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem', marginBottom: '1.5rem' }}>
               {selectedItemForSubproducts.subproducts.map((sp, idx) => {
                 const currentSelection = selectedSubproducts.find(s => s.baseName === sp.name || s.name === sp.name);
@@ -827,22 +820,22 @@ const EventPOS = ({ event }) => {
                 const hasOptions = Boolean(sp.hasOptions && sp.options && sp.options.length > 0);
 
                 return (
-                  <div 
-                    key={idx} 
-                    style={{ 
-                      padding: '0.85rem', 
+                  <div
+                    key={idx}
+                    style={{
+                      padding: '0.85rem',
                       backgroundColor: isSelected ? 'rgba(99,102,241,0.08)' : 'rgba(255,255,255,0.03)',
-                      borderRadius: 'var(--radius-md)', 
+                      borderRadius: 'var(--radius-md)',
                       border: isSelected ? '1px solid var(--primary)' : '1px solid rgba(255,255,255,0.1)',
                       transition: 'all 0.15s ease'
                     }}
                   >
-                    <label style={{ 
+                    <label style={{
                       display: 'flex', alignItems: 'center', justifyContent: 'space-between',
                       cursor: 'pointer', userSelect: 'none'
                     }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                        <input 
+                        <input
                           type="checkbox"
                           checked={isSelected}
                           onChange={(e) => {
@@ -850,12 +843,12 @@ const EventPOS = ({ event }) => {
                               const defaultOption = hasOptions ? sp.options[0] : null;
                               const displayName = defaultOption ? `${sp.name} (${defaultOption})` : sp.name;
                               setSelectedSubproducts([
-                                ...selectedSubproducts, 
-                                { 
-                                  baseName: sp.name, 
-                                  name: displayName, 
-                                  selectedOption: defaultOption, 
-                                  price: parseFloat(sp.price || 0) 
+                                ...selectedSubproducts,
+                                {
+                                  baseName: sp.name,
+                                  name: displayName,
+                                  selectedOption: defaultOption,
+                                  price: parseFloat(sp.price || 0)
                                 }
                               ]);
                             } else {
@@ -875,9 +868,9 @@ const EventPOS = ({ event }) => {
 
                     {/* Submenú de tipos / opciones si está marcado */}
                     {hasOptions && isSelected && (
-                      <div style={{ 
-                        marginTop: '0.75rem', 
-                        paddingTop: '0.75rem', 
+                      <div style={{
+                        marginTop: '0.75rem',
+                        paddingTop: '0.75rem',
                         borderTop: '1px solid rgba(255,255,255,0.08)',
                         paddingLeft: '0.25rem'
                       }}>
@@ -932,10 +925,10 @@ const EventPOS = ({ event }) => {
                 );
               })}
             </div>
-            
+
             <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center' }}>
-              <button 
-                className="btn btn-outline" 
+              <button
+                className="btn btn-outline"
                 style={{ flex: 1, padding: '0.75rem' }}
                 onClick={() => {
                   setShowSubproductModal(false);
@@ -945,8 +938,8 @@ const EventPOS = ({ event }) => {
               >
                 Cancelar
               </button>
-              <button 
-                className="btn btn-primary" 
+              <button
+                className="btn btn-primary"
                 style={{ flex: 2, padding: '0.75rem', fontWeight: 'bold' }}
                 onClick={() => addToCart(selectedItemForSubproducts, selectedSubproducts)}
               >
@@ -962,15 +955,15 @@ const EventPOS = ({ event }) => {
 
       {/* Lado Izquierdo: Productos */}
       <div style={{ flex: '1 1 400px', marginTop: isFullscreen ? '0' : '3rem' }}>
-        
+
         {/* Barra en vivo de Stock de Insumos */}
         {inventory.length > 0 && (
-          <div style={{ 
-            marginBottom: '1.25rem', 
-            padding: '0.85rem 1rem', 
-            backgroundColor: 'rgba(255,255,255,0.03)', 
-            borderRadius: 'var(--radius-md)', 
-            border: '1px solid rgba(255,255,255,0.08)' 
+          <div style={{
+            marginBottom: '1.25rem',
+            padding: '0.85rem 1rem',
+            backgroundColor: 'rgba(255,255,255,0.03)',
+            borderRadius: 'var(--radius-md)',
+            border: '1px solid rgba(255,255,255,0.08)'
           }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.5rem', flexWrap: 'wrap', gap: '0.5rem' }}>
               <span style={{ fontSize: '0.8rem', fontWeight: 'bold', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
@@ -980,7 +973,7 @@ const EventPOS = ({ event }) => {
                 Se descuenta automáticamente al vender
               </span>
             </div>
-            
+
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.4rem' }}>
               {inventory.map(inv => {
                 const stock = inv.currentStock !== undefined ? inv.currentStock : (inv.totalPurchased || inv.initialQuantity || 0);
@@ -999,17 +992,17 @@ const EventPOS = ({ event }) => {
                 }
 
                 return (
-                  <div 
+                  <div
                     key={inv.id}
-                    style={{ 
-                      display: 'inline-flex', 
-                      alignItems: 'center', 
-                      gap: '0.35rem', 
-                      padding: '0.25rem 0.65rem', 
-                      borderRadius: '16px', 
-                      backgroundColor: bg, 
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '0.35rem',
+                      padding: '0.25rem 0.65rem',
+                      borderRadius: '16px',
+                      backgroundColor: bg,
                       border,
-                      color, 
+                      color,
                       fontSize: '0.8rem',
                       fontWeight: 'bold'
                     }}
@@ -1034,14 +1027,14 @@ const EventPOS = ({ event }) => {
               const isLowStock = stockInfo.hasStockLimit && stockInfo.availableUnits <= 10 && stockInfo.availableUnits > 0;
 
               return (
-                <div 
-                  key={item.id} 
+                <div
+                  key={item.id}
                   onClick={() => !isOutOfStock && handleItemClick(item)}
-                  style={{ 
-                    backgroundColor: isOutOfStock ? 'rgba(255,255,255,0.02)' : 'rgba(99,102,241,0.1)', 
-                    border: isOutOfStock ? '1px dashed rgba(239,68,68,0.4)' : isLowStock ? '1px solid var(--warning)' : '1px solid var(--primary)', 
-                    borderRadius: 'var(--radius-md)', 
-                    padding: '1rem', 
+                  style={{
+                    backgroundColor: isOutOfStock ? 'rgba(255,255,255,0.02)' : 'rgba(99,102,241,0.1)',
+                    border: isOutOfStock ? '1px dashed rgba(239,68,68,0.4)' : isLowStock ? '1px solid var(--warning)' : '1px solid var(--primary)',
+                    borderRadius: 'var(--radius-md)',
+                    padding: '1rem',
                     textAlign: 'center',
                     cursor: isOutOfStock ? 'not-allowed' : 'pointer',
                     opacity: isOutOfStock ? 0.5 : 1,
@@ -1068,26 +1061,26 @@ const EventPOS = ({ event }) => {
                   {stockInfo.hasStockLimit && (
                     <div style={{ marginTop: '0.5rem' }}>
                       {isOutOfStock ? (
-                        <span style={{ 
+                        <span style={{
                           display: 'inline-block',
-                          backgroundColor: 'rgba(239,68,68,0.2)', 
-                          color: 'var(--danger)', 
-                          padding: '2px 8px', 
-                          borderRadius: '10px', 
-                          fontSize: '0.75rem', 
-                          fontWeight: 'bold' 
+                          backgroundColor: 'rgba(239,68,68,0.2)',
+                          color: 'var(--danger)',
+                          padding: '2px 8px',
+                          borderRadius: '10px',
+                          fontSize: '0.75rem',
+                          fontWeight: 'bold'
                         }}>
                           AGOTADO (0 disp.)
                         </span>
                       ) : (
-                        <span style={{ 
+                        <span style={{
                           display: 'inline-block',
-                          backgroundColor: isLowStock ? 'rgba(245,158,11,0.2)' : 'rgba(16,185,129,0.2)', 
-                          color: isLowStock ? 'var(--warning)' : 'var(--success)', 
-                          padding: '2px 8px', 
-                          borderRadius: '10px', 
-                          fontSize: '0.75rem', 
-                          fontWeight: 'bold' 
+                          backgroundColor: isLowStock ? 'rgba(245,158,11,0.2)' : 'rgba(16,185,129,0.2)',
+                          color: isLowStock ? 'var(--warning)' : 'var(--success)',
+                          padding: '2px 8px',
+                          borderRadius: '10px',
+                          fontSize: '0.75rem',
+                          fontWeight: 'bold'
                         }}>
                           {stockInfo.availableUnits} disp. {isLowStock && '⚠️'}
                         </span>
@@ -1128,7 +1121,7 @@ const EventPOS = ({ event }) => {
                     )}
                     <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)', display: 'block', marginTop: '0.25rem' }}>{formatMoney(item.unitPrice)} c/u (total)</span>
                   </div>
-                  
+
                   <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginTop: '0.25rem' }}>
                     <button onClick={() => updateQuantity(item.cartItemId, -1)} className="btn btn-outline" style={{ padding: '0.2rem' }}>
                       <Minus size={14} />
@@ -1138,11 +1131,11 @@ const EventPOS = ({ event }) => {
                       <Plus size={14} />
                     </button>
                   </div>
-                  
+
                   <div style={{ width: '80px', textAlign: 'right', fontWeight: 'bold', marginTop: '0.25rem' }}>
                     {formatMoney(item.unitPrice * item.quantity)}
                   </div>
-                  
+
                   <button onClick={() => removeFromCart(item.cartItemId)} style={{ background: 'none', border: 'none', color: 'var(--danger)', cursor: 'pointer', marginLeft: '0.5rem', marginTop: '0.25rem' }}>
                     <Trash2 size={16} />
                   </button>
@@ -1155,9 +1148,9 @@ const EventPOS = ({ event }) => {
         <div style={{ borderTop: '2px solid rgba(255,255,255,0.1)', paddingTop: '1.5rem' }}>
           <div className="input-group" style={{ marginBottom: '1rem' }}>
             <label className="input-label">Nombre del Cliente (Opcional)</label>
-            <input 
-              type="text" 
-              className="input-field" 
+            <input
+              type="text"
+              className="input-field"
               placeholder="Ej. Familia Pérez"
               value={clientName}
               onChange={(e) => setClientName(e.target.value)}
@@ -1166,22 +1159,22 @@ const EventPOS = ({ event }) => {
 
           <div className="input-group" style={{ marginBottom: '1rem' }}>
             <label className="input-label">Detalle a Imprimir (Opcional)</label>
-            <input 
-              type="text" 
-              className="input-field" 
+            <input
+              type="text"
+              className="input-field"
               placeholder="Ej. Retira en puerta 2, Sin mayo..."
               value={saleNote}
               onChange={(e) => setSaleNote(e.target.value)}
             />
           </div>
-          
+
           <div className="input-group" style={{ marginBottom: '1.5rem' }}>
             <label className="input-label">Medio de Pago</label>
             <div style={{ display: 'flex', gap: '1rem' }}>
               <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer' }}>
-                <input 
-                  type="radio" 
-                  name="paymentMethod" 
+                <input
+                  type="radio"
+                  name="paymentMethod"
                   value="cash"
                   checked={paymentMethod === 'cash'}
                   onChange={(e) => setPaymentMethod(e.target.value)}
@@ -1189,9 +1182,9 @@ const EventPOS = ({ event }) => {
                 /> Efectivo
               </label>
               <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer' }}>
-                <input 
-                  type="radio" 
-                  name="paymentMethod" 
+                <input
+                  type="radio"
+                  name="paymentMethod"
                   value="transfer"
                   checked={paymentMethod === 'transfer'}
                   onChange={(e) => setPaymentMethod(e.target.value)}
@@ -1206,17 +1199,17 @@ const EventPOS = ({ event }) => {
             <strong style={{ color: 'var(--success)' }}>{formatMoney(cartTotal)}</strong>
           </div>
 
-          <button 
+          <button
             onClick={handleCompleteSaleClick}
-            disabled={cart.length === 0} 
-            className="btn btn-primary" 
+            disabled={cart.length === 0}
+            className="btn btn-primary"
             style={{ width: '100%', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '0.5rem', padding: '1rem', fontSize: '1.1rem' }}
           >
             <Printer size={20} /> Vender e Imprimir Vale
           </button>
         </div>
       </div>
-      
+
       {/* Historial rápido (abajo) */}
       <div style={{ width: '100%', marginTop: '2rem' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem', flexWrap: 'wrap', gap: '0.75rem' }}>
@@ -1227,8 +1220,8 @@ const EventPOS = ({ event }) => {
           {Array.from(new Set(sales.map(s => s.cashierName || s.createdBy || 'General'))).filter(Boolean).length > 1 && (
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
               <label style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Filtrar por Cajero:</label>
-              <select 
-                className="input-field" 
+              <select
+                className="input-field"
                 style={{ padding: '0.25rem 0.5rem', fontSize: '0.8rem', width: 'auto' }}
                 value={cashierFilter}
                 onChange={(e) => setCashierFilter(e.target.value)}
@@ -1286,16 +1279,16 @@ const EventPOS = ({ event }) => {
                         <td style={{ padding: '0.5rem', textAlign: 'center' }}>
                           {!isCancelled && (
                             <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'center' }}>
-                              <button 
-                                onClick={() => handleReprintSale(sale)} 
+                              <button
+                                onClick={() => handleReprintSale(sale)}
                                 className="btn btn-outline"
                                 style={{ padding: '0.25rem 0.5rem', fontSize: '0.75rem' }}
                                 title="Reimprimir"
                               >
                                 <Printer size={14} />
                               </button>
-                              <button 
-                                onClick={() => handleDeleteSale(sale)} 
+                              <button
+                                onClick={() => handleDeleteSale(sale)}
                                 className="btn btn-outline"
                                 style={{ padding: '0.25rem 0.5rem', fontSize: '0.75rem', borderColor: 'rgba(239, 68, 68, 0.3)', color: 'var(--danger)' }}
                                 title="Anular Venta"
