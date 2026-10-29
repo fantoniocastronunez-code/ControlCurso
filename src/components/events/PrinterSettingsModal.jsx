@@ -5,6 +5,7 @@ import {
 } from 'lucide-react';
 import { 
   getPrinterConfig, setPrinterConfig, isAndroid,
+  getPaperWidth, setPaperWidth,
   connectWebBluetooth, disconnectWebBluetooth, getConnectedBluetoothDevice,
   printViaRawBT, printViaWebBluetooth, buildTestReceiptPayload 
 } from '../../utils/thermalPrinterService';
@@ -13,6 +14,7 @@ import { useModal } from '../../context/ModalContext';
 const PrinterSettingsModal = ({ isOpen, onClose, eventName }) => {
   const { showAlert } = useModal();
   const [selectedMode, setSelectedMode] = useState(getPrinterConfig());
+  const [paperWidth, setPaperWidthState] = useState(getPaperWidth());
   const [bleDeviceName, setBleDeviceName] = useState(getConnectedBluetoothDevice());
   const [connectingBle, setConnectingBle] = useState(false);
 
@@ -21,6 +23,11 @@ const PrinterSettingsModal = ({ isOpen, onClose, eventName }) => {
   const handleSaveMode = (mode) => {
     setSelectedMode(mode);
     setPrinterConfig(mode);
+  };
+
+  const handleSavePaperWidth = (width) => {
+    setPaperWidthState(width);
+    setPaperWidth(width);
   };
 
   const handleConnectBle = async () => {
@@ -339,6 +346,79 @@ const PrinterSettingsModal = ({ isOpen, onClose, eventName }) => {
                 Abre la vista previa de impresión clásica de tu computador o celular.
               </p>
             </div>
+
+            {/* Ancho del Papel / Columnas para Impresión Térmica */}
+            {(selectedMode === 'rawbt' || selectedMode === 'bluetooth') && (
+              <div style={{
+                marginTop: '0.5rem',
+                padding: '1rem',
+                backgroundColor: 'rgba(255, 255, 255, 0.03)',
+                borderRadius: '10px',
+                border: '1px solid rgba(255, 255, 255, 0.08)'
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.6rem' }}>
+                  <span style={{ fontSize: '0.88rem', fontWeight: 600, color: '#f8fafc' }}>
+                    Ancho de Línea (Caracteres por Fila)
+                  </span>
+                  <span style={{ fontSize: '0.75rem', color: '#94a3b8' }}>
+                    {paperWidth} columnas
+                  </span>
+                </div>
+                <p style={{ margin: '0 0 0.8rem 0', fontSize: '0.78rem', color: '#94a3b8', lineHeight: 1.4 }}>
+                  Las impresoras portátiles de 58mm suelen imprimir 28 caracteres por línea. Si es de 32 o de 80mm, puedes ajustarlo aquí.
+                </p>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '0.5rem' }}>
+                  <button
+                    type="button"
+                    onClick={() => handleSavePaperWidth(28)}
+                    style={{
+                      padding: '0.5rem',
+                      borderRadius: '6px',
+                      fontSize: '0.8rem',
+                      fontWeight: 600,
+                      border: paperWidth === 28 ? '2px solid #6366f1' : '1px solid rgba(255,255,255,0.1)',
+                      backgroundColor: paperWidth === 28 ? 'rgba(99, 102, 241, 0.2)' : 'rgba(255,255,255,0.05)',
+                      color: paperWidth === 28 ? '#a5b4fc' : '#cbd5e1',
+                      cursor: 'pointer'
+                    }}
+                  >
+                    28 col (58mm Ideal)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleSavePaperWidth(32)}
+                    style={{
+                      padding: '0.5rem',
+                      borderRadius: '6px',
+                      fontSize: '0.8rem',
+                      fontWeight: 600,
+                      border: paperWidth === 32 ? '2px solid #6366f1' : '1px solid rgba(255,255,255,0.1)',
+                      backgroundColor: paperWidth === 32 ? 'rgba(99, 102, 241, 0.2)' : 'rgba(255,255,255,0.05)',
+                      color: paperWidth === 32 ? '#a5b4fc' : '#cbd5e1',
+                      cursor: 'pointer'
+                    }}
+                  >
+                    32 col (58mm)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleSavePaperWidth(42)}
+                    style={{
+                      padding: '0.5rem',
+                      borderRadius: '6px',
+                      fontSize: '0.8rem',
+                      fontWeight: 600,
+                      border: paperWidth === 42 ? '2px solid #6366f1' : '1px solid rgba(255,255,255,0.1)',
+                      backgroundColor: paperWidth === 42 ? 'rgba(99, 102, 241, 0.2)' : 'rgba(255,255,255,0.05)',
+                      color: paperWidth === 42 ? '#a5b4fc' : '#cbd5e1',
+                      cursor: 'pointer'
+                    }}
+                  >
+                    42 col (80mm)
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         </div>
 

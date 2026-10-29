@@ -1,12 +1,15 @@
 /**
  * Servicio de Impresión Térmica para APPCURSO (Formato 58mm / ESC-POS)
+ * Diseñado para impresión nítida, ordenada y proporcionada sin desbordes de columnas.
+ * 
  * Soporta:
  * 1. 'rawbt': Impresión 100% AUTOMÁTICA en Android vía Intent hacia RawBT (sin diálogo del sistema).
  * 2. 'bluetooth': Impresión directa Web Bluetooth (BLE) desde Google Chrome Android / PC.
  * 3. 'system': Impresión estándar mediante el diálogo de impresión del navegador (window.print).
  */
 
-const LINE_WIDTH = 32;
+// Ancho estándar en columnas para impresoras térmicas portátiles de 58mm (garantiza cero desbordes)
+export const DEFAULT_PAPER_WIDTH = 28;
 
 // Comandos ESC/POS estándar
 const ESC = '\x1b';
@@ -18,8 +21,6 @@ const CMD_ALIGN_CENTER = `${ESC}a\x01`;
 const CMD_ALIGN_RIGHT = `${ESC}a\x02`;
 const CMD_BOLD_ON = `${ESC}E\x01`;
 const CMD_BOLD_OFF = `${ESC}E\x00`;
-const CMD_DOUBLE_ON = `${GS}!\x11`;
-const CMD_DOUBLE_OFF = `${GS}!\x00`;
 const CMD_CUT = `${GS}V\x41\x02`;
 
 // Servicios BLE comunes en impresoras térmicas portátiles
@@ -40,7 +41,6 @@ export const isAndroid = () => {
 export const getPrinterConfig = () => {
   const saved = localStorage.getItem('appcurso_printer_mode');
   if (saved) return saved;
-  // Si está en Android, por defecto se recomienda 'rawbt' para evitar el diálogo del sistema
   return isAndroid() ? 'rawbt' : 'system';
 };
 
@@ -48,25 +48,58 @@ export const setPrinterConfig = (mode) => {
   localStorage.setItem('appcurso_printer_mode', mode);
 };
 
+export const getPaperWidth = () => {
+  const saved = localStorage.getItem('appcurso_paper_width');
+  return saved ? parseInt(saved, 10) : DEFAULT_PAPER_WIDTH;
+};
+
+export const setPaperWidth = (width) => {
+  localStorage.setItem('appcurso_paper_width', String(width));
+};
+
 export const formatMoneyCLP = (amount) => {
   return new Intl.NumberFormat('es-CL', { style: 'currency', currency: 'CLP' }).format(amount);
 };
 
-const justify = (left, right, width = LINE_WIDTH) => {
+/**
+ * Divide un texto en líneas que no superen maxWidth caracteres, respetando palabras
+ */
+export const wrapText = (text, maxWidth) => {
+  if (!text) return [];
+  const words = String(text).trim().split(/\s+/);
+  const lines = [];
+  let currentLine = '';
+
+  for (const word of words) {
+    if (!currentLine) {
+      currentLine = word;
+    } else if ((currentLine + ' ' + word).length <= maxWidth) {
+      currentLine += ' ' + word;
+    } else {
+      lines.push(currentLine);
+      currentLine = word;
+    }
+  }
+  if (currentLine) {
+    lines.push(currentLine);
+  }
+  return lines;
+};
+
+/**
+ * Justifica a la izquierda y a la derecha en una sola línea de ancho exacto
+ */
+export const justify = (left, right, width = DEFAULT_PAPER_WIDTH) => {
   left = String(left || '');
   right = String(right || '');
-  const maxLeft = width - right.length - 1;
-  if (left.length > maxLeft) {
-    left = left.slice(0, maxLeft);
-  }
   const spaces = Math.max(1, width - left.length - right.length);
   return left + ' '.repeat(spaces) + right;
 };
 
 /**
- * Sanitiza texto para que caracteres especiales no se distorsionen en impresoras térmicas
+ * Sanitiza texto para compatibilidad absoluta con impresoras térmicas estándar
  */
-const cleanText = (str) => {
+export const cleanText = (str) => {
   if (!str) return '';
   return String(str)
     .replace(/[áàäâ]/g, 'a')
@@ -84,57 +117,115 @@ const cleanText = (str) => {
 };
 
 /**
- * Genera el payload ESC/POS para un ticket de venta
+ * Formatea un producto del carrito respetando el ancho de la columna sin cortar precios
  */
-export const buildSaleReceiptPayload = (sale, eventName) => {
-  const DOUBLE_LINE = '================================';
-  const SEP_LINE = '--------------------------------';
+const formatItemLine = (qty, name, priceFormatted, width) => {
+  const qtyPrefix = `${qty}x `;
+  const priceStr = ` ${priceFormatted}`;
+  const maxNameWidth = width - qtyPrefix.length - priceStr.length;
+
+  const nameWords = wrapText(name, Math.max(8, maxNameWidth));
+  let output = '';
+
+  if (nameWords.length <= 1) {
+    const singleName = nameWords[0] || name;
+    output += `${justify(`${qtyPrefix}${singleName}`, priceFormatted, width)}\n`;
+  } else {
+    // Primera línea: Cantidad y primera parte del nombre
+    output += `${qtyPrefix}${nameWords[0]}\n`;
+    // Líneas intermedias si las hay
+    for (let i = 1; i < nameWords.length - 1; i++) {
+      output += `   ${nameWords[i]}\n`;
+    }
+    // Última línea con el final del nombre y el precio a la derecha
+    const lastPart = nameWords[nameWords.length - 1];
+    output += `${justify(`   ${lastPart}`, priceFormatted, width)}\n`;
+  }
+
+  return output;
+};
+
+/**
+ * Genera el payload ESC/POS para un ticket de venta
+ * Formato compacto, tipografía proporcionada (sin fuentes gigantes) y márgenes exactos
+ */
+export const buildSaleReceiptPayload = (sale, eventName, width = getPaperWidth()) => {
+  const DOUBLE_LINE = '='.repeat(width);
+  const SEP_LINE = '-'.repeat(width);
 
   let p = '';
   p += CMD_INIT;
+
+  // 1. Encabezado Centrado
   p += CMD_ALIGN_CENTER;
   p += CMD_BOLD_ON;
-  p += `${cleanText(eventName || 'APPCURSO')}\n`;
+  const headerLines = wrapText(cleanText(eventName || 'APPCURSO'), width);
+  headerLines.forEach(l => { p += `${l}\n`; });
   p += CMD_BOLD_OFF;
+
   p += `Ticket #${sale.correlative}\n`;
   p += `${new Date(sale.createdAt || Date.now()).toLocaleString('es-CL')}\n`;
   p += `${DOUBLE_LINE}\n`;
 
+  // 2. Tabla de Productos
   p += CMD_ALIGN_LEFT;
-  p += `CANT DESCRIPCION           TOTAL\n`;
+  p += `${justify('C   Item', 'Total', width)}\n`;
   p += `${SEP_LINE}\n`;
 
   if (sale.items && Array.isArray(sale.items)) {
     sale.items.forEach(item => {
-      const qtyStr = `${item.quantity}x `;
-      const itemTotal = formatMoneyCLP(item.price * item.quantity);
-      p += `${justify(`${qtyStr}${cleanText(item.name)}`, itemTotal, LINE_WIDTH)}\n`;
+      const itemTotal = formatMoneyCLP((item.unitPrice || item.price) * item.quantity);
+      p += formatItemLine(item.quantity, cleanText(item.name), itemTotal, width);
 
+      // Subproductos / Toppings
       if (item.selectedSubproducts && item.selectedSubproducts.length > 0) {
         item.selectedSubproducts.forEach(sp => {
-          const spTotal = formatMoneyCLP(sp.price * item.quantity);
-          p += `${justify(`  + ${cleanText(sp.name)}`, spTotal, LINE_WIDTH)}\n`;
+          const spPrice = sp.price > 0 ? `+${formatMoneyCLP(sp.price * item.quantity)}` : '$0';
+          const maxSpNameWidth = width - 4 - spPrice.length - 1;
+          const spLines = wrapText(cleanText(sp.name), Math.max(6, maxSpNameWidth));
+          
+          if (spLines.length <= 1) {
+            p += `${justify(`   + ${spLines[0] || sp.name}`, spPrice, width)}\n`;
+          } else {
+            p += `   + ${spLines[0]}\n`;
+            for (let j = 1; j < spLines.length - 1; j++) {
+              p += `     ${spLines[j]}\n`;
+            }
+            p += `${justify(`     ${spLines[spLines.length - 1]}`, spPrice, width)}\n`;
+          }
         });
       }
     });
   }
 
   p += `${SEP_LINE}\n`;
-  p += CMD_ALIGN_RIGHT;
+
+  // 3. Total (En negrita y tamaño normal nítido, sin estirar la tipografía)
+  p += CMD_ALIGN_LEFT;
   p += CMD_BOLD_ON;
-  p += `${CMD_DOUBLE_ON}TOTAL: ${formatMoneyCLP(sale.total)}${CMD_DOUBLE_OFF}\n`;
+  p += `${justify('TOTAL:', formatMoneyCLP(sale.total), width)}\n`;
   p += CMD_BOLD_OFF;
   p += `${DOUBLE_LINE}\n`;
 
-  p += CMD_ALIGN_LEFT;
+  // 4. Detalles del Pago y Cajero
   p += `Pago: ${sale.paymentMethod === 'cash' ? 'Efectivo' : 'Transferencia'}\n`;
-  if (sale.clientName) p += `Cliente: ${cleanText(sale.clientName)}\n`;
-  if (sale.cashierName) p += `Cajero/a: ${cleanText(sale.cashierName)}\n`;
-  if (sale.saleNote) p += `Nota: ${cleanText(sale.saleNote)}\n`;
+  if (sale.clientName) {
+    const clientLines = wrapText(`Cliente: ${cleanText(sale.clientName)}`, width);
+    clientLines.forEach(l => { p += `${l}\n`; });
+  }
+  if (sale.cashierName) {
+    const cashierLines = wrapText(`Cajero/a: ${cleanText(sale.cashierName)}`, width);
+    cashierLines.forEach(l => { p += `${l}\n`; });
+  }
+  if (sale.saleNote) {
+    const noteLines = wrapText(`Nota: ${cleanText(sale.saleNote)}`, width);
+    noteLines.forEach(l => { p += `${l}\n`; });
+  }
 
+  // 5. Pie de Ticket
   p += `\n`;
   p += CMD_ALIGN_CENTER;
-  p += `¡Muchas gracias por su apoyo!\n`;
+  p += `¡Gracias por su colaboracion!\n`;
   p += `\n\n\n\n`;
   p += CMD_CUT;
 
@@ -144,34 +235,38 @@ export const buildSaleReceiptPayload = (sale, eventName) => {
 /**
  * Genera el payload ESC/POS para un ticket de prueba
  */
-export const buildTestReceiptPayload = (eventName, cashierName) => {
-  const DOUBLE_LINE = '================================';
-  const SEP_LINE = '--------------------------------';
+export const buildTestReceiptPayload = (eventName, cashierName, width = getPaperWidth()) => {
+  const DOUBLE_LINE = '='.repeat(width);
+  const SEP_LINE = '-'.repeat(width);
 
   let p = '';
   p += CMD_INIT;
   p += CMD_ALIGN_CENTER;
   p += CMD_BOLD_ON;
   p += `*** TEST DE IMPRESORA ***\n`;
-  p += `${cleanText(eventName || 'APPCURSO POS')}\n`;
+  const nameLines = wrapText(cleanText(eventName || 'APPCURSO POS'), width);
+  nameLines.forEach(l => { p += `${l}\n`; });
   p += CMD_BOLD_OFF;
+
   p += `MODO PRUEBA / ENSAYO\n`;
   p += `Fecha: ${new Date().toLocaleString('es-CL')}\n`;
-  p += `Cajero/a: ${cleanText(cashierName || 'Cajero de Prueba')}\n`;
+  if (cashierName) {
+    p += `Cajero/a: ${cleanText(cashierName)}\n`;
+  }
   p += `${DOUBLE_LINE}\n`;
 
   p += CMD_ALIGN_LEFT;
-  p += `✓ Formato POS Termico 58mm\n`;
-  p += `✓ Impresora conectada y lista\n`;
-  p += `✓ Numeros: $1.000 / $25.990\n`;
-  p += `✓ Impresion automatica sin dialogo\n`;
+  p += `Formato: POS Termico 58mm\n`;
+  p += `Columnas: ${width} caracteres\n`;
+  p += `Impresion: Directa y limpia\n`;
+  p += `Numeros: $1.000 / $25.990\n`;
   p += `${SEP_LINE}\n`;
 
   p += CMD_ALIGN_CENTER;
   p += CMD_BOLD_ON;
   p += `¡IMPRESION CORRECTA!\n`;
   p += CMD_BOLD_OFF;
-  p += `Ticket de prueba exitoso\n`;
+  p += `Ticket ordenado y alineado\n`;
   p += `\n\n\n\n`;
   p += CMD_CUT;
 
@@ -181,32 +276,35 @@ export const buildTestReceiptPayload = (eventName, cashierName) => {
 /**
  * Genera el payload ESC/POS para el cierre de evento / cuadratura
  */
-export const buildClosureReceiptPayload = (event, stats, itemsSummary = [], expensesSummary = [], inventorySummary = [], cashiersSummary = []) => {
-  const DOUBLE_LINE = '================================';
-  const SEP_LINE = '--------------------------------';
+export const buildClosureReceiptPayload = (event, stats, itemsSummary = [], expensesSummary = [], inventorySummary = [], cashiersSummary = [], width = getPaperWidth()) => {
+  const DOUBLE_LINE = '='.repeat(width);
+  const SEP_LINE = '-'.repeat(width);
 
   let p = '';
   p += CMD_INIT;
   p += CMD_ALIGN_CENTER;
   p += CMD_BOLD_ON;
   p += `CIERRE DE EVENTO\n`;
-  p += `${cleanText(event.name)}\n`;
+  const nameLines = wrapText(cleanText(event.name), width);
+  nameLines.forEach(l => { p += `${l}\n`; });
   p += CMD_BOLD_OFF;
+
   p += `Fecha: ${new Date(event.date).toLocaleDateString('es-CL')}\n`;
   p += `Impreso: ${new Date().toLocaleString('es-CL')}\n`;
   p += `${DOUBLE_LINE}\n`;
 
+  // Resumen Financiero
   p += CMD_ALIGN_CENTER;
   p += CMD_BOLD_ON;
   p += `RESUMEN FINANCIERO\n`;
   p += CMD_BOLD_OFF;
   p += CMD_ALIGN_LEFT;
-  p += `${justify('Ingresos Cuotas:', formatMoneyCLP(stats?.paidQuotas || 0))}\n`;
-  p += `${justify('Ventas POS:', formatMoneyCLP(stats?.salesTotal || 0))}\n`;
-  p += `${justify('Gastos Registrados:', '-' + formatMoneyCLP(stats?.expensesTotal || 0))}\n`;
+  p += `${justify('Ingresos Cuotas:', formatMoneyCLP(stats?.paidQuotas || 0), width)}\n`;
+  p += `${justify('Ventas POS:', formatMoneyCLP(stats?.salesTotal || 0), width)}\n`;
+  p += `${justify('Gastos Registrados:', '-' + formatMoneyCLP(stats?.expensesTotal || 0), width)}\n`;
   p += `${SEP_LINE}\n`;
   p += CMD_BOLD_ON;
-  p += `${justify('GANANCIA NETA:', formatMoneyCLP(stats?.netProfit || 0))}\n`;
+  p += `${justify('GANANCIA NETA:', formatMoneyCLP(stats?.netProfit || 0), width)}\n`;
   p += CMD_BOLD_OFF;
   p += `${DOUBLE_LINE}\n`;
 
@@ -218,7 +316,7 @@ export const buildClosureReceiptPayload = (event, stats, itemsSummary = [], expe
     p += CMD_BOLD_OFF;
     p += CMD_ALIGN_LEFT;
     cashiersSummary.forEach(c => {
-      p += `${justify(`${cleanText(c.name)} (${c.salesCount} v.)`, formatMoneyCLP(c.total))}\n`;
+      p += `${justify(`${cleanText(c.name)} (${c.salesCount}v)`, formatMoneyCLP(c.total), width)}\n`;
     });
     p += `${SEP_LINE}\n`;
   }
@@ -231,7 +329,7 @@ export const buildClosureReceiptPayload = (event, stats, itemsSummary = [], expe
     p += CMD_BOLD_OFF;
     p += CMD_ALIGN_LEFT;
     itemsSummary.forEach(item => {
-      p += `${justify(`${item.qty}x ${cleanText(item.name)}`, formatMoneyCLP(item.total))}\n`;
+      p += `${justify(`${item.qty}x ${cleanText(item.name)}`, formatMoneyCLP(item.total), width)}\n`;
     });
     p += `${SEP_LINE}\n`;
   }
@@ -279,13 +377,11 @@ export const stringToBase64 = (str) => {
 
 /**
  * Dispara la impresión hacia RawBT en Android mediante su URI Intent
- * Imprime 100% automáticamente sin abrir el diálogo de Android si RawBT está configurado en auto-print.
  */
 export const printViaRawBT = (payloadString) => {
   const base64Data = stringToBase64(payloadString);
   const intentUrl = `intent:base64,${base64Data}#Intent;scheme=rawbt;package=ru.a402d.rawbtprinter;S.browser_fallback_url=https%3A%2F%2Fplay.google.com%2Fstore%2Fapps%2Fdetails%3Fid%3Dru.a402d.rawbtprinter;end;`;
 
-  // Crear un link invisible y activarlo
   const a = document.createElement('a');
   a.href = intentUrl;
   document.body.appendChild(a);
@@ -294,7 +390,7 @@ export const printViaRawBT = (payloadString) => {
     try {
       document.body.removeChild(a);
     } catch {
-      // Ignorar si ya fue removido
+      // Ignorar
     }
   }, 300);
 };
@@ -320,7 +416,7 @@ export const connectWebBluetooth = async () => {
       primaryService = await server.getPrimaryService(sId);
       if (primaryService) break;
     } catch {
-      // Intentar el siguiente servicio
+      // Siguiente
     }
   }
 
@@ -386,4 +482,3 @@ export const printViaWebBluetooth = async (payloadString) => {
     }
   }
 };
-
