@@ -1,9 +1,10 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { db } from '../../../firebase/config';
 import { collection, getDocs, doc, setDoc, updateDoc, query, where, deleteDoc } from 'firebase/firestore';
-import { Plus, Trash2, Edit2, Check, X, Package } from 'lucide-react';
+import { Plus, Trash2, Edit2, Check, X, Package, Sparkles } from 'lucide-react';
 import { useModal } from '../../../context/ModalContext';
 import { useAuth } from '../../../context/AuthContext';
+import { loadDemoEventData } from '../../../utils/eventTestUtils';
 
 const EventMenu = ({ event }) => {
   const { user } = useAuth();
@@ -54,6 +55,20 @@ const EventMenu = ({ event }) => {
     setSubproducts([{ name: '', price: '', hasOptions: false, options: [] }]);
     setHasIngredients(false);
     setIngredients([{ inventoryId: '', quantity: '1' }]);
+  };
+
+  const handleLoadDemoData = async () => {
+    try {
+      setLoading(true);
+      await loadDemoEventData(event.id, event.courseId, user);
+      await fetchItems();
+      await showAlert("¡Datos de prueba cargados con éxito! Se han precargado insumos (Panes, Vienesas, Tomates, Paltas, Bebidas) y productos con sus recetas.");
+    } catch (error) {
+      console.error("Error al cargar datos de prueba:", error);
+      await showAlert("Ocurrió un error al cargar los datos demo.");
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleAddItem = async (e) => {
@@ -565,7 +580,21 @@ const EventMenu = ({ event }) => {
       </form>
 
       {items.length === 0 ? (
-        <p style={{ color: 'var(--text-muted)' }}>No hay ítems en el menú todavía. Agrega algunos arriba.</p>
+        <div style={{ textAlign: 'center', padding: '2rem', backgroundColor: 'rgba(255,255,255,0.02)', borderRadius: 'var(--radius-md)', border: '1px dashed var(--border-color)' }}>
+          <p style={{ color: 'var(--text-muted)', marginBottom: event.isTestEvent ? '1rem' : 0 }}>
+            No hay ítems en el menú todavía. Agrega algunos arriba.
+          </p>
+          {event.isTestEvent && (
+            <button
+              type="button"
+              onClick={handleLoadDemoData}
+              className="btn btn-warning"
+              style={{ display: 'inline-flex', alignItems: 'center', gap: '0.5rem', fontWeight: 'bold' }}
+            >
+              <Sparkles size={16} /> Precargar Menú e Insumos Demo (Completos)
+            </button>
+          )}
+        </div>
       ) : (
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(250px, 1fr))', gap: '1rem' }}>
           {items.map(item => (

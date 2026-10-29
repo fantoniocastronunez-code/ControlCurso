@@ -2,13 +2,14 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { db } from '../../firebase/config';
 import { collection, getDocs, doc, setDoc, query, deleteDoc, where } from 'firebase/firestore';
-import { ArrowLeft, PlusCircle, CheckCircle, Calendar, X, Save, Trash2, Users, UserCheck, Search } from 'lucide-react';
+import { ArrowLeft, PlusCircle, CheckCircle, Calendar, X, Save, Trash2, Users, UserCheck, Search, Sparkles } from 'lucide-react';
 import { useModal } from '../../context/ModalContext';
 import { formatStudentName } from '../../utils/nameUtils';
 import { useAuth } from '../../context/AuthContext';
 import EventDetail from './EventDetail';
 import { useCourse } from '../../context/CourseContext';
 import { useLockBodyScroll } from '../../hooks/useLockBodyScroll';
+import { loadDemoEventData } from '../../utils/eventTestUtils';
 
 const EventManagement = ({ onBack }) => {
   const { user } = useAuth();
@@ -29,6 +30,7 @@ const EventManagement = ({ onBack }) => {
   const [mandatoryAmount, setMandatoryAmount] = useState('');
   const [noShowAmount, setNoShowAmount] = useState('');
   const [isTestEvent, setIsTestEvent] = useState(false);
+  const [preloadDemoData, setPreloadDemoData] = useState(true);
 
   // Selección de alumnos para el evento
   const [courseStudents, setCourseStudents] = useState([]);
@@ -94,6 +96,20 @@ const EventManagement = ({ onBack }) => {
     setMandatoryAmount('');
     setNoShowAmount('');
     setIsTestEvent(false);
+    setPreloadDemoData(false);
+    setStudentSelectionMode('all');
+    setSelectedStudentIds(new Set(courseStudents.map(s => s.id)));
+    setStudentSearchTerm('');
+    setShowCreateModal(true);
+  };
+
+  const handleOpenQuickTestEvent = () => {
+    setEventName('Evento de Prueba (Completos y POS)');
+    setEventDate(new Date().toISOString().split('T')[0]);
+    setMandatoryAmount('0');
+    setNoShowAmount('0');
+    setIsTestEvent(true);
+    setPreloadDemoData(true);
     setStudentSelectionMode('all');
     setSelectedStudentIds(new Set(courseStudents.map(s => s.id)));
     setStudentSearchTerm('');
@@ -165,6 +181,14 @@ const EventManagement = ({ onBack }) => {
         studentsCount: targetStudents.length
       };
       await setDoc(doc(db, 'events', eventId), newEvent);
+
+      if (isTestEvent && preloadDemoData) {
+        try {
+          await loadDemoEventData(eventId, selectedCourse.id, user);
+        } catch (demoErr) {
+          console.error("Error al precargar datos de prueba:", demoErr);
+        }
+      }
 
       if (!isTestEvent) {
         // 3. Crear el Gasto General (Expense)
@@ -291,13 +315,23 @@ const EventManagement = ({ onBack }) => {
           </button>
           <h3 style={{ margin: 0 }}>Gestión de Eventos y Ventas</h3>
         </div>
-        <button 
-          onClick={handleOpenCreateModal} 
-          className="btn btn-primary"
-          style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}
-        >
-          <PlusCircle size={18} /> Crear Evento
-        </button>
+        <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+          <button 
+            onClick={handleOpenQuickTestEvent} 
+            className="btn btn-outline"
+            style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', borderColor: 'var(--warning)', color: 'var(--warning)' }}
+            title="Crear un evento de simulación para ensayar ventas, stock e impresora térmica"
+          >
+            🧪 Crear Evento de Prueba
+          </button>
+          <button 
+            onClick={handleOpenCreateModal} 
+            className="btn btn-primary"
+            style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}
+          >
+            <PlusCircle size={18} /> Crear Evento
+          </button>
+        </div>
       </div>
 
       {message && (
@@ -487,17 +521,36 @@ const EventManagement = ({ onBack }) => {
                   />
                 </div>
                 
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', backgroundColor: 'rgba(245, 158, 11, 0.1)', padding: '0.85rem 1rem', borderRadius: 'var(--radius-md)', border: '1px solid rgba(245, 158, 11, 0.2)' }}>
-                  <input 
-                    type="checkbox" 
-                    id="isTestEvent"
-                    checked={isTestEvent}
-                    onChange={(e) => setIsTestEvent(e.target.checked)}
-                    style={{ width: '18px', height: '18px', accentColor: 'var(--warning)', cursor: 'pointer' }}
-                  />
-                  <label htmlFor="isTestEvent" style={{ fontSize: '0.85rem', color: 'var(--warning)', cursor: 'pointer' }}>
-                    Crear como <strong>Evento de Prueba</strong> (No generará cuotas ni deudas reales, ideal para probar el POS)
-                  </label>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', backgroundColor: 'rgba(245, 158, 11, 0.1)', padding: '0.85rem 1rem', borderRadius: 'var(--radius-md)', border: '1px solid rgba(245, 158, 11, 0.25)' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+                    <input 
+                      type="checkbox" 
+                      id="isTestEvent"
+                      checked={isTestEvent}
+                      onChange={(e) => {
+                        setIsTestEvent(e.target.checked);
+                        if (e.target.checked) setPreloadDemoData(true);
+                      }}
+                      style={{ width: '18px', height: '18px', accentColor: 'var(--warning)', cursor: 'pointer' }}
+                    />
+                    <label htmlFor="isTestEvent" style={{ fontSize: '0.85rem', color: 'var(--warning)', cursor: 'pointer', fontWeight: '500' }}>
+                      Crear como <strong>Evento de Prueba</strong> (No generará cuotas ni deudas reales, ideal para probar el POS)
+                    </label>
+                  </div>
+
+                  {isTestEvent && (
+                    <div style={{ paddingLeft: '1.75rem' }}>
+                      <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer', fontSize: '0.85rem', color: 'var(--text-main)' }}>
+                        <input 
+                          type="checkbox"
+                          checked={preloadDemoData}
+                          onChange={(e) => setPreloadDemoData(e.target.checked)}
+                          style={{ accentColor: 'var(--warning)', width: '16px', height: '16px' }}
+                        />
+                        <span>Precargar insumos y menú de prueba (Panes, Vienesas y Completos listos para vender)</span>
+                      </label>
+                    </div>
+                  )}
                 </div>
 
                 {/* Opción de Selección de Alumnos (Todos o sólo algunos) */}

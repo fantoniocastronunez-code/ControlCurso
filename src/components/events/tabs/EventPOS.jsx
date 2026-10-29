@@ -278,6 +278,7 @@ const EventPOS = ({ event }) => {
       const saleId = 'sale_' + Date.now();
       const newSale = {
         eventId: event.id,
+        isTest: Boolean(event.isTestEvent),
         correlative: nextCorrelative,
         clientName: clientName.trim(),
         saleNote: saleNote.trim(),
@@ -326,6 +327,7 @@ const EventPOS = ({ event }) => {
         eventId: event.id,
         courseId: event.courseId,
         saleId: saleId,
+        isTest: Boolean(event.isTestEvent),
         createdAt: new Date().toISOString(),
         createdBy: user?.email || user?.displayName || 'Unknown User'
       });
@@ -491,15 +493,43 @@ const EventPOS = ({ event }) => {
           </span>
         </div>
 
-        <button 
-          onClick={toggleFullscreen}
-          className="btn btn-outline"
-          style={{ padding: '0.4rem 0.75rem', display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.8rem' }}
-          title="Pantalla Completa"
-        >
-          {isFullscreen ? <Minimize size={16} /> : <Maximize size={16} />}
-          <span>{isFullscreen ? 'Salir' : 'Pantalla Completa'}</span>
-        </button>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+          {event.isTestEvent && (
+            <span style={{ backgroundColor: 'var(--warning)', color: '#000', padding: '0.25rem 0.65rem', borderRadius: '12px', fontSize: '0.75rem', fontWeight: 'bold' }}>
+              🧪 MODO PRUEBA
+            </span>
+          )}
+
+          <button
+            type="button"
+            onClick={() => {
+              setLastSale({
+                isTestTicket: true,
+                correlative: 'PRUEBA',
+                createdAt: new Date().toISOString(),
+                cashierName: activeCashierDisplayName,
+                total: 0,
+                items: []
+              });
+              setTimeout(() => window.print(), 200);
+            }}
+            className="btn btn-outline"
+            style={{ padding: '0.4rem 0.75rem', display: 'flex', alignItems: 'center', gap: '0.35rem', fontSize: '0.8rem', borderColor: 'var(--warning)', color: 'var(--warning)' }}
+            title="Mandar ticket de prueba a la impresora térmica"
+          >
+            <Printer size={15} /> Probar Impresora
+          </button>
+
+          <button 
+            onClick={toggleFullscreen}
+            className="btn btn-outline"
+            style={{ padding: '0.4rem 0.75rem', display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.8rem' }}
+            title="Pantalla Completa"
+          >
+            {isFullscreen ? <Minimize size={16} /> : <Maximize size={16} />}
+            <span>{isFullscreen ? 'Salir' : 'Pantalla Completa'}</span>
+          </button>
+        </div>
       </div>
 
       {/* Modal Relevo de Cajero */}

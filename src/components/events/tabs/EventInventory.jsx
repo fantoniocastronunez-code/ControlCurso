@@ -3,10 +3,11 @@ import { db } from '../../../firebase/config';
 import { collection, getDocs, doc, setDoc, updateDoc, deleteDoc, query, where } from 'firebase/firestore';
 import { 
   Package, Plus, Trash2, Edit2, AlertTriangle, CheckCircle, 
-  DollarSign, RefreshCw, ClipboardList, Save, Check, X, Info
+  DollarSign, RefreshCw, ClipboardList, Save, Check, X, Info, Sparkles
 } from 'lucide-react';
 import { useModal } from '../../../context/ModalContext';
 import { useAuth } from '../../../context/AuthContext';
+import { loadDemoEventData } from '../../../utils/eventTestUtils';
 
 const UNIT_OPTIONS = [
   'unidades',
@@ -161,6 +162,7 @@ const EventInventory = ({ event }) => {
             eventId: event.id,
             courseId: event.courseId || '',
             inventoryId: itemId,
+            isTest: Boolean(event.isTestEvent),
             createdAt: new Date().toISOString(),
             createdBy: user?.email || user?.displayName || 'Unknown User'
           });
@@ -247,6 +249,7 @@ const EventInventory = ({ event }) => {
           eventId: event.id,
           courseId: event.courseId || '',
           inventoryId: restockItem.id,
+          isTest: Boolean(event.isTestEvent),
           createdAt: new Date().toISOString(),
           createdBy: user?.email || user?.displayName || 'Unknown User'
         });
@@ -493,6 +496,24 @@ const EventInventory = ({ event }) => {
             <p style={{ margin: '0.25rem 0 0 0', fontSize: '0.85rem' }}>
               Agrega los insumos que compraste arriba (ej. Panes, Vienesas) para controlar su stock.
             </p>
+            {event.isTestEvent && (
+              <button
+                type="button"
+                onClick={async () => {
+                  try {
+                    await loadDemoEventData(event.id, event.courseId, user);
+                    showAlert("¡Insumos y menú de prueba cargados con éxito!");
+                    fetchInventory();
+                  } catch (e) {
+                    showAlert("Error al cargar demo: " + e.message);
+                  }
+                }}
+                className="btn btn-outline"
+                style={{ marginTop: '1rem', borderColor: 'var(--warning)', color: 'var(--warning)', display: 'inline-flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.85rem' }}
+              >
+                <Sparkles size={16} /> Precargar Insumos y Menú de Prueba (Completos)
+              </button>
+            )}
           </div>
         ) : (
           <div style={{ overflowX: 'auto' }}>
