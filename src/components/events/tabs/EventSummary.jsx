@@ -1,8 +1,15 @@
 import React, { useState, useEffect } from 'react';
 import { db } from '../../../firebase/config';
 import { collection, getDocs, query, where } from 'firebase/firestore';
-import { DollarSign, Activity, FileText, Printer, Package, UserCheck, Users } from 'lucide-react';
+import { DollarSign, Activity, FileText, Printer, Package, UserCheck, Users, Settings } from 'lucide-react';
 import ThermalClosureReceipt from './ThermalClosureReceipt';
+import PrinterSettingsModal from '../PrinterSettingsModal';
+import { 
+  getPrinterConfig, 
+  buildClosureReceiptPayload, 
+  printViaRawBT, 
+  printViaWebBluetooth 
+} from '../../../utils/thermalPrinterService';
 
 const EventSummary = ({ event }) => {
   const [stats, setStats] = useState({
@@ -17,6 +24,7 @@ const EventSummary = ({ event }) => {
   const [inventorySummary, setInventorySummary] = useState([]);
   const [cashiersSummary, setCashiersSummary] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [showPrinterModal, setShowPrinterModal] = useState(false);
 
   useEffect(() => {
     fetchStats();
@@ -147,6 +155,22 @@ const EventSummary = ({ event }) => {
     return new Intl.NumberFormat('es-CL', { style: 'currency', currency: 'CLP' }).format(amount);
   };
 
+  const handlePrintClosure = async () => {
+    const printMode = getPrinterConfig();
+    if (printMode === 'rawbt') {
+      printViaRawBT(buildClosureReceiptPayload(event, stats, itemsSummary, expensesSummary, inventorySummary, cashiersSummary));
+    } else if (printMode === 'bluetooth') {
+      try {
+        await printViaWebBluetooth(buildClosureReceiptPayload(event, stats, itemsSummary, expensesSummary, inventorySummary, cashiersSummary));
+      } catch (err) {
+        console.warn("Fallo bluetooth directo, usando ventana de impresión:", err);
+        window.print();
+      }
+    } else {
+      window.print();
+    }
+  };
+
   if (loading) return <div>Cargando resumen...</div>;
 
   return (
@@ -160,9 +184,18 @@ const EventSummary = ({ event }) => {
         cashiersSummary={cashiersSummary}
       />
       
-      <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '1.5rem' }}>
+      <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '1.5rem', gap: '0.5rem', flexWrap: 'wrap' }}>
+        <button
+          type="button"
+          onClick={() => setShowPrinterModal(true)}
+          className="btn btn-outline"
+          style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}
+          title="Configurar método de impresión térmica"
+        >
+          <Settings size={18} /> Configurar Impresora
+        </button>
         <button 
-          onClick={() => window.print()}
+          onClick={handlePrintClosure}
           className="btn btn-outline"
           style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: 'var(--primary)', borderColor: 'var(--primary)' }}
         >
@@ -357,6 +390,13 @@ const EventSummary = ({ event }) => {
           </div>
         )}
       </div>
+
+      {/* Modal de Configuración de Impresora */}
+      <PrinterSettingsModal
+        isOpen={showPrinterModal}
+        onClose={() => setShowPrinterModal(false)}
+        eventName={event.name}
+      />
     </div>
   );
 };

@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { db } from '../../firebase/config';
 import { doc, getDoc } from 'firebase/firestore';
-import { ArrowLeft, LayoutDashboard, CheckSquare, ShoppingBag, DollarSign, Receipt, Package, Printer, Sparkles, RotateCcw } from 'lucide-react';
+import { ArrowLeft, LayoutDashboard, CheckSquare, ShoppingBag, DollarSign, Receipt, Package, Printer, Sparkles, RotateCcw, Settings } from 'lucide-react';
 import EventSummary from './tabs/EventSummary';
 import EventAttendance from './tabs/EventAttendance';
 import EventInventory from './tabs/EventInventory';
@@ -9,9 +9,16 @@ import EventMenu from './tabs/EventMenu';
 import EventPOS from './tabs/EventPOS';
 import EventExpenses from './tabs/EventExpenses';
 import ThermalReceipt from './tabs/ThermalReceipt';
+import PrinterSettingsModal from './PrinterSettingsModal';
 import { useModal } from '../../context/ModalContext';
 import { useAuth } from '../../context/AuthContext';
 import { loadDemoEventData, resetTestEventData } from '../../utils/eventTestUtils';
+import { 
+  getPrinterConfig, 
+  buildTestReceiptPayload, 
+  printViaRawBT, 
+  printViaWebBluetooth 
+} from '../../utils/thermalPrinterService';
 
 const EventDetail = ({ eventId, onBack }) => {
   const { user } = useAuth();
@@ -21,6 +28,7 @@ const EventDetail = ({ eventId, onBack }) => {
   const [activeTab, setActiveTab] = useState('summary'); // summary, inventory, menu, pos, expenses, attendance
   const [testSaleToPrint, setTestSaleToPrint] = useState(null);
   const [actionLoading, setActionLoading] = useState(false);
+  const [showPrinterModal, setShowPrinterModal] = useState(false);
 
   useEffect(() => {
     fetchEventData();
@@ -42,18 +50,40 @@ const EventDetail = ({ eventId, onBack }) => {
     }
   };
 
-  const handlePrintTestTicket = () => {
-    setTestSaleToPrint({
-      isTestTicket: true,
-      correlative: 'PRUEBA',
-      createdAt: new Date().toISOString(),
-      cashierName: user?.displayName || user?.email?.split('@')[0] || 'Cajero de Prueba',
-      total: 0,
-      items: []
-    });
-    setTimeout(() => {
-      window.print();
-    }, 250);
+  const handlePrintTestTicket = async () => {
+    const printMode = getPrinterConfig();
+    const cashier = user?.displayName || user?.email?.split('@')[0] || 'Cajero de Prueba';
+    if (printMode === 'rawbt') {
+      printViaRawBT(buildTestReceiptPayload(eventData.name, cashier));
+    } else if (printMode === 'bluetooth') {
+      try {
+        await printViaWebBluetooth(buildTestReceiptPayload(eventData.name, cashier));
+        await showAlert('¡Ticket de prueba enviado por Bluetooth!');
+      } catch (err) {
+        console.warn("Fallo bluetooth directo:", err);
+        setTestSaleToPrint({
+          isTestTicket: true,
+          correlative: 'PRUEBA',
+          createdAt: new Date().toISOString(),
+          cashierName: cashier,
+          total: 0,
+          items: []
+        });
+        setTimeout(() => window.print(), 250);
+      }
+    } else {
+      setTestSaleToPrint({
+        isTestTicket: true,
+        correlative: 'PRUEBA',
+        createdAt: new Date().toISOString(),
+        cashierName: cashier,
+        total: 0,
+        items: []
+      });
+      setTimeout(() => {
+        window.print();
+      }, 250);
+    }
   };
 
   const handleLoadDemo = async () => {
@@ -184,6 +214,15 @@ const EventDetail = ({ eventId, onBack }) => {
             >
               <RotateCcw size={14} /> Reiniciar Prueba
             </button>
+            <button
+              type="button"
+              onClick={() => setShowPrinterModal(true)}
+              className="btn btn-outline"
+              style={{ fontSize: '0.8rem', padding: '0.4rem 0.75rem', display: 'flex', alignItems: 'center', gap: '0.35rem' }}
+              title="Ajustes de Impresión Térmica (Automático Android RawBT, Bluetooth, Navegador)"
+            >
+              <Settings size={14} /> Configurar Impresora
+            </button>
           </div>
         </div>
       )}
@@ -219,6 +258,13 @@ const EventDetail = ({ eventId, onBack }) => {
         {activeTab === 'expenses' && <EventExpenses event={eventData} />}
         {activeTab === 'attendance' && <EventAttendance event={eventData} />}
       </div>
+
+      {/* Modal de Configuración de Impresora */}
+      <PrinterSettingsModal
+        isOpen={showPrinterModal}
+        onClose={() => setShowPrinterModal(false)}
+        eventName={eventData.name}
+      />
     </div>
   );
 };

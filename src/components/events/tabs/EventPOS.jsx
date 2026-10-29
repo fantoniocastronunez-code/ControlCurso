@@ -1,10 +1,18 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { db } from '../../../firebase/config';
 import { collection, getDocs, doc, setDoc, query, where, orderBy, updateDoc, deleteDoc } from 'firebase/firestore';
-import { ShoppingCart, Plus, Minus, Trash2, Printer, Maximize, Minimize, Check, Package, AlertTriangle, UserCheck, Users, RefreshCw } from 'lucide-react';
+import { ShoppingCart, Plus, Minus, Trash2, Printer, Maximize, Minimize, Check, Package, AlertTriangle, UserCheck, Users, RefreshCw, Settings } from 'lucide-react';
 import { useModal } from '../../../context/ModalContext';
 import { useAuth } from '../../../context/AuthContext';
 import ThermalReceipt from './ThermalReceipt';
+import PrinterSettingsModal from '../PrinterSettingsModal';
+import { 
+  getPrinterConfig, 
+  buildSaleReceiptPayload, 
+  buildTestReceiptPayload, 
+  printViaRawBT, 
+  printViaWebBluetooth 
+} from '../../../utils/thermalPrinterService';
 
 const EventPOS = ({ event }) => {
   const { user } = useAuth();
@@ -23,6 +31,7 @@ const EventPOS = ({ event }) => {
   const [showCashierModal, setShowCashierModal] = useState(false);
   const [newCashierInput, setNewCashierInput] = useState('');
   const [cashierFilter, setCashierFilter] = useState('all');
+  const [showPrinterModal, setShowPrinterModal] = useState(false);
 
   // POS State
   const [cart, setCart] = useState([]);
@@ -342,10 +351,24 @@ const EventPOS = ({ event }) => {
       setSaleNote('');
       setPaymentMethod('cash');
 
-      // Disparar impresión
-      setTimeout(() => {
-        window.print();
-      }, 500);
+      // Disparar impresión según el método configurado
+      const printMode = getPrinterConfig();
+      if (printMode === 'rawbt') {
+        printViaRawBT(buildSaleReceiptPayload(newSale, event.name));
+      } else if (printMode === 'bluetooth') {
+        try {
+          await printViaWebBluetooth(buildSaleReceiptPayload(newSale, event.name));
+        } catch (err) {
+          console.warn("Fallo bluetooth directo, usando ventana de impresión:", err);
+          setTimeout(() => {
+            window.print();
+          }, 300);
+        }
+      } else {
+        setTimeout(() => {
+          window.print();
+        }, 300);
+      }
 
     } catch (error) {
       console.error("Error al completar venta:", error);
@@ -435,6 +458,56 @@ const EventPOS = ({ event }) => {
     showAlert(`Caja asignada a: "${trimmed}". Las siguientes ventas se registrarán a su nombre.`);
   };
 
+  const handlePrintTestTicket = async () => {
+    const printMode = getPrinterConfig();
+    if (printMode === 'rawbt') {
+      printViaRawBT(buildTestReceiptPayload(event.name, activeCashierDisplayName));
+    } else if (printMode === 'bluetooth') {
+      try {
+        await printViaWebBluetooth(buildTestReceiptPayload(event.name, activeCashierDisplayName));
+      } catch (err) {
+        console.warn("Fallo bluetooth directo:", err);
+        setLastSale({
+          isTestTicket: true,
+          correlative: 'PRUEBA',
+          createdAt: new Date().toISOString(),
+          cashierName: activeCashierDisplayName,
+          total: 0,
+          items: []
+        });
+        setTimeout(() => window.print(), 200);
+      }
+    } else {
+      setLastSale({
+        isTestTicket: true,
+        correlative: 'PRUEBA',
+        createdAt: new Date().toISOString(),
+        cashierName: activeCashierDisplayName,
+        total: 0,
+        items: []
+      });
+      setTimeout(() => window.print(), 200);
+    }
+  };
+
+  const handleReprintSale = async (sale) => {
+    const printMode = getPrinterConfig();
+    if (printMode === 'rawbt') {
+      printViaRawBT(buildSaleReceiptPayload(sale, event.name));
+    } else if (printMode === 'bluetooth') {
+      try {
+        await printViaWebBluetooth(buildSaleReceiptPayload(sale, event.name));
+      } catch (err) {
+        console.warn("Fallo bluetooth directo:", err);
+        setLastSale(sale);
+        setTimeout(() => window.print(), 200);
+      }
+    } else {
+      setLastSale(sale);
+      setTimeout(() => window.print(), 200);
+    }
+  };
+
   if (loading) return <div>Cargando Punto de Venta...</div>;
 
   return (
@@ -502,22 +575,22 @@ const EventPOS = ({ event }) => {
 
           <button
             type="button"
-            onClick={() => {
-              setLastSale({
-                isTestTicket: true,
-                correlative: 'PRUEBA',
-                createdAt: new Date().toISOString(),
-                cashierName: activeCashierDisplayName,
-                total: 0,
-                items: []
-              });
-              setTimeout(() => window.print(), 200);
-            }}
+            onClick={handlePrintTestTicket}
             className="btn btn-outline"
             style={{ padding: '0.4rem 0.75rem', display: 'flex', alignItems: 'center', gap: '0.35rem', fontSize: '0.8rem', borderColor: 'var(--warning)', color: 'var(--warning)' }}
             title="Mandar ticket de prueba a la impresora térmica"
           >
             <Printer size={15} /> Probar Impresora
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setShowPrinterModal(true)}
+            className="btn btn-outline"
+            style={{ padding: '0.4rem 0.75rem', display: 'flex', alignItems: 'center', gap: '0.35rem', fontSize: '0.8rem' }}
+            title="Configurar método de impresión térmica (Automático Android, Bluetooth, Navegador)"
+          >
+            <Settings size={15} /> Impresora
           </button>
 
           <button 
@@ -1144,7 +1217,7 @@ const EventPOS = ({ event }) => {
                           {!isCancelled && (
                             <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'center' }}>
                               <button 
-                                onClick={() => { setLastSale(sale); setTimeout(() => window.print(), 200); }} 
+                                onClick={() => handleReprintSale(sale)} 
                                 className="btn btn-outline"
                                 style={{ padding: '0.25rem 0.5rem', fontSize: '0.75rem' }}
                                 title="Reimprimir"
@@ -1170,6 +1243,13 @@ const EventPOS = ({ event }) => {
           </div>
         )}
       </div>
+
+      {/* Modal de Configuración de Impresora */}
+      <PrinterSettingsModal
+        isOpen={showPrinterModal}
+        onClose={() => setShowPrinterModal(false)}
+        eventName={event.name}
+      />
     </div>
   );
 };
