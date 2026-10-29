@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { db } from '../../../firebase/config';
 import { collection, getDocs, doc, setDoc, query, where, orderBy, updateDoc, deleteDoc } from 'firebase/firestore';
-import { ShoppingCart, Plus, Minus, Trash2, Printer, Maximize, Minimize, Check, Package, AlertTriangle } from 'lucide-react';
+import { ShoppingCart, Plus, Minus, Trash2, Printer, Maximize, Minimize, Check, Package, AlertTriangle, UserCheck, Users, RefreshCw } from 'lucide-react';
 import { useModal } from '../../../context/ModalContext';
 import { useAuth } from '../../../context/AuthContext';
 import ThermalReceipt from './ThermalReceipt';
@@ -17,6 +17,12 @@ const EventPOS = ({ event }) => {
   // Fullscreen State
   const posContainerRef = useRef(null);
   const [isFullscreen, setIsFullscreen] = useState(false);
+
+  // Cajero en turno (Gestión de turnos y relevos de caja)
+  const [cashierName, setCashierName] = useState(() => localStorage.getItem(`event_cashier_${event.id}`) || '');
+  const [showCashierModal, setShowCashierModal] = useState(false);
+  const [newCashierInput, setNewCashierInput] = useState('');
+  const [cashierFilter, setCashierFilter] = useState('all');
 
   // POS State
   const [cart, setCart] = useState([]);
@@ -35,6 +41,17 @@ const EventPOS = ({ event }) => {
   
   // Printing State
   const [lastSale, setLastSale] = useState(null);
+
+  // Inicializar cajero por defecto si no hay uno guardado
+  useEffect(() => {
+    if (!cashierName && user) {
+      const defaultName = user.displayName || user.email?.split('@')[0] || '';
+      if (defaultName) {
+        setCashierName(defaultName);
+        localStorage.setItem(`event_cashier_${event.id}`, defaultName);
+      }
+    }
+  }, [user, event.id, cashierName]);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -252,12 +269,20 @@ const EventPOS = ({ event }) => {
         }
       });
 
+      const activeCashier = (cashierName.trim() || user?.displayName || user?.email?.split('@')[0] || 'Cajero').trim();
+      if (!cashierName.trim()) {
+        setCashierName(activeCashier);
+        localStorage.setItem(`event_cashier_${event.id}`, activeCashier);
+      }
+
       const saleId = 'sale_' + Date.now();
       const newSale = {
         eventId: event.id,
         correlative: nextCorrelative,
         clientName: clientName.trim(),
         saleNote: saleNote.trim(),
+        cashierName: activeCashier,
+        cashierEmail: user?.email || '',
         paymentMethod,
         items: cart,
         inventoryDeductions: deductions,
@@ -391,6 +416,23 @@ const EventPOS = ({ event }) => {
     return new Intl.NumberFormat('es-CL', { style: 'currency', currency: 'CLP' }).format(amount);
   };
 
+  const activeCashierDisplayName = cashierName.trim() || user?.displayName || user?.email?.split('@')[0] || 'Cajero General';
+  const shiftSales = sales.filter(s => s.status !== 'cancelled' && (s.cashierName || s.createdBy) === activeCashierDisplayName);
+  const shiftSalesCount = shiftSales.length;
+  const shiftSalesTotal = shiftSales.reduce((sum, s) => sum + (s.total || 0), 0);
+
+  const handleSaveCashier = (nameToSet) => {
+    const trimmed = nameToSet.trim();
+    if (!trimmed) {
+      showAlert("Por favor ingresa el nombre de quien estará en caja.");
+      return;
+    }
+    setCashierName(trimmed);
+    localStorage.setItem(`event_cashier_${event.id}`, trimmed);
+    setShowCashierModal(false);
+    showAlert(`Caja asignada a: "${trimmed}". Las siguientes ventas se registrarán a su nombre.`);
+  };
+
   if (loading) return <div>Cargando Punto de Venta...</div>;
 
   return (
@@ -404,15 +446,124 @@ const EventPOS = ({ event }) => {
         minHeight: isFullscreen ? '100vh' : 'auto'
       }}
     >
-      {/* Fullscreen Toggle Button */}
-      <button 
-        onClick={toggleFullscreen}
-        className="btn btn-outline"
-        style={{ position: 'absolute', top: isFullscreen ? '2rem' : '0', right: isFullscreen ? '2rem' : '0', padding: '0.5rem', zIndex: 10 }}
-        title="Pantalla Completa"
-      >
-        {isFullscreen ? <Minimize size={20} /> : <Maximize size={20} />}
-      </button>
+      {/* Barra Superior de Cajero en Turno y Controles */}
+      <div style={{ 
+        width: '100%', 
+        display: 'flex', 
+        justifyContent: 'space-between', 
+        alignItems: 'center', 
+        flexWrap: 'wrap', 
+        gap: '0.75rem',
+        padding: '0.75rem 1.25rem',
+        backgroundColor: 'rgba(255, 255, 255, 0.04)',
+        borderRadius: 'var(--radius-md)',
+        border: '1px solid rgba(255, 255, 255, 0.08)'
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
+          <div style={{ 
+            display: 'inline-flex', 
+            alignItems: 'center', 
+            gap: '0.4rem', 
+            backgroundColor: 'rgba(99, 102, 241, 0.15)', 
+            border: '1px solid var(--primary)', 
+            padding: '0.35rem 0.85rem', 
+            borderRadius: '20px' 
+          }}>
+            <UserCheck size={16} color="var(--primary)" />
+            <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Cajero(a) en turno:</span>
+            <strong style={{ fontSize: '0.9rem', color: '#fff' }}>{activeCashierDisplayName}</strong>
+          </div>
+
+          <button
+            type="button"
+            onClick={() => {
+              setNewCashierInput(activeCashierDisplayName);
+              setShowCashierModal(true);
+            }}
+            className="btn btn-outline"
+            style={{ padding: '0.35rem 0.75rem', fontSize: '0.8rem', display: 'flex', alignItems: 'center', gap: '0.35rem' }}
+          >
+            <UserCheck size={13} /> Relevar / Cambiar Cajero
+          </button>
+
+          <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+            Turno actual: <strong>{shiftSalesCount} ventas</strong> ({formatMoney(shiftSalesTotal)})
+          </span>
+        </div>
+
+        <button 
+          onClick={toggleFullscreen}
+          className="btn btn-outline"
+          style={{ padding: '0.4rem 0.75rem', display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.8rem' }}
+          title="Pantalla Completa"
+        >
+          {isFullscreen ? <Minimize size={16} /> : <Maximize size={16} />}
+          <span>{isFullscreen ? 'Salir' : 'Pantalla Completa'}</span>
+        </button>
+      </div>
+
+      {/* Modal Relevo de Cajero */}
+      {showCashierModal && (
+        <div style={{
+          position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+          backgroundColor: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(4px)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          zIndex: 1200
+        }}>
+          <div className="glass-panel" style={{ width: '90%', maxWidth: '440px', padding: '2rem' }}>
+            <h3 style={{ marginBottom: '0.5rem', color: 'var(--primary)', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              <UserCheck size={20} /> Relevo de Cajero(a)
+            </h3>
+            <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginBottom: '1.25rem' }}>
+              Ingresa el nombre de quien asume la caja en este momento. Las ventas siguientes quedarán asociadas a su nombre para saber quién vendió qué cosas y cuánto dinero recaudó en su turno.
+            </p>
+
+            <form onSubmit={(e) => { e.preventDefault(); handleSaveCashier(newCashierInput); }}>
+              <div className="input-group" style={{ marginBottom: '1rem' }}>
+                <label className="input-label">Nombre del nuevo cajero(a) *</label>
+                <input 
+                  type="text"
+                  required
+                  autoFocus
+                  className="input-field"
+                  placeholder="Ej. Juan Pérez, María G., Papá de Lucas..."
+                  value={newCashierInput}
+                  onChange={(e) => setNewCashierInput(e.target.value)}
+                />
+              </div>
+
+              {user?.displayName && (
+                <div style={{ marginBottom: '1.25rem' }}>
+                  <button
+                    type="button"
+                    onClick={() => setNewCashierInput(user.displayName)}
+                    className="btn btn-outline"
+                    style={{ fontSize: '0.75rem', padding: '0.25rem 0.6rem' }}
+                  >
+                    Usar mi nombre ({user.displayName})
+                  </button>
+                </div>
+              )}
+
+              <div style={{ display: 'flex', gap: '0.75rem', justifyContent: 'flex-end' }}>
+                <button
+                  type="button"
+                  className="btn btn-outline"
+                  onClick={() => setShowCashierModal(false)}
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  className="btn btn-primary"
+                >
+                  Confirmar Turno
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
 
       {/* Modal Efectivo / Calculadora de Vuelto */}
       {showCashModal && (
@@ -895,9 +1046,31 @@ const EventPOS = ({ event }) => {
       
       {/* Historial rápido (abajo) */}
       <div style={{ width: '100%', marginTop: '2rem' }}>
-        <h4 style={{ marginBottom: '1rem', color: 'var(--text-muted)' }}>Últimas Ventas Emitidas</h4>
-        {sales.length === 0 ? (
-          <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem' }}>No hay ventas registradas.</p>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem', flexWrap: 'wrap', gap: '0.75rem' }}>
+          <h4 style={{ margin: 0, color: 'var(--text-muted)' }}>
+            Últimas Ventas Emitidas {cashierFilter !== 'all' && `(Cajero: ${cashierFilter})`}
+          </h4>
+
+          {Array.from(new Set(sales.map(s => s.cashierName || s.createdBy || 'General'))).filter(Boolean).length > 1 && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              <label style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Filtrar por Cajero:</label>
+              <select 
+                className="input-field" 
+                style={{ padding: '0.25rem 0.5rem', fontSize: '0.8rem', width: 'auto' }}
+                value={cashierFilter}
+                onChange={(e) => setCashierFilter(e.target.value)}
+              >
+                <option value="all">Todos los cajeros ({sales.length})</option>
+                {Array.from(new Set(sales.map(s => s.cashierName || s.createdBy || 'General'))).filter(Boolean).map(c => (
+                  <option key={c} value={c}>{c}</option>
+                ))}
+              </select>
+            </div>
+          )}
+        </div>
+
+        {sales.filter(s => cashierFilter === 'all' || (s.cashierName || s.createdBy || 'General') === cashierFilter).length === 0 ? (
+          <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem' }}>No hay ventas registradas con este filtro.</p>
         ) : (
           <div style={{ overflowX: 'auto' }}>
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.9rem' }}>
@@ -905,6 +1078,7 @@ const EventPOS = ({ event }) => {
                 <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.1)' }}>
                   <th style={{ textAlign: 'left', padding: '0.5rem' }}># Ticket</th>
                   <th style={{ textAlign: 'left', padding: '0.5rem' }}>Hora</th>
+                  <th style={{ textAlign: 'left', padding: '0.5rem' }}>Cajero/a</th>
                   <th style={{ textAlign: 'left', padding: '0.5rem' }}>Cliente</th>
                   <th style={{ textAlign: 'left', padding: '0.5rem' }}>Ítems</th>
                   <th style={{ textAlign: 'right', padding: '0.5rem' }}>Total</th>
@@ -912,47 +1086,55 @@ const EventPOS = ({ event }) => {
                 </tr>
               </thead>
               <tbody>
-                {sales.slice(0, 10).map(sale => {
-                  const isCancelled = sale.status === 'cancelled';
-                  return (
-                    <tr key={sale.id} style={{ borderBottom: '1px solid rgba(255,255,255,0.05)', opacity: isCancelled ? 0.5 : 1 }}>
-                      <td style={{ padding: '0.5rem', textDecoration: isCancelled ? 'line-through' : 'none' }}>{sale.correlative}</td>
-                      <td style={{ padding: '0.5rem', textDecoration: isCancelled ? 'line-through' : 'none' }}>{new Date(sale.createdAt).toLocaleTimeString('es-CL')}</td>
-                      <td style={{ padding: '0.5rem', textDecoration: isCancelled ? 'line-through' : 'none' }}>
-                        {sale.clientName || 'General'}
-                        {isCancelled && <span style={{ marginLeft: '0.5rem', fontSize: '0.7rem', backgroundColor: 'var(--danger)', color: 'white', padding: '2px 4px', borderRadius: '4px' }}>ANULADA</span>}
-                      </td>
-                      <td style={{ padding: '0.5rem', color: 'var(--text-muted)', textDecoration: isCancelled ? 'line-through' : 'none' }}>
-                        {sale.items.map(i => `${i.quantity}x ${i.name}`).join(', ')}
-                      </td>
-                      <td style={{ padding: '0.5rem', textAlign: 'right', fontWeight: 'bold', color: isCancelled ? 'var(--text-muted)' : 'var(--success)', textDecoration: isCancelled ? 'line-through' : 'none' }}>
-                        {formatMoney(sale.total)}
-                      </td>
-                      <td style={{ padding: '0.5rem', textAlign: 'center' }}>
-                        {!isCancelled && (
-                          <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'center' }}>
-                            <button 
-                              onClick={() => { setLastSale(sale); setTimeout(() => window.print(), 200); }} 
-                              className="btn btn-outline"
-                              style={{ padding: '0.25rem 0.5rem', fontSize: '0.75rem' }}
-                              title="Reimprimir"
-                            >
-                              <Printer size={14} />
-                            </button>
-                            <button 
-                              onClick={() => handleDeleteSale(sale)} 
-                              className="btn btn-outline"
-                              style={{ padding: '0.25rem 0.5rem', fontSize: '0.75rem', borderColor: 'rgba(239, 68, 68, 0.3)', color: 'var(--danger)' }}
-                              title="Anular Venta"
-                            >
-                              <Trash2 size={14} />
-                            </button>
-                          </div>
-                        )}
-                      </td>
-                    </tr>
-                  );
-                })}
+                {sales
+                  .filter(s => cashierFilter === 'all' || (s.cashierName || s.createdBy || 'General') === cashierFilter)
+                  .slice(0, 15)
+                  .map(sale => {
+                    const isCancelled = sale.status === 'cancelled';
+                    return (
+                      <tr key={sale.id} style={{ borderBottom: '1px solid rgba(255,255,255,0.05)', opacity: isCancelled ? 0.5 : 1 }}>
+                        <td style={{ padding: '0.5rem', textDecoration: isCancelled ? 'line-through' : 'none' }}>{sale.correlative}</td>
+                        <td style={{ padding: '0.5rem', textDecoration: isCancelled ? 'line-through' : 'none' }}>{new Date(sale.createdAt).toLocaleTimeString('es-CL')}</td>
+                        <td style={{ padding: '0.5rem', textDecoration: isCancelled ? 'line-through' : 'none' }}>
+                          <span style={{ fontSize: '0.8rem', color: 'var(--primary)', fontWeight: 'bold' }}>
+                            {sale.cashierName || sale.createdBy || 'General'}
+                          </span>
+                        </td>
+                        <td style={{ padding: '0.5rem', textDecoration: isCancelled ? 'line-through' : 'none' }}>
+                          {sale.clientName || 'General'}
+                          {isCancelled && <span style={{ marginLeft: '0.5rem', fontSize: '0.7rem', backgroundColor: 'var(--danger)', color: 'white', padding: '2px 4px', borderRadius: '4px' }}>ANULADA</span>}
+                        </td>
+                        <td style={{ padding: '0.5rem', color: 'var(--text-muted)', textDecoration: isCancelled ? 'line-through' : 'none' }}>
+                          {sale.items.map(i => `${i.quantity}x ${i.name}`).join(', ')}
+                        </td>
+                        <td style={{ padding: '0.5rem', textAlign: 'right', fontWeight: 'bold', color: isCancelled ? 'var(--text-muted)' : 'var(--success)', textDecoration: isCancelled ? 'line-through' : 'none' }}>
+                          {formatMoney(sale.total)}
+                        </td>
+                        <td style={{ padding: '0.5rem', textAlign: 'center' }}>
+                          {!isCancelled && (
+                            <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'center' }}>
+                              <button 
+                                onClick={() => { setLastSale(sale); setTimeout(() => window.print(), 200); }} 
+                                className="btn btn-outline"
+                                style={{ padding: '0.25rem 0.5rem', fontSize: '0.75rem' }}
+                                title="Reimprimir"
+                              >
+                                <Printer size={14} />
+                              </button>
+                              <button 
+                                onClick={() => handleDeleteSale(sale)} 
+                                className="btn btn-outline"
+                                style={{ padding: '0.25rem 0.5rem', fontSize: '0.75rem', borderColor: 'rgba(239, 68, 68, 0.3)', color: 'var(--danger)' }}
+                                title="Anular Venta"
+                              >
+                                <Trash2 size={14} />
+                              </button>
+                            </div>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })}
               </tbody>
             </table>
           </div>

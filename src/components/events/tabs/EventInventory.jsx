@@ -808,3 +808,4 @@ const EventInventory = ({ event }) => {
 };
 
 export default EventInventory;
+

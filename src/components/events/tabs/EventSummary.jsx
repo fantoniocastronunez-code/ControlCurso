@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { db } from '../../../firebase/config';
 import { collection, getDocs, query, where } from 'firebase/firestore';
-import { DollarSign, Activity, FileText, Printer, Package } from 'lucide-react';
+import { DollarSign, Activity, FileText, Printer, Package, UserCheck, Users } from 'lucide-react';
 import ThermalClosureReceipt from './ThermalClosureReceipt';
 
 const EventSummary = ({ event }) => {
@@ -15,6 +15,7 @@ const EventSummary = ({ event }) => {
   const [itemsSummary, setItemsSummary] = useState([]);
   const [expensesSummary, setExpensesSummary] = useState([]);
   const [inventorySummary, setInventorySummary] = useState([]);
+  const [cashiersSummary, setCashiersSummary] = useState([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -40,11 +41,14 @@ const EventSummary = ({ event }) => {
       const snapSales = await getDocs(qSales);
       let salesT = 0;
       const itemsMap = new Map();
+      const cashiersMap = new Map();
+
       snapSales.forEach(d => {
         const data = d.data();
         if (data.status === 'cancelled' || data.status === 'anulada') return;
         salesT += data.total || 0;
         
+        // Items global summary
         if (data.items && Array.isArray(data.items)) {
           data.items.forEach(item => {
             let name = item.name;
@@ -62,10 +66,45 @@ const EventSummary = ({ event }) => {
             current.total += itemTotal;
           });
         }
+
+        // Cashiers summary (quien vendió qué cosas)
+        const cashierName = (data.cashierName || data.createdBy || 'Cajero General').trim();
+        if (!cashiersMap.has(cashierName)) {
+          cashiersMap.set(cashierName, {
+            name: cashierName,
+            salesCount: 0,
+            cashTotal: 0,
+            transferTotal: 0,
+            total: 0,
+            productsMap: new Map()
+          });
+        }
+        const cEntry = cashiersMap.get(cashierName);
+        cEntry.salesCount += 1;
+        cEntry.total += data.total || 0;
+        if (data.paymentMethod === 'cash') {
+          cEntry.cashTotal += data.total || 0;
+        } else {
+          cEntry.transferTotal += data.total || 0;
+        }
+
+        if (data.items && Array.isArray(data.items)) {
+          data.items.forEach(item => {
+            const pName = item.name;
+            const pQty = item.quantity || 1;
+            cEntry.productsMap.set(pName, (cEntry.productsMap.get(pName) || 0) + pQty);
+          });
+        }
       });
       
       const itemsList = Array.from(itemsMap.values()).sort((a,b) => b.total - a.total);
       setItemsSummary(itemsList);
+
+      const cashiersList = Array.from(cashiersMap.values()).map(c => ({
+        ...c,
+        productsList: Array.from(c.productsMap.entries()).map(([name, qty]) => ({ name, qty }))
+      })).sort((a, b) => b.total - a.total);
+      setCashiersSummary(cashiersList);
 
       // 3. Expenses (outcomes)
       const qOutcomes = query(collection(db, 'outcomes'), where('fundId', '==', event.fundId));
@@ -118,6 +157,7 @@ const EventSummary = ({ event }) => {
         itemsSummary={itemsSummary} 
         expensesSummary={expensesSummary} 
         inventorySummary={inventorySummary}
+        cashiersSummary={cashiersSummary}
       />
       
       <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '1.5rem' }}>
@@ -171,6 +211,77 @@ const EventSummary = ({ event }) => {
             <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem', fontWeight: 'bold' }}>Ganancia Neta (Fondo)</p>
           </div>
         </div>
+      </div>
+
+      {/* Sección Rendición y Ventas por Cajero */}
+      <div className="glass-panel" style={{ padding: '1.5rem', marginBottom: '2rem' }}>
+        <h3 style={{ marginBottom: '1rem', color: 'var(--primary)', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+          <Users size={20} /> Rendición y Control de Ventas por Cajero(a)
+        </h3>
+        
+        {cashiersSummary.length === 0 ? (
+          <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem', margin: 0 }}>
+            No hay ventas registradas por cajeros aún.
+          </p>
+        ) : (
+          <div style={{ overflowX: 'auto' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.9rem' }}>
+              <thead>
+                <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.1)', color: 'var(--text-muted)', textAlign: 'left' }}>
+                  <th style={{ padding: '0.65rem 0.5rem' }}>Cajero(a)</th>
+                  <th style={{ padding: '0.65rem 0.5rem', textAlign: 'center' }}>Ventas</th>
+                  <th style={{ padding: '0.65rem 0.5rem', textAlign: 'right' }}>Efectivo</th>
+                  <th style={{ padding: '0.65rem 0.5rem', textAlign: 'right' }}>Transferencia</th>
+                  <th style={{ padding: '0.65rem 0.5rem', textAlign: 'right' }}>Total Recaudado</th>
+                  <th style={{ padding: '0.65rem 0.5rem' }}>Productos que vendió</th>
+                </tr>
+              </thead>
+              <tbody>
+                {cashiersSummary.map((c, idx) => (
+                  <tr key={idx} style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+                    <td style={{ padding: '0.75rem 0.5rem' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                        <UserCheck size={16} color="var(--primary)" />
+                        <strong style={{ fontSize: '0.95rem' }}>{c.name}</strong>
+                      </div>
+                    </td>
+                    <td style={{ padding: '0.75rem 0.5rem', textAlign: 'center' }}>
+                      <span style={{ fontWeight: '500' }}>{c.salesCount}</span>
+                    </td>
+                    <td style={{ padding: '0.75rem 0.5rem', textAlign: 'right', color: 'var(--text-muted)' }}>
+                      {formatMoney(c.cashTotal)}
+                    </td>
+                    <td style={{ padding: '0.75rem 0.5rem', textAlign: 'right', color: 'var(--text-muted)' }}>
+                      {formatMoney(c.transferTotal)}
+                    </td>
+                    <td style={{ padding: '0.75rem 0.5rem', textAlign: 'right' }}>
+                      <strong style={{ color: 'var(--success)', fontSize: '0.95rem' }}>{formatMoney(c.total)}</strong>
+                    </td>
+                    <td style={{ padding: '0.75rem 0.5rem' }}>
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.35rem' }}>
+                        {c.productsList.map((p, pIdx) => (
+                          <span 
+                            key={pIdx}
+                            style={{ 
+                              fontSize: '0.75rem', 
+                              backgroundColor: 'rgba(99,102,241,0.1)', 
+                              border: '1px solid rgba(99,102,241,0.2)',
+                              padding: '0.15rem 0.45rem',
+                              borderRadius: '12px',
+                              color: 'var(--text-main)'
+                            }}
+                          >
+                            <strong>{p.qty}x</strong> {p.name}
+                          </span>
+                        ))}
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
       </div>
 
       {/* Sección Balance de Inventario y Sobrantes */}

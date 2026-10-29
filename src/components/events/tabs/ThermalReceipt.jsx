@@ -57,6 +57,9 @@ const ThermalReceipt = ({ sale, eventName }) => {
       <div style={{ marginTop: '10px', fontSize: '12px', textAlign: 'center' }}>
         <p style={{ margin: '0' }}>Pago: {sale.paymentMethod === 'cash' ? 'Efectivo' : 'Transferencia'}</p>
         <p style={{ margin: '5px 0 0 0' }}>Cliente: {sale.clientName || 'Cliente General'}</p>
+        {sale.cashierName && (
+          <p style={{ margin: '5px 0 0 0' }}>Cajero/a: {sale.cashierName}</p>
+        )}
         {sale.saleNote && (
           <p style={{ margin: '5px 0 0 0', fontWeight: 'bold' }}>Nota: {sale.saleNote}</p>
         )}

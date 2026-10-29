@@ -1,7 +1,7 @@
 import React from 'react';
 import { createPortal } from 'react-dom';
 
-const ThermalClosureReceipt = ({ event, stats, itemsSummary, expensesSummary, inventorySummary = [] }) => {
+const ThermalClosureReceipt = ({ event, stats, itemsSummary, expensesSummary, inventorySummary = [], cashiersSummary = [] }) => {
   if (!event || !stats) return null;
 
   const formatMoney = (amount) => {
@@ -84,6 +84,32 @@ const ThermalClosureReceipt = ({ event, stats, itemsSummary, expensesSummary, in
           </table>
         ) : (
           <div style={{ textAlign: 'center', fontSize: '10px' }}>No hay gastos registrados</div>
+        )}
+      </div>
+
+      <div style={{ fontSize: '12px', fontFamily: 'monospace', marginBottom: '10px' }}>
+        <div style={{ fontWeight: 'bold', textAlign: 'center', marginBottom: '5px', borderBottom: '1px dashed black', paddingBottom: '3px' }}>RENDICIÓN POR CAJERO</div>
+        {cashiersSummary && cashiersSummary.length > 0 ? (
+          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+            <thead>
+              <tr style={{ textAlign: 'left', fontSize: '10px' }}>
+                <th style={{ width: '50%' }}>Cajero</th>
+                <th style={{ width: '18%', textAlign: 'center' }}>Vtas</th>
+                <th style={{ width: '32%', textAlign: 'right' }}>Total</th>
+              </tr>
+            </thead>
+            <tbody>
+              {cashiersSummary.map((c, idx) => (
+                <tr key={idx} style={{ fontSize: '11px' }}>
+                  <td style={{ wordBreak: 'break-word', paddingRight: '3px' }}>{c.name}</td>
+                  <td style={{ textAlign: 'center' }}>{c.salesCount}</td>
+                  <td style={{ textAlign: 'right', fontWeight: 'bold' }}>{formatMoney(c.total)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        ) : (
+          <div style={{ textAlign: 'center', fontSize: '10px' }}>Sin ventas registradas</div>
         )}
       </div>
 
