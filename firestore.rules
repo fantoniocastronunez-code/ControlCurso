@@ -185,6 +185,20 @@ service cloud.firestore {
       );
     }
 
+    match /eventInventory/{itemId} {
+      allow read: if isAuthenticated();
+      allow create, delete: if isAuthenticated() && (
+        isSuperAdmin() ||
+        ('roles' in getUserData() && getUserData().roles.values().hasAny(['admin', 'tesorero'])) ||
+        ('role' in getUserData() && (getUserData().role == 'superadmin' || getUserData().role == 'admin' || getUserData().role == 'tesorero'))
+      );
+      allow update: if isAuthenticated() && (
+        isSuperAdmin() ||
+        ('roles' in getUserData() && getUserData().roles.values().hasAny(['admin', 'tesorero', 'apoderado'])) ||
+        ('role' in getUserData() && (getUserData().role == 'superadmin' || getUserData().role == 'admin' || getUserData().role == 'tesorero' || getUserData().role == 'apoderado'))
+      );
+    }
+
     match /eventSales/{saleId} {
       allow read: if isAuthenticated();
       allow create: if isAuthenticated() && (

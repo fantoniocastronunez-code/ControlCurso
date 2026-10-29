@@ -237,6 +237,7 @@ const EventManagement = ({ onBack }) => {
       const queries = [
         query(collection(db, 'debts'), where('eventId', '==', eventToDelete.id)),
         query(collection(db, 'eventItems'), where('eventId', '==', eventToDelete.id)),
+        query(collection(db, 'eventInventory'), where('eventId', '==', eventToDelete.id)),
         query(collection(db, 'eventSales'), where('eventId', '==', eventToDelete.id)),
         query(collection(db, 'incomes'), where('eventId', '==', eventToDelete.id)),
         query(collection(db, 'outcomes'), where('eventId', '==', eventToDelete.id))

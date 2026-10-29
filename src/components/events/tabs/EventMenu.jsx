@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { db } from '../../../firebase/config';
 import { collection, getDocs, doc, setDoc, updateDoc, query, where, deleteDoc } from 'firebase/firestore';
-import { Plus, Trash2, Edit2, Check, X } from 'lucide-react';
+import { Plus, Trash2, Edit2, Check, X, Package } from 'lucide-react';
 import { useModal } from '../../../context/ModalContext';
 import { useAuth } from '../../../context/AuthContext';
 
@@ -9,12 +9,15 @@ const EventMenu = ({ event }) => {
   const { user } = useAuth();
   const { showAlert, showConfirm } = useModal();
   const [items, setItems] = useState([]);
+  const [inventoryList, setInventoryList] = useState([]);
   const [loading, setLoading] = useState(true);
 
   const [newItemName, setNewItemName] = useState('');
   const [newItemPrice, setNewItemPrice] = useState('');
   const [hasSubproducts, setHasSubproducts] = useState(false);
   const [subproducts, setSubproducts] = useState([{ name: '', price: '', hasOptions: false, options: [] }]);
+  const [hasIngredients, setHasIngredients] = useState(false);
+  const [ingredients, setIngredients] = useState([{ inventoryId: '', quantity: '1' }]);
   const [editingItemId, setEditingItemId] = useState(null);
 
   const fetchItems = useCallback(async () => {
@@ -25,6 +28,13 @@ const EventMenu = ({ event }) => {
       const list = snap.docs.map(d => ({ id: d.id, ...d.data() }));
       list.sort((a, b) => a.name.localeCompare(b.name));
       setItems(list);
+
+      // Fetch inventory items
+      const qInv = query(collection(db, 'eventInventory'), where('eventId', '==', event.id));
+      const snapInv = await getDocs(qInv);
+      const invList = snapInv.docs.map(d => ({ id: d.id, ...d.data() }));
+      invList.sort((a, b) => a.name.localeCompare(b.name));
+      setInventoryList(invList);
     } catch (error) {
       console.error("Error fetching items:", error);
     } finally {
@@ -42,6 +52,8 @@ const EventMenu = ({ event }) => {
     setNewItemPrice('');
     setHasSubproducts(false);
     setSubproducts([{ name: '', price: '', hasOptions: false, options: [] }]);
+    setHasIngredients(false);
+    setIngredients([{ inventoryId: '', quantity: '1' }]);
   };
 
   const handleAddItem = async (e) => {
@@ -49,10 +61,23 @@ const EventMenu = ({ event }) => {
     if (!newItemName || newItemPrice === '') return;
 
     try {
+      const cleanIngredients = hasIngredients ? ingredients
+        .filter(ing => ing.inventoryId && parseFloat(ing.quantity) > 0)
+        .map(ing => {
+          const invItem = inventoryList.find(i => i.id === ing.inventoryId);
+          return {
+            inventoryId: ing.inventoryId,
+            name: invItem?.name || '',
+            quantity: parseFloat(ing.quantity),
+            unit: invItem?.unit || 'unidades'
+          };
+        }) : [];
+
       const item = {
         eventId: event.id,
         name: newItemName.trim(),
         price: parseFloat(newItemPrice),
+        ingredients: cleanIngredients,
         subproducts: hasSubproducts ? subproducts.filter(sp => sp.name.trim() !== '').map(sp => {
           const cleanOptions = (sp.options || [])
             .map(opt => typeof opt === 'string' ? opt.trim() : (opt.name || '').trim())
@@ -88,6 +113,18 @@ const EventMenu = ({ event }) => {
     setEditingItemId(item.id);
     setNewItemName(item.name);
     setNewItemPrice(item.price.toString());
+    
+    if (item.ingredients && item.ingredients.length > 0) {
+      setHasIngredients(true);
+      setIngredients(item.ingredients.map(ing => ({
+        inventoryId: ing.inventoryId,
+        quantity: (ing.quantity ?? 1).toString()
+      })));
+    } else {
+      setHasIngredients(false);
+      setIngredients([{ inventoryId: '', quantity: '1' }]);
+    }
+
     if (item.subproducts && item.subproducts.length > 0) {
       setHasSubproducts(true);
       setSubproducts(item.subproducts.map(sp => ({
@@ -423,6 +460,108 @@ const EventMenu = ({ event }) => {
             </button>
           </div>
         )}
+
+        {/* Sección de Receta / Descuento de Insumos del Inventario */}
+        <div style={{ width: '100%', marginTop: '0.75rem' }}>
+          <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer', fontWeight: '500' }}>
+            <input 
+              type="checkbox"
+              checked={hasIngredients}
+              onChange={(e) => setHasIngredients(e.target.checked)}
+              style={{ accentColor: 'var(--primary)', width: '16px', height: '16px' }}
+            />
+            Descontar insumos del inventario al vender (ej. 1 Vienesa y 1 Pan por cada Completo)
+          </label>
+        </div>
+
+        {hasIngredients && (
+          <div style={{ 
+            width: '100%', 
+            padding: '1rem', 
+            backgroundColor: 'rgba(99, 102, 241, 0.05)', 
+            border: '1px solid rgba(99, 102, 241, 0.2)', 
+            borderRadius: 'var(--radius-md)', 
+            marginTop: '0.5rem' 
+          }}>
+            <h4 style={{ marginBottom: '0.75rem', display: 'flex', alignItems: 'center', gap: '0.5rem', color: 'var(--primary)' }}>
+              <Package size={16} /> Insumos a descontar por cada unidad vendida de este producto
+            </h4>
+            
+            {inventoryList.length === 0 ? (
+              <p style={{ color: 'var(--warning)', fontSize: '0.85rem', margin: 0 }}>
+                No hay insumos creados en la pestaña <strong>Inventario</strong> aún. Ve primero a la pestaña <strong>Inventario</strong> para registrar "Pan de Completo", "Vienesas", etc.
+              </p>
+            ) : (
+              <div>
+                {ingredients.map((ing, idx) => {
+                  const selectedInv = inventoryList.find(i => i.id === ing.inventoryId);
+                  return (
+                    <div key={idx} style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', marginBottom: '0.6rem', flexWrap: 'wrap' }}>
+                      <div style={{ flex: '2 1 200px' }}>
+                        <select 
+                          className="input-field"
+                          value={ing.inventoryId}
+                          onChange={(e) => {
+                            const newIngs = [...ingredients];
+                            newIngs[idx].inventoryId = e.target.value;
+                            setIngredients(newIngs);
+                          }}
+                        >
+                          <option value="">Selecciona insumo a descontar...</option>
+                          {inventoryList.map(inv => (
+                            <option key={inv.id} value={inv.id}>
+                              {inv.name} (Stock: {inv.currentStock} {inv.unit})
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+
+                      <div style={{ flex: '1 1 120px', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                        <input 
+                          type="number"
+                          step="any"
+                          min="0.01"
+                          placeholder="Cant."
+                          className="input-field"
+                          value={ing.quantity}
+                          onChange={(e) => {
+                            const newIngs = [...ingredients];
+                            newIngs[idx].quantity = e.target.value;
+                            setIngredients(newIngs);
+                          }}
+                        />
+                        <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)', minWidth: '40px' }}>
+                          {selectedInv ? selectedInv.unit : 'un.'}
+                        </span>
+                      </div>
+
+                      {ingredients.length > 1 && (
+                        <button 
+                          type="button"
+                          className="btn btn-outline"
+                          style={{ padding: '0.5rem', color: 'var(--danger)', borderColor: 'rgba(239, 68, 68, 0.4)' }}
+                          onClick={() => setIngredients(ingredients.filter((_, i) => i !== idx))}
+                          title="Quitar insumo"
+                        >
+                          <Trash2 size={16} />
+                        </button>
+                      )}
+                    </div>
+                  );
+                })}
+
+                <button 
+                  type="button" 
+                  className="btn btn-outline" 
+                  style={{ marginTop: '0.5rem', fontSize: '0.85rem', display: 'flex', alignItems: 'center', gap: '0.35rem' }}
+                  onClick={() => setIngredients([...ingredients, { inventoryId: '', quantity: '1' }])}
+                >
+                  <Plus size={14} /> Añadir otro insumo a la receta
+                </button>
+              </div>
+            )}
+          </div>
+        )}
       </form>
 
       {items.length === 0 ? (
@@ -434,6 +573,14 @@ const EventMenu = ({ event }) => {
               <div>
                 <strong style={{ display: 'block', fontSize: '1.1rem' }}>{item.name}</strong>
                 <span style={{ color: 'var(--primary)', fontWeight: 'bold' }}>{formatMoney(item.price)}</span>
+                
+                {item.ingredients && item.ingredients.length > 0 && (
+                  <div style={{ fontSize: '0.8rem', color: 'var(--primary)', marginTop: '0.35rem', display: 'flex', alignItems: 'center', gap: '0.35rem', backgroundColor: 'rgba(99,102,241,0.1)', padding: '0.2rem 0.5rem', borderRadius: '4px', width: 'fit-content' }}>
+                    <Package size={13} />
+                    <span>Descuenta: {item.ingredients.map(ing => `${ing.quantity} ${ing.unit || 'un'} ${ing.name}`).join(' • ')}</span>
+                  </div>
+                )}
+
                 {item.subproducts && item.subproducts.length > 0 && (
                   <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginTop: '0.25rem' }}>
                     Agregados: {item.subproducts.map(sp => {

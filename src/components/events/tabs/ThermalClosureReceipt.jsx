@@ -1,7 +1,7 @@
 import React from 'react';
 import { createPortal } from 'react-dom';
 
-const ThermalClosureReceipt = ({ event, stats, itemsSummary, expensesSummary }) => {
+const ThermalClosureReceipt = ({ event, stats, itemsSummary, expensesSummary, inventorySummary = [] }) => {
   if (!event || !stats) return null;
 
   const formatMoney = (amount) => {
@@ -84,6 +84,38 @@ const ThermalClosureReceipt = ({ event, stats, itemsSummary, expensesSummary }) 
           </table>
         ) : (
           <div style={{ textAlign: 'center', fontSize: '10px' }}>No hay gastos registrados</div>
+        )}
+      </div>
+
+      <div style={{ fontSize: '12px', fontFamily: 'monospace', marginBottom: '10px' }}>
+        <div style={{ fontWeight: 'bold', textAlign: 'center', marginBottom: '5px', borderBottom: '1px dashed black', paddingBottom: '3px' }}>INVENTARIO Y SOBRANTES</div>
+        {inventorySummary && inventorySummary.length > 0 ? (
+          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+            <thead>
+              <tr style={{ textAlign: 'left', fontSize: '10px' }}>
+                <th style={{ width: '45%' }}>Insumo</th>
+                <th style={{ width: '25%', textAlign: 'center' }}>Vend.</th>
+                <th style={{ width: '30%', textAlign: 'right' }}>Sobrante</th>
+              </tr>
+            </thead>
+            <tbody>
+              {inventorySummary.map((inv, idx) => {
+                const purchased = inv.totalPurchased || inv.initialQuantity || 0;
+                const current = inv.currentStock !== undefined ? inv.currentStock : purchased;
+                const consumed = Math.max(0, purchased - current);
+                const remaining = inv.finalCount !== undefined && inv.finalCount !== null ? inv.finalCount : current;
+                return (
+                  <tr key={idx} style={{ fontSize: '11px' }}>
+                    <td style={{ wordBreak: 'break-word', paddingRight: '3px' }}>{inv.name}</td>
+                    <td style={{ textAlign: 'center' }}>{consumed}</td>
+                    <td style={{ textAlign: 'right', fontWeight: 'bold' }}>{remaining} {inv.unit}</td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        ) : (
+          <div style={{ textAlign: 'center', fontSize: '10px' }}>Sin insumos registrados</div>
         )}
       </div>
       

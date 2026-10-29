@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { db } from '../../../firebase/config';
 import { collection, getDocs, query, where } from 'firebase/firestore';
-import { DollarSign, Activity, FileText, Printer } from 'lucide-react';
+import { DollarSign, Activity, FileText, Printer, Package } from 'lucide-react';
 import ThermalClosureReceipt from './ThermalClosureReceipt';
 
 const EventSummary = ({ event }) => {
@@ -14,6 +14,7 @@ const EventSummary = ({ event }) => {
   });
   const [itemsSummary, setItemsSummary] = useState([]);
   const [expensesSummary, setExpensesSummary] = useState([]);
+  const [inventorySummary, setInventorySummary] = useState([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -81,6 +82,13 @@ const EventSummary = ({ event }) => {
       });
       setExpensesSummary(expensesList);
 
+      // 4. Inventory & Leftovers
+      const qInv = query(collection(db, 'eventInventory'), where('eventId', '==', event.id));
+      const snapInv = await getDocs(qInv);
+      const invList = snapInv.docs.map(d => ({ id: d.id, ...d.data() }));
+      invList.sort((a, b) => a.name.localeCompare(b.name));
+      setInventorySummary(invList);
+
       setStats({
         totalQuotas: totalQ,
         paidQuotas: paidQ,
@@ -104,7 +112,13 @@ const EventSummary = ({ event }) => {
 
   return (
     <div style={{ position: 'relative' }}>
-      <ThermalClosureReceipt event={event} stats={stats} itemsSummary={itemsSummary} expensesSummary={expensesSummary} />
+      <ThermalClosureReceipt 
+        event={event} 
+        stats={stats} 
+        itemsSummary={itemsSummary} 
+        expensesSummary={expensesSummary} 
+        inventorySummary={inventorySummary}
+      />
       
       <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '1.5rem' }}>
         <button 
@@ -116,47 +130,122 @@ const EventSummary = ({ event }) => {
         </button>
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1.5rem' }}>
-      <div className="glass-panel" style={{ padding: '1.5rem', display: 'flex', alignItems: 'center', gap: '1rem' }}>
-        <div style={{ backgroundColor: 'rgba(59,130,246,0.2)', padding: '1rem', borderRadius: '50%', color: '#3b82f6' }}>
-          <FileText size={24} />
+      {/* Tarjetas Financieras */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1.5rem', marginBottom: '2rem' }}>
+        <div className="glass-panel" style={{ padding: '1.5rem', display: 'flex', alignItems: 'center', gap: '1rem' }}>
+          <div style={{ backgroundColor: 'rgba(59,130,246,0.2)', padding: '1rem', borderRadius: '50%', color: '#3b82f6' }}>
+            <FileText size={24} />
+          </div>
+          <div>
+            <h3 style={{ fontSize: '1.25rem', margin: 0 }}>{formatMoney(stats.paidQuotas)}</h3>
+            <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem' }}>Recaudado por Cuotas</p>
+            <p style={{ fontSize: '0.75rem', color: 'var(--warning)', margin: 0 }}>De {formatMoney(stats.totalQuotas)} esperados</p>
+          </div>
         </div>
-        <div>
-          <h3 style={{ fontSize: '1.25rem', margin: 0 }}>{formatMoney(stats.paidQuotas)}</h3>
-          <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem' }}>Recaudado por Cuotas</p>
-          <p style={{ fontSize: '0.75rem', color: 'var(--warning)', margin: 0 }}>De {formatMoney(stats.totalQuotas)} esperados</p>
+
+        <div className="glass-panel" style={{ padding: '1.5rem', display: 'flex', alignItems: 'center', gap: '1rem' }}>
+          <div style={{ backgroundColor: 'rgba(16,185,129,0.2)', padding: '1rem', borderRadius: '50%', color: 'var(--success)' }}>
+            <Activity size={24} />
+          </div>
+          <div>
+            <h3 style={{ fontSize: '1.25rem', margin: 0 }}>{formatMoney(stats.salesTotal)}</h3>
+            <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem' }}>Total en Ventas POS</p>
+          </div>
+        </div>
+
+        <div className="glass-panel" style={{ padding: '1.5rem', display: 'flex', alignItems: 'center', gap: '1rem' }}>
+          <div style={{ backgroundColor: 'rgba(239,68,68,0.2)', padding: '1rem', borderRadius: '50%', color: 'var(--danger)' }}>
+            <DollarSign size={24} />
+          </div>
+          <div>
+            <h3 style={{ fontSize: '1.25rem', margin: 0 }}>{formatMoney(stats.expensesTotal)}</h3>
+            <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem' }}>Gastos Registrados</p>
+          </div>
+        </div>
+
+        <div className="glass-panel" style={{ padding: '1.5rem', display: 'flex', alignItems: 'center', gap: '1rem', backgroundColor: stats.netProfit >= 0 ? 'rgba(16,185,129,0.05)' : 'rgba(239,68,68,0.05)', border: `1px solid ${stats.netProfit >= 0 ? 'var(--success)' : 'var(--danger)'}` }}>
+          <div>
+            <h3 style={{ fontSize: '1.5rem', margin: 0, color: stats.netProfit >= 0 ? 'var(--success)' : 'var(--danger)' }}>
+              {formatMoney(stats.netProfit)}
+            </h3>
+            <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem', fontWeight: 'bold' }}>Ganancia Neta (Fondo)</p>
+          </div>
         </div>
       </div>
 
-      <div className="glass-panel" style={{ padding: '1.5rem', display: 'flex', alignItems: 'center', gap: '1rem' }}>
-        <div style={{ backgroundColor: 'rgba(16,185,129,0.2)', padding: '1rem', borderRadius: '50%', color: 'var(--success)' }}>
-          <Activity size={24} />
-        </div>
-        <div>
-          <h3 style={{ fontSize: '1.25rem', margin: 0 }}>{formatMoney(stats.salesTotal)}</h3>
-          <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem' }}>Total en Ventas POS</p>
-        </div>
-      </div>
+      {/* Sección Balance de Inventario y Sobrantes */}
+      <div className="glass-panel" style={{ padding: '1.5rem' }}>
+        <h3 style={{ marginBottom: '1rem', color: 'var(--primary)', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+          <Package size={20} /> Balance de Inventario y Sobrantes del Evento
+        </h3>
+        
+        {inventorySummary.length === 0 ? (
+          <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem', margin: 0 }}>
+            No se registraron insumos en el inventario para este evento.
+          </p>
+        ) : (
+          <div style={{ overflowX: 'auto' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.9rem' }}>
+              <thead>
+                <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.1)', color: 'var(--text-muted)', textAlign: 'left' }}>
+                  <th style={{ padding: '0.65rem 0.5rem' }}>Insumo</th>
+                  <th style={{ padding: '0.65rem 0.5rem', textAlign: 'center' }}>Total Comprado</th>
+                  <th style={{ padding: '0.65rem 0.5rem', textAlign: 'center' }}>Consumido (POS)</th>
+                  <th style={{ padding: '0.65rem 0.5rem', textAlign: 'center' }}>Stock Teórico Restante</th>
+                  <th style={{ padding: '0.65rem 0.5rem', textAlign: 'center' }}>Sobrante Real (Físico)</th>
+                  <th style={{ padding: '0.65rem 0.5rem', textAlign: 'center' }}>Diferencia / Merma</th>
+                </tr>
+              </thead>
+              <tbody>
+                {inventorySummary.map(item => {
+                  const purchased = item.totalPurchased || item.initialQuantity || 0;
+                  const current = item.currentStock !== undefined ? item.currentStock : purchased;
+                  const consumed = Math.max(0, purchased - current);
+                  const hasPhysical = item.finalCount !== undefined && item.finalCount !== null;
+                  const diff = hasPhysical ? (item.finalCount - current) : null;
 
-      <div className="glass-panel" style={{ padding: '1.5rem', display: 'flex', alignItems: 'center', gap: '1rem' }}>
-        <div style={{ backgroundColor: 'rgba(239,68,68,0.2)', padding: '1rem', borderRadius: '50%', color: 'var(--danger)' }}>
-          <DollarSign size={24} />
-        </div>
-        <div>
-          <h3 style={{ fontSize: '1.25rem', margin: 0 }}>{formatMoney(stats.expensesTotal)}</h3>
-          <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem' }}>Gastos Registrados</p>
-        </div>
+                  return (
+                    <tr key={item.id} style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+                      <td style={{ padding: '0.65rem 0.5rem' }}>
+                        <strong>{item.name}</strong>
+                      </td>
+                      <td style={{ padding: '0.65rem 0.5rem', textAlign: 'center', color: 'var(--text-muted)' }}>
+                        {purchased} {item.unit}
+                      </td>
+                      <td style={{ padding: '0.65rem 0.5rem', textAlign: 'center', color: 'var(--text-muted)' }}>
+                        {consumed} {item.unit}
+                      </td>
+                      <td style={{ padding: '0.65rem 0.5rem', textAlign: 'center' }}>
+                        <strong style={{ color: 'var(--primary)' }}>{current} {item.unit}</strong>
+                      </td>
+                      <td style={{ padding: '0.65rem 0.5rem', textAlign: 'center' }}>
+                        {hasPhysical ? (
+                          <strong style={{ color: 'var(--text-main)' }}>{item.finalCount} {item.unit}</strong>
+                        ) : (
+                          <span style={{ color: 'var(--text-muted)', fontStyle: 'italic', fontSize: '0.8rem' }}>
+                            (Ver pestaña Inventario)
+                          </span>
+                        )}
+                      </td>
+                      <td style={{ padding: '0.65rem 0.5rem', textAlign: 'center' }}>
+                        {!hasPhysical ? (
+                          <span style={{ color: 'var(--text-muted)', fontSize: '0.8rem' }}>—</span>
+                        ) : diff === 0 ? (
+                          <span style={{ color: 'var(--success)', fontWeight: 'bold' }}>✓ Exacto</span>
+                        ) : diff < 0 ? (
+                          <span style={{ color: 'var(--danger)', fontWeight: 'bold' }}>Merma: {diff} {item.unit}</span>
+                        ) : (
+                          <span style={{ color: '#38bdf8', fontWeight: 'bold' }}>+{diff} {item.unit}</span>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
       </div>
-
-      <div className="glass-panel" style={{ padding: '1.5rem', display: 'flex', alignItems: 'center', gap: '1rem', backgroundColor: stats.netProfit >= 0 ? 'rgba(16,185,129,0.05)' : 'rgba(239,68,68,0.05)', border: `1px solid ${stats.netProfit >= 0 ? 'var(--success)' : 'var(--danger)'}` }}>
-        <div>
-          <h3 style={{ fontSize: '1.5rem', margin: 0, color: stats.netProfit >= 0 ? 'var(--success)' : 'var(--danger)' }}>
-            {formatMoney(stats.netProfit)}
-          </h3>
-          <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem', fontWeight: 'bold' }}>Ganancia Neta (Fondo)</p>
-        </div>
-      </div>
-    </div>
     </div>
   );
 };

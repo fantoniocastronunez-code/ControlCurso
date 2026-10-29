@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { db } from '../../../firebase/config';
 import { collection, getDocs, doc, setDoc, query, where, orderBy, updateDoc, deleteDoc } from 'firebase/firestore';
-import { ShoppingCart, Plus, Minus, Trash2, Printer, Maximize, Minimize, Check } from 'lucide-react';
+import { ShoppingCart, Plus, Minus, Trash2, Printer, Maximize, Minimize, Check, Package, AlertTriangle } from 'lucide-react';
 import { useModal } from '../../../context/ModalContext';
 import { useAuth } from '../../../context/AuthContext';
 import ThermalReceipt from './ThermalReceipt';
@@ -11,6 +11,7 @@ const EventPOS = ({ event }) => {
   const { showAlert, showConfirm } = useModal();
   const [items, setItems] = useState([]);
   const [sales, setSales] = useState([]);
+  const [inventory, setInventory] = useState([]);
   const [loading, setLoading] = useState(true);
 
   // Fullscreen State
@@ -53,6 +54,13 @@ const EventPOS = ({ event }) => {
         salesList.sort((a, b) => b.correlative - a.correlative); // Local sort to avoid requiring composite index
         setSales(salesList);
 
+        // Fetch inventory items
+        const qInv = query(collection(db, 'eventInventory'), where('eventId', '==', event.id));
+        const snapInv = await getDocs(qInv);
+        const invList = snapInv.docs.map(d => ({ id: d.id, ...d.data() }));
+        invList.sort((a, b) => a.name.localeCompare(b.name));
+        setInventory(invList);
+
       } catch (error) {
         console.error("Error fetching POS data:", error);
       } finally {
@@ -85,7 +93,75 @@ const EventPOS = ({ event }) => {
     }
   };
 
+  // Calcular stock disponible para un ítem del menú según sus insumos
+  const getItemStockInfo = (item) => {
+    if (!item.ingredients || !Array.isArray(item.ingredients) || item.ingredients.length === 0) {
+      return { hasStockLimit: false, availableUnits: null, limitingIngredient: null };
+    }
+
+    let minAvailable = Infinity;
+    let limitingIng = null;
+
+    for (const ing of item.ingredients) {
+      const invItem = inventory.find(i => i.id === ing.inventoryId);
+      const currentStock = invItem ? (invItem.currentStock || 0) : 0;
+      const possibleWithIng = Math.floor(currentStock / ing.quantity);
+      if (possibleWithIng < minAvailable) {
+        minAvailable = possibleWithIng;
+        limitingIng = invItem;
+      }
+    }
+
+    return {
+      hasStockLimit: true,
+      availableUnits: Math.max(0, minAvailable === Infinity ? 0 : minAvailable),
+      limitingIngredient: limitingIng
+    };
+  };
+
+  // Comprobar si hay stock de insumos suficiente considerando lo que ya está en el carrito
+  const canAddUnitsToCart = (item, additionalUnits = 1) => {
+    if (!item.ingredients || !Array.isArray(item.ingredients) || item.ingredients.length === 0) {
+      return { ok: true };
+    }
+
+    for (const ing of item.ingredients) {
+      const invItem = inventory.find(i => i.id === ing.inventoryId);
+      const stock = invItem ? (invItem.currentStock || 0) : 0;
+
+      // Calcular cuánto de este insumo ya está comprometido en el carrito actual
+      const committedInCart = cart.reduce((sum, cartItem) => {
+        const matchIng = (cartItem.ingredients || []).find(i => i.inventoryId === ing.inventoryId);
+        return sum + (matchIng ? matchIng.quantity * cartItem.quantity : 0);
+      }, 0);
+
+      const needed = committedInCart + (ing.quantity * additionalUnits);
+      if (needed > stock) {
+        return {
+          ok: false,
+          ingredientName: invItem?.name || ing.name || 'Insumo',
+          availableStock: stock,
+          unit: invItem?.unit || 'un.'
+        };
+      }
+    }
+
+    return { ok: true };
+  };
+
   const handleItemClick = (item) => {
+    const stockInfo = getItemStockInfo(item);
+    if (stockInfo.hasStockLimit && stockInfo.availableUnits <= 0) {
+      showAlert(`"${item.name}" está agotado por falta de insumos (${stockInfo.limitingIngredient?.name || 'insumo'}).`);
+      return;
+    }
+
+    const check = canAddUnitsToCart(item, 1);
+    if (!check.ok) {
+      showAlert(`Stock insuficiente de "${check.ingredientName}". Solo quedan ${check.availableStock} ${check.unit} disponibles.`);
+      return;
+    }
+
     if (item.subproducts && item.subproducts.length > 0) {
       setSelectedItemForSubproducts(item);
       setSelectedSubproducts([]);
@@ -121,6 +197,17 @@ const EventPOS = ({ event }) => {
   };
 
   const updateQuantity = (cartItemId, delta) => {
+    if (delta > 0) {
+      const cartItem = cart.find(c => c.cartItemId === cartItemId);
+      if (cartItem) {
+        const check = canAddUnitsToCart(cartItem, delta);
+        if (!check.ok) {
+          showAlert(`Stock insuficiente de "${check.ingredientName}". Solo quedan ${check.availableStock} ${check.unit} disponibles.`);
+          return;
+        }
+      }
+    }
+
     setCart(prev => prev.map(c => {
       if (c.cartItemId === cartItemId) {
         const newQ = c.quantity + delta;
@@ -152,6 +239,19 @@ const EventPOS = ({ event }) => {
       // Generate next correlative
       const nextCorrelative = sales.length > 0 ? sales[0].correlative + 1 : 1;
       
+      // Calcular deducciones de inventario según insumos de los productos
+      const deductions = {};
+      cart.forEach(cartItem => {
+        if (cartItem.ingredients && Array.isArray(cartItem.ingredients)) {
+          cartItem.ingredients.forEach(ing => {
+            if (ing.inventoryId) {
+              const qty = (parseFloat(ing.quantity) || 0) * (cartItem.quantity || 1);
+              deductions[ing.inventoryId] = (deductions[ing.inventoryId] || 0) + qty;
+            }
+          });
+        }
+      });
+
       const saleId = 'sale_' + Date.now();
       const newSale = {
         eventId: event.id,
@@ -160,6 +260,7 @@ const EventPOS = ({ event }) => {
         saleNote: saleNote.trim(),
         paymentMethod,
         items: cart,
+        inventoryDeductions: deductions,
         total: cartTotal,
         createdAt: new Date().toISOString(),
         createdBy: user?.email || user?.displayName || 'Unknown User'
@@ -168,7 +269,28 @@ const EventPOS = ({ event }) => {
       // 1. Guardar Venta
       await setDoc(doc(db, 'eventSales', saleId), newSale);
 
-      // 2. Ingresar el dinero automáticamente al Fondo del evento (como Ingreso Extra)
+      // 2. Descontar del inventario en Firestore
+      for (const [invId, qtyToDeduct] of Object.entries(deductions)) {
+        const invItem = inventory.find(i => i.id === invId);
+        const newStock = Math.max(0, (invItem?.currentStock ?? 0) - qtyToDeduct);
+        await updateDoc(doc(db, 'eventInventory', invId), {
+          currentStock: newStock,
+          updatedAt: new Date().toISOString()
+        });
+      }
+
+      // Actualizar inventario en estado local inmediatamente
+      setInventory(prev => prev.map(inv => {
+        if (deductions[inv.id]) {
+          return {
+            ...inv,
+            currentStock: Math.max(0, (inv.currentStock ?? 0) - deductions[inv.id])
+          };
+        }
+        return inv;
+      }));
+
+      // 3. Ingresar el dinero automáticamente al Fondo del evento (como Ingreso Extra)
       const incomeId = 'inc_' + Date.now();
       await setDoc(doc(db, 'incomes', incomeId), {
         title: `Venta #${nextCorrelative} - ${event.name}`,
@@ -212,18 +334,53 @@ const EventPOS = ({ event }) => {
     try {
       // 1. Marcar venta como anulada
       await updateDoc(doc(db, 'eventSales', sale.id), { status: 'cancelled' });
+
+      // 2. Restaurar stock en el inventario si la venta tenía insumos descontados
+      const deductionsToRestore = sale.inventoryDeductions || {};
+      // Si la venta no tenía inventoryDeductions guardadas explícitamente, calcular de sus items
+      if (Object.keys(deductionsToRestore).length === 0 && sale.items && Array.isArray(sale.items)) {
+        sale.items.forEach(cItem => {
+          if (cItem.ingredients && Array.isArray(cItem.ingredients)) {
+            cItem.ingredients.forEach(ing => {
+              if (ing.inventoryId) {
+                const qty = (parseFloat(ing.quantity) || 0) * (cItem.quantity || 1);
+                deductionsToRestore[ing.inventoryId] = (deductionsToRestore[ing.inventoryId] || 0) + qty;
+              }
+            });
+          }
+        });
+      }
+
+      for (const [invId, qtyToRestore] of Object.entries(deductionsToRestore)) {
+        const invItem = inventory.find(i => i.id === invId);
+        const restoredStock = (invItem?.currentStock ?? 0) + qtyToRestore;
+        await updateDoc(doc(db, 'eventInventory', invId), {
+          currentStock: restoredStock,
+          updatedAt: new Date().toISOString()
+        });
+      }
+
+      setInventory(prev => prev.map(inv => {
+        if (deductionsToRestore[inv.id]) {
+          return {
+            ...inv,
+            currentStock: (inv.currentStock ?? 0) + deductionsToRestore[inv.id]
+          };
+        }
+        return inv;
+      }));
       
-      // 2. Eliminar el ingreso asociado en la colección incomes
+      // 3. Eliminar el ingreso asociado en la colección incomes
       const qIncome = query(collection(db, 'incomes'), where('saleId', '==', sale.id));
       const snapIncome = await getDocs(qIncome);
       for (const docSnap of snapIncome.docs) {
         await deleteDoc(doc(db, 'incomes', docSnap.id));
       }
       
-      // 3. Actualizar estado local
+      // 4. Actualizar estado local
       setSales(prev => prev.map(s => s.id === sale.id ? { ...s, status: 'cancelled' } : s));
       
-      await showAlert(`Venta #${sale.correlative} anulada correctamente.`);
+      await showAlert(`Venta #${sale.correlative} anulada correctamente y el stock de insumos fue restaurado.`);
     } catch (error) {
       console.error("Error al anular venta:", error);
       await showAlert("Ocurrió un error al anular la venta.");
@@ -481,33 +638,141 @@ const EventPOS = ({ event }) => {
 
       {/* Lado Izquierdo: Productos */}
       <div style={{ flex: '1 1 400px', marginTop: isFullscreen ? '0' : '3rem' }}>
-        <h3 style={{ marginBottom: '1.5rem', color: 'var(--primary)' }}>Productos Disponibles</h3>
+        
+        {/* Barra en vivo de Stock de Insumos */}
+        {inventory.length > 0 && (
+          <div style={{ 
+            marginBottom: '1.25rem', 
+            padding: '0.85rem 1rem', 
+            backgroundColor: 'rgba(255,255,255,0.03)', 
+            borderRadius: 'var(--radius-md)', 
+            border: '1px solid rgba(255,255,255,0.08)' 
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.5rem', flexWrap: 'wrap', gap: '0.5rem' }}>
+              <span style={{ fontSize: '0.8rem', fontWeight: 'bold', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                <Package size={15} color="var(--primary)" /> Stock de Insumos en Vivo:
+              </span>
+              <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                Se descuenta automáticamente al vender
+              </span>
+            </div>
+            
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.4rem' }}>
+              {inventory.map(inv => {
+                const stock = inv.currentStock !== undefined ? inv.currentStock : (inv.totalPurchased || inv.initialQuantity || 0);
+                let color = 'var(--success)';
+                let bg = 'rgba(16,185,129,0.12)';
+                let border = '1px solid rgba(16,185,129,0.3)';
+
+                if (stock <= 0) {
+                  color = 'var(--danger)';
+                  bg = 'rgba(239,68,68,0.15)';
+                  border = '1px solid rgba(239,68,68,0.4)';
+                } else if (stock <= 10) {
+                  color = 'var(--warning)';
+                  bg = 'rgba(245,158,11,0.15)';
+                  border = '1px solid rgba(245,158,11,0.4)';
+                }
+
+                return (
+                  <div 
+                    key={inv.id}
+                    style={{ 
+                      display: 'inline-flex', 
+                      alignItems: 'center', 
+                      gap: '0.35rem', 
+                      padding: '0.25rem 0.65rem', 
+                      borderRadius: '16px', 
+                      backgroundColor: bg, 
+                      border,
+                      color, 
+                      fontSize: '0.8rem',
+                      fontWeight: 'bold'
+                    }}
+                  >
+                    <span>{inv.name}:</span>
+                    <span>{stock} {inv.unit}</span>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        <h3 style={{ marginBottom: '1.25rem', color: 'var(--primary)' }}>Productos Disponibles</h3>
         {items.length === 0 ? (
           <p style={{ color: 'var(--text-muted)' }}>No hay productos en el menú.</p>
         ) : (
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))', gap: '1rem' }}>
-            {items.map(item => (
-              <div 
-                key={item.id} 
-                onClick={() => handleItemClick(item)}
-                style={{ 
-                  backgroundColor: 'rgba(99,102,241,0.1)', 
-                  border: '1px solid var(--primary)', 
-                  borderRadius: 'var(--radius-md)', 
-                  padding: '1rem', 
-                  textAlign: 'center',
-                  cursor: 'pointer',
-                  userSelect: 'none',
-                  transition: 'transform 0.1s'
-                }}
-                onMouseDown={(e) => e.currentTarget.style.transform = 'scale(0.95)'}
-                onMouseUp={(e) => e.currentTarget.style.transform = 'scale(1)'}
-                onMouseLeave={(e) => e.currentTarget.style.transform = 'scale(1)'}
-              >
-                <strong style={{ display: 'block', marginBottom: '0.5rem' }}>{item.name}</strong>
-                <span style={{ color: 'var(--primary)' }}>{formatMoney(item.price)}</span>
-              </div>
-            ))}
+            {items.map(item => {
+              const stockInfo = getItemStockInfo(item);
+              const isOutOfStock = stockInfo.hasStockLimit && stockInfo.availableUnits <= 0;
+              const isLowStock = stockInfo.hasStockLimit && stockInfo.availableUnits <= 10 && stockInfo.availableUnits > 0;
+
+              return (
+                <div 
+                  key={item.id} 
+                  onClick={() => !isOutOfStock && handleItemClick(item)}
+                  style={{ 
+                    backgroundColor: isOutOfStock ? 'rgba(255,255,255,0.02)' : 'rgba(99,102,241,0.1)', 
+                    border: isOutOfStock ? '1px dashed rgba(239,68,68,0.4)' : isLowStock ? '1px solid var(--warning)' : '1px solid var(--primary)', 
+                    borderRadius: 'var(--radius-md)', 
+                    padding: '1rem', 
+                    textAlign: 'center',
+                    cursor: isOutOfStock ? 'not-allowed' : 'pointer',
+                    opacity: isOutOfStock ? 0.5 : 1,
+                    userSelect: 'none',
+                    transition: 'transform 0.1s, opacity 0.2s',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    justifyContent: 'space-between',
+                    minHeight: '115px'
+                  }}
+                  onMouseDown={(e) => !isOutOfStock && (e.currentTarget.style.transform = 'scale(0.95)')}
+                  onMouseUp={(e) => !isOutOfStock && (e.currentTarget.style.transform = 'scale(1)')}
+                  onMouseLeave={(e) => !isOutOfStock && (e.currentTarget.style.transform = 'scale(1)')}
+                >
+                  <div>
+                    <strong style={{ display: 'block', marginBottom: '0.25rem', fontSize: '1rem', color: isOutOfStock ? 'var(--text-muted)' : 'var(--text-main)' }}>
+                      {item.name}
+                    </strong>
+                    <span style={{ color: isOutOfStock ? 'var(--text-muted)' : 'var(--primary)', fontWeight: 'bold' }}>
+                      {formatMoney(item.price)}
+                    </span>
+                  </div>
+
+                  {stockInfo.hasStockLimit && (
+                    <div style={{ marginTop: '0.5rem' }}>
+                      {isOutOfStock ? (
+                        <span style={{ 
+                          display: 'inline-block',
+                          backgroundColor: 'rgba(239,68,68,0.2)', 
+                          color: 'var(--danger)', 
+                          padding: '2px 8px', 
+                          borderRadius: '10px', 
+                          fontSize: '0.75rem', 
+                          fontWeight: 'bold' 
+                        }}>
+                          AGOTADO (0 disp.)
+                        </span>
+                      ) : (
+                        <span style={{ 
+                          display: 'inline-block',
+                          backgroundColor: isLowStock ? 'rgba(245,158,11,0.2)' : 'rgba(16,185,129,0.2)', 
+                          color: isLowStock ? 'var(--warning)' : 'var(--success)', 
+                          padding: '2px 8px', 
+                          borderRadius: '10px', 
+                          fontSize: '0.75rem', 
+                          fontWeight: 'bold' 
+                        }}>
+                          {stockInfo.availableUnits} disp. {isLowStock && '⚠️'}
+                        </span>
+                      )}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
           </div>
         )}
       </div>

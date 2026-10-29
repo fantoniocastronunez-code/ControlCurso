@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { db } from '../../firebase/config';
 import { doc, getDoc } from 'firebase/firestore';
-import { ArrowLeft, LayoutDashboard, CheckSquare, ShoppingBag, DollarSign, Receipt } from 'lucide-react';
+import { ArrowLeft, LayoutDashboard, CheckSquare, ShoppingBag, DollarSign, Receipt, Package } from 'lucide-react';
 import EventSummary from './tabs/EventSummary';
 import EventAttendance from './tabs/EventAttendance';
+import EventInventory from './tabs/EventInventory';
 import EventMenu from './tabs/EventMenu';
 import EventPOS from './tabs/EventPOS';
 import EventExpenses from './tabs/EventExpenses';
@@ -11,7 +12,7 @@ import EventExpenses from './tabs/EventExpenses';
 const EventDetail = ({ eventId, onBack }) => {
   const [eventData, setEventData] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState('summary'); // summary, attendance, menu, pos, expenses
+  const [activeTab, setActiveTab] = useState('summary'); // summary, inventory, menu, pos, expenses, attendance
 
   useEffect(() => {
     fetchEventData();
@@ -43,10 +44,11 @@ const EventDetail = ({ eventId, onBack }) => {
 
   const tabs = [
     { id: 'summary', label: 'Resumen', icon: <LayoutDashboard size={16} /> },
-    { id: 'attendance', label: 'Asistencia', icon: <CheckSquare size={16} /> },
+    { id: 'inventory', label: 'Inventario / Stock', icon: <Package size={16} /> },
     { id: 'menu', label: 'Menú / Ítems', icon: <ShoppingBag size={16} /> },
     { id: 'pos', label: 'Punto de Venta', icon: <Receipt size={16} /> },
-    { id: 'expenses', label: 'Gastos', icon: <DollarSign size={16} /> }
+    { id: 'expenses', label: 'Gastos', icon: <DollarSign size={16} /> },
+    { id: 'attendance', label: 'Asistencia', icon: <CheckSquare size={16} /> }
   ];
 
   return (
@@ -89,10 +91,11 @@ const EventDetail = ({ eventId, onBack }) => {
       {/* Tab Content */}
       <div className="tab-content">
         {activeTab === 'summary' && <EventSummary event={eventData} />}
-        {activeTab === 'attendance' && <EventAttendance event={eventData} />}
+        {activeTab === 'inventory' && <EventInventory event={eventData} />}
         {activeTab === 'menu' && <EventMenu event={eventData} />}
         {activeTab === 'pos' && <EventPOS event={eventData} />}
         {activeTab === 'expenses' && <EventExpenses event={eventData} />}
+        {activeTab === 'attendance' && <EventAttendance event={eventData} />}
       </div>
     </div>
   );
