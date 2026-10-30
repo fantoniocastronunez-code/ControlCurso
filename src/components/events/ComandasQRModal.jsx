@@ -182,3 +182,4 @@ const ComandasQRModal = ({ isOpen, onClose, eventId, eventName }) => {
 };
 
 export default ComandasQRModal;
+

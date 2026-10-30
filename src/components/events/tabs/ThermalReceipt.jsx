@@ -1,5 +1,6 @@
 import React from 'react';
 import { createPortal } from 'react-dom';
+import { QRCodeSVG } from 'qrcode.react';
 
 // Este componente solo es visible cuando se invoca la impresión (@media print en CSS global)
 // Está pensado para impresoras térmicas (POS) de 58mm.
@@ -9,6 +10,10 @@ const ThermalReceipt = ({ sale, eventName }) => {
   const formatMoney = (amount) => {
     return new Intl.NumberFormat('es-CL', { style: 'currency', currency: 'CLP' }).format(amount);
   };
+
+  const deliveryUrl = sale.id 
+    ? (typeof window !== 'undefined' ? `${window.location.origin}/entrega/${sale.id}` : `https://control-curso.vercel.app/entrega/${sale.id}`)
+    : (typeof window !== 'undefined' ? `${window.location.origin}/entrega/test` : `https://control-curso.vercel.app/entrega/test`);
 
   const receiptContent = (
     <div className="thermal-receipt" style={{ display: 'none' }}>
@@ -25,6 +30,11 @@ const ThermalReceipt = ({ sale, eventName }) => {
             <p style={{ margin: '2px 0' }}>✓ Impresora conectada y lista</p>
             <p style={{ margin: '2px 0' }}>✓ Test números: $1.000 / $25.990</p>
             <p style={{ margin: '2px 0' }}>✓ Test acentos: á, é, í, ó, ú, ñ</p>
+          </div>
+
+          <div style={{ margin: '8px 0', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+            <QRCodeSVG value={deliveryUrl} size={85} level="M" />
+            <p style={{ margin: '4px 0 0 0', fontSize: '9px', fontWeight: 'bold' }}>QR DE ENTREGA LISTO</p>
           </div>
 
           <div style={{ fontSize: '12px', fontWeight: 'bold', margin: '8px 0' }}>
@@ -87,7 +97,20 @@ const ThermalReceipt = ({ sale, eventName }) => {
             )}
           </div>
 
-          <div style={{ textAlign: 'center', marginTop: '15px', fontSize: '12px' }}>
+          {/* Código QR de Entrega Segura */}
+          <div style={{ textAlign: 'center', marginTop: '12px', borderTop: '1px dashed black', paddingTop: '8px' }}>
+            <div style={{ display: 'inline-block', padding: '3px', background: 'white' }}>
+              <QRCodeSVG value={deliveryUrl} size={85} level="M" />
+            </div>
+            <p style={{ margin: '4px 0 0 0', fontSize: '10px', fontWeight: 'bold' }}>
+              ESCANEAR PARA ENTREGA SEGURA
+            </p>
+            <p style={{ margin: '1px 0 0 0', fontSize: '8px', color: '#555' }}>
+              Ticket #{sale.correlative}
+            </p>
+          </div>
+
+          <div style={{ textAlign: 'center', marginTop: '10px', fontSize: '12px' }}>
             <p>¡Gracias por su colaboración!</p>
           </div>
         </>

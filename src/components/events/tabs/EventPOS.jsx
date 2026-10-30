@@ -1,13 +1,15 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
+import { useNavigate } from 'react-router-dom';
 import { db } from '../../../firebase/config';
 import { collection, getDocs, doc, setDoc, query, where, orderBy, updateDoc, deleteDoc, onSnapshot } from 'firebase/firestore';
-import { ShoppingCart, Plus, Minus, Trash2, Printer, Maximize, Minimize, Check, Package, AlertTriangle, UserCheck, Users, RefreshCw, Settings, ChefHat } from 'lucide-react';
+import { ShoppingCart, Plus, Minus, Trash2, Printer, Maximize, Minimize, Check, Package, AlertTriangle, UserCheck, Users, RefreshCw, Settings, ChefHat, Camera } from 'lucide-react';
 import { useModal } from '../../../context/ModalContext';
 import { useAuth } from '../../../context/AuthContext';
 import ThermalReceipt from './ThermalReceipt';
 import PrinterSettingsModal from '../PrinterSettingsModal';
 import ComandasQRModal from '../ComandasQRModal';
+import QRScannerModal from '../QRScannerModal';
 import {
   getPrinterConfig,
   buildSaleReceiptPayload,
@@ -35,8 +37,20 @@ const EventPOS = ({ event }) => {
   const [showCashierModal, setShowCashierModal] = useState(false);
   const [newCashierInput, setNewCashierInput] = useState('');
   const [cashierFilter, setCashierFilter] = useState('all');
+  const navigate = useNavigate();
   const [showPrinterModal, setShowPrinterModal] = useState(false);
   const [showComandasModal, setShowComandasModal] = useState(false);
+  const [showScanner, setShowScanner] = useState(false);
+
+  const handleScanSuccess = (decodedText) => {
+    setShowScanner(false);
+    let cleanId = decodedText.trim();
+    if (cleanId.includes('/entrega/')) {
+      cleanId = cleanId.split('/entrega/')[1].split('?')[0].split('#')[0].trim();
+    }
+    cleanId = cleanId.replace('#', '').trim();
+    navigate(`/entrega/${cleanId}`);
+  };
 
   // POS State
   const [cart, setCart] = useState([]);
@@ -355,6 +369,7 @@ const EventPOS = ({ event }) => {
 
       const saleId = 'sale_' + Date.now();
       const newSale = {
+        id: saleId,
         eventId: event.id,
         isTest: Boolean(event.isTestEvent),
         correlative: nextCorrelative,
@@ -686,6 +701,16 @@ const EventPOS = ({ event }) => {
             title="Abrir código QR para pantalla de comandas y cocina"
           >
             <ChefHat size={15} /> Comandas (QR)
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setShowScanner(true)}
+            className="btn btn-outline"
+            style={{ padding: '0.4rem 0.75rem', display: 'flex', alignItems: 'center', gap: '0.35rem', fontSize: '0.8rem', borderColor: '#10b981', color: '#10b981' }}
+            title="Escanear ticket de papel para confirmar entrega segura"
+          >
+            <Camera size={15} /> Escanear Entrega
           </button>
 
           {isFullscreen ? (
@@ -1459,6 +1484,13 @@ const EventPOS = ({ event }) => {
         onClose={() => setShowComandasModal(false)}
         eventId={event.id}
         eventName={event.name}
+      />
+
+      {/* Modal de Escaneo QR para Entrega Segura */}
+      <QRScannerModal
+        isOpen={showScanner}
+        onClose={() => setShowScanner(false)}
+        onScanSuccess={handleScanSuccess}
       />
     </div>
   );

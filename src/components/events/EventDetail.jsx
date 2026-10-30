@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { db } from '../../firebase/config';
 import { doc, getDoc } from 'firebase/firestore';
-import { ArrowLeft, LayoutDashboard, CheckSquare, ShoppingBag, DollarSign, Receipt, Package, Printer, Sparkles, RotateCcw, Settings, ChefHat } from 'lucide-react';
+import { ArrowLeft, LayoutDashboard, CheckSquare, ShoppingBag, DollarSign, Receipt, Package, Printer, Sparkles, RotateCcw, Settings, ChefHat, Camera } from 'lucide-react';
 import EventSummary from './tabs/EventSummary';
 import EventAttendance from './tabs/EventAttendance';
 import EventInventory from './tabs/EventInventory';
@@ -11,6 +12,7 @@ import EventExpenses from './tabs/EventExpenses';
 import ThermalReceipt from './tabs/ThermalReceipt';
 import PrinterSettingsModal from './PrinterSettingsModal';
 import ComandasQRModal from './ComandasQRModal';
+import QRScannerModal from './QRScannerModal';
 import { useModal } from '../../context/ModalContext';
 import { useAuth } from '../../context/AuthContext';
 import { loadDemoEventData, resetTestEventData } from '../../utils/eventTestUtils';
@@ -22,6 +24,7 @@ import {
 } from '../../utils/thermalPrinterService';
 
 const EventDetail = ({ eventId, onBack }) => {
+  const navigate = useNavigate();
   const { user } = useAuth();
   const { showAlert, showConfirm } = useModal();
   const [eventData, setEventData] = useState(null);
@@ -31,6 +34,17 @@ const EventDetail = ({ eventId, onBack }) => {
   const [actionLoading, setActionLoading] = useState(false);
   const [showPrinterModal, setShowPrinterModal] = useState(false);
   const [showComandasModal, setShowComandasModal] = useState(false);
+  const [showScanner, setShowScanner] = useState(false);
+
+  const handleScanSuccess = (decodedText) => {
+    setShowScanner(false);
+    let cleanId = decodedText.trim();
+    if (cleanId.includes('/entrega/')) {
+      cleanId = cleanId.split('/entrega/')[1].split('?')[0].split('#')[0].trim();
+    }
+    cleanId = cleanId.replace('#', '').trim();
+    navigate(`/entrega/${cleanId}`);
+  };
 
   useEffect(() => {
     fetchEventData();
@@ -171,6 +185,16 @@ const EventDetail = ({ eventId, onBack }) => {
           >
             <ChefHat size={16} /> Comandas Cocina (QR)
           </button>
+
+          <button
+            type="button"
+            onClick={() => setShowScanner(true)}
+            className="btn btn-outline"
+            style={{ fontSize: '0.85rem', padding: '0.45rem 0.85rem', display: 'flex', alignItems: 'center', gap: '0.4rem', borderColor: '#10b981', color: '#10b981' }}
+            title="Escanear ticket de papel para confirmar entrega segura"
+          >
+            <Camera size={16} /> Escanear Entrega
+          </button>
         </div>
       </div>
 
@@ -288,6 +312,13 @@ const EventDetail = ({ eventId, onBack }) => {
         onClose={() => setShowComandasModal(false)}
         eventId={eventData.id}
         eventName={eventData.name}
+      />
+
+      {/* Modal de Escaneo QR para Entrega Segura */}
+      <QRScannerModal
+        isOpen={showScanner}
+        onClose={() => setShowScanner(false)}
+        onScanSuccess={handleScanSuccess}
       />
     </div>
   );

@@ -9,6 +9,7 @@ import Login from './pages/Login';
 import AdminDashboard from './pages/AdminDashboard';
 import ApoderadoDashboard from './pages/ApoderadoDashboard';
 import EventComandas from './pages/EventComandas';
+import EventDelivery from './pages/EventDelivery';
 import VersionChecker from './components/VersionChecker';
 import './App.css';
 
@@ -71,6 +72,7 @@ const AppRoutes = () => {
       
       <Route path="/login" element={<Login />} />
       <Route path="/comandas/:eventId" element={<EventComandas />} />
+      <Route path="/entrega/:saleId" element={<EventDelivery />} />
       
       <Route
         path="/admin/*" 

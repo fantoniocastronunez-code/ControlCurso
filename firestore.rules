@@ -337,7 +337,7 @@ service cloud.firestore {
         ('courseId' in request.resource.data && isCourseAdmin(request.resource.data.courseId)) ||
         ('roles' in getUserData()) ||
         ('role' in getUserData() && getUserData().role != null) ||
-        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['orderStatus', 'kitchenStatus', 'kitchenNotes', 'preparedAt', 'deliveredAt', 'status'])
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['orderStatus', 'kitchenStatus', 'kitchenNotes', 'preparedAt', 'deliveredAt', 'status', 'deliveredBy'])
       );
       allow delete: if isAuthenticated() && (
         isSuperAdmin() ||

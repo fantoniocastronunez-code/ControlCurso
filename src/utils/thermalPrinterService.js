@@ -101,6 +101,34 @@ export const formatMoneyCLP = (amount) => {
 };
 
 /**
+ * Genera la secuencia de comandos ESC/POS para imprimir un código QR nativo
+ * Compatible con impresoras térmicas ESC/POS estándar y RawBT
+ * @param {string} data - Texto o URL que contendrá el QR
+ * @param {number} moduleSize - Tamaño de módulo en dots (1 a 16, 4 recomendado para 58mm)
+ */
+export const buildEscPosQrCode = (data, moduleSize = 4) => {
+  if (!data) return '';
+  const dLen = data.length + 3;
+  const pL = String.fromCharCode(dLen & 0xff);
+  const pH = String.fromCharCode((dLen >> 8) & 0xff);
+  const sizeChar = String.fromCharCode(Math.min(16, Math.max(1, moduleSize)));
+
+  let qr = '';
+  // 1. Seleccionar Modelo 2 de QR Code (GS ( k 04 00 31 41 32 00)
+  qr += `${GS}(k\x04\x001A2\x00`;
+  // 2. Establecer tamaño del módulo (GS ( k 03 00 31 43 size)
+  qr += `${GS}(k\x03\x001C${sizeChar}`;
+  // 3. Nivel de corrección de error M 15% (GS ( k 03 00 31 45 31)
+  qr += `${GS}(k\x03\x001E1`;
+  // 4. Guardar datos en el buffer del símbolo (GS ( k pL pH 31 50 30 data)
+  qr += `${GS}(k${pL}${pH}1P0${data}`;
+  // 5. Imprimir el QR generado (GS ( k 03 00 31 51 30)
+  qr += `${GS}(k\x03\x001Q0`;
+
+  return qr;
+};
+
+/**
  * Divide un texto en líneas que no superen maxWidth caracteres, respetando palabras
  */
 export const wrapText = (text, maxWidth) => {
@@ -262,7 +290,23 @@ export const buildSaleReceiptPayload = (sale, eventName, width = getPaperWidth()
     noteLines.forEach(l => { p += `${l}\n`; });
   }
 
-  // 5. Pie de Ticket
+  // 5. Código QR para Entrega Segura
+  if (sale.id) {
+    const deliveryUrl = typeof window !== 'undefined' && window.location?.origin
+      ? `${window.location.origin}/entrega/${sale.id}`
+      : `https://control-curso.vercel.app/entrega/${sale.id}`;
+
+    p += `\n`;
+    p += CMD_ALIGN_CENTER;
+    p += buildEscPosQrCode(deliveryUrl, 4);
+    p += `\n`;
+    p += CMD_BOLD_ON;
+    p += `ESCANEAR PARA ENTREGA SEGURA\n`;
+    p += CMD_BOLD_OFF;
+    p += `Ticket #${sale.correlative}\n`;
+  }
+
+  // 6. Pie de Ticket
   p += `\n`;
   p += CMD_ALIGN_CENTER;
   p += `¡Gracias por su colaboracion!\n`;
@@ -301,6 +345,17 @@ export const buildTestReceiptPayload = (eventName, cashierName, width = getPaper
   p += `Corte: ${getCutterConfig() === 'auto' ? 'Automatico' : 'Manual (0 desperdicio)'}\n`;
   p += `Numeros: $1.000 / $25.990\n`;
   p += `${SEP_LINE}\n`;
+
+  // QR de Prueba
+  const testDeliveryUrl = typeof window !== 'undefined' && window.location?.origin
+    ? `${window.location.origin}/entrega/test-preview`
+    : `https://control-curso.vercel.app/entrega/test-preview`;
+  p += CMD_ALIGN_CENTER;
+  p += buildEscPosQrCode(testDeliveryUrl, 4);
+  p += `\n`;
+  p += CMD_BOLD_ON;
+  p += `QR DE ENTREGA LISTO\n`;
+  p += CMD_BOLD_OFF;
 
   p += CMD_ALIGN_CENTER;
   p += CMD_BOLD_ON;
