@@ -18,6 +18,11 @@ import {
   printViaRawBT,
   printViaWebBluetooth
 } from '../../../utils/thermalPrinterService';
+import {
+  calculateTotalDeductions,
+  resolveSubproductDeductions,
+  getSubproductStockInfo
+} from '../../../utils/inventoryDeductions';
 
 const EventPOS = ({ event }) => {
   const { user } = useAuth();
@@ -245,28 +250,44 @@ const EventPOS = ({ event }) => {
     };
   };
 
-  // Comprobar si hay stock de insumos suficiente considerando lo que ya está en el carrito
-  const canAddUnitsToCart = (item, additionalUnits = 1) => {
-    if (!item.ingredients || !Array.isArray(item.ingredients) || item.ingredients.length === 0) {
+  // Comprobar si hay stock de insumos suficiente considerando lo que ya está en el carrito (incluye receta base y agregados)
+  const canAddUnitsToCart = (item, additionalUnits = 1, selectedSp = []) => {
+    // 1. Insumos del ítem base
+    const baseIngredients = item.ingredients || [];
+    // 2. Insumos de los agregados
+    const spDeductions = (selectedSp || []).flatMap(sp => 
+      resolveSubproductDeductions(sp, item, inventory, items)
+    );
+
+    const neededPerUnit = {};
+    baseIngredients.forEach(ing => {
+      if (ing.inventoryId) {
+        neededPerUnit[ing.inventoryId] = (neededPerUnit[ing.inventoryId] || 0) + (parseFloat(ing.quantity) || 0);
+      }
+    });
+    spDeductions.forEach(d => {
+      if (d.inventoryId) {
+        neededPerUnit[d.inventoryId] = (neededPerUnit[d.inventoryId] || 0) + (parseFloat(d.quantity) || 1);
+      }
+    });
+
+    if (Object.keys(neededPerUnit).length === 0) {
       return { ok: true };
     }
 
-    for (const ing of item.ingredients) {
-      const invItem = inventory.find(i => i.id === ing.inventoryId);
+    const currentCommitted = calculateTotalDeductions(cart, inventory, items);
+
+    for (const [invId, qtyNeededPerUnit] of Object.entries(neededPerUnit)) {
+      const invItem = inventory.find(i => i.id === invId);
       const stock = invItem ? (invItem.currentStock || 0) : 0;
+      const alreadyCommitted = currentCommitted[invId] || 0;
+      const totalNeeded = alreadyCommitted + (qtyNeededPerUnit * additionalUnits);
 
-      // Calcular cuánto de este insumo ya está comprometido en el carrito actual
-      const committedInCart = cart.reduce((sum, cartItem) => {
-        const matchIng = (cartItem.ingredients || []).find(i => i.inventoryId === ing.inventoryId);
-        return sum + (matchIng ? matchIng.quantity * cartItem.quantity : 0);
-      }, 0);
-
-      const needed = committedInCart + (ing.quantity * additionalUnits);
-      if (needed > stock) {
+      if (totalNeeded > stock) {
         return {
           ok: false,
-          ingredientName: invItem?.name || ing.name || 'Insumo',
-          availableStock: stock,
+          ingredientName: invItem?.name || 'Insumo',
+          availableStock: Math.max(0, stock - alreadyCommitted),
           unit: invItem?.unit || 'un.'
         };
       }
@@ -282,22 +303,27 @@ const EventPOS = ({ event }) => {
       return;
     }
 
-    const check = canAddUnitsToCart(item, 1);
-    if (!check.ok) {
-      showAlert(`Stock insuficiente de "${check.ingredientName}". Solo quedan ${check.availableStock} ${check.unit} disponibles.`);
-      return;
-    }
-
     if (item.subproducts && item.subproducts.length > 0) {
       setSelectedItemForSubproducts(item);
       setSelectedSubproducts([]);
       setShowSubproductModal(true);
     } else {
+      const check = canAddUnitsToCart(item, 1, []);
+      if (!check.ok) {
+        showAlert(`Stock insuficiente de "${check.ingredientName}". Solo quedan ${check.availableStock} ${check.unit} disponibles.`);
+        return;
+      }
       addToCart(item, []);
     }
   };
 
   const addToCart = (item, selectedSp) => {
+    const check = canAddUnitsToCart(item, 1, selectedSp);
+    if (!check.ok) {
+      showAlert(`Stock insuficiente de "${check.ingredientName}". Solo quedan ${check.availableStock} ${check.unit} disponibles.`);
+      return;
+    }
+
     const spIds = selectedSp.map(sp => sp.name).sort().join('_');
     const cartItemId = `${item.id}_${spIds}`;
 
@@ -326,7 +352,7 @@ const EventPOS = ({ event }) => {
     if (delta > 0) {
       const cartItem = cart.find(c => c.cartItemId === cartItemId);
       if (cartItem) {
-        const check = canAddUnitsToCart(cartItem, delta);
+        const check = canAddUnitsToCart(cartItem, delta, cartItem.selectedSubproducts || []);
         if (!check.ok) {
           showAlert(`Stock insuficiente de "${check.ingredientName}". Solo quedan ${check.availableStock} ${check.unit} disponibles.`);
           return;
@@ -365,18 +391,8 @@ const EventPOS = ({ event }) => {
       // Generate next correlative
       const nextCorrelative = sales.length > 0 ? sales[0].correlative + 1 : 1;
 
-      // Calcular deducciones de inventario según insumos de los productos
-      const deductions = {};
-      cart.forEach(cartItem => {
-        if (cartItem.ingredients && Array.isArray(cartItem.ingredients)) {
-          cartItem.ingredients.forEach(ing => {
-            if (ing.inventoryId) {
-              const qty = (parseFloat(ing.quantity) || 0) * (cartItem.quantity || 1);
-              deductions[ing.inventoryId] = (deductions[ing.inventoryId] || 0) + qty;
-            }
-          });
-        }
-      });
+      // Calcular deducciones de inventario según insumos del producto y de sus agregados (ej. té, bebidas, etc.)
+      const deductions = calculateTotalDeductions(cart, inventory, items);
 
       const activeCashier = (cashierName.trim() || user?.displayName || user?.email?.split('@')[0] || 'Cajero').trim();
       if (!cashierName.trim()) {
@@ -490,19 +506,10 @@ const EventPOS = ({ event }) => {
       await updateDoc(doc(db, 'eventSales', sale.id), { status: 'cancelled' });
 
       // 2. Restaurar stock en el inventario si la venta tenía insumos descontados
-      const deductionsToRestore = sale.inventoryDeductions || {};
-      // Si la venta no tenía inventoryDeductions guardadas explícitamente, calcular de sus items
+      let deductionsToRestore = sale.inventoryDeductions || {};
+      // Si la venta no tenía inventoryDeductions guardadas explícitamente, calcular de sus items y agregados
       if (Object.keys(deductionsToRestore).length === 0 && sale.items && Array.isArray(sale.items)) {
-        sale.items.forEach(cItem => {
-          if (cItem.ingredients && Array.isArray(cItem.ingredients)) {
-            cItem.ingredients.forEach(ing => {
-              if (ing.inventoryId) {
-                const qty = (parseFloat(ing.quantity) || 0) * (cItem.quantity || 1);
-                deductionsToRestore[ing.inventoryId] = (deductionsToRestore[ing.inventoryId] || 0) + qty;
-              }
-            });
-          }
-        });
+        deductionsToRestore = calculateTotalDeductions(sale.items, inventory, items);
       }
 
       for (const [invId, qtyToRestore] of Object.entries(deductionsToRestore)) {
@@ -980,6 +987,12 @@ const EventPOS = ({ event }) => {
                 const isSelected = !!currentSelection;
                 const hasOptions = Boolean(sp.hasOptions && sp.options && sp.options.length > 0);
 
+                // Stock check para subproducto sin opciones (ej. "Té" directo o "Palta extra")
+                const spStockInfo = !hasOptions 
+                  ? getSubproductStockInfo(sp, null, selectedItemForSubproducts, inventory, items) 
+                  : null;
+                const isSpOutOfStock = spStockInfo?.hasStockLimit && spStockInfo.availableStock <= 0;
+
                 return (
                   <div
                     key={idx}
@@ -993,22 +1006,35 @@ const EventPOS = ({ event }) => {
                   >
                     <label style={{
                       display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                      cursor: 'pointer', userSelect: 'none'
+                      cursor: isSpOutOfStock ? 'not-allowed' : 'pointer', userSelect: 'none'
                     }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
                         <input
                           type="checkbox"
+                          disabled={isSpOutOfStock}
                           checked={isSelected}
                           onChange={(e) => {
                             if (e.target.checked) {
-                              const defaultOption = hasOptions ? sp.options[0] : null;
-                              const displayName = defaultOption ? `${sp.name} (${defaultOption})` : sp.name;
+                              if (isSpOutOfStock) return;
+                              const firstAvailOpt = hasOptions 
+                                ? (sp.options.find(opt => {
+                                    const st = getSubproductStockInfo(sp, opt, selectedItemForSubproducts, inventory, items);
+                                    return !st.hasStockLimit || st.availableStock > 0;
+                                  }) || sp.options[0])
+                                : null;
+                              const defaultOptionName = firstAvailOpt ? (typeof firstAvailOpt === 'string' ? firstAvailOpt : firstAvailOpt.name) : null;
+                              const defaultOptionInvId = typeof firstAvailOpt === 'object' ? firstAvailOpt.inventoryId : (sp.inventoryId || null);
+                              const defaultOptionQty = typeof firstAvailOpt === 'object' ? (firstAvailOpt.quantity || 1) : (sp.quantity || 1);
+                              const displayName = defaultOptionName ? `${sp.name} (${defaultOptionName})` : sp.name;
+
                               setSelectedSubproducts([
                                 ...selectedSubproducts,
                                 {
                                   baseName: sp.name,
                                   name: displayName,
-                                  selectedOption: defaultOption,
+                                  selectedOption: defaultOptionName,
+                                  inventoryId: defaultOptionInvId,
+                                  quantity: defaultOptionQty,
                                   price: parseFloat(sp.price || 0)
                                 }
                               ]);
@@ -1018,8 +1044,18 @@ const EventPOS = ({ event }) => {
                           }}
                           style={{ accentColor: 'var(--primary)', width: '18px', height: '18px' }}
                         />
-                        <span style={{ fontWeight: isSelected ? '600' : 'normal', color: 'var(--text-main)' }}>
+                        <span style={{ fontWeight: isSelected ? '600' : 'normal', color: isSpOutOfStock ? 'var(--text-muted)' : 'var(--text-main)' }}>
                           {sp.name}
+                          {spStockInfo?.hasStockLimit && (
+                            <span style={{ 
+                              fontSize: '0.75rem', 
+                              marginLeft: '0.4rem', 
+                              color: isSpOutOfStock ? 'var(--danger)' : 'var(--success)',
+                              fontWeight: '500'
+                            }}>
+                              {isSpOutOfStock ? '(Agotado)' : `(${spStockInfo.availableStock} disp.)`}
+                            </span>
+                          )}
                         </span>
                       </div>
                       <span style={{ color: 'var(--primary)', fontWeight: 'bold', fontSize: '0.9rem' }}>
@@ -1041,19 +1077,27 @@ const EventPOS = ({ event }) => {
                         </div>
                         <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.4rem' }}>
                           {sp.options.map((opt, optIdx) => {
-                            const isOptActive = currentSelection.selectedOption === opt;
+                            const optName = typeof opt === 'string' ? opt : opt.name;
+                            const optStockInfo = getSubproductStockInfo(sp, opt, selectedItemForSubproducts, inventory, items);
+                            const isOutOfStock = optStockInfo.hasStockLimit && optStockInfo.availableStock <= 0;
+                            const isOptActive = currentSelection.selectedOption === optName;
+
                             return (
                               <button
                                 key={optIdx}
                                 type="button"
+                                disabled={isOutOfStock}
                                 onClick={() => {
+                                  if (isOutOfStock) return;
                                   setSelectedSubproducts(selectedSubproducts.map(s => {
                                     if (s.baseName === sp.name || s.name.startsWith(sp.name)) {
                                       return {
                                         ...s,
                                         baseName: sp.name,
-                                        name: `${sp.name} (${opt})`,
-                                        selectedOption: opt
+                                        name: `${sp.name} (${optName})`,
+                                        selectedOption: optName,
+                                        inventoryId: typeof opt === 'object' ? opt.inventoryId : null,
+                                        quantity: typeof opt === 'object' ? (opt.quantity || 1) : 1
                                       };
                                     }
                                     return s;
@@ -1067,15 +1111,37 @@ const EventPOS = ({ event }) => {
                                   fontSize: '0.8rem',
                                   fontWeight: isOptActive ? 'bold' : 'normal',
                                   borderRadius: '20px',
-                                  border: isOptActive ? '1px solid var(--primary)' : '1px solid rgba(255,255,255,0.15)',
-                                  backgroundColor: isOptActive ? 'var(--primary)' : 'rgba(255,255,255,0.05)',
-                                  color: isOptActive ? '#ffffff' : 'var(--text-main)',
-                                  cursor: 'pointer',
+                                  border: isOptActive 
+                                    ? '1px solid var(--primary)' 
+                                    : isOutOfStock 
+                                      ? '1px solid rgba(239, 68, 68, 0.3)' 
+                                      : '1px solid rgba(255,255,255,0.15)',
+                                  backgroundColor: isOptActive 
+                                    ? 'var(--primary)' 
+                                    : isOutOfStock 
+                                      ? 'rgba(239, 68, 68, 0.08)' 
+                                      : 'rgba(255,255,255,0.05)',
+                                  color: isOptActive 
+                                    ? '#ffffff' 
+                                    : isOutOfStock 
+                                      ? 'var(--text-muted)' 
+                                      : 'var(--text-main)',
+                                  opacity: isOutOfStock ? 0.6 : 1,
+                                  cursor: isOutOfStock ? 'not-allowed' : 'pointer',
                                   transition: 'all 0.15s ease'
                                 }}
                               >
                                 {isOptActive && <Check size={12} />}
-                                {opt}
+                                <span>{optName}</span>
+                                {optStockInfo.hasStockLimit && (
+                                  <span style={{ 
+                                    fontSize: '0.7rem', 
+                                    opacity: 0.85, 
+                                    color: isOutOfStock ? 'var(--danger)' : isOptActive ? '#ffffff' : 'var(--success)' 
+                                  }}>
+                                    {isOutOfStock ? '(Agotado)' : `(${optStockInfo.availableStock})`}
+                                  </span>
+                                )}
                               </button>
                             );
                           })}

@@ -5,6 +5,7 @@ import { Plus, Trash2, Edit2, Check, X, Package, Sparkles } from 'lucide-react';
 import { useModal } from '../../../context/ModalContext';
 import { useAuth } from '../../../context/AuthContext';
 import { loadDemoEventData } from '../../../utils/eventTestUtils';
+import { normalizeInventoryName } from '../../../utils/inventoryDeductions';
 
 const EventMenu = ({ event }) => {
   const { user } = useAuth();
@@ -16,7 +17,7 @@ const EventMenu = ({ event }) => {
   const [newItemName, setNewItemName] = useState('');
   const [newItemPrice, setNewItemPrice] = useState('');
   const [hasSubproducts, setHasSubproducts] = useState(false);
-  const [subproducts, setSubproducts] = useState([{ name: '', price: '', hasOptions: false, options: [] }]);
+  const [subproducts, setSubproducts] = useState([{ name: '', price: '', hasOptions: false, inventoryId: '', quantity: '1', options: [] }]);
   const [hasIngredients, setHasIngredients] = useState(false);
   const [ingredients, setIngredients] = useState([{ inventoryId: '', quantity: '1' }]);
   const [editingItemId, setEditingItemId] = useState(null);
@@ -52,7 +53,7 @@ const EventMenu = ({ event }) => {
     setNewItemName('');
     setNewItemPrice('');
     setHasSubproducts(false);
-    setSubproducts([{ name: '', price: '', hasOptions: false, options: [] }]);
+    setSubproducts([{ name: '', price: '', hasOptions: false, inventoryId: '', quantity: '1', options: [] }]);
     setHasIngredients(false);
     setIngredients([{ inventoryId: '', quantity: '1' }]);
   };
@@ -95,12 +96,49 @@ const EventMenu = ({ event }) => {
         ingredients: cleanIngredients,
         subproducts: hasSubproducts ? subproducts.filter(sp => sp.name.trim() !== '').map(sp => {
           const cleanOptions = (sp.options || [])
-            .map(opt => typeof opt === 'string' ? opt.trim() : (opt.name || '').trim())
-            .filter(Boolean);
+            .map(opt => {
+              if (typeof opt === 'string') {
+                const optTrimmed = opt.trim();
+                const matchedInv = inventoryList.find(i => 
+                  normalizeInventoryName(i.name) === normalizeInventoryName(optTrimmed)
+                );
+                return {
+                  name: optTrimmed,
+                  inventoryId: matchedInv ? matchedInv.id : '',
+                  quantity: 1
+                };
+              }
+              const optName = (opt.name || '').trim();
+              let invId = opt.inventoryId || '';
+              if (!invId && optName) {
+                const matchedInv = inventoryList.find(i => 
+                  normalizeInventoryName(i.name) === normalizeInventoryName(optName)
+                );
+                if (matchedInv) invId = matchedInv.id;
+              }
+              return {
+                name: optName,
+                inventoryId: invId,
+                quantity: parseFloat(opt.quantity) || 1
+              };
+            })
+            .filter(opt => Boolean(opt.name));
+
+          // Si el subproducto no tiene opciones, auto-vincular por nombre si coincide con inventario
+          let spInvId = !sp.hasOptions ? (sp.inventoryId || '') : '';
+          if (!sp.hasOptions && !spInvId && sp.name.trim()) {
+            const matchedInv = inventoryList.find(i => 
+              normalizeInventoryName(i.name) === normalizeInventoryName(sp.name.trim())
+            );
+            if (matchedInv) spInvId = matchedInv.id;
+          }
+
           return {
             name: sp.name.trim(),
             price: parseFloat(sp.price || 0),
             hasOptions: Boolean(sp.hasOptions && cleanOptions.length > 0),
+            inventoryId: spInvId,
+            quantity: !sp.hasOptions ? (parseFloat(sp.quantity) || 1) : 1,
             options: cleanOptions
           };
         }) : [],
@@ -146,11 +184,22 @@ const EventMenu = ({ event }) => {
         name: sp.name || '',
         price: sp.price !== undefined ? sp.price.toString() : '',
         hasOptions: Boolean(sp.hasOptions || (sp.options && sp.options.length > 0)),
-        options: (sp.options || []).map(opt => typeof opt === 'string' ? opt : opt.name || '')
+        inventoryId: sp.inventoryId || '',
+        quantity: sp.quantity !== undefined ? sp.quantity.toString() : '1',
+        options: (sp.options || []).map(opt => {
+          if (typeof opt === 'string') {
+            return { name: opt, inventoryId: '', quantity: 1 };
+          }
+          return {
+            name: opt.name || '',
+            inventoryId: opt.inventoryId || '',
+            quantity: opt.quantity || 1
+          };
+        })
       })));
     } else {
       setHasSubproducts(false);
-      setSubproducts([{ name: '', price: '', hasOptions: false, options: [] }]);
+      setSubproducts([{ name: '', price: '', hasOptions: false, inventoryId: '', quantity: '1', options: [] }]);
     }
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
@@ -284,6 +333,55 @@ const EventMenu = ({ event }) => {
                   )}
                 </div>
 
+                {/* Si no tiene opciones / sabores, permitir asociar un insumo del inventario directo */}
+                {!sp.hasOptions && (
+                  <div style={{ marginTop: '0.65rem', paddingTop: '0.5rem', borderTop: '1px dashed rgba(255,255,255,0.08)', display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+                    <label style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem', fontSize: '0.8rem', color: sp.inventoryId ? 'var(--primary)' : 'var(--text-muted)' }}>
+                      <Package size={14} />
+                      <span>Descontar del inventario al agregar:</span>
+                    </label>
+                    <select
+                      className="input-field"
+                      style={{ fontSize: '0.8rem', padding: '0.35rem 0.5rem', flex: '1 1 200px' }}
+                      value={sp.inventoryId || ''}
+                      onChange={(e) => {
+                        const newSp = [...subproducts];
+                        newSp[idx].inventoryId = e.target.value;
+                        if (!newSp[idx].quantity) newSp[idx].quantity = '1';
+                        setSubproducts(newSp);
+                      }}
+                    >
+                      <option value="">(Opcional) No descontar o auto-detectar por nombre</option>
+                      {inventoryList.map(inv => (
+                        <option key={inv.id} value={inv.id}>
+                          {inv.name} (Stock: {inv.currentStock} {inv.unit})
+                        </option>
+                      ))}
+                    </select>
+                    {sp.inventoryId && (
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
+                        <input
+                          type="number"
+                          step="any"
+                          min="0.01"
+                          placeholder="Cant."
+                          className="input-field"
+                          style={{ width: '65px', fontSize: '0.8rem', padding: '0.35rem 0.4rem' }}
+                          value={sp.quantity || '1'}
+                          onChange={(e) => {
+                            const newSp = [...subproducts];
+                            newSp[idx].quantity = e.target.value;
+                            setSubproducts(newSp);
+                          }}
+                        />
+                        <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                          {inventoryList.find(i => i.id === sp.inventoryId)?.unit || 'un.'}
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                )}
+
                 {/* Switch / Checkbox para tipos o sub-opciones */}
                 <div style={{ marginTop: '0.75rem', paddingTop: '0.5rem', borderTop: '1px dashed rgba(255,255,255,0.08)' }}>
                   <label style={{ display: 'inline-flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer', fontSize: '0.85rem', color: sp.hasOptions ? 'var(--primary)' : 'var(--text-muted)' }}>
@@ -300,7 +398,7 @@ const EventMenu = ({ event }) => {
                       }}
                       style={{ accentColor: 'var(--primary)' }}
                     />
-                    ¿Tiene tipos o sabores a elegir? (ej. Coca Cola, Sprite, Fanta)
+                    ¿Tiene tipos o sabores a elegir? (ej. Té Verde, Té Negro, Coca Cola, Sprite)
                   </label>
                 </div>
 
@@ -317,15 +415,62 @@ const EventMenu = ({ event }) => {
                       Tipos a elegir para "{sp.name || 'este agregado'}":
                     </div>
 
+                    {/* Botones de Insumos del Inventario (ej. Té Verde, Té Negro, etc.) */}
+                    {inventoryList.length > 0 && (
+                      <div style={{ marginBottom: '0.75rem' }}>
+                        <span style={{ fontSize: '0.75rem', color: 'var(--success)', display: 'flex', alignItems: 'center', gap: '0.3rem', marginBottom: '0.35rem', fontWeight: '500' }}>
+                          <Package size={13} /> Añadir desde Insumos del Inventario (descuentan stock automáticamente):
+                        </span>
+                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.4rem' }}>
+                          {inventoryList.map(inv => {
+                            const currentOpts = sp.options || [];
+                            const isIncluded = currentOpts.some(o => (typeof o === 'string' ? o : o.name) === inv.name);
+                            return (
+                              <button
+                                key={inv.id}
+                                type="button"
+                                onClick={() => {
+                                  const newSp = [...subproducts];
+                                  const opts = newSp[idx].options || [];
+                                  if (isIncluded) {
+                                    newSp[idx].options = opts.filter(o => (typeof o === 'string' ? o : o.name) !== inv.name);
+                                  } else {
+                                    newSp[idx].options = [...opts, { name: inv.name, inventoryId: inv.id, quantity: 1 }];
+                                  }
+                                  setSubproducts(newSp);
+                                }}
+                                style={{
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  gap: '0.3rem',
+                                  padding: '0.25rem 0.6rem',
+                                  fontSize: '0.75rem',
+                                  borderRadius: '20px',
+                                  border: isIncluded ? '1px solid var(--success)' : '1px solid rgba(255,255,255,0.15)',
+                                  backgroundColor: isIncluded ? 'rgba(16, 185, 129, 0.2)' : 'rgba(255,255,255,0.05)',
+                                  color: isIncluded ? 'var(--success)' : 'var(--text-muted)',
+                                  cursor: 'pointer',
+                                  transition: 'all 0.15s ease'
+                                }}
+                              >
+                                {isIncluded ? <Check size={12} color="var(--success)" /> : <Plus size={12} />}
+                                {inv.name} <span style={{ fontSize: '0.7rem', opacity: 0.75 }}>({inv.currentStock} {inv.unit})</span>
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
+
                     {/* Botones de productos del menú */}
                     {availableMenuItems.length > 0 && (
                       <div style={{ marginBottom: '0.75rem' }}>
                         <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', display: 'block', marginBottom: '0.35rem' }}>
-                          Seleccionar desde productos del menú del evento:
+                          O seleccionar desde otros productos del menú del evento:
                         </span>
                         <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.4rem' }}>
                           {availableMenuItems.map(mi => {
-                            const isIncluded = (sp.options || []).includes(mi.name);
+                            const isIncluded = (sp.options || []).some(o => (typeof o === 'string' ? o : o.name) === mi.name);
                             return (
                               <button
                                 key={mi.id}
@@ -334,7 +479,7 @@ const EventMenu = ({ event }) => {
                                   const newSp = [...subproducts];
                                   const currentOpts = newSp[idx].options || [];
                                   if (isIncluded) {
-                                    newSp[idx].options = currentOpts.filter(o => o !== mi.name);
+                                    newSp[idx].options = currentOpts.filter(o => (typeof o === 'string' ? o : o.name) !== mi.name);
                                   } else {
                                     newSp[idx].options = [...currentOpts, mi.name];
                                   }
@@ -367,7 +512,7 @@ const EventMenu = ({ event }) => {
                     <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '0.5rem' }}>
                       <input
                         type="text"
-                        placeholder="O escribe otro tipo (ej. Agua Mineral)..."
+                        placeholder="O escribe otro tipo (ej. Té Verde, Té Menta, Agua Mineral)..."
                         className="input-field"
                         style={{ fontSize: '0.8rem', padding: '0.4rem 0.6rem', flex: 1 }}
                         id={`custom-opt-${idx}`}
@@ -378,8 +523,15 @@ const EventMenu = ({ event }) => {
                             if (val) {
                               const newSp = [...subproducts];
                               const currentOpts = newSp[idx].options || [];
-                              if (!currentOpts.includes(val)) {
-                                newSp[idx].options = [...currentOpts, val];
+                              const alreadyExists = currentOpts.some(o => (typeof o === 'string' ? o : o.name) === val);
+                              if (!alreadyExists) {
+                                const matchedInv = inventoryList.find(i => 
+                                  normalizeInventoryName(i.name) === normalizeInventoryName(val)
+                                );
+                                newSp[idx].options = [
+                                  ...currentOpts, 
+                                  matchedInv ? { name: val, inventoryId: matchedInv.id, quantity: 1 } : val
+                                ];
                                 setSubproducts(newSp);
                               }
                               e.target.value = '';
@@ -397,8 +549,15 @@ const EventMenu = ({ event }) => {
                             const val = input.value.trim();
                             const newSp = [...subproducts];
                             const currentOpts = newSp[idx].options || [];
-                            if (!currentOpts.includes(val)) {
-                              newSp[idx].options = [...currentOpts, val];
+                            const alreadyExists = currentOpts.some(o => (typeof o === 'string' ? o : o.name) === val);
+                            if (!alreadyExists) {
+                              const matchedInv = inventoryList.find(i => 
+                                normalizeInventoryName(i.name) === normalizeInventoryName(val)
+                              );
+                              newSp[idx].options = [
+                                ...currentOpts, 
+                                matchedInv ? { name: val, inventoryId: matchedInv.id, quantity: 1 } : val
+                              ];
                               setSubproducts(newSp);
                             }
                             input.value = '';
@@ -420,44 +579,57 @@ const EventMenu = ({ event }) => {
                         </span>
                       ) : (
                         <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.4rem' }}>
-                          {sp.options.map((opt, optIdx) => (
-                            <span
-                              key={optIdx}
-                              style={{
-                                display: 'inline-flex',
-                                alignItems: 'center',
-                                gap: '0.35rem',
-                                padding: '0.2rem 0.55rem',
-                                fontSize: '0.75rem',
-                                borderRadius: '12px',
-                                backgroundColor: 'rgba(99, 102, 241, 0.15)',
-                                border: '1px solid rgba(99, 102, 241, 0.3)',
-                                color: 'var(--text-main)'
-                              }}
-                            >
-                              {opt}
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  const newSp = [...subproducts];
-                                  newSp[idx].options = (newSp[idx].options || []).filter((_, i) => i !== optIdx);
-                                  setSubproducts(newSp);
-                                }}
+                          {sp.options.map((opt, optIdx) => {
+                            const optName = typeof opt === 'string' ? opt : opt.name;
+                            const optInvId = typeof opt === 'object' ? opt.inventoryId : '';
+                            const linkedInv = inventoryList.find(i => i.id === optInvId) || 
+                              inventoryList.find(i => normalizeInventoryName(i.name) === normalizeInventoryName(optName));
+
+                            return (
+                              <span
+                                key={optIdx}
                                 style={{
-                                  background: 'none',
-                                  border: 'none',
-                                  color: 'var(--danger)',
-                                  cursor: 'pointer',
-                                  padding: 0,
-                                  display: 'flex',
-                                  alignItems: 'center'
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  gap: '0.35rem',
+                                  padding: '0.25rem 0.6rem',
+                                  fontSize: '0.75rem',
+                                  borderRadius: '12px',
+                                  backgroundColor: linkedInv ? 'rgba(16, 185, 129, 0.15)' : 'rgba(99, 102, 241, 0.15)',
+                                  border: linkedInv ? '1px solid rgba(16, 185, 129, 0.4)' : '1px solid rgba(99, 102, 241, 0.3)',
+                                  color: 'var(--text-main)'
                                 }}
-                                title="Quitar opción"
                               >
-                                <X size={12} />
-                              </button>
-                            </span>
-                          ))}
+                                <strong>{optName}</strong>
+                                {linkedInv && (
+                                  <span style={{ fontSize: '0.7rem', color: 'var(--success)', display: 'inline-flex', alignItems: 'center', gap: '0.2rem' }} title={`Descuenta 1 ${linkedInv.unit} de "${linkedInv.name}"`}>
+                                    <Package size={11} /> {linkedInv.name} ({linkedInv.currentStock})
+                                  </span>
+                                )}
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    const newSp = [...subproducts];
+                                    newSp[idx].options = (newSp[idx].options || []).filter((_, i) => i !== optIdx);
+                                    setSubproducts(newSp);
+                                  }}
+                                  style={{
+                                    background: 'none',
+                                    border: 'none',
+                                    color: 'var(--danger)',
+                                    cursor: 'pointer',
+                                    padding: 0,
+                                    marginLeft: '0.2rem',
+                                    display: 'flex',
+                                    alignItems: 'center'
+                                  }}
+                                  title="Quitar opción"
+                                >
+                                  <X size={12} />
+                                </button>
+                              </span>
+                            );
+                          })}
                         </div>
                       )}
                     </div>
@@ -614,9 +786,12 @@ const EventMenu = ({ event }) => {
                   <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginTop: '0.25rem' }}>
                     Agregados: {item.subproducts.map(sp => {
                       const opts = sp.hasOptions && sp.options && sp.options.length > 0
-                        ? ` (${sp.options.join(', ')})`
+                        ? ` (${sp.options.map(o => typeof o === 'string' ? o : o.name).join(', ')})`
                         : '';
-                      return `${sp.name}${opts} (+${formatMoney(sp.price)})`;
+                      const pricePart = parseFloat(sp.price || 0) > 0 ? ` (+${formatMoney(sp.price)})` : '';
+                      const invItem = !sp.hasOptions && sp.inventoryId ? inventoryList.find(i => i.id === sp.inventoryId) : null;
+                      const invPart = invItem ? ` [${sp.quantity || 1} ${invItem.unit} ${invItem.name}]` : '';
+                      return `${sp.name}${opts}${pricePart}${invPart}`;
                     }).join(' • ')}
                   </div>
                 )}

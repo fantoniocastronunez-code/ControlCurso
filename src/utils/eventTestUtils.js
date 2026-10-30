@@ -79,6 +79,34 @@ export const loadDemoEventData = async (eventId, courseId, user) => {
       notes: 'Lata 350ml Coca Cola, Fanta, Sprite (Prueba)',
       createdAt: now,
       createdBy: userName
+    },
+    {
+      id: `inv_te_verde_${eventId}`,
+      eventId,
+      courseId: courseId || '',
+      name: 'Té Verde',
+      unit: 'unidades',
+      initialQuantity: 20,
+      totalPurchased: 20,
+      currentStock: 20,
+      cost: 3000,
+      notes: 'Bolsitas de Té Verde (Prueba)',
+      createdAt: now,
+      createdBy: userName
+    },
+    {
+      id: `inv_te_negro_${eventId}`,
+      eventId,
+      courseId: courseId || '',
+      name: 'Té Negro Ceylan',
+      unit: 'unidades',
+      initialQuantity: 25,
+      totalPurchased: 25,
+      currentStock: 25,
+      cost: 3500,
+      notes: 'Bolsitas de Té Negro (Prueba)',
+      createdAt: now,
+      createdBy: userName
     }
   ];
 
@@ -144,6 +172,26 @@ export const loadDemoEventData = async (eventId, courseId, user) => {
           price: 0,
           hasOptions: true,
           options: ['Coca Cola', 'Sprite', 'Fanta']
+        }
+      ],
+      createdBy: userName
+    },
+    {
+      id: `item_te_${eventId}`,
+      eventId,
+      courseId: courseId || '',
+      name: 'Té Caliente',
+      price: 1000,
+      ingredients: [],
+      subproducts: [
+        {
+          name: 'Variedad de Té',
+          price: 0,
+          hasOptions: true,
+          options: [
+            { name: 'Té Verde', inventoryId: `inv_te_verde_${eventId}`, quantity: 1 },
+            { name: 'Té Negro Ceylan', inventoryId: `inv_te_negro_${eventId}`, quantity: 1 }
+          ]
         }
       ],
       createdBy: userName
