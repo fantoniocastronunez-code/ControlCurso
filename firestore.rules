@@ -14,9 +14,9 @@ service cloud.firestore {
     function getUserData() {
       return (request.auth.token.email != null && exists(/databases/$(database)/documents/users/$(request.auth.token.email)))
         ? get(/databases/$(database)/documents/users/$(request.auth.token.email)).data
-        : (exists(/databases/$(database)/documents/users/$(request.auth.uid))
+        : (request.auth.uid != null && exists(/databases/$(database)/documents/users/$(request.auth.uid)))
           ? get(/databases/$(database)/documents/users/$(request.auth.uid)).data
-          : {});
+          : {};
     }
     
     function isSuperAdmin() {
