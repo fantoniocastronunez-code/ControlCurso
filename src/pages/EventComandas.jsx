@@ -388,131 +388,167 @@ const EventComandas = () => {
         </div>
       </header>
 
-      {/* Pestañas de Estado con Contadores */}
-      <div style={{
-        display: 'flex',
-        gap: '0.5rem',
-        marginBottom: '1.25rem',
-        overflowX: 'auto',
-        whiteSpace: 'nowrap',
-        paddingBottom: '0.25rem'
-      }}>
-        <button
-          type="button"
-          onClick={() => setActiveTab('pending')}
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: '0.5rem',
-            padding: '0.6rem 1.1rem',
-            borderRadius: '10px',
-            fontSize: '0.88rem',
-            fontWeight: 700,
-            cursor: 'pointer',
-            transition: 'all 0.15s ease',
-            backgroundColor: activeTab === 'pending' ? '#f59e0b' : 'rgba(245, 158, 11, 0.1)',
-            color: activeTab === 'pending' ? '#000' : '#f59e0b',
-            border: '1px solid #f59e0b'
-          }}
-        >
-          <Clock size={16} />
-          <span>Pendientes</span>
-          <span style={{
-            backgroundColor: activeTab === 'pending' ? '#000' : '#f59e0b',
-            color: activeTab === 'pending' ? '#f59e0b' : '#000',
-            padding: '1px 7px',
-            borderRadius: '12px',
-            fontSize: '0.78rem',
-            fontWeight: 800
-          }}>
-            {pendingOrders.length}
+      {/* Barra de Filtros de Estado: Compacta en 1 sola línea */}
+      <div style={{ marginBottom: '1rem', width: '100%' }}>
+        <div style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          marginBottom: '0.35rem',
+          padding: '0 0.15rem'
+        }}>
+          <span style={{ fontSize: '0.7rem', color: '#94a3b8', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+            Estado del Pedido:
           </span>
-        </button>
+          <button
+            type="button"
+            onClick={() => setActiveTab('all')}
+            style={{
+              background: activeTab === 'all' ? 'rgba(255, 255, 255, 0.15)' : 'transparent',
+              border: activeTab === 'all' ? '1px solid rgba(255, 255, 255, 0.3)' : '1px solid transparent',
+              color: activeTab === 'all' ? '#fff' : '#94a3b8',
+              fontSize: '0.72rem',
+              fontWeight: activeTab === 'all' ? 700 : 500,
+              padding: '2px 8px',
+              borderRadius: '6px',
+              cursor: 'pointer',
+              textDecoration: activeTab === 'all' ? 'none' : 'underline'
+            }}
+          >
+            {activeTab === 'all' ? '✓ Mostrando Todas' : `Ver todas (${orders.filter(o => o.status !== 'cancelled').length})`}
+          </button>
+        </div>
 
-        <button
-          type="button"
-          onClick={() => setActiveTab('preparing')}
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: '0.5rem',
-            padding: '0.6rem 1.1rem',
-            borderRadius: '10px',
-            fontSize: '0.88rem',
-            fontWeight: 700,
-            cursor: 'pointer',
-            transition: 'all 0.15s ease',
-            backgroundColor: activeTab === 'preparing' ? '#3b82f6' : 'rgba(59, 130, 246, 0.1)',
-            color: activeTab === 'preparing' ? '#fff' : '#60a5fa',
-            border: '1px solid #3b82f6'
-          }}
-        >
-          <Flame size={16} />
-          <span>En Preparación</span>
-          <span style={{
-            backgroundColor: activeTab === 'preparing' ? '#fff' : '#3b82f6',
-            color: activeTab === 'preparing' ? '#1e3a8a' : '#fff',
-            padding: '1px 7px',
-            borderRadius: '12px',
-            fontSize: '0.78rem',
-            fontWeight: 800
-          }}>
-            {preparingOrders.length}
-          </span>
-        </button>
+        <div style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(3, 1fr)',
+          gap: '0.35rem',
+          width: '100%',
+          boxSizing: 'border-box'
+        }}>
+          {/* 1. Pendientes */}
+          <button
+            type="button"
+            onClick={() => setActiveTab('pending')}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: '0.3rem',
+              padding: '0.45rem 0.2rem',
+              borderRadius: '8px',
+              fontSize: '0.78rem',
+              fontWeight: 700,
+              cursor: 'pointer',
+              transition: 'all 0.15s ease',
+              backgroundColor: activeTab === 'pending' ? '#f59e0b' : 'rgba(245, 158, 11, 0.12)',
+              color: activeTab === 'pending' ? '#000' : '#f59e0b',
+              border: '1px solid #f59e0b',
+              minWidth: 0,
+              overflow: 'hidden'
+            }}
+            title="Ver comandas pendientes"
+          >
+            <Clock size={13} style={{ flexShrink: 0 }} />
+            <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+              Pendientes
+            </span>
+            <span style={{
+              backgroundColor: activeTab === 'pending' ? '#000' : '#f59e0b',
+              color: activeTab === 'pending' ? '#f59e0b' : '#000',
+              padding: '0 5px',
+              borderRadius: '10px',
+              fontSize: '0.7rem',
+              fontWeight: 800,
+              lineHeight: '1.3',
+              flexShrink: 0
+            }}>
+              {pendingOrders.length}
+            </span>
+          </button>
 
-        <button
-          type="button"
-          onClick={() => setActiveTab('delivered')}
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: '0.5rem',
-            padding: '0.6rem 1.1rem',
-            borderRadius: '10px',
-            fontSize: '0.88rem',
-            fontWeight: 700,
-            cursor: 'pointer',
-            transition: 'all 0.15s ease',
-            backgroundColor: activeTab === 'delivered' ? '#10b981' : 'rgba(16, 185, 129, 0.1)',
-            color: activeTab === 'delivered' ? '#000' : '#34d399',
-            border: '1px solid #10b981'
-          }}
-        >
-          <CheckCircle2 size={16} />
-          <span>Entregados</span>
-          <span style={{
-            backgroundColor: activeTab === 'delivered' ? '#000' : '#10b981',
-            color: activeTab === 'delivered' ? '#34d399' : '#000',
-            padding: '1px 7px',
-            borderRadius: '12px',
-            fontSize: '0.78rem',
-            fontWeight: 800
-          }}>
-            {deliveredOrders.length}
-          </span>
-        </button>
+          {/* 2. En Preparación */}
+          <button
+            type="button"
+            onClick={() => setActiveTab('preparing')}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: '0.3rem',
+              padding: '0.45rem 0.2rem',
+              borderRadius: '8px',
+              fontSize: '0.78rem',
+              fontWeight: 700,
+              cursor: 'pointer',
+              transition: 'all 0.15s ease',
+              backgroundColor: activeTab === 'preparing' ? '#3b82f6' : 'rgba(59, 130, 246, 0.12)',
+              color: activeTab === 'preparing' ? '#fff' : '#60a5fa',
+              border: '1px solid #3b82f6',
+              minWidth: 0,
+              overflow: 'hidden'
+            }}
+            title="Ver comandas en preparación"
+          >
+            <Flame size={13} style={{ flexShrink: 0 }} />
+            <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+              En Prep.
+            </span>
+            <span style={{
+              backgroundColor: activeTab === 'preparing' ? '#fff' : '#3b82f6',
+              color: activeTab === 'preparing' ? '#1e3a8a' : '#fff',
+              padding: '0 5px',
+              borderRadius: '10px',
+              fontSize: '0.7rem',
+              fontWeight: 800,
+              lineHeight: '1.3',
+              flexShrink: 0
+            }}>
+              {preparingOrders.length}
+            </span>
+          </button>
 
-        <button
-          type="button"
-          onClick={() => setActiveTab('all')}
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: '0.5rem',
-            padding: '0.6rem 1.1rem',
-            borderRadius: '10px',
-            fontSize: '0.88rem',
-            fontWeight: 600,
-            cursor: 'pointer',
-            transition: 'all 0.15s ease',
-            backgroundColor: activeTab === 'all' ? 'rgba(255, 255, 255, 0.2)' : 'rgba(255, 255, 255, 0.05)',
-            color: '#fff',
-            border: '1px solid rgba(255, 255, 255, 0.15)'
-          }}
-        >
-          <span>Todas ({orders.filter(o => o.status !== 'cancelled').length})</span>
-        </button>
+          {/* 3. Entregados */}
+          <button
+            type="button"
+            onClick={() => setActiveTab('delivered')}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: '0.3rem',
+              padding: '0.45rem 0.2rem',
+              borderRadius: '8px',
+              fontSize: '0.78rem',
+              fontWeight: 700,
+              cursor: 'pointer',
+              transition: 'all 0.15s ease',
+              backgroundColor: activeTab === 'delivered' ? '#10b981' : 'rgba(16, 185, 129, 0.12)',
+              color: activeTab === 'delivered' ? '#000' : '#34d399',
+              border: '1px solid #10b981',
+              minWidth: 0,
+              overflow: 'hidden'
+            }}
+            title="Ver comandas entregadas"
+          >
+            <CheckCircle2 size={13} style={{ flexShrink: 0 }} />
+            <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+              Entregados
+            </span>
+            <span style={{
+              backgroundColor: activeTab === 'delivered' ? '#000' : '#10b981',
+              color: activeTab === 'delivered' ? '#34d399' : '#000',
+              padding: '0 5px',
+              borderRadius: '10px',
+              fontSize: '0.7rem',
+              fontWeight: 800,
+              lineHeight: '1.3',
+              flexShrink: 0
+            }}>
+              {deliveredOrders.length}
+            </span>
+          </button>
+        </div>
       </div>
 
       {/* Grid de Tarjetas de Comanda */}

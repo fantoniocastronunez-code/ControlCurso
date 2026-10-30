@@ -233,3 +233,4 @@ export const getSubproductStockInfo = (spDef, opt, parentItem, inventoryList = [
     limitingName
   };
 };
+
