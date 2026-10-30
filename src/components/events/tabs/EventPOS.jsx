@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { db } from '../../../firebase/config';
 import { collection, getDocs, doc, setDoc, query, where, orderBy, updateDoc, deleteDoc } from 'firebase/firestore';
 import { ShoppingCart, Plus, Minus, Trash2, Printer, Maximize, Minimize, Check, Package, AlertTriangle, UserCheck, Users, RefreshCw, Settings } from 'lucide-react';
@@ -572,7 +573,7 @@ const EventPOS = ({ event }) => {
 
   if (loading) return <div>Cargando Punto de Venta...</div>;
 
-  return (
+  const posContent = (
     <div
       ref={posContainerRef}
       onClick={handleContainerClick}
@@ -581,7 +582,7 @@ const EventPOS = ({ event }) => {
         inset: 0,
         width: '100vw',
         height: '100vh',
-        zIndex: 9990,
+        zIndex: 99999,
         backgroundColor: '#0f172a',
         backgroundImage: 'radial-gradient(at 0% 0%, rgba(99, 102, 241, 0.15) 0px, transparent 50%), radial-gradient(at 100% 100%, rgba(236, 72, 153, 0.1) 0px, transparent 50%)',
         padding: '1.25rem',
@@ -1412,6 +1413,8 @@ const EventPOS = ({ event }) => {
       />
     </div>
   );
+
+  return isFullscreen ? createPortal(posContent, document.body) : posContent;
 };
 
 export default EventPOS;
