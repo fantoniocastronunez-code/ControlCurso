@@ -20,21 +20,33 @@ export const AuthProvider = ({ children }) => {
     const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
       if (currentUser) {
         setUser(currentUser);
+
+        // Si es un usuario anónimo (ej. cliente escaneando QR de pedido o pantalla de cocina vía QR)
+        // no tiene perfil en 'users', simplemente permitimos el acceso sin consultar ni arrojar alertas
+        if (currentUser.isAnonymous) {
+          setRole('guest');
+          setUserData(null);
+          setLoading(false);
+          return;
+        }
+
         // Check role in Firestore using Email as ID
         try {
-          const userDocRef = doc(db, 'users', currentUser.uid); // Changed to uid instead of email for consistency, although existing might use email
-          // Wait, the existing code uses currentUser.email as document ID! Let's respect that or check.
-          const emailLower = currentUser.email ? currentUser.email.toLowerCase() : '';
-          const userDocRefEmail = doc(db, 'users', emailLower);
-          let userDoc = await getDoc(userDocRefEmail);
+          const emailLower = currentUser.email ? currentUser.email.toLowerCase().trim() : '';
+          let userDoc = null;
 
-          if (!userDoc.exists()) {
+          if (emailLower) {
+            const userDocRefEmail = doc(db, 'users', emailLower);
+            userDoc = await getDoc(userDocRefEmail);
+          }
+
+          if (!userDoc || !userDoc.exists()) {
              // Fallback to uid if email doc doesn't exist
              const userDocRefUid = doc(db, 'users', currentUser.uid);
              userDoc = await getDoc(userDocRefUid);
           }
 
-          if (userDoc.exists()) {
+          if (userDoc && userDoc.exists()) {
             setRole(userDoc.data().role);
             setUserData(userDoc.data());
             // Actualizamos la info de perfil por si cambió
@@ -51,7 +63,7 @@ export const AuthProvider = ({ children }) => {
             const initialRole = currentUser.email === 'fantoniocastronunez@gmail.com' ? 'superadmin' : null;
             
             const newUser = {
-              email: currentUser.email,
+              email: currentUser.email || '',
               displayName: currentUser.displayName || '',
               photoURL: currentUser.photoURL || '',
               uid: currentUser.uid,
@@ -66,7 +78,12 @@ export const AuthProvider = ({ children }) => {
           }
         } catch (error) {
           console.error("Error al obtener o crear el usuario en Firestore:", error);
-          await showAlert("Error de permisos en la base de datos. Por favor revisa las reglas de Firestore.");
+          const isPublicRoute = window.location.pathname.startsWith('/pedido') || 
+                                window.location.pathname.startsWith('/comandas') || 
+                                window.location.pathname.startsWith('/entrega');
+          if (!isPublicRoute) {
+            await showAlert("Error de permisos en la base de datos. Por favor revisa las reglas de Firestore.");
+          }
           setRole(null);
         }
       } else {

@@ -12,9 +12,9 @@ service cloud.firestore {
     }
     
     function getUserData() {
-      return (request.auth.token.email != null && exists(/databases/$(database)/documents/users/$(request.auth.token.email)))
+      return (request.auth != null && request.auth.token.email != null && exists(/databases/$(database)/documents/users/$(request.auth.token.email)))
         ? get(/databases/$(database)/documents/users/$(request.auth.token.email)).data
-        : (request.auth.uid != null && exists(/databases/$(database)/documents/users/$(request.auth.uid)))
+        : (request.auth != null && request.auth.uid != null && exists(/databases/$(database)/documents/users/$(request.auth.uid)))
           ? get(/databases/$(database)/documents/users/$(request.auth.uid)).data
           : {};
     }
