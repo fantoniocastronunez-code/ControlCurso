@@ -26,6 +26,7 @@ const EventPOS = ({ event }) => {
   const posContainerRef = useRef(null);
   const isPrintingRef = useRef(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const [isNativeFullscreen, setIsNativeFullscreen] = useState(false);
 
   // Cajero en turno (Gestión de turnos y relevos de caja)
   const [cashierName, setCashierName] = useState(() => localStorage.getItem(`event_cashier_${event.id}`) || '');
@@ -101,26 +102,30 @@ const EventPOS = ({ event }) => {
   // Manejo de Pantalla Completa y sincronización con el navegador
   useEffect(() => {
     const handleFullscreenChange = () => {
-      // Si el navegador salió de pantalla completa debido a una impresión, NO desactivamos el modo POS
+      const isNative = Boolean(document.fullscreenElement);
+      setIsNativeFullscreen(isNative);
+
+      // Si el navegador salió de pantalla completa debido a una impresión externa (RawBT),
+      // mantenemos el modo POS inmersivo para que el cajero no pierda su pantalla
       if (isPrintingRef.current) return;
-      if (!document.fullscreenElement) {
+
+      // Si el usuario salió manualmente (ej. tecla ESC o botón del navegador), salimos del modo POS
+      if (!isNative) {
         setIsFullscreen(false);
       }
     };
 
     const handleKeyDown = (e) => {
       if (e.key === 'Escape') {
-        setIsFullscreen(false);
-        if (document.fullscreenElement && document.exitFullscreen) {
-          document.exitFullscreen().catch(() => {});
-        }
+        exitFullscreenMode();
       }
     };
 
     const handleClearPrintingFlag = () => {
       setTimeout(() => {
         isPrintingRef.current = false;
-      }, 1500);
+        setIsNativeFullscreen(Boolean(document.fullscreenElement));
+      }, 1800);
     };
 
     document.addEventListener('fullscreenchange', handleFullscreenChange);
@@ -136,17 +141,27 @@ const EventPOS = ({ event }) => {
     };
   }, []);
 
-  const toggleFullscreen = () => {
-    if (isFullscreen) {
-      setIsFullscreen(false);
-      if (document.fullscreenElement && document.exitFullscreen) {
-        document.exitFullscreen().catch(() => {});
-      }
-    } else {
-      setIsFullscreen(true);
-      if (posContainerRef.current?.requestFullscreen) {
-        posContainerRef.current.requestFullscreen().catch(() => {});
-      } else if (document.documentElement.requestFullscreen) {
+  const enterFullscreenMode = () => {
+    setIsFullscreen(true);
+    setIsNativeFullscreen(true);
+    if (document.documentElement.requestFullscreen) {
+      document.documentElement.requestFullscreen().catch(() => {});
+    }
+  };
+
+  const exitFullscreenMode = () => {
+    setIsFullscreen(false);
+    setIsNativeFullscreen(false);
+    if (document.fullscreenElement && document.exitFullscreen) {
+      document.exitFullscreen().catch(() => {});
+    }
+  };
+
+  const handleContainerClick = (e) => {
+    // Si estamos en modo POS pero el navegador perdió la pantalla completa nativa (ej. tras imprimir en RawBT),
+    // reanudamos la pantalla completa nativa en el primer toque del usuario (excepto si hizo click en un botón/input)
+    if (isFullscreen && !document.fullscreenElement && !e.target.closest('button') && !e.target.closest('input') && !e.target.closest('select')) {
+      if (document.documentElement.requestFullscreen) {
         document.documentElement.requestFullscreen().catch(() => {});
       }
     }
@@ -560,6 +575,7 @@ const EventPOS = ({ event }) => {
   return (
     <div
       ref={posContainerRef}
+      onClick={handleContainerClick}
       style={isFullscreen ? {
         position: 'fixed',
         inset: 0,
@@ -650,24 +666,63 @@ const EventPOS = ({ event }) => {
             <Settings size={15} /> Impresora
           </button>
 
-          <button
-            onClick={toggleFullscreen}
-            className="btn btn-outline"
-            style={{ 
-              padding: '0.4rem 0.75rem', 
-              display: 'flex', 
-              alignItems: 'center', 
-              gap: '0.4rem', 
-              fontSize: '0.8rem',
-              backgroundColor: isFullscreen ? 'rgba(99, 102, 241, 0.2)' : 'transparent',
-              borderColor: isFullscreen ? 'var(--primary)' : 'rgba(255, 255, 255, 0.2)',
-              color: isFullscreen ? '#fff' : 'inherit'
-            }}
-            title={isFullscreen ? 'Salir de Pantalla Completa' : 'Entrar a Pantalla Completa'}
-          >
-            {isFullscreen ? <Minimize size={16} /> : <Maximize size={16} />}
-            <span>{isFullscreen ? 'Salir de Pantalla Completa' : 'Pantalla Completa'}</span>
-          </button>
+          {isFullscreen ? (
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+              {!isNativeFullscreen && (
+                <button
+                  type="button"
+                  onClick={enterFullscreenMode}
+                  className="btn btn-primary"
+                  style={{
+                    padding: '0.4rem 0.75rem',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '0.35rem',
+                    fontSize: '0.8rem'
+                  }}
+                  title="Reanudar pantalla completa en el navegador"
+                >
+                  <Maximize size={15} />
+                  <span>Pantalla Completa</span>
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={exitFullscreenMode}
+                className="btn btn-outline"
+                style={{ 
+                  padding: '0.4rem 0.75rem', 
+                  display: 'flex', 
+                  alignItems: 'center', 
+                  gap: '0.4rem', 
+                  fontSize: '0.8rem',
+                  backgroundColor: 'rgba(255, 255, 255, 0.05)',
+                  borderColor: 'rgba(255, 255, 255, 0.2)'
+                }}
+                title="Volver a la vista normal con pestañas"
+              >
+                <Minimize size={15} />
+                <span>Salir de Pantalla Completa</span>
+              </button>
+            </div>
+          ) : (
+            <button
+              type="button"
+              onClick={enterFullscreenMode}
+              className="btn btn-outline"
+              style={{ 
+                padding: '0.4rem 0.75rem', 
+                display: 'flex', 
+                alignItems: 'center', 
+                gap: '0.4rem', 
+                fontSize: '0.8rem'
+              }}
+              title="Entrar a Pantalla Completa"
+            >
+              <Maximize size={16} />
+              <span>Pantalla Completa</span>
+            </button>
+          )}
         </div>
       </div>
 
