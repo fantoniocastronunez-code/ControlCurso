@@ -11,9 +11,9 @@ const ThermalReceipt = ({ sale, eventName }) => {
     return new Intl.NumberFormat('es-CL', { style: 'currency', currency: 'CLP' }).format(amount);
   };
 
-  const deliveryUrl = sale.id 
-    ? (typeof window !== 'undefined' ? `${window.location.origin}/entrega/${sale.id}` : `https://control-curso.vercel.app/entrega/${sale.id}`)
-    : (typeof window !== 'undefined' ? `${window.location.origin}/entrega/test` : `https://control-curso.vercel.app/entrega/test`);
+  const orderTrackingUrl = sale.id 
+    ? (typeof window !== 'undefined' ? `${window.location.origin}/pedido/${sale.id}` : `https://control-curso.vercel.app/pedido/${sale.id}`)
+    : (typeof window !== 'undefined' ? `${window.location.origin}/pedido/test` : `https://control-curso.vercel.app/pedido/test`);
 
   const receiptContent = (
     <div className="thermal-receipt" style={{ display: 'none' }}>
@@ -33,8 +33,9 @@ const ThermalReceipt = ({ sale, eventName }) => {
           </div>
 
           <div style={{ margin: '8px 0', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-            <QRCodeSVG value={deliveryUrl} size={85} level="M" />
-            <p style={{ margin: '4px 0 0 0', fontSize: '9px', fontWeight: 'bold' }}>QR DE ENTREGA LISTO</p>
+            <QRCodeSVG value={orderTrackingUrl} size={85} level="M" />
+            <p style={{ margin: '4px 0 0 0', fontSize: '9px', fontWeight: 'bold' }}>QR DE PEDIDO LISTO</p>
+            <p style={{ margin: '1px 0 0 0', fontSize: '8px', color: '#666' }}>Escanea para ver estado</p>
           </div>
 
           <div style={{ fontSize: '12px', fontWeight: 'bold', margin: '8px 0' }}>
@@ -97,16 +98,16 @@ const ThermalReceipt = ({ sale, eventName }) => {
             )}
           </div>
 
-          {/* Código QR de Entrega Segura */}
+          {/* Código QR de Seguimiento del Pedido para el Cliente */}
           <div style={{ textAlign: 'center', marginTop: '12px', borderTop: '1px dashed black', paddingTop: '8px' }}>
             <div style={{ display: 'inline-block', padding: '3px', background: 'white' }}>
-              <QRCodeSVG value={deliveryUrl} size={85} level="M" />
+              <QRCodeSVG value={orderTrackingUrl} size={85} level="M" />
             </div>
             <p style={{ margin: '4px 0 0 0', fontSize: '10px', fontWeight: 'bold' }}>
-              ESCANEAR PARA ENTREGA SEGURA
+              SIGUE EL ESTADO DE TU PEDIDO
             </p>
             <p style={{ margin: '1px 0 0 0', fontSize: '8px', color: '#555' }}>
-              Ticket #{sale.correlative}
+              Escanea con tu celular • Ticket #{sale.correlative}
             </p>
           </div>
 

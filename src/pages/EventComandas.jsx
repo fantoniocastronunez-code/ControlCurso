@@ -337,30 +337,6 @@ const EventComandas = () => {
             />
           </div>
 
-          {/* Escanear QR para Entrega Segura */}
-          <button
-            type="button"
-            onClick={() => setShowScanner(true)}
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: '0.4rem',
-              padding: '0.45rem 0.85rem',
-              borderRadius: '8px',
-              fontSize: '0.8rem',
-              fontWeight: 700,
-              backgroundColor: '#10b981',
-              border: '1px solid #10b981',
-              color: '#fff',
-              cursor: 'pointer',
-              boxShadow: '0 2px 10px rgba(16, 185, 129, 0.3)'
-            }}
-            title="Escanear código QR del ticket de papel para confirmar entrega segura"
-          >
-            <Camera size={16} />
-            <span>Escanear Entrega</span>
-          </button>
-
           {/* Toggle Sonido */}
           <button
             type="button"
@@ -931,13 +907,6 @@ const EventComandas = () => {
           })}
         </div>
       )}
-
-      {/* Modal de Escáner QR para Entrega Segura */}
-      <QRScannerModal
-        isOpen={showScanner}
-        onClose={() => setShowScanner(false)}
-        onScanSuccess={handleScanSuccess}
-      />
     </div>
   );
 };

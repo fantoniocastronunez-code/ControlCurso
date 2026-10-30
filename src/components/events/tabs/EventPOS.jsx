@@ -703,16 +703,6 @@ const EventPOS = ({ event }) => {
             <ChefHat size={15} /> Comandas (QR)
           </button>
 
-          <button
-            type="button"
-            onClick={() => setShowScanner(true)}
-            className="btn btn-outline"
-            style={{ padding: '0.4rem 0.75rem', display: 'flex', alignItems: 'center', gap: '0.35rem', fontSize: '0.8rem', borderColor: '#10b981', color: '#10b981' }}
-            title="Escanear ticket de papel para confirmar entrega segura"
-          >
-            <Camera size={15} /> Escanear Entrega
-          </button>
-
           {isFullscreen ? (
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
               {!isNativeFullscreen && (
@@ -1484,13 +1474,6 @@ const EventPOS = ({ event }) => {
         onClose={() => setShowComandasModal(false)}
         eventId={event.id}
         eventName={event.name}
-      />
-
-      {/* Modal de Escaneo QR para Entrega Segura */}
-      <QRScannerModal
-        isOpen={showScanner}
-        onClose={() => setShowScanner(false)}
-        onScanSuccess={handleScanSuccess}
       />
     </div>
   );

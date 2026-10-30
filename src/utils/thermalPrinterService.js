@@ -290,19 +290,20 @@ export const buildSaleReceiptPayload = (sale, eventName, width = getPaperWidth()
     noteLines.forEach(l => { p += `${l}\n`; });
   }
 
-  // 5. Código QR para Entrega Segura
+  // 5. Código QR para Seguimiento en Vivo del Pedido
   if (sale.id) {
-    const deliveryUrl = typeof window !== 'undefined' && window.location?.origin
-      ? `${window.location.origin}/entrega/${sale.id}`
-      : `https://control-curso.vercel.app/entrega/${sale.id}`;
+    const orderUrl = typeof window !== 'undefined' && window.location?.origin
+      ? `${window.location.origin}/pedido/${sale.id}`
+      : `https://control-curso.vercel.app/pedido/${sale.id}`;
 
     p += `\n`;
     p += CMD_ALIGN_CENTER;
-    p += buildEscPosQrCode(deliveryUrl, 4);
+    p += buildEscPosQrCode(orderUrl, 4);
     p += `\n`;
     p += CMD_BOLD_ON;
-    p += `ESCANEAR PARA ENTREGA SEGURA\n`;
+    p += `SIGUE EL ESTADO DE TU PEDIDO\n`;
     p += CMD_BOLD_OFF;
+    p += `Escanea con tu celular\n`;
     p += `Ticket #${sale.correlative}\n`;
   }
 
@@ -347,15 +348,16 @@ export const buildTestReceiptPayload = (eventName, cashierName, width = getPaper
   p += `${SEP_LINE}\n`;
 
   // QR de Prueba
-  const testDeliveryUrl = typeof window !== 'undefined' && window.location?.origin
-    ? `${window.location.origin}/entrega/test-preview`
-    : `https://control-curso.vercel.app/entrega/test-preview`;
+  const testOrderUrl = typeof window !== 'undefined' && window.location?.origin
+    ? `${window.location.origin}/pedido/test-preview`
+    : `https://control-curso.vercel.app/pedido/test-preview`;
   p += CMD_ALIGN_CENTER;
-  p += buildEscPosQrCode(testDeliveryUrl, 4);
+  p += buildEscPosQrCode(testOrderUrl, 4);
   p += `\n`;
   p += CMD_BOLD_ON;
-  p += `QR DE ENTREGA LISTO\n`;
+  p += `QR DE PEDIDO LISTO\n`;
   p += CMD_BOLD_OFF;
+  p += `Escanea para ver estado\n`;
 
   p += CMD_ALIGN_CENTER;
   p += CMD_BOLD_ON;

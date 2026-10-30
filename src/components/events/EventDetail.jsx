@@ -185,16 +185,6 @@ const EventDetail = ({ eventId, onBack }) => {
           >
             <ChefHat size={16} /> Comandas Cocina (QR)
           </button>
-
-          <button
-            type="button"
-            onClick={() => setShowScanner(true)}
-            className="btn btn-outline"
-            style={{ fontSize: '0.85rem', padding: '0.45rem 0.85rem', display: 'flex', alignItems: 'center', gap: '0.4rem', borderColor: '#10b981', color: '#10b981' }}
-            title="Escanear ticket de papel para confirmar entrega segura"
-          >
-            <Camera size={16} /> Escanear Entrega
-          </button>
         </div>
       </div>
 
@@ -312,13 +302,6 @@ const EventDetail = ({ eventId, onBack }) => {
         onClose={() => setShowComandasModal(false)}
         eventId={eventData.id}
         eventName={eventData.name}
-      />
-
-      {/* Modal de Escaneo QR para Entrega Segura */}
-      <QRScannerModal
-        isOpen={showScanner}
-        onClose={() => setShowScanner(false)}
-        onScanSuccess={handleScanSuccess}
       />
     </div>
   );
