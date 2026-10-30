@@ -1,12 +1,13 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { db } from '../../../firebase/config';
-import { collection, getDocs, doc, setDoc, query, where, orderBy, updateDoc, deleteDoc } from 'firebase/firestore';
-import { ShoppingCart, Plus, Minus, Trash2, Printer, Maximize, Minimize, Check, Package, AlertTriangle, UserCheck, Users, RefreshCw, Settings } from 'lucide-react';
+import { collection, getDocs, doc, setDoc, query, where, orderBy, updateDoc, deleteDoc, onSnapshot } from 'firebase/firestore';
+import { ShoppingCart, Plus, Minus, Trash2, Printer, Maximize, Minimize, Check, Package, AlertTriangle, UserCheck, Users, RefreshCw, Settings, ChefHat } from 'lucide-react';
 import { useModal } from '../../../context/ModalContext';
 import { useAuth } from '../../../context/AuthContext';
 import ThermalReceipt from './ThermalReceipt';
 import PrinterSettingsModal from '../PrinterSettingsModal';
+import ComandasQRModal from '../ComandasQRModal';
 import {
   getPrinterConfig,
   buildSaleReceiptPayload,
@@ -35,6 +36,7 @@ const EventPOS = ({ event }) => {
   const [newCashierInput, setNewCashierInput] = useState('');
   const [cashierFilter, setCashierFilter] = useState('all');
   const [showPrinterModal, setShowPrinterModal] = useState(false);
+  const [showComandasModal, setShowComandasModal] = useState(false);
 
   // POS State
   const [cart, setCart] = useState([]);
@@ -66,6 +68,8 @@ const EventPOS = ({ event }) => {
   }, [user, event.id, cashierName]);
 
   useEffect(() => {
+    let unsubscribeSales = () => {};
+
     const fetchData = async () => {
       setLoading(true);
       try {
@@ -76,12 +80,13 @@ const EventPOS = ({ event }) => {
         itemsList.sort((a, b) => a.name.localeCompare(b.name));
         setItems(itemsList);
 
-        // Fetch past sales for correlative and history
+        // Suscripción en tiempo real a las ventas para sincronizar con la cocina (Comandas)
         const qSales = query(collection(db, 'eventSales'), where('eventId', '==', event.id));
-        const snapSales = await getDocs(qSales);
-        const salesList = snapSales.docs.map(d => ({ id: d.id, ...d.data() }));
-        salesList.sort((a, b) => b.correlative - a.correlative); // Local sort to avoid requiring composite index
-        setSales(salesList);
+        unsubscribeSales = onSnapshot(qSales, (snapSales) => {
+          const salesList = snapSales.docs.map(d => ({ id: d.id, ...d.data() }));
+          salesList.sort((a, b) => (b.correlative || 0) - (a.correlative || 0));
+          setSales(salesList);
+        });
 
         // Fetch inventory items
         const qInv = query(collection(db, 'eventInventory'), where('eventId', '==', event.id));
@@ -98,6 +103,10 @@ const EventPOS = ({ event }) => {
     };
 
     fetchData();
+
+    return () => {
+      unsubscribeSales();
+    };
   }, [event.id]);
 
   // Manejo de Pantalla Completa y sincronización con el navegador
@@ -357,6 +366,8 @@ const EventPOS = ({ event }) => {
         items: cart,
         inventoryDeductions: deductions,
         total: cartTotal,
+        orderStatus: 'pending',
+        kitchenStatus: 'pending',
         createdAt: new Date().toISOString(),
         createdBy: user?.email || user?.displayName || 'Unknown User'
       };
@@ -665,6 +676,16 @@ const EventPOS = ({ event }) => {
             title="Configurar método de impresión térmica (Automático Android, Bluetooth, Navegador)"
           >
             <Settings size={15} /> Impresora
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setShowComandasModal(true)}
+            className="btn btn-outline"
+            style={{ padding: '0.4rem 0.75rem', display: 'flex', alignItems: 'center', gap: '0.35rem', fontSize: '0.8rem', borderColor: '#f59e0b', color: '#f59e0b' }}
+            title="Abrir código QR para pantalla de comandas y cocina"
+          >
+            <ChefHat size={15} /> Comandas (QR)
           </button>
 
           {isFullscreen ? (
@@ -1205,6 +1226,7 @@ const EventPOS = ({ event }) => {
                       <th style={{ textAlign: 'left', padding: '0.4rem' }}>Cajero/a</th>
                       <th style={{ textAlign: 'left', padding: '0.4rem' }}>Cliente</th>
                       <th style={{ textAlign: 'left', padding: '0.4rem' }}>Ítems</th>
+                      <th style={{ textAlign: 'center', padding: '0.4rem' }}>Cocina</th>
                       <th style={{ textAlign: 'right', padding: '0.4rem' }}>Total</th>
                       <th style={{ textAlign: 'center', padding: '0.4rem' }}>Acción</th>
                     </tr>
@@ -1242,6 +1264,25 @@ const EventPOS = ({ event }) => {
                               title={sale.items.map(i => `${i.quantity}x ${i.name}`).join(', ')}
                             >
                               {sale.items.map(i => `${i.quantity}x ${i.name}`).join(', ')}
+                            </td>
+                            <td style={{ padding: '0.4rem', textAlign: 'center', whiteSpace: 'nowrap' }}>
+                              {isCancelled ? (
+                                <span style={{ fontSize: '0.72rem', backgroundColor: 'rgba(239, 68, 68, 0.15)', color: 'var(--danger)', padding: '2px 6px', borderRadius: '10px' }}>
+                                  Anulada
+                                </span>
+                              ) : (sale.orderStatus || sale.kitchenStatus) === 'delivered' ? (
+                                <span style={{ fontSize: '0.72rem', backgroundColor: 'rgba(16, 185, 129, 0.15)', color: '#10b981', border: '1px solid rgba(16, 185, 129, 0.3)', padding: '2px 6px', borderRadius: '10px', fontWeight: 'bold' }}>
+                                  ✓ Entregado
+                                </span>
+                              ) : (sale.orderStatus || sale.kitchenStatus) === 'preparing' ? (
+                                <span style={{ fontSize: '0.72rem', backgroundColor: 'rgba(245, 158, 11, 0.15)', color: '#f59e0b', border: '1px solid rgba(245, 158, 11, 0.3)', padding: '2px 6px', borderRadius: '10px', fontWeight: 'bold' }}>
+                                  🔥 Preparando
+                                </span>
+                              ) : (
+                                <span style={{ fontSize: '0.72rem', backgroundColor: 'rgba(148, 163, 184, 0.15)', color: '#94a3b8', border: '1px solid rgba(148, 163, 184, 0.3)', padding: '2px 6px', borderRadius: '10px' }}>
+                                  ⏳ Pendiente
+                                </span>
+                              )}
                             </td>
                             <td style={{ padding: '0.4rem', textAlign: 'right', fontWeight: 'bold', whiteSpace: 'nowrap', color: isCancelled ? 'var(--text-muted)' : 'var(--success)' }}>
                               {formatMoney(sale.total)}
@@ -1409,6 +1450,14 @@ const EventPOS = ({ event }) => {
       <PrinterSettingsModal
         isOpen={showPrinterModal}
         onClose={() => setShowPrinterModal(false)}
+        eventName={event.name}
+      />
+
+      {/* Modal de Código QR para Pantalla de Comandas / Cocina */}
+      <ComandasQRModal
+        isOpen={showComandasModal}
+        onClose={() => setShowComandasModal(false)}
+        eventId={event.id}
         eventName={event.name}
       />
     </div>

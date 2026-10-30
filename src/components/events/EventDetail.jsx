@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { db } from '../../firebase/config';
 import { doc, getDoc } from 'firebase/firestore';
-import { ArrowLeft, LayoutDashboard, CheckSquare, ShoppingBag, DollarSign, Receipt, Package, Printer, Sparkles, RotateCcw, Settings } from 'lucide-react';
+import { ArrowLeft, LayoutDashboard, CheckSquare, ShoppingBag, DollarSign, Receipt, Package, Printer, Sparkles, RotateCcw, Settings, ChefHat } from 'lucide-react';
 import EventSummary from './tabs/EventSummary';
 import EventAttendance from './tabs/EventAttendance';
 import EventInventory from './tabs/EventInventory';
@@ -10,6 +10,7 @@ import EventPOS from './tabs/EventPOS';
 import EventExpenses from './tabs/EventExpenses';
 import ThermalReceipt from './tabs/ThermalReceipt';
 import PrinterSettingsModal from './PrinterSettingsModal';
+import ComandasQRModal from './ComandasQRModal';
 import { useModal } from '../../context/ModalContext';
 import { useAuth } from '../../context/AuthContext';
 import { loadDemoEventData, resetTestEventData } from '../../utils/eventTestUtils';
@@ -29,6 +30,7 @@ const EventDetail = ({ eventId, onBack }) => {
   const [testSaleToPrint, setTestSaleToPrint] = useState(null);
   const [actionLoading, setActionLoading] = useState(false);
   const [showPrinterModal, setShowPrinterModal] = useState(false);
+  const [showComandasModal, setShowComandasModal] = useState(false);
 
   useEffect(() => {
     fetchEventData();
@@ -139,22 +141,36 @@ const EventDetail = ({ eventId, onBack }) => {
       <ThermalReceipt sale={testSaleToPrint} eventName={eventData.name} />
 
       {/* Header */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginBottom: '1.5rem', flexWrap: 'wrap' }}>
-        <button onClick={onBack} className="btn btn-outline" style={{ padding: '0.5rem' }}>
-          <ArrowLeft size={18} />
-        </button>
-        <div style={{ flex: 1 }}>
-          <h2 style={{ margin: 0, color: 'var(--primary)', display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
-            {eventData.name}
-            {eventData.isTestEvent && (
-              <span style={{ fontSize: '0.75rem', padding: '0.2rem 0.65rem', backgroundColor: 'var(--warning)', color: '#000', borderRadius: '1rem', fontWeight: 'bold' }}>
-                🧪 MODO PRUEBA
-              </span>
-            )}
-          </h2>
-          <p style={{ margin: 0, color: 'var(--text-muted)', fontSize: '0.9rem' }}>
-            {new Date(eventData.date).toLocaleDateString('es-CL')} • Cuota: ${eventData.mandatoryAmount} • Multa: ${eventData.noShowAmount}
-          </p>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '1rem', marginBottom: '1.5rem', flexWrap: 'wrap' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', flex: 1, minWidth: '240px' }}>
+          <button onClick={onBack} className="btn btn-outline" style={{ padding: '0.5rem' }}>
+            <ArrowLeft size={18} />
+          </button>
+          <div>
+            <h2 style={{ margin: 0, color: 'var(--primary)', display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+              {eventData.name}
+              {eventData.isTestEvent && (
+                <span style={{ fontSize: '0.75rem', padding: '0.2rem 0.65rem', backgroundColor: 'var(--warning)', color: '#000', borderRadius: '1rem', fontWeight: 'bold' }}>
+                  🧪 MODO PRUEBA
+                </span>
+              )}
+            </h2>
+            <p style={{ margin: 0, color: 'var(--text-muted)', fontSize: '0.9rem' }}>
+              {new Date(eventData.date).toLocaleDateString('es-CL')} • Cuota: ${eventData.mandatoryAmount} • Multa: ${eventData.noShowAmount}
+            </p>
+          </div>
+        </div>
+
+        <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', flexWrap: 'wrap' }}>
+          <button
+            type="button"
+            onClick={() => setShowComandasModal(true)}
+            className="btn btn-outline"
+            style={{ fontSize: '0.85rem', padding: '0.45rem 0.85rem', display: 'flex', alignItems: 'center', gap: '0.4rem', borderColor: '#f59e0b', color: '#f59e0b' }}
+            title="Abrir código QR para pantalla de comandas y cocina"
+          >
+            <ChefHat size={16} /> Comandas Cocina (QR)
+          </button>
         </div>
       </div>
 
@@ -263,6 +279,14 @@ const EventDetail = ({ eventId, onBack }) => {
       <PrinterSettingsModal
         isOpen={showPrinterModal}
         onClose={() => setShowPrinterModal(false)}
+        eventName={eventData.name}
+      />
+
+      {/* Modal de Código QR para Pantalla de Comandas / Cocina */}
+      <ComandasQRModal
+        isOpen={showComandasModal}
+        onClose={() => setShowComandasModal(false)}
+        eventId={eventData.id}
         eventName={eventData.name}
       />
     </div>
