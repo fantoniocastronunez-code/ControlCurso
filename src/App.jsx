@@ -11,6 +11,7 @@ import ApoderadoDashboard from './pages/ApoderadoDashboard';
 import EventComandas from './pages/EventComandas';
 import EventDelivery from './pages/EventDelivery';
 import VersionChecker from './components/VersionChecker';
+import ErrorBoundary from './components/ErrorBoundary';
 import './App.css';
 
 // Componente para proteger rutas según rol
@@ -104,7 +105,9 @@ function App() {
         <CourseProvider>
           <BrowserRouter>
             <VersionChecker />
-            <AppRoutes />
+            <ErrorBoundary>
+              <AppRoutes />
+            </ErrorBoundary>
             <Analytics />
             <SpeedInsights />
           </BrowserRouter>

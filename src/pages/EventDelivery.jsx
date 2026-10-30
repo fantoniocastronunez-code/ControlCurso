@@ -339,11 +339,14 @@ const EventDelivery = () => {
                   {eventData?.name || 'Evento'}
                 </span>
                 <h2 style={{ margin: '0.2rem 0', fontSize: '2rem', color: '#fff', fontWeight: 'bold' }}>
-                  Ticket #{sale.correlative}
+                  Ticket #{sale.correlative || 'S/N'}
                 </h2>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', color: 'var(--text-muted)', fontSize: '0.8rem' }}>
                   <Clock size={13} />
-                  <span>{new Date(sale.createdAt).toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit' })} ({new Date(sale.createdAt).toLocaleDateString('es-CL')})</span>
+                  <span>
+                    {sale.createdAt ? new Date(sale.createdAt).toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit' }) : ''} 
+                    {sale.createdAt ? ` (${new Date(sale.createdAt).toLocaleDateString('es-CL')})` : ''}
+                  </span>
                 </div>
               </div>
 
@@ -363,12 +366,12 @@ const EventDelivery = () => {
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', marginBottom: '0.65rem' }}>
                 <ShoppingBag size={16} color="var(--primary)" />
                 <h4 style={{ margin: 0, fontSize: '0.9rem', color: '#fff', textTransform: 'uppercase' }}>
-                  Productos a Entregar ({sale.items?.reduce((s, i) => s + (i.quantity || 1), 0)} unidades)
+                  Productos a Entregar ({Array.isArray(sale.items) ? sale.items.reduce((s, i) => s + (i.quantity || 1), 0) : 0} unidades)
                 </h4>
               </div>
 
               <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                {sale.items && sale.items.map((item, idx) => (
+                {Array.isArray(sale.items) && sale.items.map((item, idx) => (
                   <div
                     key={idx}
                     style={{

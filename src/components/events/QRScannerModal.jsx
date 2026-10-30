@@ -26,12 +26,40 @@ const playSuccessBeep = () => {
   }
 };
 
+/**
+ * Detiene y limpia de forma 100% segura una instancia de Html5Qrcode
+ * Evita cualquier excepción síncrona "Cannot stop, scanner is not running or paused."
+ */
+const safeStopScanner = async (instance) => {
+  if (!instance) return;
+  try {
+    // Verificar si está activo antes de intentar detener
+    const isScanning = Boolean(
+      instance.isScanning ||
+      (typeof instance.getState === 'function' && (instance.getState() === 2 || instance.getState() === 3))
+    );
+    if (isScanning) {
+      await instance.stop();
+    }
+  } catch (err) {
+    // Silenciar error síncrono o asíncrono
+    console.warn("Scanner stop safely handled:", err);
+  }
+
+  try {
+    instance.clear();
+  } catch (err) {
+    console.warn("Scanner clear safely handled:", err);
+  }
+};
+
 const QRScannerModal = ({ isOpen, onClose, onScanSuccess }) => {
   const [cameraError, setCameraError] = useState(null);
-  const [isScanning, setIsScanning] = useState(false);
   const [manualInput, setManualInput] = useState('');
   const scannerRef = useRef(null);
   const isStoppingRef = useRef(false);
+  // Generar un ID único para cada ciclo de vida del modal y evitar colisiones DOM
+  const readerElementIdRef = useRef(`appcurso-qr-${Math.random().toString(36).substring(2, 9)}`);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -42,7 +70,10 @@ const QRScannerModal = ({ isOpen, onClose, onScanSuccess }) => {
 
     const startScanner = async () => {
       try {
-        html5QrCode = new Html5Qrcode("appcurso-qr-reader");
+        const element = document.getElementById(readerElementIdRef.current);
+        if (!element) return;
+
+        html5QrCode = new Html5Qrcode(readerElementIdRef.current);
         scannerRef.current = html5QrCode;
 
         const config = {
@@ -57,22 +88,29 @@ const QRScannerModal = ({ isOpen, onClose, onScanSuccess }) => {
           (decodedText) => {
             if (isStoppingRef.current) return;
             isStoppingRef.current = true;
+
             playSuccessBeep();
             if (navigator.vibrate) {
               try { navigator.vibrate(100); } catch {}
             }
 
-            // Detener cámara antes de notificar
-            html5QrCode.stop().catch(() => {}).then(() => {
-              try { html5QrCode.clear(); } catch {}
+            const currentInstance = scannerRef.current;
+            scannerRef.current = null;
+
+            // 1. Notificar al componente padre primero
+            try {
               onScanSuccess(decodedText);
-            });
+            } catch (notifyErr) {
+              console.error("Error al procesar lectura de QR:", notifyErr);
+            }
+
+            // 2. Detener la cámara en segundo plano de manera segura
+            safeStopScanner(currentInstance);
           },
           () => {
-            // Error de frame intermedio ignorado
+            // Ignorar frames intermedios sin código
           }
         );
-        setIsScanning(true);
       } catch (err) {
         console.warn("Error al inicializar cámara para QR:", err);
         setCameraError(
@@ -83,26 +121,35 @@ const QRScannerModal = ({ isOpen, onClose, onScanSuccess }) => {
       }
     };
 
-    // Pequeño timeout para asegurar que el elemento DOM #appcurso-qr-reader ya existe
-    const timer = setTimeout(startScanner, 250);
+    const timer = setTimeout(startScanner, 200);
 
     return () => {
       clearTimeout(timer);
       isStoppingRef.current = true;
-      if (scannerRef.current) {
-        scannerRef.current.stop().catch(() => {}).then(() => {
-          try { scannerRef.current.clear(); } catch {}
-          scannerRef.current = null;
-        });
-      }
+      const instance = scannerRef.current;
+      scannerRef.current = null;
+      safeStopScanner(instance);
     };
   }, [isOpen, onScanSuccess]);
+
+  const handleClose = () => {
+    isStoppingRef.current = true;
+    const instance = scannerRef.current;
+    scannerRef.current = null;
+    safeStopScanner(instance);
+    onClose();
+  };
 
   const handleManualSubmit = (e) => {
     e.preventDefault();
     const clean = manualInput.trim();
     if (!clean) return;
     playSuccessBeep();
+
+    const instance = scannerRef.current;
+    scannerRef.current = null;
+    safeStopScanner(instance);
+
     onScanSuccess(clean);
   };
 
@@ -144,7 +191,8 @@ const QRScannerModal = ({ isOpen, onClose, onScanSuccess }) => {
             <h3 style={{ margin: 0, fontSize: '1.05rem', color: '#fff' }}>Escanear Ticket de Entrega</h3>
           </div>
           <button
-            onClick={onClose}
+            type="button"
+            onClick={handleClose}
             className="btn btn-outline"
             style={{ padding: '0.35rem', borderRadius: '50%', color: 'var(--text-muted)' }}
           >
@@ -169,7 +217,7 @@ const QRScannerModal = ({ isOpen, onClose, onScanSuccess }) => {
             border: '2px solid var(--primary)',
             boxShadow: '0 0 20px rgba(99, 102, 241, 0.25)'
           }}>
-            <div id="appcurso-qr-reader" style={{ width: '100%', height: '100%' }}></div>
+            <div id={readerElementIdRef.current} style={{ width: '100%', height: '100%' }}></div>
           </div>
 
           {cameraError && (
@@ -221,4 +269,3 @@ const QRScannerModal = ({ isOpen, onClose, onScanSuccess }) => {
 };
 
 export default QRScannerModal;
-
