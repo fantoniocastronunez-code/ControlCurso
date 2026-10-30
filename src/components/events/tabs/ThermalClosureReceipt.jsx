@@ -37,6 +37,30 @@ const ThermalClosureReceipt = ({ event, stats, itemsSummary, expensesSummary, in
         </div>
       </div>
 
+      {((stats?.pettyCashTotal || 0) > 0 || (stats?.cashSalesTotal || 0) > 0) && (
+        <div style={{ borderTop: '1px dashed black', borderBottom: '1px dashed black', padding: '5px 0', margin: '10px 0', fontSize: '12px', fontFamily: 'monospace' }}>
+          <div style={{ marginBottom: '5px', fontWeight: 'bold', textAlign: 'center' }}>CUADRATURA DE EFECTIVO</div>
+          <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+            <span>Fondo Inicial (Caja Chica):</span>
+            <span>{formatMoney(stats.pettyCashTotal || 0)}</span>
+          </div>
+          <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+            <span>Ventas en Efectivo (+):</span>
+            <span>{formatMoney(stats.cashSalesTotal || 0)}</span>
+          </div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 'bold', marginTop: '4px', paddingTop: '4px', borderTop: '1px solid black' }}>
+            <span>TOTAL EFECTIVO EN CAJA:</span>
+            <span>{formatMoney((stats.pettyCashTotal || 0) + (stats.cashSalesTotal || 0))}</span>
+          </div>
+          {stats?.transferSalesTotal > 0 && (
+            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '10px', color: '#333', marginTop: '3px' }}>
+              <span>Ventas Transferencia:</span>
+              <span>{formatMoney(stats.transferSalesTotal)}</span>
+            </div>
+          )}
+        </div>
+      )}
+
       <div style={{ fontSize: '12px', fontFamily: 'monospace', marginBottom: '10px' }}>
         <div style={{ fontWeight: 'bold', textAlign: 'center', marginBottom: '5px', borderBottom: '1px dashed black', paddingBottom: '3px' }}>DETALLE DE VENTAS (POS)</div>
         {itemsSummary && itemsSummary.length > 0 ? (

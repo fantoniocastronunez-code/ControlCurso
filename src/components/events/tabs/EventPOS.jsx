@@ -3,13 +3,14 @@ import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
 import { db } from '../../../firebase/config';
 import { collection, getDocs, doc, setDoc, query, where, orderBy, updateDoc, deleteDoc, onSnapshot } from 'firebase/firestore';
-import { ShoppingCart, Plus, Minus, Trash2, Printer, Maximize, Minimize, Check, Package, AlertTriangle, UserCheck, Users, RefreshCw, Settings, ChefHat, Camera } from 'lucide-react';
+import { ShoppingCart, Plus, Minus, Trash2, Printer, Maximize, Minimize, Check, Package, AlertTriangle, UserCheck, Users, RefreshCw, Settings, ChefHat, Camera, Banknote, Calculator } from 'lucide-react';
 import { useModal } from '../../../context/ModalContext';
 import { useAuth } from '../../../context/AuthContext';
 import ThermalReceipt from './ThermalReceipt';
 import PrinterSettingsModal from '../PrinterSettingsModal';
 import ComandasQRModal from '../ComandasQRModal';
 import QRScannerModal from '../QRScannerModal';
+import PettyCashModal from '../PettyCashModal';
 import {
   getPrinterConfig,
   buildSaleReceiptPayload,
@@ -40,6 +41,8 @@ const EventPOS = ({ event }) => {
   const navigate = useNavigate();
   const [showPrinterModal, setShowPrinterModal] = useState(false);
   const [showComandasModal, setShowComandasModal] = useState(false);
+  const [showPettyCashModal, setShowPettyCashModal] = useState(false);
+  const [pettyCash, setPettyCash] = useState(null);
   const [showScanner, setShowScanner] = useState(false);
 
   const handleScanSuccess = (decodedText) => {
@@ -83,6 +86,7 @@ const EventPOS = ({ event }) => {
 
   useEffect(() => {
     let unsubscribeSales = () => {};
+    let unsubscribePettyCash = () => {};
 
     const fetchData = async () => {
       setLoading(true);
@@ -100,6 +104,18 @@ const EventPOS = ({ event }) => {
           const salesList = snapSales.docs.map(d => ({ id: d.id, ...d.data() }));
           salesList.sort((a, b) => (b.correlative || 0) - (a.correlative || 0));
           setSales(salesList);
+        });
+
+        // Suscripción en tiempo real a la Caja Chica (Fondo Inicial)
+        const pettyDocRef = doc(db, 'eventPettyCash', `petty_${event.id}`);
+        unsubscribePettyCash = onSnapshot(pettyDocRef, (snapDoc) => {
+          if (snapDoc.exists()) {
+            setPettyCash({ id: snapDoc.id, ...snapDoc.data() });
+          } else {
+            setPettyCash(null);
+          }
+        }, (err) => {
+          console.warn("Listener Caja Chica:", err);
         });
 
         // Fetch inventory items
@@ -120,6 +136,7 @@ const EventPOS = ({ event }) => {
 
     return () => {
       unsubscribeSales();
+      unsubscribePettyCash();
     };
   }, [event.id]);
 
@@ -533,6 +550,14 @@ const EventPOS = ({ event }) => {
   const shiftSalesCount = shiftSales.length;
   const shiftSalesTotal = shiftSales.reduce((sum, s) => sum + (s.total || 0), 0);
 
+  // Cálculos de Caja Chica y Efectivo en Caja
+  const validSales = sales.filter(s => s.status !== 'cancelled');
+  const cashSalesTotal = validSales.filter(s => s.paymentMethod === 'cash').reduce((sum, s) => sum + (s.total || 0), 0);
+  const transferSalesTotal = validSales.filter(s => s.paymentMethod === 'transfer').reduce((sum, s) => sum + (s.total || 0), 0);
+  const totalSalesAmount = validSales.reduce((sum, s) => sum + (s.total || 0), 0);
+  const pettyCashTotal = pettyCash?.total || 0;
+  const expectedTotalCashInDrawer = pettyCashTotal + cashSalesTotal;
+
   const handleSaveCashier = (nameToSet) => {
     const trimmed = nameToSet.trim();
     if (!trimmed) {
@@ -664,6 +689,26 @@ const EventPOS = ({ event }) => {
           <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
             Turno actual: <strong>{shiftSalesCount} ventas</strong> ({formatMoney(shiftSalesTotal)})
           </span>
+
+          {/* Badge de Efectivo Físico Esperado en Caja */}
+          <div
+            onClick={() => setShowPettyCashModal(true)}
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '0.45rem',
+              backgroundColor: 'rgba(16, 185, 129, 0.15)',
+              border: '1px solid #10b981',
+              padding: '0.35rem 0.85rem',
+              borderRadius: '20px',
+              cursor: 'pointer'
+            }}
+            title="Total de efectivo que debe haber físicamente en caja (Caja Chica + Ventas Efectivo). Haz clic para abrir el arqueo."
+          >
+            <Calculator size={15} color="#10b981" />
+            <span style={{ fontSize: '0.8rem', color: '#a7f3d0' }}>Efectivo en Caja:</span>
+            <strong style={{ fontSize: '0.9rem', color: '#10b981' }}>{formatMoney(expectedTotalCashInDrawer)}</strong>
+          </div>
         </div>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
@@ -672,6 +717,27 @@ const EventPOS = ({ event }) => {
               🧪 MODO PRUEBA
             </span>
           )}
+
+          {/* Botón de Gestión de Caja Chica */}
+          <button
+            type="button"
+            onClick={() => setShowPettyCashModal(true)}
+            className="btn btn-outline"
+            style={{ 
+              padding: '0.4rem 0.75rem', 
+              display: 'flex', 
+              alignItems: 'center', 
+              gap: '0.35rem', 
+              fontSize: '0.8rem',
+              borderColor: pettyCashTotal > 0 ? '#10b981' : '#f59e0b',
+              color: pettyCashTotal > 0 ? '#6ee7b7' : '#fcd34d',
+              backgroundColor: pettyCashTotal > 0 ? 'rgba(16, 185, 129, 0.1)' : 'rgba(245, 158, 11, 0.1)'
+            }}
+            title="Ingreso de billetes y monedas de la Caja Chica (Fondo Inicial) y Arqueo de Efectivo"
+          >
+            <Banknote size={15} />
+            <span>{pettyCashTotal > 0 ? `Caja Chica (${formatMoney(pettyCashTotal)})` : 'Ingresar Caja Chica'}</span>
+          </button>
 
           <button
             type="button"
@@ -1474,6 +1540,19 @@ const EventPOS = ({ event }) => {
         onClose={() => setShowComandasModal(false)}
         eventId={event.id}
         eventName={event.name}
+      />
+
+      {/* Modal de Caja Chica y Arqueo de Efectivo */}
+      <PettyCashModal
+        isOpen={showPettyCashModal}
+        onClose={() => setShowPettyCashModal(false)}
+        eventId={event.id}
+        eventName={event.name}
+        currentPettyCash={pettyCash}
+        cashSalesTotal={cashSalesTotal}
+        transferSalesTotal={transferSalesTotal}
+        totalSales={totalSalesAmount}
+        cashierName={activeCashierDisplayName}
       />
     </div>
   );

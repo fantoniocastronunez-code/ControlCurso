@@ -346,6 +346,29 @@ service cloud.firestore {
         ('role' in getUserData() && getUserData().role != null)
       );
     }
+
+    match /eventPettyCash/{pettyCashId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated() && (
+        isSuperAdmin() ||
+        ('courseId' in request.resource.data && isCourseAdmin(request.resource.data.courseId)) ||
+        ('roles' in getUserData()) ||
+        ('role' in getUserData() && getUserData().role != null)
+      );
+      allow update: if isAuthenticated() && (
+        isSuperAdmin() ||
+        ('courseId' in resource.data && isCourseAdmin(resource.data.courseId)) ||
+        ('courseId' in request.resource.data && isCourseAdmin(request.resource.data.courseId)) ||
+        ('roles' in getUserData()) ||
+        ('role' in getUserData() && getUserData().role != null)
+      );
+      allow delete: if isAuthenticated() && (
+        isSuperAdmin() ||
+        ('courseId' in resource.data && isCourseAdmin(resource.data.courseId)) ||
+        ('roles' in getUserData()) ||
+        ('role' in getUserData() && getUserData().role != null)
+      );
+    }
     
     match /inventory/{itemId} {
       allow read: if isAuthenticated();

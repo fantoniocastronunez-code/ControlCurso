@@ -405,6 +405,26 @@ export const buildClosureReceiptPayload = (event, stats, itemsSummary = [], expe
   p += CMD_BOLD_OFF;
   p += `${DOUBLE_LINE}\n`;
 
+  // Cuadratura de Efectivo en Caja
+  if ((stats?.pettyCashTotal || 0) > 0 || (stats?.cashSalesTotal || 0) > 0) {
+    p += CMD_ALIGN_CENTER;
+    p += CMD_BOLD_ON;
+    p += `CUADRATURA DE EFECTIVO\n`;
+    p += CMD_BOLD_OFF;
+    p += CMD_ALIGN_LEFT;
+    p += `${justify('Fondo Inicial (Caja Chica):', formatMoneyCLP(stats?.pettyCashTotal || 0), width)}\n`;
+    p += `${justify('Ventas en Efectivo (+):', formatMoneyCLP(stats?.cashSalesTotal || 0), width)}\n`;
+    p += `${SEP_LINE}\n`;
+    p += CMD_BOLD_ON;
+    const expectedCashInBox = (stats?.pettyCashTotal || 0) + (stats?.cashSalesTotal || 0);
+    p += `${justify('TOTAL EFECTIVO EN CAJA:', formatMoneyCLP(expectedCashInBox), width)}\n`;
+    p += CMD_BOLD_OFF;
+    if (stats?.transferSalesTotal) {
+      p += `${justify('Ventas Transferencia:', formatMoneyCLP(stats.transferSalesTotal), width)}\n`;
+    }
+    p += `${DOUBLE_LINE}\n`;
+  }
+
   // Ventas por cajero
   if (cashiersSummary && cashiersSummary.length > 0) {
     p += CMD_ALIGN_CENTER;
@@ -451,6 +471,135 @@ export const buildClosureReceiptPayload = (event, stats, itemsSummary = [], expe
   p += `\n`;
   p += CMD_ALIGN_CENTER;
   p += `--- FIN DEL CIERRE ---\n`;
+  p += getEndFeed();
+
+  return p;
+};
+
+/**
+ * Genera el payload ESC/POS para el comprobante de apertura de Caja Chica
+ */
+export const buildPettyCashReceiptPayload = (eventName, pettyCashData, cashierName, width = getPaperWidth()) => {
+  const DOUBLE_LINE = '='.repeat(width);
+  const SEP_LINE = '-'.repeat(width);
+
+  let p = '';
+  p += CMD_INIT;
+  p += getFontInit();
+  p += CMD_ALIGN_CENTER;
+  p += CMD_BOLD_ON;
+  p += `APERTURA DE CAJA CHICA\n`;
+  const nameLines = wrapText(cleanText(eventName || 'APPCURSO POS'), width);
+  nameLines.forEach(l => { p += `${l}\n`; });
+  p += CMD_BOLD_OFF;
+
+  p += `Fecha: ${new Date(pettyCashData?.createdAt || Date.now()).toLocaleString('es-CL')}\n`;
+  if (cashierName) {
+    p += `Cajero/a: ${cleanText(cashierName)}\n`;
+  }
+  p += `${DOUBLE_LINE}\n`;
+
+  // Billetes
+  const bills = pettyCashData?.bills || {};
+  const BILL_VALUES = [20000, 10000, 5000, 2000, 1000];
+  const hasBills = BILL_VALUES.some(v => (bills[v] || 0) > 0);
+
+  if (hasBills) {
+    p += CMD_BOLD_ON;
+    p += CMD_ALIGN_LEFT;
+    p += `DESGLOSE BILLETES:\n`;
+    p += CMD_BOLD_OFF;
+    BILL_VALUES.forEach(v => {
+      const qty = bills[v] || 0;
+      if (qty > 0) {
+        const sub = qty * v;
+        const label = `  ${formatMoneyCLP(v)} x ${qty}`;
+        p += `${justify(label, formatMoneyCLP(sub), width)}\n`;
+      }
+    });
+    p += `${SEP_LINE}\n`;
+  }
+
+  // Monedas
+  const coins = pettyCashData?.coins || {};
+  const COIN_VALUES = [500, 100, 50, 10];
+  const hasCoins = COIN_VALUES.some(v => (coins[v] || 0) > 0);
+
+  if (hasCoins) {
+    p += CMD_BOLD_ON;
+    p += CMD_ALIGN_LEFT;
+    p += `DESGLOSE MONEDAS:\n`;
+    p += CMD_BOLD_OFF;
+    COIN_VALUES.forEach(v => {
+      const qty = coins[v] || 0;
+      if (qty > 0) {
+        const sub = qty * v;
+        const label = `  ${formatMoneyCLP(v)} x ${qty}`;
+        p += `${justify(label, formatMoneyCLP(sub), width)}\n`;
+      }
+    });
+    p += `${SEP_LINE}\n`;
+  }
+
+  p += CMD_BOLD_ON;
+  p += CMD_ALIGN_LEFT;
+  p += `${justify('TOTAL CAJA CHICA:', formatMoneyCLP(pettyCashData?.total || 0), width)}\n`;
+  p += CMD_BOLD_OFF;
+  p += `${DOUBLE_LINE}\n`;
+
+  if (pettyCashData?.note) {
+    p += `Nota: ${cleanText(pettyCashData.note)}\n`;
+    p += `${SEP_LINE}\n`;
+  }
+
+  p += CMD_ALIGN_CENTER;
+  p += `Firma Responsable: __________________\n`;
+  p += getEndFeed();
+
+  return p;
+};
+
+/**
+ * Genera el payload ESC/POS para el Arqueo / Cuadratura de Efectivo en Caja
+ */
+export const buildCashAuditReceiptPayload = (eventName, pettyCashTotal, cashSalesTotal, transferSalesTotal, totalSales, cashierName, width = getPaperWidth()) => {
+  const DOUBLE_LINE = '='.repeat(width);
+  const SEP_LINE = '-'.repeat(width);
+
+  let p = '';
+  p += CMD_INIT;
+  p += getFontInit();
+  p += CMD_ALIGN_CENTER;
+  p += CMD_BOLD_ON;
+  p += `ARQUEO DE EFECTIVO EN CAJA\n`;
+  const nameLines = wrapText(cleanText(eventName || 'APPCURSO POS'), width);
+  nameLines.forEach(l => { p += `${l}\n`; });
+  p += CMD_BOLD_OFF;
+
+  p += `Fecha: ${new Date().toLocaleString('es-CL')}\n`;
+  if (cashierName) {
+    p += `Cajero/a: ${cleanText(cashierName)}\n`;
+  }
+  p += `${DOUBLE_LINE}\n`;
+
+  p += CMD_ALIGN_LEFT;
+  p += `${justify('Fondo Inicial (Caja Chica):', formatMoneyCLP(pettyCashTotal || 0), width)}\n`;
+  p += `${justify('Ventas en Efectivo (+):', formatMoneyCLP(cashSalesTotal || 0), width)}\n`;
+  p += `${SEP_LINE}\n`;
+
+  p += CMD_BOLD_ON;
+  const totalCashExpected = (pettyCashTotal || 0) + (cashSalesTotal || 0);
+  p += `${justify('TOTAL EFECTIVO EN CAJA:', formatMoneyCLP(totalCashExpected), width)}\n`;
+  p += CMD_BOLD_OFF;
+  p += `${DOUBLE_LINE}\n`;
+
+  p += `${justify('Ventas Transferencia:', formatMoneyCLP(transferSalesTotal || 0), width)}\n`;
+  p += `${justify('Total Ventas POS:', formatMoneyCLP(totalSales || 0), width)}\n`;
+  p += `${SEP_LINE}\n`;
+
+  p += CMD_ALIGN_CENTER;
+  p += `Verificacion de Caja Conforme\n`;
+  p += `Firma: ________________________\n`;
   p += getEndFeed();
 
   return p;
