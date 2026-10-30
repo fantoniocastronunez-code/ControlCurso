@@ -11,9 +11,12 @@ const ThermalReceipt = ({ sale, eventName }) => {
     return new Intl.NumberFormat('es-CL', { style: 'currency', currency: 'CLP' }).format(amount);
   };
 
+  const isLocal = typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
+  const baseUrl = isLocal || typeof window === 'undefined' ? 'https://control-curso.vercel.app' : window.location.origin;
+
   const orderTrackingUrl = sale.id 
-    ? (typeof window !== 'undefined' ? `${window.location.origin}/pedido/${sale.id}` : `https://control-curso.vercel.app/pedido/${sale.id}`)
-    : (typeof window !== 'undefined' ? `${window.location.origin}/pedido/test` : `https://control-curso.vercel.app/pedido/test`);
+    ? `${baseUrl}/pedido/${sale.id}`
+    : `${baseUrl}/pedido/test`;
 
   const receiptContent = (
     <div className="thermal-receipt" style={{ display: 'none' }}>

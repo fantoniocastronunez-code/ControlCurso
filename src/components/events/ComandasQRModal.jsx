@@ -9,7 +9,8 @@ const ComandasQRModal = ({ isOpen, onClose, eventId, eventName }) => {
 
   if (!isOpen) return null;
 
-  const origin = typeof window !== 'undefined' ? window.location.origin : '';
+  const isLocal = typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
+  const origin = isLocal || typeof window === 'undefined' ? 'https://control-curso.vercel.app' : window.location.origin;
   const comandasUrl = `${origin}/comandas/${eventId}`;
 
   const handleCopyLink = async () => {

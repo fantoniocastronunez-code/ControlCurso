@@ -11,19 +11,23 @@ service cloud.firestore {
       return request.auth != null;
     }
     
+    // Obtiene los datos del perfil de usuario de forma 100% segura.
+    // Si no está autenticado, retorna inmediatamente {} para evitar evaluar rutas o tokens nulos.
     function getUserData() {
-      return (request.auth != null && request.auth.token.email != null && exists(/databases/$(database)/documents/users/$(request.auth.token.email)))
-        ? get(/databases/$(database)/documents/users/$(request.auth.token.email)).data
-        : (request.auth != null && request.auth.uid != null && exists(/databases/$(database)/documents/users/$(request.auth.uid)))
-          ? get(/databases/$(database)/documents/users/$(request.auth.uid)).data
-          : {};
+      return !isAuthenticated()
+        ? {}
+        : (request.auth.token.email != null && exists(/databases/$(database)/documents/users/$(request.auth.token.email)))
+          ? get(/databases/$(database)/documents/users/$(request.auth.token.email)).data
+          : (request.auth.uid != null && exists(/databases/$(database)/documents/users/$(request.auth.uid)))
+            ? get(/databases/$(database)/documents/users/$(request.auth.uid)).data
+            : {};
     }
     
     function isSuperAdmin() {
       return isAuthenticated() && (
         (request.auth.token.email != null && request.auth.token.email == 'fantoniocastronunez@gmail.com') ||
         ('role' in getUserData() && getUserData().role == 'superadmin') ||
-        ('roles' in getUserData() && 'global' in getUserData().roles && getUserData().roles.global == 'superadmin')
+        ('roles' in getUserData() && getUserData().roles is map && 'global' in getUserData().roles && getUserData().roles.global == 'superadmin')
       );
     }
     
@@ -33,13 +37,14 @@ service cloud.firestore {
         (
           courseId != null &&
           'roles' in getUserData() && 
+          getUserData().roles is map &&
           courseId in getUserData().roles && 
           (getUserData().roles[courseId] == 'tesorero' || getUserData().roles[courseId] == 'admin' || getUserData().roles[courseId] == 'presidente')
         )
       );
     }
 
-    // Permite que cualquier dispositivo que escanee el QR de comandas/despacho actualice únicamente
+    // Permite que cualquier dispositivo que escanee el QR de comandas o despacho actualice únicamente
     // los campos operativos de cocina, controlando tipos y longitud para prevenir abusos.
     function isAllowedKitchenStatusUpdate() {
       return request.resource.data.diff(resource.data).affectedKeys().hasOnly([
@@ -48,10 +53,10 @@ service cloud.firestore {
       (!('orderStatus' in request.resource.data) || (request.resource.data.orderStatus is string && request.resource.data.orderStatus.size() <= 50)) &&
       (!('kitchenStatus' in request.resource.data) || (request.resource.data.kitchenStatus is string && request.resource.data.kitchenStatus.size() <= 50)) &&
       (!('status' in request.resource.data) || (request.resource.data.status is string && request.resource.data.status.size() <= 50)) &&
-      (!('kitchenNotes' in request.resource.data) || (request.resource.data.kitchenNotes is string && request.resource.data.kitchenNotes.size() <= 500)) &&
-      (!('deliveredBy' in request.resource.data) || (request.resource.data.deliveredBy is string && request.resource.data.deliveredBy.size() <= 100)) &&
-      (!('preparedAt' in request.resource.data) || (request.resource.data.preparedAt is string && request.resource.data.preparedAt.size() <= 100)) &&
-      (!('deliveredAt' in request.resource.data) || (request.resource.data.deliveredAt is string && request.resource.data.deliveredAt.size() <= 100)) &&
+      (!('kitchenNotes' in request.resource.data) || (request.resource.data.kitchenNotes is string && request.resource.data.kitchenNotes.size() <= 1000)) &&
+      (!('deliveredBy' in request.resource.data) || (request.resource.data.deliveredBy is string && request.resource.data.deliveredBy.size() <= 200)) &&
+      (!('preparedAt' in request.resource.data) || (request.resource.data.preparedAt is string && request.resource.data.preparedAt.size() <= 100) || request.resource.data.preparedAt is timestamp) &&
+      (!('deliveredAt' in request.resource.data) || (request.resource.data.deliveredAt is string && request.resource.data.deliveredAt.size() <= 100) || request.resource.data.deliveredAt is timestamp) &&
       (!('updatedAt' in request.resource.data) || (request.resource.data.updatedAt is string && request.resource.data.updatedAt.size() <= 100) || request.resource.data.updatedAt is timestamp);
     }
 
@@ -67,7 +72,7 @@ service cloud.firestore {
       allow create: if isAuthenticated() && (
         (request.auth.token.email == userId || request.auth.uid == userId) ||
         isSuperAdmin() ||
-        ('roles' in getUserData() && getUserData().roles.values().hasAny(['admin', 'tesorero']))
+        ('roles' in getUserData() && getUserData().roles is map && getUserData().roles.values().hasAny(['admin', 'tesorero']))
       );
       // Permitir actualización: 
       // 1. Un superadmin puede actualizar a cualquiera.
@@ -89,7 +94,7 @@ service cloud.firestore {
             )
           )
         ) ||
-        ('roles' in getUserData() && getUserData().roles.values().hasAny(['admin', 'tesorero']))
+        ('roles' in getUserData() && getUserData().roles is map && getUserData().roles.values().hasAny(['admin', 'tesorero']))
       );
       
       allow delete: if isSuperAdmin();
@@ -131,8 +136,8 @@ service cloud.firestore {
       allow update: if isAuthenticated() && (
         isSuperAdmin() ||
         ('courseId' in resource.data && isCourseAdmin(resource.data.courseId)) ||
-        (request.auth.token.email in resource.data.apoderadoEmails) ||
-        (request.auth.token.email == resource.data.apoderadoEmail)
+        (request.auth.token.email != null && 'apoderadoEmails' in resource.data && resource.data.apoderadoEmails is list && request.auth.token.email in resource.data.apoderadoEmails) ||
+        (request.auth.token.email != null && 'apoderadoEmail' in resource.data && request.auth.token.email == resource.data.apoderadoEmail)
       );
     }
     
@@ -280,9 +285,10 @@ service cloud.firestore {
       );
     }
     
-    // -- EVENTS, EVENT ITEMS, EVENT SALES, TICKETS (PUNTO DE VENTA) --
+    // -- EVENTS, EVENT ITEMS, EVENT SALES, TICKETS (PUNTO DE VENTA Y EVENTOS) --
     match /events/{eventId} {
-      // Lectura pública para que clientes y personal puedan consultar los datos del evento vía QR
+      // Lectura pública total (get individual y list/queries) para que clientes y personal
+      // consulten los datos del evento vía enlace o código QR sin requerir autenticación
       allow read: if true;
       allow create: if isAuthenticated() && (
         isSuperAdmin() ||
@@ -295,7 +301,8 @@ service cloud.firestore {
     }
 
     match /eventItems/{itemId} {
-      // Lectura pública para visualización de catálogo y productos en vistas públicas o comandas
+      // Lectura pública total (get individual y list/queries) para visualización de catálogo,
+      // menú y productos en vistas públicas de clientes, pedidos o comandas
       allow read: if true;
       allow create: if isAuthenticated() && (
         isSuperAdmin() ||
@@ -342,8 +349,11 @@ service cloud.firestore {
     }
 
     match /eventSales/{saleId} {
-      // Lectura pública para que clientes vean su pedido (/pedido/:saleId)
-      // y cocineros vean las comandas del evento (/comandas/:eventId)
+      // Lectura pública total (get individual y list/queries) para que:
+      // 1. Clientes consulten el estado de su pedido en tiempo real (/pedido/:saleId)
+      // 2. Personal y pantallas de cocina listen las comandas del evento (/comandas/:eventId)
+      // 3. Clientes o personal verifiquen la entrega por QR (/entrega/:saleId)
+      // Todo ello sin requerir inicio de sesión ni arrojar 'Missing or insufficient permissions'.
       allow read: if true;
       allow create: if isAuthenticated() && (
         isSuperAdmin() ||
@@ -352,7 +362,7 @@ service cloud.firestore {
         ('role' in getUserData() && getUserData().role != null)
       );
       // Actualización permitida a administradores del curso/evento, o a cualquier dispositivo vía QR
-      // que actualice exclusivamente campos de estado de cocina y despacho (orderStatus, kitchenStatus, etc.)
+      // que actualice exclusivamente campos operativos de cocina y despacho (orderStatus, kitchenStatus, etc.)
       allow update: if (
         isAuthenticated() && (
           isSuperAdmin() ||
@@ -435,8 +445,14 @@ service cloud.firestore {
     
     // -- SETTINGS --
     match /settings/{settingId} {
+      // Permite lectura pública de 'version' para VersionChecker en cualquier vista (pública o autenticada)
       allow read: if settingId == 'version' || isAuthenticated();
-      allow create, update, delete: if isSuperAdmin();
+      // Permite actualizar configuraciones al superadmin o al admin del curso correspondiente
+      allow create, update: if isAuthenticated() && (
+        isSuperAdmin() ||
+        isCourseAdmin(settingId)
+      );
+      allow delete: if isSuperAdmin();
     }
     
   }

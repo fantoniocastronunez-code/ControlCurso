@@ -292,9 +292,11 @@ export const buildSaleReceiptPayload = (sale, eventName, width = getPaperWidth()
 
   // 5. Código QR para Seguimiento en Vivo del Pedido
   if (sale.id) {
-    const orderUrl = typeof window !== 'undefined' && window.location?.origin
-      ? `${window.location.origin}/pedido/${sale.id}`
-      : `https://control-curso.vercel.app/pedido/${sale.id}`;
+    const isLocal = typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
+    const baseUrl = isLocal || typeof window === 'undefined' || !window.location?.origin
+      ? 'https://control-curso.vercel.app'
+      : window.location.origin;
+    const orderUrl = `${baseUrl}/pedido/${sale.id}`;
 
     p += `\n`;
     p += CMD_ALIGN_CENTER;
@@ -348,9 +350,11 @@ export const buildTestReceiptPayload = (eventName, cashierName, width = getPaper
   p += `${SEP_LINE}\n`;
 
   // QR de Prueba
-  const testOrderUrl = typeof window !== 'undefined' && window.location?.origin
-    ? `${window.location.origin}/pedido/test-preview`
-    : `https://control-curso.vercel.app/pedido/test-preview`;
+  const isLocal = typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
+  const baseUrl = isLocal || typeof window === 'undefined' || !window.location?.origin
+    ? 'https://control-curso.vercel.app'
+    : window.location.origin;
+  const testOrderUrl = `${baseUrl}/pedido/test-preview`;
   p += CMD_ALIGN_CENTER;
   p += buildEscPosQrCode(testOrderUrl, 4);
   p += `\n`;
