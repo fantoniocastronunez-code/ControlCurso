@@ -15,7 +15,7 @@ import {
   printViaWebBluetooth 
 } from '../../../utils/thermalPrinterService';
 
-const EventSummary = ({ event }) => {
+const EventSummary = ({ event, onNavigateTab }) => {
   const [stats, setStats] = useState({
     totalQuotas: 0,
     paidQuotas: 0,
@@ -229,7 +229,13 @@ const EventSummary = ({ event }) => {
       <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '1.5rem', gap: '0.5rem', flexWrap: 'wrap' }}>
         <button
           type="button"
-          onClick={() => setShowReconciliationModal(true)}
+          onClick={() => {
+            if (onNavigateTab) {
+              onNavigateTab('reconciliation');
+            } else {
+              setShowReconciliationModal(true);
+            }
+          }}
           className="btn btn-primary"
           style={{
             display: 'flex',
@@ -240,9 +246,9 @@ const EventSummary = ({ event }) => {
             color: '#fff',
             fontWeight: 'bold'
           }}
-          title="Cuadrar el efectivo completo que quedó en caja restando el fondo inicial que había al comenzar"
+          title="Ir a la sección Cuadrar Caja para revisar todas las ventas y conciliar pagos"
         >
-          <Calculator size={18} /> Cuadrar Efectivo en Caja
+          <Calculator size={18} /> {stats.pettyCashData?.closingAudit ? 'Ver Cuadratura de Caja' : 'Cuadrar Efectivo en Caja'}
         </button>
         <button
           type="button"
@@ -319,7 +325,7 @@ const EventSummary = ({ event }) => {
           <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', flexWrap: 'wrap' }}>
             <button
               type="button"
-              onClick={() => setShowReconciliationModal(true)}
+              onClick={() => onNavigateTab ? onNavigateTab('reconciliation') : setShowReconciliationModal(true)}
               className="btn btn-outline"
               style={{
                 fontSize: '0.82rem',
@@ -332,10 +338,10 @@ const EventSummary = ({ event }) => {
                 backgroundColor: 'rgba(16, 185, 129, 0.1)',
                 fontWeight: '600'
               }}
-              title="Contar el efectivo en gaveta y cuadrar restando el fondo inicial que había al comenzar"
+              title="Ir a la sección Cuadrar Caja para revisar todas las ventas y conciliar pagos"
             >
               <Calculator size={15} />
-              {stats.pettyCashData?.closingAudit ? 'Editar Cuadratura de Caja' : 'Cuadrar Efectivo en Caja'}
+              <span>{stats.pettyCashData?.closingAudit ? 'Ver Cuadratura' : 'Cuadrar Caja'}</span>
             </button>
             {hasPettyBreakdown && (
               <button
@@ -493,9 +499,10 @@ const EventSummary = ({ event }) => {
                 </span>
                 <button
                   type="button"
-                  onClick={() => setShowReconciliationModal(true)}
+                  onClick={() => onNavigateTab ? onNavigateTab('reconciliation') : setShowReconciliationModal(true)}
                   className="btn btn-outline"
                   style={{ fontSize: '0.75rem', padding: '0.2rem 0.5rem', color: '#cbd5e1' }}
+                  title="Abrir sección de Cuadrar Caja"
                 >
                   Modificar
                 </button>

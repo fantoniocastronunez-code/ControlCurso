@@ -25,7 +25,7 @@ import {
   getSubproductStockInfo
 } from '../../../utils/inventoryDeductions';
 
-const EventPOS = ({ event }) => {
+const EventPOS = ({ event, onNavigateTab }) => {
   const { user } = useAuth();
   const { showAlert, showConfirm } = useModal();
   const [items, setItems] = useState([]);
@@ -824,7 +824,16 @@ const EventPOS = ({ event }) => {
           {/* Botón para Cuadrar Efectivo Final en Caja */}
           <button
             type="button"
-            onClick={() => setShowReconciliationModal(true)}
+            onClick={() => {
+              if (onNavigateTab) {
+                if (isFullscreen) {
+                  exitFullscreenMode();
+                }
+                onNavigateTab('reconciliation');
+              } else {
+                setShowReconciliationModal(true);
+              }
+            }}
             className="btn btn-outline"
             style={{
               padding: '0.4rem 0.75rem',
@@ -837,10 +846,10 @@ const EventPOS = ({ event }) => {
               backgroundColor: 'rgba(16, 185, 129, 0.12)',
               fontWeight: '600'
             }}
-            title="Cuadrar el efectivo completo que quedó en caja restando el fondo inicial que había al comenzar"
+            title="Ir a la sección Cuadrar Caja para ver todas las ventas y conciliar pagos"
           >
             <Calculator size={15} />
-            <span>{pettyCash?.closingAudit ? 'Caja Cuadrada' : 'Cuadrar Caja'}</span>
+            <span>{pettyCash?.closingAudit ? 'Ver Cuadratura' : 'Cuadrar Caja'}</span>
           </button>
 
           <button
@@ -1507,6 +1516,21 @@ const EventPOS = ({ event }) => {
                     title="Limpiar todos los filtros"
                   >
                     Limpiar
+                  </button>
+                )}
+
+                {onNavigateTab && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (isFullscreen) exitFullscreenMode();
+                      onNavigateTab('reconciliation');
+                    }}
+                    className="btn btn-outline"
+                    style={{ fontSize: '0.72rem', padding: '0.25rem 0.5rem', color: '#6ee7b7', borderColor: 'rgba(16, 185, 129, 0.4)', backgroundColor: 'rgba(16, 185, 129, 0.08)' }}
+                    title="Abrir la sección completa de Cuadrar Caja con todas las ventas"
+                  >
+                    Abrir Cuadrar Caja ↗
                   </button>
                 )}
               </div>

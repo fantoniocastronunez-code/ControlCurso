@@ -2,12 +2,13 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { db } from '../../firebase/config';
 import { doc, getDoc } from 'firebase/firestore';
-import { ArrowLeft, LayoutDashboard, CheckSquare, ShoppingBag, DollarSign, Receipt, Package, Printer, Sparkles, RotateCcw, Settings, ChefHat, Camera } from 'lucide-react';
+import { ArrowLeft, LayoutDashboard, CheckSquare, ShoppingBag, DollarSign, Receipt, Package, Printer, Sparkles, RotateCcw, Settings, ChefHat, Camera, Calculator } from 'lucide-react';
 import EventSummary from './tabs/EventSummary';
 import EventAttendance from './tabs/EventAttendance';
 import EventInventory from './tabs/EventInventory';
 import EventMenu from './tabs/EventMenu';
 import EventPOS from './tabs/EventPOS';
+import EventReconciliation from './tabs/EventReconciliation';
 import EventExpenses from './tabs/EventExpenses';
 import ThermalReceipt from './tabs/ThermalReceipt';
 import PrinterSettingsModal from './PrinterSettingsModal';
@@ -145,6 +146,7 @@ const EventDetail = ({ eventId, onBack }) => {
     { id: 'inventory', label: 'Inventario / Stock', icon: <Package size={16} /> },
     { id: 'menu', label: 'Menú / Ítems', icon: <ShoppingBag size={16} /> },
     { id: 'pos', label: 'Punto de Venta', icon: <Receipt size={16} /> },
+    { id: 'reconciliation', label: 'Cuadrar Caja', icon: <Calculator size={16} /> },
     { id: 'expenses', label: 'Gastos', icon: <DollarSign size={16} /> },
     { id: 'attendance', label: 'Asistencia', icon: <CheckSquare size={16} /> }
   ];
@@ -281,10 +283,11 @@ const EventDetail = ({ eventId, onBack }) => {
 
       {/* Tab Content */}
       <div className="tab-content">
-        {activeTab === 'summary' && <EventSummary event={eventData} />}
+        {activeTab === 'summary' && <EventSummary event={eventData} onNavigateTab={setActiveTab} />}
         {activeTab === 'inventory' && <EventInventory event={eventData} />}
         {activeTab === 'menu' && <EventMenu event={eventData} />}
-        {activeTab === 'pos' && <EventPOS event={eventData} />}
+        {activeTab === 'pos' && <EventPOS event={eventData} onNavigateTab={setActiveTab} />}
+        {activeTab === 'reconciliation' && <EventReconciliation event={eventData} onNavigateTab={setActiveTab} />}
         {activeTab === 'expenses' && <EventExpenses event={eventData} />}
         {activeTab === 'attendance' && <EventAttendance event={eventData} />}
       </div>
