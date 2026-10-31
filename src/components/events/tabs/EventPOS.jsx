@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
 import { db } from '../../../firebase/config';
 import { collection, getDocs, doc, setDoc, query, where, orderBy, updateDoc, deleteDoc, onSnapshot } from 'firebase/firestore';
-import { ShoppingCart, Plus, Minus, Trash2, Printer, Maximize, Minimize, Check, Package, AlertTriangle, UserCheck, Users, RefreshCw, Settings, ChefHat, Camera, Banknote, Calculator } from 'lucide-react';
+import { ShoppingCart, Plus, Minus, Trash2, Printer, Maximize, Minimize, Check, Package, AlertTriangle, UserCheck, Users, RefreshCw, Settings, ChefHat, Camera, Banknote, Calculator, Search, X, Edit2 } from 'lucide-react';
 import { useModal } from '../../../context/ModalContext';
 import { useAuth } from '../../../context/AuthContext';
 import ThermalReceipt from './ThermalReceipt';
@@ -44,6 +44,8 @@ const EventPOS = ({ event }) => {
   const [showCashierModal, setShowCashierModal] = useState(false);
   const [newCashierInput, setNewCashierInput] = useState('');
   const [cashierFilter, setCashierFilter] = useState('all');
+  const [clientNameFilter, setClientNameFilter] = useState('');
+  const [paymentFilter, setPaymentFilter] = useState('all');
   const navigate = useNavigate();
   const [showPrinterModal, setShowPrinterModal] = useState(false);
   const [showComandasModal, setShowComandasModal] = useState(false);
@@ -550,6 +552,55 @@ const EventPOS = ({ event }) => {
     }
   };
 
+  const handleChangePaymentMethod = async (sale) => {
+    if (sale.status === 'cancelled') return;
+    const currentMethod = sale.paymentMethod || 'cash';
+    const newMethod = currentMethod === 'cash' ? 'transfer' : 'cash';
+    const newMethodLabel = newMethod === 'cash' ? 'Efectivo' : 'Transferencia';
+    const confirm = await showConfirm(
+      `¿Deseas cambiar el medio de pago del ticket #${sale.correlative} (${sale.clientName || 'General'}) a ${newMethodLabel}?`
+    );
+    if (!confirm) return;
+
+    try {
+      await updateDoc(doc(db, 'eventSales', sale.id), {
+        paymentMethod: newMethod,
+        updatedAt: new Date().toISOString()
+      });
+
+      // Actualizar también en incomes si existe ingreso asociado
+      const qIncome = query(collection(db, 'incomes'), where('saleId', '==', sale.id));
+      const snapIncome = await getDocs(qIncome);
+      for (const docSnap of snapIncome.docs) {
+        await updateDoc(doc(db, 'incomes', docSnap.id), { paymentMethod: newMethod });
+      }
+
+      setSales(prev => prev.map(s => s.id === sale.id ? { ...s, paymentMethod: newMethod } : s));
+      await showAlert(`Medio de pago del ticket #${sale.correlative} actualizado a ${newMethodLabel}.`);
+    } catch (err) {
+      console.error("Error al actualizar medio de pago:", err);
+      await showAlert("Error al cambiar medio de pago: " + err.message);
+    }
+  };
+
+  const handleEditSaleNote = async (sale) => {
+    if (sale.status === 'cancelled') return;
+    const currentNote = sale.saleNote || '';
+    const newNote = window.prompt(`Editar nota del ticket #${sale.correlative} (${sale.clientName || 'General'}):`, currentNote);
+    if (newNote === null || newNote === currentNote) return;
+
+    try {
+      await updateDoc(doc(db, 'eventSales', sale.id), {
+        saleNote: newNote.trim(),
+        updatedAt: new Date().toISOString()
+      });
+      setSales(prev => prev.map(s => s.id === sale.id ? { ...s, saleNote: newNote.trim() } : s));
+    } catch (err) {
+      console.error("Error al actualizar nota:", err);
+      alert("Error al actualizar nota: " + err.message);
+    }
+  };
+
   const formatMoney = (amount) => {
     return new Intl.NumberFormat('es-CL', { style: 'currency', currency: 'CLP' }).format(amount);
   };
@@ -566,6 +617,28 @@ const EventPOS = ({ event }) => {
   const totalSalesAmount = validSales.reduce((sum, s) => sum + (s.total || 0), 0);
   const pettyCashTotal = pettyCash?.total || 0;
   const expectedTotalCashInDrawer = pettyCashTotal + cashSalesTotal;
+
+  // Filtrado de ventas (por Cajero, Medio de Pago y Nombre de Cliente / Nota / #Ticket)
+  const filteredSales = sales.filter(s => {
+    if (cashierFilter !== 'all' && (s.cashierName || s.createdBy || 'General') !== cashierFilter) {
+      return false;
+    }
+    if (paymentFilter !== 'all' && s.paymentMethod !== paymentFilter) {
+      return false;
+    }
+    if (clientNameFilter.trim()) {
+      const term = clientNameFilter.toLowerCase().trim();
+      const name = (s.clientName || '').toLowerCase();
+      const note = (s.saleNote || '').toLowerCase();
+      const corr = String(s.correlative || '');
+      const items = Array.isArray(s.items) ? s.items.map(i => (i.name || '').toLowerCase()).join(' ') : '';
+      return name.includes(term) || note.includes(term) || corr.includes(term) || items.includes(term);
+    }
+    return true;
+  });
+
+  const isFilteringActive = Boolean(clientNameFilter.trim() || paymentFilter !== 'all' || cashierFilter !== 'all');
+  const displayedSales = isFilteringActive ? filteredSales.slice(0, 50) : filteredSales.slice(0, 15);
 
   const handleSaveCashier = (nameToSet) => {
     const trimmed = nameToSet.trim();
@@ -1357,36 +1430,110 @@ const EventPOS = ({ event }) => {
 
           {/* Historial rápido (Directamente visible bajo los productos) */}
           <div className="glass-panel" style={{ padding: '1.25rem', minWidth: 0, marginTop: '0.5rem' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.85rem', flexWrap: 'wrap', gap: '0.5rem' }}>
-              <h4 style={{ margin: 0, color: 'var(--text-main)', fontSize: '0.95rem', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-                <span>Últimas Ventas Emitidas</span>
-                {cashierFilter !== 'all' && (
-                  <span style={{ fontSize: '0.72rem', color: 'var(--primary)', backgroundColor: 'rgba(99, 102, 241, 0.1)', padding: '2px 6px', borderRadius: '8px' }}>
-                    ({cashierFilter})
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.85rem', flexWrap: 'wrap', gap: '0.65rem' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+                <h4 style={{ margin: 0, color: 'var(--text-main)', fontSize: '0.95rem', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                  <span>Ventas Emitidas</span>
+                  <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: 'normal' }}>
+                    ({filteredSales.length}{filteredSales.length !== sales.length ? ` de ${sales.length}` : ''})
                   </span>
-                )}
-              </h4>
+                </h4>
+              </div>
 
-              {Array.from(new Set(sales.map(s => s.cashierName || s.createdBy || 'General'))).filter(Boolean).length > 1 && (
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-                  <label style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Cajero:</label>
+              {/* Controles de Filtros: Búsqueda por Nombre/Nota + Medio de Pago + Cajero */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap', flex: 1, justifyContent: 'flex-end' }}>
+                {/* Buscador por Nombre de Cliente / Nota / Ticket */}
+                <div style={{ position: 'relative', minWidth: '190px', maxWidth: '280px', flex: 1 }}>
+                  <Search size={14} style={{ position: 'absolute', left: '0.65rem', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
+                  <input
+                    type="text"
+                    value={clientNameFilter}
+                    onChange={(e) => setClientNameFilter(e.target.value)}
+                    placeholder="Filtrar por nombre o nota..."
+                    className="input-field"
+                    style={{ padding: '0.25rem 1.6rem 0.25rem 2rem', fontSize: '0.78rem', width: '100%' }}
+                  />
+                  {clientNameFilter && (
+                    <button
+                      type="button"
+                      onClick={() => setClientNameFilter('')}
+                      style={{ position: 'absolute', right: '0.4rem', top: '50%', transform: 'translateY(-50%)', background: 'transparent', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', padding: 0 }}
+                      title="Limpiar búsqueda"
+                    >
+                      <X size={13} />
+                    </button>
+                  )}
+                </div>
+
+                {/* Filtro Medio de Pago */}
+                <select
+                  className="input-field"
+                  style={{ padding: '0.25rem 0.4rem', fontSize: '0.75rem', width: 'auto' }}
+                  value={paymentFilter}
+                  onChange={(e) => setPaymentFilter(e.target.value)}
+                  title="Filtrar por método de pago"
+                >
+                  <option value="all">Pago: Todos</option>
+                  <option value="cash">Solo Efectivo</option>
+                  <option value="transfer">Solo Transferencia</option>
+                </select>
+
+                {/* Filtro Cajero */}
+                {Array.from(new Set(sales.map(s => s.cashierName || s.createdBy || 'General'))).filter(Boolean).length > 1 && (
                   <select
                     className="input-field"
-                    style={{ padding: '0.2rem 0.4rem', fontSize: '0.75rem', width: 'auto' }}
+                    style={{ padding: '0.25rem 0.4rem', fontSize: '0.75rem', width: 'auto' }}
                     value={cashierFilter}
                     onChange={(e) => setCashierFilter(e.target.value)}
+                    title="Filtrar por cajero"
                   >
-                    <option value="all">Todos ({sales.length})</option>
+                    <option value="all">Cajero: Todos</option>
                     {Array.from(new Set(sales.map(s => s.cashierName || s.createdBy || 'General'))).filter(Boolean).map(c => (
                       <option key={c} value={c}>{c}</option>
                     ))}
                   </select>
-                </div>
-              )}
+                )}
+
+                {isFilteringActive && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setClientNameFilter('');
+                      setPaymentFilter('all');
+                      setCashierFilter('all');
+                    }}
+                    className="btn btn-outline"
+                    style={{ fontSize: '0.72rem', padding: '0.25rem 0.5rem', color: '#fca5a5', borderColor: 'rgba(239, 68, 68, 0.3)' }}
+                    title="Limpiar todos los filtros"
+                  >
+                    Limpiar
+                  </button>
+                )}
+              </div>
             </div>
 
-            {sales.filter(s => cashierFilter === 'all' || (s.cashierName || s.createdBy || 'General') === cashierFilter).length === 0 ? (
-              <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', margin: '0.5rem 0' }}>No hay ventas registradas con este filtro.</p>
+            {displayedSales.length === 0 ? (
+              <div style={{ textAlign: 'center', padding: '1.5rem', backgroundColor: 'rgba(255, 255, 255, 0.02)', borderRadius: '10px' }}>
+                <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', margin: '0 0 0.5rem 0' }}>
+                  {clientNameFilter.trim() 
+                    ? `No se encontraron ventas para "${clientNameFilter}".`
+                    : 'No hay ventas registradas con los filtros seleccionados.'}
+                </p>
+                {isFilteringActive && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setClientNameFilter('');
+                      setPaymentFilter('all');
+                      setCashierFilter('all');
+                    }}
+                    className="btn btn-outline"
+                    style={{ fontSize: '0.75rem', padding: '0.25rem 0.6rem' }}
+                  >
+                    Mostrar todas las ventas
+                  </button>
+                )}
+              </div>
             ) : (
               <div style={{ overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
                 <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.82rem' }}>
@@ -1395,94 +1542,161 @@ const EventPOS = ({ event }) => {
                       <th style={{ textAlign: 'left', padding: '0.4rem' }}>#</th>
                       <th style={{ textAlign: 'left', padding: '0.4rem' }}>Hora</th>
                       <th style={{ textAlign: 'left', padding: '0.4rem' }}>Cajero/a</th>
-                      <th style={{ textAlign: 'left', padding: '0.4rem' }}>Cliente</th>
+                      <th style={{ textAlign: 'left', padding: '0.4rem' }}>Cliente / Nota</th>
+                      <th style={{ textAlign: 'center', padding: '0.4rem' }}>Pago</th>
                       <th style={{ textAlign: 'left', padding: '0.4rem' }}>Ítems</th>
                       <th style={{ textAlign: 'center', padding: '0.4rem' }}>Cocina</th>
                       <th style={{ textAlign: 'right', padding: '0.4rem' }}>Total</th>
-                      <th style={{ textAlign: 'center', padding: '0.4rem' }}>Acción</th>
+                      <th style={{ textAlign: 'center', padding: '0.4rem' }}>Acciones</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {sales
-                      .filter(s => cashierFilter === 'all' || (s.cashierName || s.createdBy || 'General') === cashierFilter)
-                      .slice(0, 15)
-                      .map(sale => {
-                        const isCancelled = sale.status === 'cancelled';
-                        return (
-                          <tr key={sale.id} style={{ borderBottom: '1px solid rgba(255,255,255,0.05)', opacity: isCancelled ? 0.5 : 1 }}>
-                            <td style={{ padding: '0.4rem', fontWeight: 'bold' }}>{sale.correlative}</td>
-                            <td style={{ padding: '0.4rem', whiteSpace: 'nowrap', color: 'var(--text-muted)' }}>
-                              {new Date(sale.createdAt).toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit' })}
-                            </td>
-                            <td style={{ padding: '0.4rem', whiteSpace: 'nowrap' }}>
-                              <span style={{ fontSize: '0.78rem', color: 'var(--primary)', fontWeight: '600' }}>
-                                {sale.cashierName || sale.createdBy || 'General'}
-                              </span>
-                            </td>
-                            <td style={{ padding: '0.4rem', whiteSpace: 'nowrap' }}>
-                              {sale.clientName || 'General'}
-                              {isCancelled && <span style={{ marginLeft: '0.35rem', fontSize: '0.65rem', backgroundColor: 'var(--danger)', color: 'white', padding: '1px 4px', borderRadius: '4px' }}>ANULADA</span>}
-                            </td>
-                            <td 
-                              style={{ 
-                                padding: '0.4rem', 
-                                color: 'var(--text-muted)', 
-                                maxWidth: '200px', 
-                                overflow: 'hidden', 
-                                textOverflow: 'ellipsis', 
-                                whiteSpace: 'nowrap' 
-                              }} 
-                              title={sale.items.map(i => `${i.quantity}x ${i.name}`).join(', ')}
+                    {displayedSales.map(sale => {
+                      const isCancelled = sale.status === 'cancelled';
+                      const isNameMatch = clientNameFilter.trim() && (sale.clientName || '').toLowerCase().includes(clientNameFilter.toLowerCase().trim());
+                      const isNoteMatch = clientNameFilter.trim() && (sale.saleNote || '').toLowerCase().includes(clientNameFilter.toLowerCase().trim());
+
+                      return (
+                        <tr key={sale.id} style={{ borderBottom: '1px solid rgba(255,255,255,0.05)', opacity: isCancelled ? 0.5 : 1 }}>
+                          <td style={{ padding: '0.4rem', fontWeight: 'bold' }}>{sale.correlative}</td>
+                          <td style={{ padding: '0.4rem', whiteSpace: 'nowrap', color: 'var(--text-muted)' }}>
+                            {new Date(sale.createdAt).toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit' })}
+                          </td>
+                          <td style={{ padding: '0.4rem', whiteSpace: 'nowrap' }}>
+                            <span style={{ fontSize: '0.78rem', color: 'var(--primary)', fontWeight: '600' }}>
+                              {sale.cashierName || sale.createdBy || 'General'}
+                            </span>
+                          </td>
+                          <td style={{ padding: '0.4rem' }}>
+                            <div style={{ display: 'flex', flexDirection: 'column' }}>
+                              <strong style={{
+                                color: isNameMatch ? '#fcd34d' : '#fff',
+                                backgroundColor: isNameMatch ? 'rgba(245, 158, 11, 0.2)' : 'transparent',
+                                padding: isNameMatch ? '1px 4px' : '0',
+                                borderRadius: '4px',
+                                display: 'inline-block',
+                                maxWidth: '160px',
+                                overflow: 'hidden',
+                                textOverflow: 'ellipsis',
+                                whiteSpace: 'nowrap'
+                              }}>
+                                {sale.clientName || 'General'}
+                              </strong>
+                              {sale.saleNote && (
+                                <span style={{
+                                  fontSize: '0.72rem',
+                                  color: isNoteMatch ? '#fcd34d' : '#fde68a',
+                                  backgroundColor: isNoteMatch ? 'rgba(245, 158, 11, 0.25)' : 'transparent',
+                                  padding: isNoteMatch ? '1px 4px' : '0',
+                                  borderRadius: '4px',
+                                  marginTop: '2px',
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  gap: '2px',
+                                  maxWidth: '160px',
+                                  overflow: 'hidden',
+                                  textOverflow: 'ellipsis',
+                                  whiteSpace: 'nowrap'
+                                }} title={sale.saleNote}>
+                                  📝 {sale.saleNote}
+                                </span>
+                              )}
+                              {isCancelled && <span style={{ marginTop: '2px', fontSize: '0.65rem', backgroundColor: 'var(--danger)', color: 'white', padding: '1px 4px', borderRadius: '4px', width: 'fit-content' }}>ANULADA</span>}
+                            </div>
+                          </td>
+                          <td style={{ padding: '0.4rem', textAlign: 'center', whiteSpace: 'nowrap' }}>
+                            <button
+                              type="button"
+                              onClick={() => handleChangePaymentMethod(sale)}
+                              style={{
+                                padding: '2px 7px',
+                                borderRadius: '10px',
+                                fontSize: '0.72rem',
+                                fontWeight: 'bold',
+                                border: `1px solid ${sale.paymentMethod === 'cash' ? '#10b981' : '#6366f1'}`,
+                                backgroundColor: sale.paymentMethod === 'cash' ? 'rgba(16, 185, 129, 0.15)' : 'rgba(99, 102, 241, 0.15)',
+                                color: sale.paymentMethod === 'cash' ? '#6ee7b7' : '#a5b4fc',
+                                cursor: !isCancelled ? 'pointer' : 'default',
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '3px'
+                              }}
+                              title="Haz clic para cambiar método de pago (Efectivo / Transferencia)"
                             >
-                              {sale.items.map(i => `${i.quantity}x ${i.name}`).join(', ')}
-                            </td>
-                            <td style={{ padding: '0.4rem', textAlign: 'center', whiteSpace: 'nowrap' }}>
-                              {isCancelled ? (
-                                <span style={{ fontSize: '0.72rem', backgroundColor: 'rgba(239, 68, 68, 0.15)', color: 'var(--danger)', padding: '2px 6px', borderRadius: '10px' }}>
-                                  Anulada
-                                </span>
-                              ) : (sale.orderStatus || sale.kitchenStatus) === 'delivered' ? (
-                                <span style={{ fontSize: '0.72rem', backgroundColor: 'rgba(16, 185, 129, 0.15)', color: '#10b981', border: '1px solid rgba(16, 185, 129, 0.3)', padding: '2px 6px', borderRadius: '10px', fontWeight: 'bold' }}>
-                                  ✓ Entregado
-                                </span>
-                              ) : (sale.orderStatus || sale.kitchenStatus) === 'preparing' ? (
-                                <span style={{ fontSize: '0.72rem', backgroundColor: 'rgba(245, 158, 11, 0.15)', color: '#f59e0b', border: '1px solid rgba(245, 158, 11, 0.3)', padding: '2px 6px', borderRadius: '10px', fontWeight: 'bold' }}>
-                                  🔥 Preparando
-                                </span>
-                              ) : (
-                                <span style={{ fontSize: '0.72rem', backgroundColor: 'rgba(148, 163, 184, 0.15)', color: '#94a3b8', border: '1px solid rgba(148, 163, 184, 0.3)', padding: '2px 6px', borderRadius: '10px' }}>
-                                  ⏳ Pendiente
-                                </span>
-                              )}
-                            </td>
-                            <td style={{ padding: '0.4rem', textAlign: 'right', fontWeight: 'bold', whiteSpace: 'nowrap', color: isCancelled ? 'var(--text-muted)' : 'var(--success)' }}>
-                              {formatMoney(sale.total)}
-                            </td>
-                            <td style={{ padding: '0.4rem', textAlign: 'center', whiteSpace: 'nowrap' }}>
-                              {!isCancelled && (
-                                <div style={{ display: 'flex', gap: '0.35rem', justifyContent: 'center' }}>
-                                  <button
-                                    onClick={() => handleReprintSale(sale)}
-                                    className="btn btn-outline"
-                                    style={{ padding: '0.2rem 0.4rem', fontSize: '0.72rem' }}
-                                    title="Reimprimir Ticket"
-                                  >
-                                    <Printer size={13} />
-                                  </button>
-                                  <button
-                                    onClick={() => handleDeleteSale(sale)}
-                                    className="btn btn-outline"
-                                    style={{ padding: '0.2rem 0.4rem', fontSize: '0.72rem', borderColor: 'rgba(239, 68, 68, 0.3)', color: 'var(--danger)' }}
-                                    title="Anular Venta"
-                                  >
-                                    <Trash2 size={13} />
-                                  </button>
-                                </div>
-                              )}
-                            </td>
-                          </tr>
-                        );
-                      })}
+                              {sale.paymentMethod === 'cash' ? '💵 Efectivo' : '🏦 Transf'}
+                            </button>
+                          </td>
+                          <td 
+                            style={{ 
+                              padding: '0.4rem', 
+                              color: 'var(--text-muted)', 
+                              maxWidth: '180px', 
+                              overflow: 'hidden', 
+                              textOverflow: 'ellipsis', 
+                              whiteSpace: 'nowrap' 
+                            }} 
+                            title={sale.items.map(i => `${i.quantity}x ${i.name}`).join(', ')}
+                          >
+                            {sale.items.map(i => `${i.quantity}x ${i.name}`).join(', ')}
+                          </td>
+                          <td style={{ padding: '0.4rem', textAlign: 'center', whiteSpace: 'nowrap' }}>
+                            {isCancelled ? (
+                              <span style={{ fontSize: '0.72rem', backgroundColor: 'rgba(239, 68, 68, 0.15)', color: 'var(--danger)', padding: '2px 6px', borderRadius: '10px' }}>
+                                Anulada
+                              </span>
+                            ) : (sale.orderStatus || sale.kitchenStatus) === 'delivered' ? (
+                              <span style={{ fontSize: '0.72rem', backgroundColor: 'rgba(16, 185, 129, 0.15)', color: '#10b981', border: '1px solid rgba(16, 185, 129, 0.3)', padding: '2px 6px', borderRadius: '10px', fontWeight: 'bold' }}>
+                                ✓ Entregado
+                              </span>
+                            ) : (sale.orderStatus || sale.kitchenStatus) === 'preparing' ? (
+                              <span style={{ fontSize: '0.72rem', backgroundColor: 'rgba(245, 158, 11, 0.15)', color: '#f59e0b', border: '1px solid rgba(245, 158, 11, 0.3)', padding: '2px 6px', borderRadius: '10px', fontWeight: 'bold' }}>
+                                🔥 Preparando
+                              </span>
+                            ) : (
+                              <span style={{ fontSize: '0.72rem', backgroundColor: 'rgba(148, 163, 184, 0.15)', color: '#94a3b8', border: '1px solid rgba(148, 163, 184, 0.3)', padding: '2px 6px', borderRadius: '10px' }}>
+                                ⏳ Pendiente
+                              </span>
+                            )}
+                          </td>
+                          <td style={{ padding: '0.4rem', textAlign: 'right', fontWeight: 'bold', whiteSpace: 'nowrap', color: isCancelled ? 'var(--text-muted)' : 'var(--success)' }}>
+                            {formatMoney(sale.total)}
+                          </td>
+                          <td style={{ padding: '0.4rem', textAlign: 'center', whiteSpace: 'nowrap' }}>
+                            {!isCancelled && (
+                              <div style={{ display: 'flex', gap: '0.3rem', justifyContent: 'center' }}>
+                                <button
+                                  type="button"
+                                  onClick={() => handleEditSaleNote(sale)}
+                                  className="btn btn-outline"
+                                  style={{ padding: '0.2rem 0.35rem', fontSize: '0.72rem' }}
+                                  title="Editar nota del pedido"
+                                >
+                                  <Edit2 size={13} />
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => handleReprintSale(sale)}
+                                  className="btn btn-outline"
+                                  style={{ padding: '0.2rem 0.35rem', fontSize: '0.72rem' }}
+                                  title="Reimprimir Ticket"
+                                >
+                                  <Printer size={13} />
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => handleDeleteSale(sale)}
+                                  className="btn btn-outline"
+                                  style={{ padding: '0.2rem 0.35rem', fontSize: '0.72rem', borderColor: 'rgba(239, 68, 68, 0.3)', color: 'var(--danger)' }}
+                                  title="Anular Venta"
+                                >
+                                  <Trash2 size={13} />
+                                </button>
+                              </div>
+                            )}
+                          </td>
+                        </tr>
+                      );
+                    })}
                   </tbody>
                 </table>
               </div>
