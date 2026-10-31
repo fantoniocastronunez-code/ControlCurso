@@ -1647,7 +1647,11 @@ const EventPOS = ({ event, onNavigateTab }) => {
                               }}
                               title="Haz clic para cambiar método de pago (Efectivo / Transferencia)"
                             >
-                              {sale.paymentMethod === 'cash' ? '💵 Efectivo' : '🏦 Transf'}
+                              {sale.paymentMethod === 'cash' 
+                                ? '💵 Efectivo' 
+                                : sale.transferVerified 
+                                  ? '🏦 Transf ✓' 
+                                  : '🏦 Transf ⏳'}
                             </button>
                           </td>
                           <td 

@@ -39,6 +39,7 @@ const EventReconciliation = ({ event, onNavigateTab }) => {
   // Estados de filtros y búsqueda
   const [searchTerm, setSearchTerm] = useState('');
   const [paymentFilter, setPaymentFilter] = useState('all'); // 'all' | 'cash' | 'transfer'
+  const [transferStatusFilter, setTransferStatusFilter] = useState('all'); // 'all' | 'verified' | 'pending'
   const [cashierFilter, setCashierFilter] = useState('all');
   const [statusFilter, setStatusFilter] = useState('active'); // 'active' | 'cancelled' | 'all'
   const [sortBy, setSortBy] = useState('newest'); // 'newest' | 'oldest' | 'amount_desc' | 'amount_asc'
@@ -142,6 +143,22 @@ const EventReconciliation = ({ event, onNavigateTab }) => {
     return transferSales.reduce((acc, s) => acc + (s.total || 0), 0);
   }, [transferSales]);
 
+  const verifiedTransfers = useMemo(() => {
+    return transferSales.filter(s => Boolean(s.transferVerified));
+  }, [transferSales]);
+
+  const verifiedTransfersAmount = useMemo(() => {
+    return verifiedTransfers.reduce((acc, s) => acc + (s.total || 0), 0);
+  }, [verifiedTransfers]);
+
+  const pendingTransfers = useMemo(() => {
+    return transferSales.filter(s => !s.transferVerified);
+  }, [transferSales]);
+
+  const pendingTransfersAmount = useMemo(() => {
+    return pendingTransfers.reduce((acc, s) => acc + (s.total || 0), 0);
+  }, [pendingTransfers]);
+
   // Fondo inicial de caja chica
   const initialFund = useMemo(() => {
     if (pettyCashData?.closingAudit?.initialPettyCash !== undefined) {
@@ -188,6 +205,13 @@ const EventReconciliation = ({ event, onNavigateTab }) => {
       result = result.filter(s => s.paymentMethod === 'transfer');
     }
 
+    // Filtro por verificación de transferencias en banco
+    if (transferStatusFilter === 'verified') {
+      result = result.filter(s => s.paymentMethod === 'transfer' && Boolean(s.transferVerified));
+    } else if (transferStatusFilter === 'pending') {
+      result = result.filter(s => s.paymentMethod === 'transfer' && !s.transferVerified);
+    }
+
     // Filtro por cajero
     if (cashierFilter !== 'all') {
       result = result.filter(s => (s.cashierName || s.createdBy || 'General') === cashierFilter);
@@ -219,7 +243,7 @@ const EventReconciliation = ({ event, onNavigateTab }) => {
     }
 
     return sorted;
-  }, [sales, statusFilter, paymentFilter, cashierFilter, searchTerm, sortBy]);
+  }, [sales, statusFilter, paymentFilter, transferStatusFilter, cashierFilter, searchTerm, sortBy]);
 
   // Monto total de las ventas visibles filtradas
   const visibleFilteredTotal = useMemo(() => {
@@ -271,6 +295,86 @@ const EventReconciliation = ({ event, onNavigateTab }) => {
       await showAlert("Error al modificar el medio de pago: " + err.message);
     } finally {
       setUpdatingSaleId(null);
+    }
+  };
+
+  // Alternar verificación de transferencia en banco
+  const handleToggleTransferVerified = async (sale) => {
+    if (sale.status === 'cancelled') return;
+    const newStatus = !sale.transferVerified;
+    const updatedBy = user?.displayName || user?.email?.split('@')[0] || 'Tesorero/a';
+    const nowIso = new Date().toISOString();
+
+    try {
+      // 1. Actualizar en colección eventSales
+      await updateDoc(doc(db, 'eventSales', sale.id), {
+        transferVerified: newStatus,
+        transferVerifiedAt: newStatus ? nowIso : null,
+        transferVerifiedBy: newStatus ? updatedBy : null,
+        updatedAt: nowIso
+      });
+
+      // 2. Actualizar también en colección incomes si existe
+      const qIncome = query(collection(db, 'incomes'), where('saleId', '==', sale.id));
+      const snapIncome = await getDocs(qIncome);
+      for (const docSnap of snapIncome.docs) {
+        await updateDoc(doc(db, 'incomes', docSnap.id), {
+          transferVerified: newStatus,
+          transferVerifiedAt: newStatus ? nowIso : null
+        });
+      }
+
+      setSales(prev => prev.map(s => s.id === sale.id ? {
+        ...s,
+        transferVerified: newStatus,
+        transferVerifiedAt: newStatus ? nowIso : null,
+        transferVerifiedBy: newStatus ? updatedBy : null
+      } : s));
+
+      showToast(
+        newStatus 
+          ? `Ticket #${sale.correlative} marcado como transfer verificada en banco (✓).`
+          : `Ticket #${sale.correlative} marcado como transfer pendiente (⏳).`
+      );
+    } catch (err) {
+      console.error("Error al actualizar verificación de transferencia:", err);
+      await showAlert("Error al actualizar verificación de transferencia: " + err.message);
+    }
+  };
+
+  // Marcar todas las transferencias visibles como verificadas
+  const handleVerifyAllVisibleTransfers = async () => {
+    const unverifiedTransfers = filteredSales.filter(s => s.paymentMethod === 'transfer' && s.status !== 'cancelled' && !s.transferVerified);
+    if (unverifiedTransfers.length === 0) {
+      await showAlert("No hay transferencias pendientes de verificar en la lista actual.");
+      return;
+    }
+
+    const confirm = await showConfirm(`¿Deseas marcar las ${unverifiedTransfers.length} transferencias visibles como VERIFICADAS en el banco?`);
+    if (!confirm) return;
+
+    const updatedBy = user?.displayName || user?.email?.split('@')[0] || 'Tesorero/a';
+    const nowIso = new Date().toISOString();
+
+    try {
+      for (const sale of unverifiedTransfers) {
+        await updateDoc(doc(db, 'eventSales', sale.id), {
+          transferVerified: true,
+          transferVerifiedAt: nowIso,
+          transferVerifiedBy: updatedBy,
+          updatedAt: nowIso
+        });
+      }
+      setSales(prev => prev.map(s => {
+        if (unverifiedTransfers.some(u => u.id === s.id)) {
+          return { ...s, transferVerified: true, transferVerifiedAt: nowIso, transferVerifiedBy: updatedBy };
+        }
+        return s;
+      }));
+      showToast(`¡${unverifiedTransfers.length} transferencias marcadas como verificadas en banco!`);
+    } catch (err) {
+      console.error("Error en verificación masiva:", err);
+      await showAlert("Error al marcar transferencias: " + err.message);
     }
   };
 
@@ -648,6 +752,24 @@ const EventReconciliation = ({ event, onNavigateTab }) => {
           <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>
             {transferSales.length} tickets ({totalSalesAmount > 0 ? Math.round((totalTransferAmount / totalSalesAmount) * 100) : 0}%)
           </div>
+          {transferSales.length > 0 && (
+            <div style={{
+              marginTop: '0.55rem',
+              paddingTop: '0.45rem',
+              borderTop: '1px solid rgba(255, 255, 255, 0.08)',
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              fontSize: '0.74rem'
+            }}>
+              <span style={{ color: '#34d399', fontWeight: 600 }}>
+                ✓ {verifiedTransfers.length} Verificadas ({formatMoneyCLP(verifiedTransfersAmount)})
+              </span>
+              <span style={{ color: pendingTransfers.length > 0 ? '#fbbf24' : 'var(--text-muted)', fontWeight: 600 }}>
+                ⏳ {pendingTransfers.length} Pendientes ({formatMoneyCLP(pendingTransfersAmount)})
+              </span>
+            </div>
+          )}
         </div>
 
         {/* 4. Efectivo Total Esperado en Gaveta */}
@@ -872,6 +994,21 @@ const EventReconciliation = ({ event, onNavigateTab }) => {
               </select>
             </div>
 
+            {/* Filtro por Estado de Transferencia */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+              <span style={{ color: 'var(--text-muted)' }}>Banco:</span>
+              <select
+                value={transferStatusFilter}
+                onChange={(e) => setTransferStatusFilter(e.target.value)}
+                className="input-field"
+                style={{ fontSize: '0.78rem', padding: '0.25rem 0.5rem', height: '32px', backgroundColor: 'rgba(0,0,0,0.3)' }}
+              >
+                <option value="all">Todas las transfs.</option>
+                <option value="verified">✓ Solo Verificadas ({verifiedTransfers.length})</option>
+                <option value="pending">⏳ Solo Pendientes ({pendingTransfers.length})</option>
+              </select>
+            </div>
+
             {/* Ordenamiento */}
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
               <span style={{ color: 'var(--text-muted)' }}>Ordenar:</span>
@@ -887,6 +1024,31 @@ const EventReconciliation = ({ event, onNavigateTab }) => {
                 <option value="amount_asc">Menor monto ($)</option>
               </select>
             </div>
+
+            {/* Botón para marcar visibles como verificadas si hay pendientes */}
+            {filteredSales.some(s => s.paymentMethod === 'transfer' && s.status !== 'cancelled' && !s.transferVerified) && (
+              <button
+                type="button"
+                onClick={handleVerifyAllVisibleTransfers}
+                className="btn btn-outline"
+                style={{
+                  fontSize: '0.75rem',
+                  padding: '0.2rem 0.55rem',
+                  height: '32px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '4px',
+                  borderColor: '#10b981',
+                  color: '#6ee7b7',
+                  backgroundColor: 'rgba(16, 185, 129, 0.1)',
+                  fontWeight: 600
+                }}
+                title="Marcar todas las transferencias visibles como verificadas en el banco"
+              >
+                <Check size={13} />
+                <span>Verificar visibles</span>
+              </button>
+            )}
           </div>
 
           {/* Conteo de resultados */}
@@ -894,12 +1056,13 @@ const EventReconciliation = ({ event, onNavigateTab }) => {
             <span>Mostrando <strong>{filteredSales.length}</strong> ventas</span>
             <span>•</span>
             <span>Total visible: <strong style={{ color: 'var(--success)' }}>{formatMoneyCLP(visibleFilteredTotal)}</strong></span>
-            {(searchTerm || paymentFilter !== 'all' || cashierFilter !== 'all' || statusFilter !== 'active') && (
+            {(searchTerm || paymentFilter !== 'all' || transferStatusFilter !== 'all' || cashierFilter !== 'all' || statusFilter !== 'active') && (
               <button
                 type="button"
                 onClick={() => {
                   setSearchTerm('');
                   setPaymentFilter('all');
+                  setTransferStatusFilter('all');
                   setCashierFilter('all');
                   setStatusFilter('active');
                 }}
@@ -947,6 +1110,9 @@ const EventReconciliation = ({ event, onNavigateTab }) => {
                   <th style={{ padding: '0.65rem 0.75rem', textAlign: 'right', width: '105px' }}>Total</th>
                   <th style={{ padding: '0.65rem 0.75rem', textAlign: 'center', minWidth: '210px' }}>
                     Medio de Pago (Modificar)
+                  </th>
+                  <th style={{ padding: '0.65rem 0.75rem', textAlign: 'center', minWidth: '155px' }}>
+                    Verificación Banco
                   </th>
                   <th style={{ padding: '0.65rem 0.75rem', textAlign: 'left', width: '110px' }}>Cajero</th>
                   <th style={{ padding: '0.65rem 0.75rem', textAlign: 'center', width: '105px' }}>Acciones</th>
@@ -1155,12 +1321,57 @@ const EventReconciliation = ({ event, onNavigateTab }) => {
                           )}
                         </td>
 
-                        {/* 7. Cajero */}
+                        {/* 7. Verificación de Transferencia en Banco (Casilla de verificación) */}
+                        <td style={{ padding: '0.65rem 0.75rem', textAlign: 'center', whiteSpace: 'nowrap' }}>
+                          {isCancelled ? (
+                            <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>-</span>
+                          ) : currentMethod === 'transfer' ? (
+                            <label
+                              style={{
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '7px',
+                                padding: '4px 10px',
+                                borderRadius: '8px',
+                                border: sale.transferVerified ? '1px solid #10b981' : '1px solid rgba(245, 158, 11, 0.45)',
+                                backgroundColor: sale.transferVerified ? 'rgba(16, 185, 129, 0.15)' : 'rgba(245, 158, 11, 0.08)',
+                                color: sale.transferVerified ? '#6ee7b7' : '#fcd34d',
+                                cursor: 'pointer',
+                                userSelect: 'none',
+                                fontSize: '0.78rem',
+                                fontWeight: 600,
+                                transition: 'all 0.15s ease'
+                              }}
+                              title={sale.transferVerified 
+                                ? `Verificada en banco el ${sale.transferVerifiedAt ? new Date(sale.transferVerifiedAt).toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit' }) : ''} por ${sale.transferVerifiedBy || 'Tesorero/a'}` 
+                                : 'Haz clic en la casilla para marcar como verificada en la cuenta bancaria'}
+                            >
+                              <input
+                                type="checkbox"
+                                checked={Boolean(sale.transferVerified)}
+                                onChange={() => handleToggleTransferVerified(sale)}
+                                style={{
+                                  width: '16px',
+                                  height: '16px',
+                                  accentColor: '#10b981',
+                                  cursor: 'pointer'
+                                }}
+                              />
+                              <span>{sale.transferVerified ? '✓ Verificada' : '⏳ Pendiente'}</span>
+                            </label>
+                          ) : (
+                            <span style={{ fontSize: '0.74rem', color: 'var(--text-muted)', opacity: 0.6 }}>
+                              💵 Efectivo
+                            </span>
+                          )}
+                        </td>
+
+                        {/* 8. Cajero */}
                         <td style={{ padding: '0.65rem 0.75rem', color: 'var(--text-muted)', fontSize: '0.8rem', whiteSpace: 'nowrap' }}>
                           {sale.cashierName || sale.createdBy || 'General'}
                         </td>
 
-                        {/* 8. Acciones */}
+                        {/* 9. Acciones */}
                         <td style={{ padding: '0.65rem 0.75rem', textAlign: 'center', whiteSpace: 'nowrap' }}>
                           <div style={{ display: 'flex', gap: '0.3rem', justifyContent: 'center' }}>
                             <button
@@ -1199,7 +1410,7 @@ const EventReconciliation = ({ event, onNavigateTab }) => {
                       {/* Desglose Expandido de Productos */}
                       {isExpanded && (
                         <tr style={{ backgroundColor: 'rgba(0, 0, 0, 0.25)', borderBottom: '1px solid rgba(255, 255, 255, 0.05)' }}>
-                          <td colSpan={8} style={{ padding: '0.75rem 1.5rem' }}>
+                          <td colSpan={9} style={{ padding: '0.75rem 1.5rem' }}>
                             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem', maxWidth: '600px' }}>
                               <strong style={{ fontSize: '0.78rem', color: 'var(--text-muted)', textTransform: 'uppercase' }}>
                                 Desglose de Productos - Ticket #{sale.correlative}
