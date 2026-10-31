@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { db } from '../../firebase/config';
 import { doc, setDoc } from 'firebase/firestore';
 import { 
@@ -73,10 +73,11 @@ const CashReconciliationModal = ({
   const [notes, setNotes] = useState('');
   const [saving, setSaving] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState(false);
+  const wasOpenRef = useRef(false);
 
-  // Inicializar o cargar cuadratura guardada previamente
+  // Inicializar o cargar cuadratura guardada previamente al abrir el modal
   useEffect(() => {
-    if (isOpen) {
+    if (isOpen && !wasOpenRef.current) {
       const savedAudit = currentPettyCashData?.closingAudit;
       const baseInitial = currentPettyCashData?.total ?? initialPettyCash ?? 0;
       setInitialFund(baseInitial);
@@ -121,6 +122,7 @@ const CashReconciliationModal = ({
       }
       setSaveSuccess(false);
     }
+    wasOpenRef.current = isOpen;
   }, [isOpen, currentPettyCashData, initialPettyCash]);
 
   if (!isOpen) return null;
@@ -196,6 +198,8 @@ const CashReconciliationModal = ({
       const docPayload = {
         eventId,
         courseId: courseId || currentPettyCashData?.courseId || '',
+        total: currentPettyCashData?.total ?? initialFund,
+        totalAmount: currentPettyCashData?.totalAmount ?? initialFund,
         closingAudit: closingAuditPayload,
         updatedAt: new Date().toISOString()
       };
@@ -208,7 +212,8 @@ const CashReconciliationModal = ({
       }
       setTimeout(() => {
         setSaveSuccess(false);
-      }, 3000);
+        onClose();
+      }, 700);
     } catch (err) {
       console.error("Error al guardar cuadratura:", err);
       alert("Error al guardar la cuadratura: " + err.message);

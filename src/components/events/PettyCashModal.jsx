@@ -123,6 +123,7 @@ const PettyCashModal = ({
       const docId = `petty_${eventId}`;
       const payload = {
         eventId,
+        courseId: courseId || currentPettyCash?.courseId || '',
         bills,
         coins,
         totalBills,

@@ -79,7 +79,7 @@ const EventReconciliation = ({ event, onNavigateTab }) => {
     });
 
     // Cargar Caja Chica / Arqueo
-    const pettyCashDocRef = doc(db, 'eventPettyCash', `${event.id}_pettycash`);
+    const pettyCashDocRef = doc(db, 'eventPettyCash', `petty_${event.id}`);
     const unsubscribePetty = onSnapshot(pettyCashDocRef, (docSnap) => {
       if (docSnap.exists()) {
         setPettyCashData({ id: docSnap.id, ...docSnap.data() });
@@ -1322,7 +1322,13 @@ const EventReconciliation = ({ event, onNavigateTab }) => {
         cashSalesTotal={totalCashAmount}
         cashierName={user?.displayName || user?.email?.split('@')[0] || 'Tesorero/a'}
         currentPettyCashData={pettyCashData}
-        onReconciliationSaved={() => {
+        onReconciliationSaved={(audit) => {
+          setPettyCashData(prev => ({
+            ...(prev || {}),
+            total: prev?.total ?? initialFund,
+            totalAmount: prev?.totalAmount ?? initialFund,
+            closingAudit: audit
+          }));
           showToast('¡Arqueo de caja guardado con éxito!');
         }}
       />

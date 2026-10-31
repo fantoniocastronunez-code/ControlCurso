@@ -1895,6 +1895,14 @@ const EventPOS = ({ event, onNavigateTab }) => {
         cashSalesTotal={cashSalesTotal}
         cashierName={activeCashierDisplayName}
         currentPettyCashData={pettyCash}
+        onReconciliationSaved={(audit) => {
+          setPettyCash(prev => ({
+            ...(prev || {}),
+            total: prev?.total ?? pettyCashTotal,
+            totalAmount: prev?.totalAmount ?? pettyCashTotal,
+            closingAudit: audit
+          }));
+        }}
       />
     </div>
   );
