@@ -34,13 +34,15 @@ const PettyCashModal = ({
   isOpen, 
   onClose, 
   eventId, 
+  courseId,
   eventName, 
   currentPettyCash, 
   cashSalesTotal = 0, 
   transferSalesTotal = 0, 
   totalSales = 0, 
   cashierName = 'Cajero General',
-  onOpenReconciliation
+  onOpenReconciliation,
+  onPettyCashSaved
 }) => {
   const [bills, setBills] = useState({
     20000: 0,
@@ -141,6 +143,9 @@ const PettyCashModal = ({
       }
 
       await setDoc(doc(db, 'eventPettyCash', docId), payload, { merge: true });
+      if (onPettyCashSaved) {
+        onPettyCashSaved(payload);
+      }
       onClose();
     } catch (err) {
       console.error("Error al guardar caja chica:", err);

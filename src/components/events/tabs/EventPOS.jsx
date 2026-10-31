@@ -1879,6 +1879,7 @@ const EventPOS = ({ event, onNavigateTab }) => {
         isOpen={showPettyCashModal}
         onClose={() => setShowPettyCashModal(false)}
         eventId={event.id}
+        courseId={event.courseId}
         eventName={event.name}
         currentPettyCash={pettyCash}
         cashSalesTotal={cashSalesTotal}
@@ -1886,6 +1887,12 @@ const EventPOS = ({ event, onNavigateTab }) => {
         totalSales={totalSalesAmount}
         cashierName={activeCashierDisplayName}
         onOpenReconciliation={() => setShowReconciliationModal(true)}
+        onPettyCashSaved={(savedData) => {
+          setPettyCash(prev => ({
+            ...(prev || {}),
+            ...savedData
+          }));
+        }}
       />
 
       {/* Modal para Cuadrar Efectivo Final en Caja */}

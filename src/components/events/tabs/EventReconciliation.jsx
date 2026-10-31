@@ -1517,7 +1517,11 @@ const EventReconciliation = ({ event, onNavigateTab }) => {
         cashierName={user?.displayName || user?.email?.split('@')[0] || 'Cajero/a'}
         currentPettyCash={pettyCashData}
         cashSalesTotal={totalCashAmount}
-        onPettyCashSaved={() => {
+        onPettyCashSaved={(savedData) => {
+          setPettyCashData(prev => ({
+            ...(prev || {}),
+            ...savedData
+          }));
           showToast('Fondo inicial de caja chica actualizado.');
         }}
       />
