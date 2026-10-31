@@ -257,6 +257,11 @@ const EventManagement = ({ onBack }) => {
       await deleteDoc(doc(db, 'events', eventToDelete.id));
       await deleteDoc(doc(db, 'funds', eventToDelete.fundId));
       await deleteDoc(doc(db, 'expenses', `exp_evt_${eventToDelete.id}`));
+      try {
+        await deleteDoc(doc(db, 'expenses', `exp_evt_fine_${eventToDelete.id}`));
+      } catch (e) {
+        // Ignorar si no existía multa
+      }
 
       const queries = [
         query(collection(db, 'debts'), where('eventId', '==', eventToDelete.id)),

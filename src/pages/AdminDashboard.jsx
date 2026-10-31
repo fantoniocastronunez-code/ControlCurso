@@ -1003,7 +1003,7 @@ const AdminDashboard = () => {
         fund={selectedFundForHistory}
         transactions={stats.allTransactions}
         onClose={() => setSelectedFundForHistory(null)}
-        onRefresh={fetchData}
+        onRefresh={fetchDashboardData}
       />
     )}
 

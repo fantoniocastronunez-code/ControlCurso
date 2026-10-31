@@ -516,8 +516,8 @@ const EventInventory = ({ event }) => {
             )}
           </div>
         ) : (
-          <div style={{ overflowX: 'auto' }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.9rem' }}>
+          <div className="table-responsive" style={{ overflowX: 'auto' }}>
+            <table style={{ width: '100%', minWidth: '650px', borderCollapse: 'collapse', fontSize: '0.9rem' }}>
               <thead>
                 <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.1)', color: 'var(--text-muted)', textAlign: 'left' }}>
                   <th style={{ padding: '0.75rem 0.5rem' }}>Insumo</th>
@@ -724,8 +724,8 @@ const EventInventory = ({ event }) => {
         {inventory.length === 0 ? (
           <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem' }}>No hay insumos para inventariar al cierre.</p>
         ) : (
-          <div style={{ overflowX: 'auto', marginTop: '1rem' }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.9rem' }}>
+          <div className="table-responsive" style={{ overflowX: 'auto', marginTop: '1rem' }}>
+            <table style={{ width: '100%', minWidth: '780px', borderCollapse: 'collapse', fontSize: '0.9rem' }}>
               <thead>
                 <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.1)', color: 'var(--text-muted)', textAlign: 'left' }}>
                   <th style={{ padding: '0.75rem 0.5rem' }}>Insumo</th>

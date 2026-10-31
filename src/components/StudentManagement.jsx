@@ -884,8 +884,8 @@ const StudentManagement = ({ onBack }) => {
         </div>
       </div>
 
-      <div className="glass-panel" style={{ overflowX: 'auto' }}>
-        <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
+      <div className="table-responsive glass-panel" style={{ overflowX: 'auto' }}>
+        <table style={{ width: '100%', minWidth: '680px', borderCollapse: 'collapse', textAlign: 'left' }}>
           <thead>
             <tr style={{ borderBottom: '1px solid var(--border-color)', backgroundColor: 'rgba(255,255,255,0.03)' }}>
               <th style={{ padding: '0.75rem 1rem', width: '80px' }}>N°</th>

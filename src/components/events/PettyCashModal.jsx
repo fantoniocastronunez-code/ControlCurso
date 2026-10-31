@@ -1,45 +1,45 @@
 import React, { useState, useEffect } from 'react';
 import { db } from '../../firebase/config';
 import { doc, setDoc } from 'firebase/firestore';
-import { 
-  Banknote, Coins, Calculator, Printer, Check, X, 
+import {
+  Banknote, Coins, Calculator, Printer, Check, X,
   RotateCcw, Sparkles, DollarSign, AlertCircle, ArrowRight
 } from 'lucide-react';
-import { 
-  formatMoneyCLP, 
-  getPrinterConfig, 
-  buildPettyCashReceiptPayload, 
-  buildCashAuditReceiptPayload, 
-  printViaRawBT, 
-  printViaWebBluetooth 
+import {
+  formatMoneyCLP,
+  getPrinterConfig,
+  buildPettyCashReceiptPayload,
+  buildCashAuditReceiptPayload,
+  printViaRawBT,
+  printViaWebBluetooth
 } from '../../utils/thermalPrinterService';
 
 // Denominaciones chilenas oficiales
 const BILL_CONFIG = [
   { value: 20000, label: '$20.000', color: '#1e40af', bg: 'rgba(30, 64, 175, 0.25)', border: '#3b82f6' }, // Azul
   { value: 10000, label: '$10.000', color: '#15803d', bg: 'rgba(21, 128, 61, 0.25)', border: '#22c55e' }, // Verde
-  { value: 5000,  label: '$5.000',  color: '#b91c1c', bg: 'rgba(185, 28, 28, 0.25)', border: '#ef4444' }, // Rojo
-  { value: 2000,  label: '$2.000',  color: '#7e22ce', bg: 'rgba(126, 34, 206, 0.25)', border: '#a855f7' }, // Morado
-  { value: 1000,  label: '$1.000',  color: '#0e7490', bg: 'rgba(14, 116, 144, 0.25)', border: '#06b6d4' }  // Verde agua / Celeste
+  { value: 5000, label: '$5.000', color: '#b91c1c', bg: 'rgba(185, 28, 28, 0.25)', border: '#ef4444' }, // Rojo
+  { value: 2000, label: '$2.000', color: '#7e22ce', bg: 'rgba(126, 34, 206, 0.25)', border: '#a855f7' }, // Morado
+  { value: 1000, label: '$1.000', color: '#0e7490', bg: 'rgba(14, 116, 144, 0.25)', border: '#06b6d4' }  // Verde agua / Celeste
 ];
 
 const COIN_CONFIG = [
   { value: 500, label: '$500', color: '#d97706', bg: 'rgba(217, 119, 6, 0.25)', border: '#f59e0b' }, // Bimetálica
   { value: 100, label: '$100', color: '#ca8a04', bg: 'rgba(202, 138, 4, 0.25)', border: '#eab308' }, // Dorada
-  { value: 50,  label: '$50',  color: '#94a3b8', bg: 'rgba(148, 163, 184, 0.2)', border: '#cbd5e1' }, // Plateada decagonal
-  { value: 10,  label: '$10',  color: '#c2410c', bg: 'rgba(194, 65, 12, 0.25)', border: '#ea580c' }   // Cobriza
+  { value: 50, label: '$50', color: '#94a3b8', bg: 'rgba(148, 163, 184, 0.2)', border: '#cbd5e1' }, // Plateada decagonal
+  { value: 10, label: '$10', color: '#c2410c', bg: 'rgba(194, 65, 12, 0.25)', border: '#ea580c' }   // Cobriza
 ];
 
-const PettyCashModal = ({ 
-  isOpen, 
-  onClose, 
-  eventId, 
+const PettyCashModal = ({
+  isOpen,
+  onClose,
+  eventId,
   courseId,
-  eventName, 
-  currentPettyCash, 
-  cashSalesTotal = 0, 
-  transferSalesTotal = 0, 
-  totalSales = 0, 
+  eventName,
+  currentPettyCash,
+  cashSalesTotal = 0,
+  transferSalesTotal = 0,
+  totalSales = 0,
   cashierName = 'Cajero General',
   onOpenReconciliation,
   onPettyCashSaved
@@ -142,6 +142,24 @@ const PettyCashModal = ({
         payload.createdAt = new Date().toISOString();
       }
 
+      // Si ya existía una cuadratura de cierre guardada, sincronizar su fondo inicial y recalcular
+      if (currentPettyCash?.closingAudit) {
+        const audit = currentPettyCash.closingAudit;
+        const counted = audit.finalCashCounted || 0;
+        const systemSales = audit.systemCashSales || 0;
+        const netCashEarned = counted - totalPettyCash;
+        const expectedCashTotal = totalPettyCash + systemSales;
+        const difference = counted - expectedCashTotal;
+        payload.closingAudit = {
+          ...audit,
+          initialPettyCash: totalPettyCash,
+          netCashEarned,
+          expectedCashTotal,
+          difference,
+          status: difference === 0 ? 'balanced' : difference > 0 ? 'surplus' : 'shortage'
+        };
+      }
+
       await setDoc(doc(db, 'eventPettyCash', docId), payload, { merge: true });
       if (onPettyCashSaved) {
         onPettyCashSaved(payload);
@@ -183,11 +201,11 @@ const PettyCashModal = ({
   // Impresión térmica de arqueo de caja
   const handlePrintAudit = async () => {
     const receiptPayload = buildCashAuditReceiptPayload(
-      eventName, 
-      totalPettyCash, 
-      cashSalesTotal, 
-      transferSalesTotal, 
-      totalSales, 
+      eventName,
+      totalPettyCash,
+      cashSalesTotal,
+      transferSalesTotal,
+      totalSales,
       cashierName
     );
 

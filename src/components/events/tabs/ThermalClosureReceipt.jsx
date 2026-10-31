@@ -46,11 +46,20 @@ const ThermalClosureReceipt = ({ event, stats, itemsSummary, expensesSummary, in
           </div>
           <div style={{ display: 'flex', justifyContent: 'space-between' }}>
             <span>(-) Fondo Inicial:</span>
-            <span>- {formatMoney(stats.pettyCashData.closingAudit.initialPettyCash || 0)}</span>
+            <span>- {formatMoney(
+              (stats.pettyCashData.closingAudit.initialPettyCash !== undefined && Number(stats.pettyCashData.closingAudit.initialPettyCash) > 0)
+                ? stats.pettyCashData.closingAudit.initialPettyCash
+                : (stats?.pettyCashTotal || 0)
+            )}</span>
           </div>
           <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 'bold', borderTop: '1px dashed #666', marginTop: '2px', paddingTop: '2px' }}>
             <span>(=) Recaudación Neta Real:</span>
-            <span>{formatMoney(stats.pettyCashData.closingAudit.netCashEarned || 0)}</span>
+            <span>{formatMoney(
+              (stats.pettyCashData.closingAudit.finalCashCounted || 0) -
+              ((stats.pettyCashData.closingAudit.initialPettyCash !== undefined && Number(stats.pettyCashData.closingAudit.initialPettyCash) > 0)
+                ? stats.pettyCashData.closingAudit.initialPettyCash
+                : (stats?.pettyCashTotal || 0))
+            )}</span>
           </div>
           <div style={{ display: 'flex', justifyContent: 'space-between' }}>
             <span>Ventas POS en Efectivo:</span>

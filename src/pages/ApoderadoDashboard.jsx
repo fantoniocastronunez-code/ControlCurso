@@ -552,13 +552,13 @@ const ApoderadoDashboard = () => {
 
       {/* Student Selector Top Bar */}
       {isProfileComplete && myStudents.length > 1 && (
-        <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '2rem', overflowX: 'auto', paddingBottom: '0.5rem' }}>
+        <div className="tabs-scroll" style={{ display: 'flex', gap: '0.5rem', marginBottom: '2rem', overflowX: 'auto', WebkitOverflowScrolling: 'touch', touchAction: 'pan-x pan-y', paddingBottom: '0.5rem' }}>
           {myStudents.map(student => (
             <button
               key={student.id}
               onClick={() => setActiveStudentId(student.id)}
               className={`btn ${activeStudentId === student.id ? 'btn-primary' : 'btn-outline'}`}
-              style={{ whiteSpace: 'nowrap' }}
+              style={{ whiteSpace: 'nowrap', flexShrink: 0 }}
             >
               {formatStudentName(student)}
             </button>

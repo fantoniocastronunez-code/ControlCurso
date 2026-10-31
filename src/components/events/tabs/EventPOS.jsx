@@ -615,7 +615,11 @@ const EventPOS = ({ event, onNavigateTab }) => {
   const cashSalesTotal = validSales.filter(s => s.paymentMethod === 'cash').reduce((sum, s) => sum + (s.total || 0), 0);
   const transferSalesTotal = validSales.filter(s => s.paymentMethod === 'transfer').reduce((sum, s) => sum + (s.total || 0), 0);
   const totalSalesAmount = validSales.reduce((sum, s) => sum + (s.total || 0), 0);
-  const pettyCashTotal = pettyCash?.total || 0;
+  const pettyCashTotal = (pettyCash?.total !== undefined && Number(pettyCash.total) > 0)
+    ? Number(pettyCash.total)
+    : (pettyCash?.closingAudit?.initialPettyCash !== undefined && Number(pettyCash.closingAudit.initialPettyCash) > 0)
+      ? Number(pettyCash.closingAudit.initialPettyCash)
+      : Number(pettyCash?.total || 0);
   const expectedTotalCashInDrawer = pettyCashTotal + cashSalesTotal;
 
   // Filtrado de ventas (por Cajero, Medio de Pago y Nombre de Cliente / Nota / #Ticket)
@@ -1559,8 +1563,8 @@ const EventPOS = ({ event, onNavigateTab }) => {
                 )}
               </div>
             ) : (
-              <div style={{ overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
-                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.82rem' }}>
+              <div className="table-responsive" style={{ overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
+                <table style={{ width: '100%', minWidth: '780px', borderCollapse: 'collapse', fontSize: '0.82rem' }}>
                   <thead>
                     <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.1)', color: 'var(--text-muted)', fontSize: '0.75rem' }}>
                       <th style={{ textAlign: 'left', padding: '0.4rem' }}>#</th>
@@ -1909,8 +1913,8 @@ const EventPOS = ({ event, onNavigateTab }) => {
         onReconciliationSaved={(audit) => {
           setPettyCash(prev => ({
             ...(prev || {}),
-            total: prev?.total ?? pettyCashTotal,
-            totalAmount: prev?.totalAmount ?? pettyCashTotal,
+            total: (audit?.initialPettyCash !== undefined && audit.initialPettyCash > 0) ? audit.initialPettyCash : (prev?.total || pettyCashTotal),
+            totalAmount: (audit?.initialPettyCash !== undefined && audit.initialPettyCash > 0) ? audit.initialPettyCash : (prev?.totalAmount || pettyCashTotal),
             closingAudit: audit
           }));
         }}

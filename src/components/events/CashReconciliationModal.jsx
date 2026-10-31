@@ -79,7 +79,12 @@ const CashReconciliationModal = ({
   useEffect(() => {
     if (isOpen && !wasOpenRef.current) {
       const savedAudit = currentPettyCashData?.closingAudit;
-      const baseInitial = currentPettyCashData?.total ?? initialPettyCash ?? 0;
+      const baseInitial = (currentPettyCashData?.total !== undefined && Number(currentPettyCashData.total) > 0)
+        ? Number(currentPettyCashData.total)
+        : (savedAudit?.initialPettyCash !== undefined && Number(savedAudit.initialPettyCash) > 0)
+          ? Number(savedAudit.initialPettyCash)
+          : (Number(initialPettyCash) || 0);
+
       setInitialFund(baseInitial);
       setInitialFundInput(String(baseInitial));
 
@@ -101,9 +106,12 @@ const CashReconciliationModal = ({
             10: savedAudit.coins[10] || 0
           });
         }
-        if (savedAudit.initialPettyCash !== undefined) {
-          setInitialFund(savedAudit.initialPettyCash);
+        if (savedAudit.initialPettyCash !== undefined && Number(savedAudit.initialPettyCash) > 0) {
+          setInitialFund(Number(savedAudit.initialPettyCash));
           setInitialFundInput(String(savedAudit.initialPettyCash));
+        } else {
+          setInitialFund(baseInitial);
+          setInitialFundInput(String(baseInitial));
         }
         if (savedAudit.quickTotalCounted) {
           setQuickTotalCounted(String(savedAudit.quickTotalCounted));
@@ -166,10 +174,22 @@ const CashReconciliationModal = ({
     }
   };
 
-  const handleSaveInitialFund = () => {
+  const handleSaveInitialFund = async () => {
     const parsed = Math.max(0, parseInt(initialFundInput.replace(/\D/g, ''), 10) || 0);
     setInitialFund(parsed);
     setIsEditingInitialFund(false);
+    try {
+      const docId = `petty_${eventId}`;
+      await setDoc(doc(db, 'eventPettyCash', docId), {
+        eventId,
+        courseId: courseId || currentPettyCashData?.courseId || '',
+        total: parsed,
+        totalAmount: parsed,
+        updatedAt: new Date().toISOString()
+      }, { merge: true });
+    } catch (err) {
+      console.warn("Error guardando fondo inicial:", err);
+    }
   };
 
   const handleSaveReconciliation = async () => {
@@ -198,8 +218,8 @@ const CashReconciliationModal = ({
       const docPayload = {
         eventId,
         courseId: courseId || currentPettyCashData?.courseId || '',
-        total: currentPettyCashData?.total ?? initialFund,
-        totalAmount: currentPettyCashData?.totalAmount ?? initialFund,
+        total: initialFund,
+        totalAmount: initialFund,
         closingAudit: closingAuditPayload,
         updatedAt: new Date().toISOString()
       };

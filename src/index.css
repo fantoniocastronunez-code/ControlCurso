@@ -212,33 +212,93 @@ h1, h2, h3, h4, h5, h6 {
 /* ==========================================================================
    Mobile Responsive Layout Fixes
    ========================================================================== */
+/* Scrollable Tabs & Tables Utilities */
+.event-tabs-bar,
+.tabs-scroll,
+.table-responsive {
+  overflow-x: auto !important;
+  -webkit-overflow-scrolling: touch !important;
+  touch-action: pan-x pan-y !important;
+  max-width: 100%;
+}
+
+.event-tabs-bar,
+.tabs-scroll {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(99, 102, 241, 0.5) transparent;
+}
+
+.event-tabs-bar::-webkit-scrollbar,
+.tabs-scroll::-webkit-scrollbar {
+  height: 6px;
+}
+
+.event-tabs-bar::-webkit-scrollbar-track,
+.tabs-scroll::-webkit-scrollbar-track {
+  background: rgba(255, 255, 255, 0.03);
+  border-radius: 4px;
+}
+
+.event-tabs-bar::-webkit-scrollbar-thumb,
+.tabs-scroll::-webkit-scrollbar-thumb {
+  background: rgba(99, 102, 241, 0.5);
+  border-radius: 4px;
+}
+
+.table-responsive {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(99, 102, 241, 0.35) transparent;
+}
+
+.table-responsive::-webkit-scrollbar {
+  height: 6px;
+}
+
+.table-responsive::-webkit-scrollbar-track {
+  background: rgba(255, 255, 255, 0.03);
+  border-radius: 4px;
+}
+
+.table-responsive::-webkit-scrollbar-thumb {
+  background: rgba(99, 102, 241, 0.35);
+  border-radius: 4px;
+}
+
 @media (max-width: 768px) {
-  /* Prevent horizontal scroll on elements that traditionally cause it */
+  /* Allow horizontal scroll on mobile for all scrollable containers and tables */
   .glass-panel {
-    overflow-x: hidden !important;
+    max-width: 100%;
   }
   
-  /* Target inline styles that set overflowX */
-  div[style*="overflow-x"],
-  div[style*="overflowX"] {
-    overflow-x: hidden !important;
+  .scrollable-x,
+  .tabs-scroll,
+  .event-tabs-bar,
+  .table-responsive,
+  div[style*="overflow-x: auto"],
+  div[style*="overflowX: auto"],
+  div[style*="overflow-x: scroll"],
+  div[style*="overflowX: scroll"],
+  div[style*="overflowX: \"auto\""],
+  div[style*="overflow-x: 'auto'"] {
+    overflow-x: auto !important;
+    -webkit-overflow-scrolling: touch !important;
+    touch-action: pan-x pan-y !important;
   }
   
   /* 
-   * Convert tables to vertical card layouts on mobile.
-   * This prevents horizontal scrolling and improves readability.
+   * Convert tables to vertical card layouts on mobile ONLY when explicitly tagged with .mobile-accordion (e.g. ExpenseDetail)
    */
-  .glass-panel table, 
-  .glass-panel tbody, 
-  .glass-panel tr, 
-  .glass-panel th, 
-  .glass-panel td {
+  .glass-panel table.mobile-accordion, 
+  .glass-panel table.mobile-accordion tbody, 
+  .glass-panel table.mobile-accordion tr, 
+  .glass-panel table.mobile-accordion th, 
+  .glass-panel table.mobile-accordion td {
     display: block;
     width: 100%;
   }
   
-  /* Hide the traditional table headers */
-  .glass-panel thead {
+  /* Hide the traditional table headers for mobile-accordion */
+  .glass-panel table.mobile-accordion thead {
     display: none;
   }
   
@@ -246,8 +306,8 @@ h1, h2, h3, h4, h5, h6 {
     display: block !important;
   }
   
-  /* Style each row as a distinct card */
-  .glass-panel tr {
+  /* Style each row as a distinct card for mobile-accordion */
+  .glass-panel table.mobile-accordion tr {
     margin-bottom: 1rem;
     border: 1px solid var(--border-color);
     border-radius: var(--radius-md);
@@ -256,8 +316,8 @@ h1, h2, h3, h4, h5, h6 {
     box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
   }
   
-  /* Style individual cells within the card */
-  .glass-panel td {
+  /* Style individual cells within the card for mobile-accordion */
+  .glass-panel table.mobile-accordion td {
     display: flex;
     flex-direction: column;
     padding: 0.5rem 0 !important;
@@ -268,7 +328,7 @@ h1, h2, h3, h4, h5, h6 {
     text-align: left !important;
   }
   
-  .glass-panel td::before {
+  .glass-panel table.mobile-accordion td::before {
     content: attr(data-label);
     font-size: 0.75rem;
     font-weight: 600;
@@ -277,10 +337,9 @@ h1, h2, h3, h4, h5, h6 {
     margin-bottom: 0.25rem;
     display: block;
   }
-
   
   /* Remove border from the last cell (typically actions) */
-  .glass-panel td:last-child {
+  .glass-panel table.mobile-accordion td:last-child {
     border-bottom: none;
     padding-bottom: 0 !important;
     display: flex !important;
@@ -292,12 +351,12 @@ h1, h2, h3, h4, h5, h6 {
   }
   
   /* Ensure inline flex elements span full width in cells */
-  .glass-panel td > div {
+  .glass-panel table.mobile-accordion td > div {
     width: 100%;
   }
 
   /* Make action buttons take up more space for easier tapping */
-  .glass-panel td:last-child button {
+  .glass-panel table.mobile-accordion td:last-child button {
     flex: 1 1 auto;
     justify-content: center;
     padding: 0.75rem; /* Larger tap target */

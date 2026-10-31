@@ -1,13 +1,13 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { db } from '../../../firebase/config';
-import { 
-  collection, doc, getDocs, updateDoc, deleteDoc, 
-  query, where, orderBy, onSnapshot 
+import {
+  collection, doc, getDocs, updateDoc, deleteDoc,
+  query, where, orderBy, onSnapshot
 } from 'firebase/firestore';
-import { 
-  Calculator, Banknote, CreditCard, ShoppingBag, Search, X, 
-  Edit2, Printer, Trash2, AlertTriangle, CheckCircle2, 
-  ChevronDown, ChevronUp, Check, Coins, 
+import {
+  Calculator, Banknote, CreditCard, ShoppingBag, Search, X,
+  Edit2, Printer, Trash2, AlertTriangle, CheckCircle2,
+  ChevronDown, ChevronUp, Check, Coins,
   RefreshCw, FileText, Receipt
 } from 'lucide-react';
 import { useModal } from '../../../context/ModalContext';
@@ -15,13 +15,13 @@ import { useAuth } from '../../../context/AuthContext';
 import PettyCashModal from '../PettyCashModal';
 import CashReconciliationModal from '../CashReconciliationModal';
 import ThermalReceipt from './ThermalReceipt';
-import { 
-  formatMoneyCLP, 
-  getPrinterConfig, 
+import {
+  formatMoneyCLP,
+  getPrinterConfig,
   buildSaleReceiptPayload,
   buildCashReconciliationReceiptPayload,
-  printViaRawBT, 
-  printViaWebBluetooth 
+  printViaRawBT,
+  printViaWebBluetooth
 } from '../../../utils/thermalPrinterService';
 import { calculateTotalDeductions } from '../../../utils/inventoryDeductions';
 
@@ -161,10 +161,15 @@ const EventReconciliation = ({ event, onNavigateTab }) => {
 
   // Fondo inicial de caja chica
   const initialFund = useMemo(() => {
-    if (pettyCashData?.closingAudit?.initialPettyCash !== undefined) {
-      return pettyCashData.closingAudit.initialPettyCash;
+    // 1. Si la caja chica tiene total registrado mayor a 0, este es el fondo inicial
+    if (pettyCashData?.total !== undefined && Number(pettyCashData.total) > 0) {
+      return Number(pettyCashData.total);
     }
-    return pettyCashData?.total || 0;
+    // 2. Si no, pero se guardó en la auditoría de cierre un fondo inicial mayor a 0
+    if (pettyCashData?.closingAudit?.initialPettyCash !== undefined && Number(pettyCashData.closingAudit.initialPettyCash) > 0) {
+      return Number(pettyCashData.closingAudit.initialPettyCash);
+    }
+    return Number(pettyCashData?.total || 0);
   }, [pettyCashData]);
 
   // Efectivo esperado en caja = Fondo Inicial + Ventas en Efectivo
@@ -281,7 +286,7 @@ const EventReconciliation = ({ event, onNavigateTab }) => {
       const qIncome = query(collection(db, 'incomes'), where('saleId', '==', sale.id));
       const snapIncome = await getDocs(qIncome);
       for (const docSnap of snapIncome.docs) {
-        await updateDoc(doc(db, 'incomes', docSnap.id), { 
+        await updateDoc(doc(db, 'incomes', docSnap.id), {
           paymentMethod: targetMethod,
           updatedAt: new Date().toISOString()
         });
@@ -332,7 +337,7 @@ const EventReconciliation = ({ event, onNavigateTab }) => {
       } : s));
 
       showToast(
-        newStatus 
+        newStatus
           ? `Ticket #${sale.correlative} marcado como transfer verificada en banco (✓).`
           : `Ticket #${sale.correlative} marcado como transfer pendiente (⏳).`
       );
@@ -697,10 +702,10 @@ const EventReconciliation = ({ event, onNavigateTab }) => {
         </div>
 
         {/* 2. Ventas en Efectivo */}
-        <div 
-          className="glass-panel" 
+        <div
+          className="glass-panel"
           onClick={() => setPaymentFilter(paymentFilter === 'cash' ? 'all' : 'cash')}
-          style={{ 
+          style={{
             padding: '1.15rem 1.25rem',
             cursor: 'pointer',
             border: paymentFilter === 'cash' ? '2px solid #10b981' : '1px solid rgba(16, 185, 129, 0.25)',
@@ -726,10 +731,10 @@ const EventReconciliation = ({ event, onNavigateTab }) => {
         </div>
 
         {/* 3. Ventas en Transferencia */}
-        <div 
-          className="glass-panel" 
+        <div
+          className="glass-panel"
           onClick={() => setPaymentFilter(paymentFilter === 'transfer' ? 'all' : 'transfer')}
-          style={{ 
+          style={{
             padding: '1.15rem 1.25rem',
             cursor: 'pointer',
             border: paymentFilter === 'transfer' ? '2px solid #3b82f6' : '1px solid rgba(59, 130, 246, 0.25)',
@@ -773,7 +778,7 @@ const EventReconciliation = ({ event, onNavigateTab }) => {
         </div>
 
         {/* 4. Efectivo Total Esperado en Gaveta */}
-        <div className="glass-panel" style={{ 
+        <div className="glass-panel" style={{
           padding: '1.15rem 1.25rem',
           backgroundColor: 'rgba(15, 23, 42, 0.85)',
           border: '1px solid rgba(255, 255, 255, 0.15)'
@@ -795,7 +800,7 @@ const EventReconciliation = ({ event, onNavigateTab }) => {
         </div>
 
         {/* 5. Estado de Arqueo Físico */}
-        <div className="glass-panel" style={{ 
+        <div className="glass-panel" style={{
           padding: '1.15rem 1.25rem',
           border: closingAudit ? (
             auditDiff === 0 ? '1px solid #10b981' : auditDiff > 0 ? '1px solid #3b82f6' : '1px solid #ef4444'
@@ -805,7 +810,7 @@ const EventReconciliation = ({ event, onNavigateTab }) => {
             <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.5px', fontWeight: 600 }}>
               Resultado de Arqueo
             </span>
-            <div style={{ 
+            <div style={{
               color: closingAudit ? (auditDiff === 0 ? '#10b981' : auditDiff > 0 ? '#3b82f6' : '#ef4444') : '#94a3b8',
               backgroundColor: 'rgba(255, 255, 255, 0.05)',
               padding: '0.35rem',
@@ -817,15 +822,15 @@ const EventReconciliation = ({ event, onNavigateTab }) => {
 
           {closingAudit ? (
             <div>
-              <div style={{ 
-                fontSize: '1.3rem', 
-                fontWeight: 800, 
+              <div style={{
+                fontSize: '1.3rem',
+                fontWeight: 800,
                 color: auditDiff === 0 ? '#10b981' : auditDiff > 0 ? '#60a5fa' : '#f87171',
                 marginBottom: '0.2rem'
               }}>
-                {auditDiff === 0 
-                  ? '✓ Cuadrado Exacto' 
-                  : auditDiff > 0 
+                {auditDiff === 0
+                  ? '✓ Cuadrado Exacto'
+                  : auditDiff > 0
                     ? `Sobrante (+${formatMoneyCLP(auditDiff)})`
                     : `Faltante (${formatMoneyCLP(auditDiff)})`}
               </div>
@@ -1092,8 +1097,8 @@ const EventReconciliation = ({ event, onNavigateTab }) => {
             </p>
           </div>
         ) : (
-          <div style={{ overflowX: 'auto' }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem' }}>
+          <div className="table-responsive" style={{ overflowX: 'auto' }}>
+            <table style={{ width: '100%', minWidth: '980px', borderCollapse: 'collapse', fontSize: '0.85rem' }}>
               <thead>
                 <tr style={{
                   backgroundColor: 'rgba(0, 0, 0, 0.4)',
@@ -1132,10 +1137,10 @@ const EventReconciliation = ({ event, onNavigateTab }) => {
                     <React.Fragment key={sale.id || index}>
                       <tr style={{
                         borderBottom: '1px solid rgba(255, 255, 255, 0.05)',
-                        backgroundColor: isCancelled 
-                          ? 'rgba(239, 68, 68, 0.04)' 
-                          : index % 2 === 0 
-                            ? 'transparent' 
+                        backgroundColor: isCancelled
+                          ? 'rgba(239, 68, 68, 0.04)'
+                          : index % 2 === 0
+                            ? 'transparent'
                             : 'rgba(255, 255, 255, 0.015)',
                         opacity: isCancelled ? 0.6 : 1,
                         transition: 'background-color 0.15s ease'
@@ -1167,13 +1172,13 @@ const EventReconciliation = ({ event, onNavigateTab }) => {
                             {sale.clientName || 'Cliente General'}
                           </div>
                           {sale.saleNote ? (
-                            <div 
+                            <div
                               onClick={() => handleOpenEditNote(sale)}
-                              style={{ 
-                                fontSize: '0.75rem', 
-                                color: '#f59e0b', 
-                                display: 'inline-flex', 
-                                alignItems: 'center', 
+                              style={{
+                                fontSize: '0.75rem',
+                                color: '#f59e0b',
+                                display: 'inline-flex',
+                                alignItems: 'center',
                                 gap: '3px',
                                 marginTop: '2px',
                                 cursor: 'pointer',
@@ -1208,12 +1213,12 @@ const EventReconciliation = ({ event, onNavigateTab }) => {
 
                         {/* 4. Resumen de Productos */}
                         <td style={{ padding: '0.65rem 0.75rem' }}>
-                          <div 
+                          <div
                             onClick={() => toggleExpandSale(sale.id)}
-                            style={{ 
+                            style={{
                               cursor: 'pointer',
-                              display: 'flex', 
-                              alignItems: 'center', 
+                              display: 'flex',
+                              alignItems: 'center',
                               gap: '0.35rem',
                               color: 'var(--text-muted)',
                               fontSize: '0.82rem'
@@ -1342,8 +1347,8 @@ const EventReconciliation = ({ event, onNavigateTab }) => {
                                 fontWeight: 600,
                                 transition: 'all 0.15s ease'
                               }}
-                              title={sale.transferVerified 
-                                ? `Verificada en banco el ${sale.transferVerifiedAt ? new Date(sale.transferVerifiedAt).toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit' }) : ''} por ${sale.transferVerifiedBy || 'Tesorero/a'}` 
+                              title={sale.transferVerified
+                                ? `Verificada en banco el ${sale.transferVerifiedAt ? new Date(sale.transferVerifiedAt).toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit' }) : ''} por ${sale.transferVerifiedBy || 'Tesorero/a'}`
                                 : 'Haz clic en la casilla para marcar como verificada en la cuenta bancaria'}
                             >
                               <input
@@ -1538,10 +1543,13 @@ const EventReconciliation = ({ event, onNavigateTab }) => {
         cashierName={user?.displayName || user?.email?.split('@')[0] || 'Tesorero/a'}
         currentPettyCashData={pettyCashData}
         onReconciliationSaved={(audit) => {
+          const validInitial = (audit?.initialPettyCash !== undefined && audit.initialPettyCash > 0)
+            ? audit.initialPettyCash
+            : (prev?.total && prev.total > 0 ? prev.total : initialFund);
           setPettyCashData(prev => ({
             ...(prev || {}),
-            total: prev?.total ?? initialFund,
-            totalAmount: prev?.totalAmount ?? initialFund,
+            total: (audit?.initialPettyCash !== undefined && audit.initialPettyCash > 0) ? audit.initialPettyCash : (prev?.total || initialFund),
+            totalAmount: (audit?.initialPettyCash !== undefined && audit.initialPettyCash > 0) ? audit.initialPettyCash : (prev?.totalAmount || initialFund),
             closingAudit: audit
           }));
           showToast('¡Arqueo de caja guardado con éxito!');

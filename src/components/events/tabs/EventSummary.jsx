@@ -3,17 +3,19 @@ import { db } from '../../../firebase/config';
 import { collection, doc, getDoc, getDocs, query, where } from 'firebase/firestore';
 import { 
   DollarSign, Activity, FileText, Printer, Package, UserCheck, Users, Settings,
-  Banknote, Coins, Calculator, ChevronDown, ChevronUp, Wallet
+  Banknote, Coins, Calculator, ChevronDown, ChevronUp, Wallet, Share2, Download, Check
 } from 'lucide-react';
 import ThermalClosureReceipt from './ThermalClosureReceipt';
 import PrinterSettingsModal from '../PrinterSettingsModal';
 import CashReconciliationModal from '../CashReconciliationModal';
+import EventReportModal from '../EventReportModal';
 import { 
   getPrinterConfig, 
   buildClosureReceiptPayload, 
   printViaRawBT, 
   printViaWebBluetooth 
 } from '../../../utils/thermalPrinterService';
+import { buildEventSummaryPdfDoc, shareOrDownloadEventPdf } from '../../../utils/eventPdfService';
 
 const EventSummary = ({ event, onNavigateTab }) => {
   const [stats, setStats] = useState({
@@ -36,6 +38,9 @@ const EventSummary = ({ event, onNavigateTab }) => {
   const [showPrinterModal, setShowPrinterModal] = useState(false);
   const [showPettyDetails, setShowPettyDetails] = useState(false);
   const [showReconciliationModal, setShowReconciliationModal] = useState(false);
+  const [showReportModal, setShowReportModal] = useState(false);
+  const [sharingPdf, setSharingPdf] = useState(false);
+  const [pdfShareSuccess, setPdfShareSuccess] = useState(null);
 
   useEffect(() => {
     fetchStats();
@@ -161,7 +166,11 @@ const EventSummary = ({ event, onNavigateTab }) => {
         const pettySnap = await getDoc(doc(db, 'eventPettyCash', 'petty_' + event.id));
         if (pettySnap.exists()) {
           pettyCashData = pettySnap.data();
-          pettyCashTotal = pettyCashData.total ?? pettyCashData.totalAmount ?? 0;
+          pettyCashTotal = (pettyCashData.total !== undefined && Number(pettyCashData.total) > 0)
+            ? Number(pettyCashData.total)
+            : (pettyCashData.closingAudit?.initialPettyCash !== undefined && Number(pettyCashData.closingAudit.initialPettyCash) > 0)
+              ? Number(pettyCashData.closingAudit.initialPettyCash)
+              : Number(pettyCashData.total ?? pettyCashData.totalAmount ?? 0);
         }
       } catch (err) {
         console.warn("Error cargando caja chica en resumen:", err);
@@ -213,6 +222,39 @@ const EventSummary = ({ event, onNavigateTab }) => {
     }
   };
 
+  const handleShareSummaryPdf = async () => {
+    setSharingPdf(true);
+    setPdfShareSuccess(null);
+    try {
+      const doc = await buildEventSummaryPdfDoc({
+        event,
+        stats,
+        itemsSummary,
+        expensesSummary,
+        inventorySummary,
+        cashiersSummary
+      });
+
+      const safeName = (event?.name || 'Evento').replace(/[^a-zA-Z0-9]/g, '_');
+      const fileName = `Resumen_Evento_${safeName}.pdf`;
+      const title = `Resumen del Evento: ${event?.name || 'Evento'}`;
+      const text = `Adjunto el resumen financiero oficial del evento ${event?.name || ''} en formato PDF.`;
+
+      const result = await shareOrDownloadEventPdf(doc, fileName, title, text);
+      if (result.method === 'shared') {
+        setPdfShareSuccess('¡Resumen compartido!');
+      } else if (result.method === 'downloaded') {
+        setPdfShareSuccess('¡PDF descargado!');
+      }
+      setTimeout(() => setPdfShareSuccess(null), 3500);
+    } catch (err) {
+      console.error('Error al generar o compartir PDF del resumen:', err);
+      alert('Error al generar el PDF: ' + (err.message || 'Error desconocido'));
+    } finally {
+      setSharingPdf(false);
+    }
+  };
+
   if (loading) return <div>Cargando resumen...</div>;
 
   return (
@@ -227,6 +269,44 @@ const EventSummary = ({ event, onNavigateTab }) => {
       />
       
       <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '1.5rem', gap: '0.5rem', flexWrap: 'wrap' }}>
+        <button
+          type="button"
+          onClick={handleShareSummaryPdf}
+          disabled={sharingPdf}
+          className="btn btn-primary"
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '0.45rem',
+            backgroundColor: '#0284c7',
+            borderColor: '#0284c7',
+            color: '#fff',
+            fontWeight: 'bold',
+            boxShadow: '0 0 15px rgba(2, 132, 199, 0.4)'
+          }}
+          title="Generar y compartir el resumen oficial del evento en PDF (WhatsApp, correo, etc.)"
+        >
+          {pdfShareSuccess ? <Check size={18} /> : <Share2 size={18} />}
+          {sharingPdf ? 'Generando PDF...' : pdfShareSuccess || 'Compartir Resumen (PDF)'}
+        </button>
+        <button
+          type="button"
+          onClick={() => setShowReportModal(true)}
+          className="btn btn-primary"
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '0.45rem',
+            backgroundColor: '#6366f1',
+            borderColor: '#6366f1',
+            color: '#fff',
+            fontWeight: 'bold',
+            boxShadow: '0 0 15px rgba(99, 102, 241, 0.35)'
+          }}
+          title="Ver y descargar informe completo del evento con ventas por artículos, gastos, ganancias y papás pendientes"
+        >
+          <FileText size={18} /> Generar Informe del Evento
+        </button>
         <button
           type="button"
           onClick={() => {
@@ -524,11 +604,20 @@ const EventSummary = ({ event, onNavigateTab }) => {
               </div>
               <div>
                 <span style={{ color: 'var(--text-muted)', fontSize: '0.74rem', display: 'block' }}>(-) Fondo Inicial que había:</span>
-                <strong style={{ fontSize: '1.15rem', color: '#f87171' }}>- {formatMoney(stats.pettyCashData.closingAudit.initialPettyCash || 0)}</strong>
+                <strong style={{ fontSize: '1.15rem', color: '#f87171' }}>- {formatMoney(
+                  (stats.pettyCashData.closingAudit.initialPettyCash !== undefined && Number(stats.pettyCashData.closingAudit.initialPettyCash) > 0)
+                    ? stats.pettyCashData.closingAudit.initialPettyCash
+                    : (stats.pettyCashTotal || 0)
+                )}</strong>
               </div>
               <div>
                 <span style={{ color: 'var(--text-muted)', fontSize: '0.74rem', display: 'block' }}>(=) Recaudación Neta Real:</span>
-                <strong style={{ fontSize: '1.15rem', color: '#fff' }}>{formatMoney(stats.pettyCashData.closingAudit.netCashEarned || 0)}</strong>
+                <strong style={{ fontSize: '1.15rem', color: '#fff' }}>{formatMoney(
+                  (stats.pettyCashData.closingAudit.finalCashCounted || 0) -
+                  ((stats.pettyCashData.closingAudit.initialPettyCash !== undefined && Number(stats.pettyCashData.closingAudit.initialPettyCash) > 0)
+                    ? stats.pettyCashData.closingAudit.initialPettyCash
+                    : (stats.pettyCashTotal || 0))
+                )}</strong>
               </div>
               <div>
                 <span style={{ color: 'var(--text-muted)', fontSize: '0.74rem', display: 'block' }}>Ventas POS en Efectivo:</span>
@@ -556,8 +645,8 @@ const EventSummary = ({ event, onNavigateTab }) => {
             No hay ventas registradas por cajeros aún.
           </p>
         ) : (
-          <div style={{ overflowX: 'auto' }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.9rem' }}>
+          <div className="table-responsive" style={{ overflowX: 'auto' }}>
+            <table style={{ width: '100%', minWidth: '650px', borderCollapse: 'collapse', fontSize: '0.9rem' }}>
               <thead>
                 <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.1)', color: 'var(--text-muted)', textAlign: 'left' }}>
                   <th style={{ padding: '0.65rem 0.5rem' }}>Cajero(a)</th>
@@ -627,8 +716,8 @@ const EventSummary = ({ event, onNavigateTab }) => {
             No se registraron insumos en el inventario para este evento.
           </p>
         ) : (
-          <div style={{ overflowX: 'auto' }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.9rem' }}>
+          <div className="table-responsive" style={{ overflowX: 'auto' }}>
+            <table style={{ width: '100%', minWidth: '650px', borderCollapse: 'collapse', fontSize: '0.9rem' }}>
               <thead>
                 <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.1)', color: 'var(--text-muted)', textAlign: 'left' }}>
                   <th style={{ padding: '0.65rem 0.5rem' }}>Insumo</th>
@@ -709,6 +798,13 @@ const EventSummary = ({ event, onNavigateTab }) => {
         cashierName="Cajero/a"
         currentPettyCashData={stats.pettyCashData}
         onReconciliationSaved={fetchStats}
+      />
+
+      {/* Modal de Informe Completo del Evento */}
+      <EventReportModal
+        isOpen={showReportModal}
+        onClose={() => setShowReportModal(false)}
+        event={event}
       />
     </div>
   );

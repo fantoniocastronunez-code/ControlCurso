@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { db } from '../../firebase/config';
 import { doc, getDoc } from 'firebase/firestore';
-import { ArrowLeft, LayoutDashboard, CheckSquare, ShoppingBag, DollarSign, Receipt, Package, Printer, Sparkles, RotateCcw, Settings, ChefHat, Camera, Calculator } from 'lucide-react';
+import { ArrowLeft, LayoutDashboard, CheckSquare, ShoppingBag, DollarSign, Receipt, Package, Printer, Sparkles, RotateCcw, Settings, ChefHat, Camera, Calculator, FileText } from 'lucide-react';
 import EventSummary from './tabs/EventSummary';
 import EventAttendance from './tabs/EventAttendance';
 import EventInventory from './tabs/EventInventory';
@@ -14,6 +14,7 @@ import ThermalReceipt from './tabs/ThermalReceipt';
 import PrinterSettingsModal from './PrinterSettingsModal';
 import ComandasQRModal from './ComandasQRModal';
 import QRScannerModal from './QRScannerModal';
+import EventReportModal from './EventReportModal';
 import { useModal } from '../../context/ModalContext';
 import { useAuth } from '../../context/AuthContext';
 import { loadDemoEventData, resetTestEventData } from '../../utils/eventTestUtils';
@@ -36,6 +37,7 @@ const EventDetail = ({ eventId, onBack }) => {
   const [showPrinterModal, setShowPrinterModal] = useState(false);
   const [showComandasModal, setShowComandasModal] = useState(false);
   const [showScanner, setShowScanner] = useState(false);
+  const [showReportModal, setShowReportModal] = useState(false);
 
   const handleScanSuccess = (decodedText) => {
     setShowScanner(false);
@@ -180,6 +182,16 @@ const EventDetail = ({ eventId, onBack }) => {
         <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', flexWrap: 'wrap' }}>
           <button
             type="button"
+            onClick={() => setShowReportModal(true)}
+            className="btn btn-primary"
+            style={{ fontSize: '0.85rem', padding: '0.45rem 0.95rem', display: 'flex', alignItems: 'center', gap: '0.4rem', backgroundColor: '#6366f1', borderColor: '#6366f1', color: '#fff', fontWeight: 'bold' }}
+            title="Generar y descargar informe financiero completo del evento"
+          >
+            <FileText size={16} /> Informe de Evento
+          </button>
+
+          <button
+            type="button"
             onClick={() => setShowComandasModal(true)}
             className="btn btn-outline"
             style={{ fontSize: '0.85rem', padding: '0.45rem 0.85rem', display: 'flex', alignItems: 'center', gap: '0.4rem', borderColor: '#f59e0b', color: '#f59e0b' }}
@@ -260,20 +272,36 @@ const EventDetail = ({ eventId, onBack }) => {
       )}
 
       {/* Tabs */}
-      <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '2rem', borderBottom: '1px solid var(--border-color)', paddingBottom: '1rem', overflowX: 'auto', whiteSpace: 'nowrap' }}>
+      <div 
+        className="event-tabs-bar"
+        style={{ 
+          display: 'flex', 
+          gap: '0.5rem', 
+          marginBottom: '2rem', 
+          borderBottom: '1px solid var(--border-color)', 
+          paddingBottom: '0.85rem', 
+          overflowX: 'auto', 
+          WebkitOverflowScrolling: 'touch',
+          touchAction: 'pan-x pan-y',
+          maxWidth: '100%',
+          width: '100%'
+        }}
+      >
         {tabs.map(tab => (
           <button
             key={tab.id}
             onClick={() => setActiveTab(tab.id)}
             className={`btn ${activeTab === tab.id ? 'btn-primary' : 'btn-outline'}`}
             style={{ 
-              display: 'flex', 
+              display: 'inline-flex', 
               alignItems: 'center', 
               gap: '0.5rem', 
               padding: '0.5rem 1rem',
               borderColor: activeTab === tab.id ? 'var(--primary)' : 'rgba(255,255,255,0.1)',
               backgroundColor: activeTab === tab.id ? 'var(--primary)' : 'transparent',
-              color: activeTab === tab.id ? '#fff' : 'var(--text-muted)'
+              color: activeTab === tab.id ? '#fff' : 'var(--text-muted)',
+              flexShrink: 0,
+              whiteSpace: 'nowrap'
             }}
           >
             {tab.icon} {tab.label}
@@ -305,6 +333,13 @@ const EventDetail = ({ eventId, onBack }) => {
         onClose={() => setShowComandasModal(false)}
         eventId={eventData.id}
         eventName={eventData.name}
+      />
+
+      {/* Modal de Informe Completo del Evento */}
+      <EventReportModal
+        isOpen={showReportModal}
+        onClose={() => setShowReportModal(false)}
+        event={eventData}
       />
     </div>
   );

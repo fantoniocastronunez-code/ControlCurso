@@ -174,8 +174,8 @@ const EventExpenses = ({ event }) => {
         {outcomes.length === 0 ? (
           <p style={{ color: 'var(--text-muted)' }}>No hay gastos registrados para este evento.</p>
         ) : (
-          <div style={{ overflowX: 'auto' }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
+          <div className="table-responsive" style={{ overflowX: 'auto' }}>
+            <table style={{ width: '100%', minWidth: '600px', borderCollapse: 'collapse', textAlign: 'left' }}>
               <thead>
                 <tr style={{ borderBottom: '1px solid var(--border-color)' }}>
                   <th style={{ padding: '0.75rem 0.5rem' }}>Fecha</th>
