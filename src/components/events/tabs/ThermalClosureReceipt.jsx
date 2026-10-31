@@ -37,7 +37,46 @@ const ThermalClosureReceipt = ({ event, stats, itemsSummary, expensesSummary, in
         </div>
       </div>
 
-      {((stats?.pettyCashTotal || 0) > 0 || (stats?.cashSalesTotal || 0) > 0) && (
+      {stats?.pettyCashData?.closingAudit ? (
+        <div style={{ borderTop: '1px dashed black', borderBottom: '1px dashed black', padding: '5px 0', margin: '10px 0', fontSize: '12px', fontFamily: 'monospace' }}>
+          <div style={{ marginBottom: '5px', fontWeight: 'bold', textAlign: 'center' }}>CUADRATURA FINAL DE EFECTIVO</div>
+          <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+            <span>Total Contado en Gaveta:</span>
+            <span>{formatMoney(stats.pettyCashData.closingAudit.finalCashCounted || 0)}</span>
+          </div>
+          <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+            <span>(-) Fondo Inicial:</span>
+            <span>- {formatMoney(stats.pettyCashData.closingAudit.initialPettyCash || 0)}</span>
+          </div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 'bold', borderTop: '1px dashed #666', marginTop: '2px', paddingTop: '2px' }}>
+            <span>(=) Recaudación Neta Real:</span>
+            <span>{formatMoney(stats.pettyCashData.closingAudit.netCashEarned || 0)}</span>
+          </div>
+          <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+            <span>Ventas POS en Efectivo:</span>
+            <span>{formatMoney(stats.pettyCashData.closingAudit.systemCashSales || 0)}</span>
+          </div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 'bold', marginTop: '4px', paddingTop: '4px', borderTop: '1px solid black' }}>
+            <span>
+              {(stats.pettyCashData.closingAudit.difference || 0) === 0
+                ? 'DIFERENCIA (CUADRADA):'
+                : (stats.pettyCashData.closingAudit.difference || 0) > 0
+                  ? 'SOBRANTE DE CAJA (+):'
+                  : 'FALTANTE DE CAJA (-):'}
+            </span>
+            <span>
+              {((stats.pettyCashData.closingAudit.difference || 0) > 0 ? '+' : '') +
+                formatMoney(stats.pettyCashData.closingAudit.difference || 0)}
+            </span>
+          </div>
+          {stats?.transferSalesTotal > 0 && (
+            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '10px', color: '#333', marginTop: '3px' }}>
+              <span>Ventas Transferencia:</span>
+              <span>{formatMoney(stats.transferSalesTotal)}</span>
+            </div>
+          )}
+        </div>
+      ) : ((stats?.pettyCashTotal || 0) > 0 || (stats?.cashSalesTotal || 0) > 0) ? (
         <div style={{ borderTop: '1px dashed black', borderBottom: '1px dashed black', padding: '5px 0', margin: '10px 0', fontSize: '12px', fontFamily: 'monospace' }}>
           <div style={{ marginBottom: '5px', fontWeight: 'bold', textAlign: 'center' }}>CUADRATURA DE EFECTIVO</div>
           <div style={{ display: 'flex', justifyContent: 'space-between' }}>
@@ -59,7 +98,7 @@ const ThermalClosureReceipt = ({ event, stats, itemsSummary, expensesSummary, in
             </div>
           )}
         </div>
-      )}
+      ) : null}
 
       <div style={{ fontSize: '12px', fontFamily: 'monospace', marginBottom: '10px' }}>
         <div style={{ fontWeight: 'bold', textAlign: 'center', marginBottom: '5px', borderBottom: '1px dashed black', paddingBottom: '3px' }}>DETALLE DE VENTAS (POS)</div>

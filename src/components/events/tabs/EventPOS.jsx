@@ -11,6 +11,7 @@ import PrinterSettingsModal from '../PrinterSettingsModal';
 import ComandasQRModal from '../ComandasQRModal';
 import QRScannerModal from '../QRScannerModal';
 import PettyCashModal from '../PettyCashModal';
+import CashReconciliationModal from '../CashReconciliationModal';
 import {
   getPrinterConfig,
   buildSaleReceiptPayload,
@@ -47,6 +48,7 @@ const EventPOS = ({ event }) => {
   const [showPrinterModal, setShowPrinterModal] = useState(false);
   const [showComandasModal, setShowComandasModal] = useState(false);
   const [showPettyCashModal, setShowPettyCashModal] = useState(false);
+  const [showReconciliationModal, setShowReconciliationModal] = useState(false);
   const [pettyCash, setPettyCash] = useState(null);
   const [showScanner, setShowScanner] = useState(false);
 
@@ -744,6 +746,28 @@ const EventPOS = ({ event }) => {
           >
             <Banknote size={15} />
             <span>{pettyCashTotal > 0 ? `Caja Chica (${formatMoney(pettyCashTotal)})` : 'Ingresar Caja Chica'}</span>
+          </button>
+
+          {/* Botón para Cuadrar Efectivo Final en Caja */}
+          <button
+            type="button"
+            onClick={() => setShowReconciliationModal(true)}
+            className="btn btn-outline"
+            style={{
+              padding: '0.4rem 0.75rem',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '0.35rem',
+              fontSize: '0.8rem',
+              borderColor: '#10b981',
+              color: '#10b981',
+              backgroundColor: 'rgba(16, 185, 129, 0.12)',
+              fontWeight: '600'
+            }}
+            title="Cuadrar el efectivo completo que quedó en caja restando el fondo inicial que había al comenzar"
+          >
+            <Calculator size={15} />
+            <span>{pettyCash?.closingAudit ? 'Caja Cuadrada' : 'Cuadrar Caja'}</span>
           </button>
 
           <button
@@ -1619,6 +1643,20 @@ const EventPOS = ({ event }) => {
         transferSalesTotal={transferSalesTotal}
         totalSales={totalSalesAmount}
         cashierName={activeCashierDisplayName}
+        onOpenReconciliation={() => setShowReconciliationModal(true)}
+      />
+
+      {/* Modal para Cuadrar Efectivo Final en Caja */}
+      <CashReconciliationModal
+        isOpen={showReconciliationModal}
+        onClose={() => setShowReconciliationModal(false)}
+        eventId={event.id}
+        courseId={event.courseId}
+        eventName={event.name}
+        initialPettyCash={pettyCashTotal}
+        cashSalesTotal={cashSalesTotal}
+        cashierName={activeCashierDisplayName}
+        currentPettyCashData={pettyCash}
       />
     </div>
   );

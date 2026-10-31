@@ -7,6 +7,7 @@ import {
 } from 'lucide-react';
 import ThermalClosureReceipt from './ThermalClosureReceipt';
 import PrinterSettingsModal from '../PrinterSettingsModal';
+import CashReconciliationModal from '../CashReconciliationModal';
 import { 
   getPrinterConfig, 
   buildClosureReceiptPayload, 
@@ -34,6 +35,7 @@ const EventSummary = ({ event }) => {
   const [loading, setLoading] = useState(true);
   const [showPrinterModal, setShowPrinterModal] = useState(false);
   const [showPettyDetails, setShowPettyDetails] = useState(false);
+  const [showReconciliationModal, setShowReconciliationModal] = useState(false);
 
   useEffect(() => {
     fetchStats();
@@ -227,6 +229,23 @@ const EventSummary = ({ event }) => {
       <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '1.5rem', gap: '0.5rem', flexWrap: 'wrap' }}>
         <button
           type="button"
+          onClick={() => setShowReconciliationModal(true)}
+          className="btn btn-primary"
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '0.45rem',
+            backgroundColor: '#10b981',
+            borderColor: '#10b981',
+            color: '#fff',
+            fontWeight: 'bold'
+          }}
+          title="Cuadrar el efectivo completo que quedó en caja restando el fondo inicial que había al comenzar"
+        >
+          <Calculator size={18} /> Cuadrar Efectivo en Caja
+        </button>
+        <button
+          type="button"
           onClick={() => setShowPrinterModal(true)}
           className="btn btn-outline"
           style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}
@@ -297,18 +316,40 @@ const EventSummary = ({ event }) => {
               Control del dinero físico en gaveta: Fondo inicial de Caja Chica + ventas en efectivo
             </p>
           </div>
-          {hasPettyBreakdown && (
+          <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', flexWrap: 'wrap' }}>
             <button
               type="button"
-              onClick={() => setShowPettyDetails(!showPettyDetails)}
+              onClick={() => setShowReconciliationModal(true)}
               className="btn btn-outline"
-              style={{ fontSize: '0.8rem', padding: '0.35rem 0.75rem', display: 'flex', alignItems: 'center', gap: '0.35rem' }}
+              style={{
+                fontSize: '0.82rem',
+                padding: '0.35rem 0.8rem',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.4rem',
+                borderColor: '#10b981',
+                color: '#6ee7b7',
+                backgroundColor: 'rgba(16, 185, 129, 0.1)',
+                fontWeight: '600'
+              }}
+              title="Contar el efectivo en gaveta y cuadrar restando el fondo inicial que había al comenzar"
             >
-              <Banknote size={15} />
-              {showPettyDetails ? 'Ocultar desglose billetes/monedas' : 'Ver desglose billetes/monedas'}
-              {showPettyDetails ? <ChevronUp size={15} /> : <ChevronDown size={15} />}
+              <Calculator size={15} />
+              {stats.pettyCashData?.closingAudit ? 'Editar Cuadratura de Caja' : 'Cuadrar Efectivo en Caja'}
             </button>
-          )}
+            {hasPettyBreakdown && (
+              <button
+                type="button"
+                onClick={() => setShowPettyDetails(!showPettyDetails)}
+                className="btn btn-outline"
+                style={{ fontSize: '0.8rem', padding: '0.35rem 0.75rem', display: 'flex', alignItems: 'center', gap: '0.35rem' }}
+              >
+                <Banknote size={15} />
+                {showPettyDetails ? 'Ocultar desglose billetes/monedas' : 'Ver desglose billetes/monedas'}
+                {showPettyDetails ? <ChevronUp size={15} /> : <ChevronDown size={15} />}
+              </button>
+            )}
+          </div>
         </div>
 
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1rem' }}>
@@ -395,6 +436,104 @@ const EventSummary = ({ event }) => {
                 );
               })}
             </div>
+          </div>
+        )}
+        {/* Cuadratura Registrada de Cierre */}
+        {stats.pettyCashData?.closingAudit && (
+          <div style={{
+            marginTop: '1.25rem',
+            padding: '1.1rem 1.25rem',
+            borderRadius: '12px',
+            backgroundColor: stats.pettyCashData.closingAudit.difference === 0
+              ? 'rgba(16, 185, 129, 0.12)'
+              : stats.pettyCashData.closingAudit.difference > 0
+                ? 'rgba(59, 130, 246, 0.12)'
+                : 'rgba(239, 68, 68, 0.12)',
+            border: stats.pettyCashData.closingAudit.difference === 0
+              ? '1px solid #10b981'
+              : stats.pettyCashData.closingAudit.difference > 0
+                ? '1px solid #3b82f6'
+                : '1px solid #ef4444',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '0.85rem'
+          }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.5rem' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.55rem' }}>
+                <span style={{
+                  fontSize: '0.8rem',
+                  padding: '3px 10px',
+                  borderRadius: '20px',
+                  fontWeight: 'bold',
+                  backgroundColor: stats.pettyCashData.closingAudit.difference === 0
+                    ? '#10b981'
+                    : stats.pettyCashData.closingAudit.difference > 0
+                      ? '#3b82f6'
+                      : '#ef4444',
+                  color: '#fff',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '4px'
+                }}>
+                  {stats.pettyCashData.closingAudit.difference === 0
+                    ? '✓ CAJA CUADRADA ($0)'
+                    : stats.pettyCashData.closingAudit.difference > 0
+                      ? `SOBRANTE (+${formatMoney(stats.pettyCashData.closingAudit.difference)})`
+                      : `FALTANTE (${formatMoney(stats.pettyCashData.closingAudit.difference)})`}
+                </span>
+                <strong style={{ fontSize: '0.98rem', color: '#fff' }}>
+                  Cuadratura de Cierre Guardada
+                </strong>
+              </div>
+
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                  {stats.pettyCashData.closingAudit.auditedAt ? new Date(stats.pettyCashData.closingAudit.auditedAt).toLocaleString('es-CL') : ''}
+                  {stats.pettyCashData.closingAudit.auditedBy ? ` • ${stats.pettyCashData.closingAudit.auditedBy}` : ''}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setShowReconciliationModal(true)}
+                  className="btn btn-outline"
+                  style={{ fontSize: '0.75rem', padding: '0.2rem 0.5rem', color: '#cbd5e1' }}
+                >
+                  Modificar
+                </button>
+              </div>
+            </div>
+
+            <div style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(auto-fit, minmax(170px, 1fr))',
+              gap: '0.75rem',
+              fontSize: '0.88rem',
+              backgroundColor: 'rgba(0, 0, 0, 0.25)',
+              padding: '0.85rem',
+              borderRadius: '8px'
+            }}>
+              <div>
+                <span style={{ color: 'var(--text-muted)', fontSize: '0.74rem', display: 'block' }}>Total Contado en Gaveta:</span>
+                <strong style={{ fontSize: '1.15rem', color: '#10b981' }}>{formatMoney(stats.pettyCashData.closingAudit.finalCashCounted || 0)}</strong>
+              </div>
+              <div>
+                <span style={{ color: 'var(--text-muted)', fontSize: '0.74rem', display: 'block' }}>(-) Fondo Inicial que había:</span>
+                <strong style={{ fontSize: '1.15rem', color: '#f87171' }}>- {formatMoney(stats.pettyCashData.closingAudit.initialPettyCash || 0)}</strong>
+              </div>
+              <div>
+                <span style={{ color: 'var(--text-muted)', fontSize: '0.74rem', display: 'block' }}>(=) Recaudación Neta Real:</span>
+                <strong style={{ fontSize: '1.15rem', color: '#fff' }}>{formatMoney(stats.pettyCashData.closingAudit.netCashEarned || 0)}</strong>
+              </div>
+              <div>
+                <span style={{ color: 'var(--text-muted)', fontSize: '0.74rem', display: 'block' }}>Ventas POS en Efectivo:</span>
+                <strong style={{ fontSize: '1.15rem', color: '#cbd5e1' }}>{formatMoney(stats.pettyCashData.closingAudit.systemCashSales || 0)}</strong>
+              </div>
+            </div>
+
+            {stats.pettyCashData.closingAudit.notes && (
+              <p style={{ margin: 0, fontSize: '0.8rem', color: '#fef08a', fontStyle: 'italic' }}>
+                Observación: {stats.pettyCashData.closingAudit.notes}
+              </p>
+            )}
           </div>
         )}
       </div>
@@ -549,6 +688,20 @@ const EventSummary = ({ event }) => {
         isOpen={showPrinterModal}
         onClose={() => setShowPrinterModal(false)}
         eventName={event.name}
+      />
+
+      {/* Modal para Cuadrar Efectivo en Caja */}
+      <CashReconciliationModal
+        isOpen={showReconciliationModal}
+        onClose={() => setShowReconciliationModal(false)}
+        eventId={event.id}
+        courseId={event.courseId}
+        eventName={event.name}
+        initialPettyCash={stats.pettyCashTotal || 0}
+        cashSalesTotal={stats.cashSalesTotal || 0}
+        cashierName="Cajero/a"
+        currentPettyCashData={stats.pettyCashData}
+        onReconciliationSaved={fetchStats}
       />
     </div>
   );

@@ -410,7 +410,37 @@ export const buildClosureReceiptPayload = (event, stats, itemsSummary = [], expe
   p += `${DOUBLE_LINE}\n`;
 
   // Cuadratura de Efectivo en Caja
-  if ((stats?.pettyCashTotal || 0) > 0 || (stats?.cashSalesTotal || 0) > 0) {
+  if (stats?.pettyCashData?.closingAudit) {
+    const audit = stats.pettyCashData.closingAudit;
+    p += CMD_ALIGN_CENTER;
+    p += CMD_BOLD_ON;
+    p += `CUADRATURA FINAL DE EFECTIVO\n`;
+    p += CMD_BOLD_OFF;
+    p += CMD_ALIGN_LEFT;
+    p += `${justify('Total Contado en Gaveta:', formatMoneyCLP(audit.finalCashCounted || 0), width)}\n`;
+    p += `${justify('(-) Fondo Inicial (Caja Chica):', '-' + formatMoneyCLP(audit.initialPettyCash || 0), width)}\n`;
+    p += `${SEP_LINE}\n`;
+    p += CMD_BOLD_ON;
+    p += `${justify('(=) Recaudacion Neta Real:', formatMoneyCLP(audit.netCashEarned || 0), width)}\n`;
+    p += CMD_BOLD_OFF;
+    p += `${justify('Ventas POS en Efectivo:', formatMoneyCLP(audit.systemCashSales || 0), width)}\n`;
+    p += `${SEP_LINE}\n`;
+    p += CMD_BOLD_ON;
+    const diff = audit.difference || 0;
+    if (diff === 0) {
+      p += CMD_ALIGN_CENTER;
+      p += `*** CAJA CUADRADA EXACTA ($0) ***\n`;
+    } else if (diff > 0) {
+      p += `${justify('SOBRANTE DE CAJA (+):', '+' + formatMoneyCLP(diff), width)}\n`;
+    } else {
+      p += `${justify('FALTANTE DE CAJA (-):', formatMoneyCLP(diff), width)}\n`;
+    }
+    p += CMD_BOLD_OFF;
+    if (stats?.transferSalesTotal) {
+      p += `${justify('Ventas Transferencia:', formatMoneyCLP(stats.transferSalesTotal), width)}\n`;
+    }
+    p += `${DOUBLE_LINE}\n`;
+  } else if ((stats?.pettyCashTotal || 0) > 0 || (stats?.cashSalesTotal || 0) > 0) {
     p += CMD_ALIGN_CENTER;
     p += CMD_BOLD_ON;
     p += `CUADRATURA DE EFECTIVO\n`;
@@ -603,6 +633,75 @@ export const buildCashAuditReceiptPayload = (eventName, pettyCashTotal, cashSale
 
   p += CMD_ALIGN_CENTER;
   p += `Verificacion de Caja Conforme\n`;
+  p += `Firma: ________________________\n`;
+  p += getEndFeed();
+
+  return p;
+};
+
+/**
+ * Genera el payload ESC/POS para el Comprobante de Cuadratura Final de Efectivo
+ */
+export const buildCashReconciliationReceiptPayload = (
+  eventName,
+  initialPettyCash = 0,
+  finalCashCounted = 0,
+  cashSalesTotal = 0,
+  netCashEarned = 0,
+  difference = 0,
+  cashierName = 'Cajero/a',
+  notes = '',
+  width = getPaperWidth()
+) => {
+  const DOUBLE_LINE = '='.repeat(width);
+  const SEP_LINE = '-'.repeat(width);
+
+  let p = '';
+  p += CMD_INIT;
+  p += getFontInit();
+  p += CMD_ALIGN_CENTER;
+  p += CMD_BOLD_ON;
+  p += `CUADRATURA FINAL DE CAJA\n`;
+  const nameLines = wrapText(cleanText(eventName || 'APPCURSO POS'), width);
+  nameLines.forEach(l => { p += `${l}\n`; });
+  p += CMD_BOLD_OFF;
+
+  p += `Fecha: ${new Date().toLocaleString('es-CL')}\n`;
+  if (cashierName) {
+    p += `Responsable: ${cleanText(cashierName)}\n`;
+  }
+  p += `${DOUBLE_LINE}\n`;
+
+  p += CMD_ALIGN_LEFT;
+  p += `${justify('Total Contado en Gaveta:', formatMoneyCLP(finalCashCounted), width)}\n`;
+  p += `${justify('(-) Fondo Inicial (Caja Chica):', '-' + formatMoneyCLP(initialPettyCash), width)}\n`;
+  p += `${SEP_LINE}\n`;
+  p += CMD_BOLD_ON;
+  p += `${justify('(=) Recaudacion Neta Real:', formatMoneyCLP(netCashEarned), width)}\n`;
+  p += CMD_BOLD_OFF;
+  p += `${justify('Ventas POS en Efectivo:', formatMoneyCLP(cashSalesTotal), width)}\n`;
+  p += `${SEP_LINE}\n`;
+
+  p += CMD_BOLD_ON;
+  if (difference === 0) {
+    p += CMD_ALIGN_CENTER;
+    p += `*** CAJA CUADRADA EXACTA ($0) ***\n`;
+  } else if (difference > 0) {
+    p += `${justify('SOBRANTE DE CAJA (+):', '+' + formatMoneyCLP(difference), width)}\n`;
+  } else {
+    p += `${justify('FALTANTE DE CAJA (-):', formatMoneyCLP(difference), width)}\n`;
+  }
+  p += CMD_BOLD_OFF;
+
+  if (notes) {
+    p += `${SEP_LINE}\n`;
+    p += CMD_ALIGN_LEFT;
+    p += `Nota: ${cleanText(notes)}\n`;
+  }
+
+  p += `${DOUBLE_LINE}\n`;
+  p += CMD_ALIGN_CENTER;
+  p += `Conforme Responsable / Tesoreria\n\n\n`;
   p += `Firma: ________________________\n`;
   p += getEndFeed();
 

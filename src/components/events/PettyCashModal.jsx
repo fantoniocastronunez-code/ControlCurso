@@ -39,7 +39,8 @@ const PettyCashModal = ({
   cashSalesTotal = 0, 
   transferSalesTotal = 0, 
   totalSales = 0, 
-  cashierName = 'Cajero General' 
+  cashierName = 'Cajero General',
+  onOpenReconciliation
 }) => {
   const [bills, setBills] = useState({
     20000: 0,
@@ -666,24 +667,51 @@ const PettyCashModal = ({
                 </div>
               </div>
 
-              {/* Botón de Impresión de Arqueo */}
-              <button
-                type="button"
-                onClick={handlePrintAudit}
-                className="btn btn-outline"
-                style={{
-                  padding: '0.75rem 1rem',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  gap: '0.5rem',
-                  fontSize: '0.9rem',
-                  borderColor: '#10b981',
-                  color: '#10b981'
-                }}
-              >
-                <Printer size={16} /> Imprimir Comprobante de Arqueo en Impresora Térmica
-              </button>
+              {/* Botones de Acción de Arqueo y Cuadratura */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                {onOpenReconciliation && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      onClose();
+                      onOpenReconciliation();
+                    }}
+                    className="btn btn-primary"
+                    style={{
+                      padding: '0.75rem 1rem',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: '0.5rem',
+                      fontSize: '0.9rem',
+                      backgroundColor: '#10b981',
+                      borderColor: '#10b981',
+                      color: '#fff',
+                      fontWeight: 'bold'
+                    }}
+                  >
+                    <Calculator size={16} /> Realizar Cuadratura Final (Restar Fondo Inicial)
+                  </button>
+                )}
+
+                <button
+                  type="button"
+                  onClick={handlePrintAudit}
+                  className="btn btn-outline"
+                  style={{
+                    padding: '0.75rem 1rem',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '0.5rem',
+                    fontSize: '0.9rem',
+                    borderColor: '#10b981',
+                    color: '#10b981'
+                  }}
+                >
+                  <Printer size={16} /> Imprimir Comprobante de Arqueo en Impresora Térmica
+                </button>
+              </div>
             </div>
           )}
         </div>
