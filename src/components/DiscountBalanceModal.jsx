@@ -106,9 +106,11 @@ const DiscountBalanceModal = ({ student, onClose, onSuccess }) => {
         backdropFilter: 'blur(6px)',
         zIndex: 10005,
         display: 'flex',
-        alignItems: 'center',
+        alignItems: 'flex-start',
         justifyContent: 'center',
-        padding: '1rem'
+        padding: '1.25rem 0.5rem 2rem',
+        overflowY: 'auto',
+        WebkitOverflowScrolling: 'touch'
       }}
     >
       <div 
@@ -117,6 +119,7 @@ const DiscountBalanceModal = ({ student, onClose, onSuccess }) => {
         style={{
           width: '100%',
           maxWidth: '460px',
+          marginTop: '0.25rem',
           backgroundColor: 'var(--bg-main)',
           border: '1px solid var(--border-color)',
           borderRadius: 'var(--radius-lg)',

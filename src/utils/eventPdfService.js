@@ -168,8 +168,8 @@ export async function buildEventSummaryPdfDoc({
   doc.setTextColor(203, 213, 225);
   const dateStr = event?.date ? new Date(event.date).toLocaleDateString('es-CL') : 'Sin fecha';
   const genStr = new Date().toLocaleString('es-CL', { dateStyle: 'short', timeStyle: 'short' });
-  const metaCourse = courseName ? `Curso: ${courseName}   •   ` : '';
-  doc.text(`${metaCourse}Fecha Evento: ${dateStr}   •   Generado: ${genStr}`, margin + 6, y + 17);
+  const metaCourse = courseName ? `Curso: ${courseName}   |   ` : '';
+  doc.text(`${metaCourse}Fecha Evento: ${dateStr}   |   Generado: ${genStr}`, margin + 6, y + 17);
 
   // Badge Estado
   const isClosed = event?.status === 'closed';
@@ -210,121 +210,117 @@ export async function buildEventSummaryPdfDoc({
 
   y += 23;
 
-  // Panel 1: Desglose de Ingresos y Flujo de Fondos
-  doc.setFillColor(241, 245, 249);
+  // Panel Unificado: Resumen de Fondos, Ventas y Arqueo de Caja
+  const boxH = 25;
+  doc.setFillColor(248, 250, 252);
   doc.setDrawColor(203, 213, 225);
-  doc.roundedRect(margin, y, printableWidth, 24, 1.5, 1.5, 'FD');
+  doc.roundedRect(margin, y, printableWidth, boxH, 1.5, 1.5, 'FD');
 
+  // Barra de título del panel
+  doc.setFillColor(241, 245, 249);
+  doc.rect(margin, y, printableWidth, 6, 'F');
   doc.setFont('helvetica', 'bold');
-  doc.setFontSize(8.5);
+  doc.setFontSize(8);
   doc.setTextColor(30, 41, 59);
-  doc.text('DESGLOSE DE INGRESOS Y EFECTIVO EN CAJA', margin + 4, y + 6);
+  doc.text('RESUMEN DE FONDOS, VENTAS Y ARQUEO DE CAJA', margin + 4, y + 4.2);
+
+  // Columna Izquierda: Ingresos y Medios de Pago
+  const col1X = margin + 4;
+  const col2X = margin + (printableWidth / 2) + 2;
+  const startY = y + 10;
 
   doc.setFont('helvetica', 'normal');
-  doc.setFontSize(8);
+  doc.setFontSize(7.8);
   doc.setTextColor(71, 85, 105);
-  doc.text(`• Ventas Efectivo (POS): ${formatCLP(cashSales)}`, margin + 4, y + 12);
-  doc.text(`• Ventas Transferencia: ${formatCLP(transferSales)}`, margin + 65, y + 12);
-  doc.text(`• Cuotas Recaudadas: ${formatCLP(mandatoryTotalPaid)}`, margin + 126, y + 12);
 
-  doc.text(`• Fondo Inicial (Caja Chica): ${formatCLP(pettyCashTotal)}`, margin + 4, y + 18.5);
-  doc.text(`• Efectivo Total Gaveta: ${formatCLP(pettyCashTotal + cashSales)}`, margin + 65, y + 18.5);
-  doc.text(`• Margen de Ganancia: ${profitMarginPct.toFixed(1)}%`, margin + 126, y + 18.5);
+  doc.text('Ventas POS en Efectivo:', col1X, startY);
+  doc.setFont('helvetica', 'bold');
+  doc.setTextColor(15, 23, 42);
+  doc.text(formatCLP(cashSales), col1X + 48, startY);
 
-  y += 28;
+  doc.setFont('helvetica', 'normal');
+  doc.setTextColor(71, 85, 105);
+  doc.text('Ventas POS Transferencia:', col1X, startY + 4.8);
+  doc.setFont('helvetica', 'bold');
+  doc.setTextColor(15, 23, 42);
+  doc.text(formatCLP(transferSales), col1X + 48, startY + 4.8);
 
-  // Panel 2: Cuadratura de Cierre de Caja (si existe)
-  if (closingAudit) {
-    const isExact = closingAudit.difference === 0;
-    const isSurplus = closingAudit.difference > 0;
-    const boxColor = isExact ? [236, 253, 245] : isSurplus ? [239, 246, 255] : [254, 242, 242];
-    const borderColor = isExact ? [16, 185, 129] : isSurplus ? [59, 130, 246] : [239, 68, 68];
-    const statusText = isExact 
-      ? 'CUADRATURA EXACTA ($0 diferencia)' 
-      : isSurplus 
-        ? `SOBRANTE (+${formatCLP(closingAudit.difference)})` 
-        : `FALTANTE (${formatCLP(closingAudit.difference)})`;
+  doc.setFont('helvetica', 'normal');
+  doc.setTextColor(71, 85, 105);
+  doc.text('Fondo Inicial (Caja Chica):', col1X, startY + 9.6);
+  doc.setFont('helvetica', 'bold');
+  doc.setTextColor(15, 23, 42);
+  doc.text(formatCLP(pettyCashTotal), col1X + 48, startY + 9.6);
 
-    doc.setFillColor(boxColor[0], boxColor[1], boxColor[2]);
-    doc.setDrawColor(borderColor[0], borderColor[1], borderColor[2]);
-    doc.roundedRect(margin, y, printableWidth, 23, 1.5, 1.5, 'FD');
+  // Columna Derecha: Arqueo y Cierre
+  const expectedCash = pettyCashTotal + cashSales;
+  const countedCash = closingAudit ? (closingAudit.finalCashCounted || 0) : expectedCash;
+  const auditDiff = closingAudit ? (closingAudit.difference || 0) : 0;
 
-    doc.setFont('helvetica', 'bold');
-    doc.setFontSize(8.5);
-    doc.setTextColor(borderColor[0], borderColor[1], borderColor[2]);
-    doc.text(`ESTADO DE CUADRATURA DE CAJA: ${statusText}`, margin + 4, y + 6);
+  doc.setFont('helvetica', 'normal');
+  doc.setTextColor(71, 85, 105);
+  doc.text('Efectivo Esperado en Gaveta:', col2X, startY);
+  doc.setFont('helvetica', 'bold');
+  doc.setTextColor(15, 23, 42);
+  doc.text(formatCLP(expectedCash), col2X + 48, startY);
 
-    doc.setFont('helvetica', 'normal');
-    doc.setFontSize(7.8);
-    doc.setTextColor(71, 85, 105);
-    const countedCash = closingAudit.finalCashCounted || 0;
-    const initialCash = closingAudit.initialPettyCash || pettyCashTotal;
-    const netCounted = countedCash - initialCash;
-    doc.text(`• Efectivo Real Contado: ${formatCLP(countedCash)}`, margin + 4, y + 12);
-    doc.text(`• Fondo Inicial Descontado: -${formatCLP(initialCash)}`, margin + 65, y + 12);
-    doc.text(`• Efectivo Neto Vendido: ${formatCLP(netCounted)}`, margin + 126, y + 12);
+  doc.setFont('helvetica', 'normal');
+  doc.setTextColor(71, 85, 105);
+  doc.text('Efectivo Real Contado:', col2X, startY + 4.8);
+  doc.setFont('helvetica', 'bold');
+  doc.setTextColor(15, 23, 42);
+  doc.text(formatCLP(countedCash), col2X + 48, startY + 4.8);
 
-    doc.text(`• Ventas Efectivo en Sistema: ${formatCLP(closingAudit.systemCashSales || cashSales)}`, margin + 4, y + 18);
-    doc.text(`• Diferencia Final: ${formatCLP(closingAudit.difference)}`, margin + 65, y + 18);
-    doc.text(`• Fecha Cuadratura: ${closingAudit.auditedAt ? new Date(closingAudit.auditedAt).toLocaleString('es-CL', { dateStyle: 'short', timeStyle: 'short' }) : 'Registrada'}`, margin + 126, y + 18);
+  doc.setFont('helvetica', 'normal');
+  doc.setTextColor(71, 85, 105);
+  doc.text('Resultado Cuadratura:', col2X, startY + 9.6);
+  doc.setFont('helvetica', 'bold');
 
-    y += 27;
+  if (!closingAudit) {
+    doc.setTextColor(100, 116, 139);
+    doc.text('Sin cuadratura registrada', col2X + 48, startY + 9.6);
+  } else if (auditDiff === 0) {
+    doc.setTextColor(16, 185, 129);
+    doc.text('Cuadratura Exacta ($0)', col2X + 48, startY + 9.6);
+  } else if (auditDiff > 0) {
+    doc.setTextColor(59, 130, 246);
+    doc.text(`Sobrante (+${formatCLP(auditDiff)})`, col2X + 48, startY + 9.6);
+  } else {
+    doc.setTextColor(220, 38, 38);
+    doc.text(`Faltante (${formatCLP(auditDiff)})`, col2X + 48, startY + 9.6);
   }
 
-  // Panel 3: Control de Cuota Obligatoria
+  y += boxH + 4;
+
+  // Panel: Control de Cuota Obligatoria (Limpio, ordenado, sin emojis ni lista de deudores)
   if (mandatoryDebts.length > 0) {
     const allPaid = mandatoryPendingCount === 0;
+    const cuotaBoxH = 17;
+    checkPageBreak(cuotaBoxH);
+
     doc.setFillColor(allPaid ? 240 : 254, allPaid ? 253 : 242, allPaid ? 244 : 242);
     doc.setDrawColor(allPaid ? 134 : 252, allPaid ? 239 : 165, allPaid ? 172 : 165);
-    
-    // Altura dinámica según si se listan alumnos pendientes
-    const showPendingList = mandatoryPendingCount > 0;
-    const maxShowPending = Math.min(6, mandatoryPendingList.length);
-    const boxH = showPendingList ? 26 + Math.ceil(maxShowPending / 2) * 4.5 : 18;
-
-    checkPageBreak(boxH);
-    doc.roundedRect(margin, y, printableWidth, boxH, 1.5, 1.5, 'FD');
+    doc.roundedRect(margin, y, printableWidth, cuotaBoxH, 1.5, 1.5, 'FD');
 
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(8.5);
     doc.setTextColor(allPaid ? 21 : 185, allPaid ? 128 : 28, allPaid ? 61 : 28);
-    doc.text(`CONTROL DE CUOTA OBLIGATORIA (${formatCLP(event?.mandatoryAmount || 0)} por alumno)`, margin + 4, y + 6);
+    const cuotaTitle = `CONTROL DE CUOTA OBLIGATORIA (${formatCLP(event?.mandatoryAmount || 0)} por alumno)`;
+    doc.text(cuotaTitle, margin + 4, y + 5.5);
 
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(8);
     doc.setTextColor(allPaid ? 22 : 127, allPaid ? 101 : 29, allPaid ? 52 : 29);
-    const statusSummary = allPaid 
-      ? `✓ ¡Excelente! El 100% de los alumnos (${mandatoryPaidCount} familias) tienen su cuota pagada al día.` 
-      : `⚠️ ATENCIÓN: Faltan ${mandatoryPendingCount} apoderado(s) por pagar la cuota obligatoria. Al día: ${mandatoryPaidCount} de ${mandatoryDebts.length} alumnos.`;
-    doc.text(statusSummary, margin + 4, y + 12);
 
-    if (showPendingList) {
-      doc.setFont('helvetica', 'bold');
-      doc.setFontSize(7.5);
-      doc.setTextColor(153, 27, 27);
-      doc.text('Alumnos con cuota pendiente:', margin + 4, y + 17.5);
+    const line1 = `Familias al dia: ${mandatoryPaidCount} de ${mandatoryDebts.length} alumnos (${formatCLP(mandatoryTotalPaid)} recaudado).`;
+    const line2 = allPaid 
+      ? 'Estado: 100% de las familias al dia con la cuota obligatoria.' 
+      : `Familias pendientes: ${mandatoryPendingCount} apoderado(s) por regularizar cuota.`;
 
-      doc.setFont('helvetica', 'normal');
-      doc.setFontSize(7.2);
-      const colW = printableWidth / 2;
-      let pY = y + 22;
+    doc.text(line1, margin + 4, y + 10.5);
+    doc.text(line2, margin + 4, y + 15);
 
-      for (let i = 0; i < maxShowPending; i++) {
-        const p = mandatoryPendingList[i];
-        const colX = (i % 2 === 0) ? margin + 4 : margin + colW;
-        doc.text(`• ${p.studentName}: ${formatCLP(p.amount)} (${p.status === 'review' ? 'En revisión' : 'Pendiente'})`, colX, pY);
-        if (i % 2 !== 0 || i === maxShowPending - 1) {
-          pY += 4.5;
-        }
-      }
-
-      if (mandatoryPendingList.length > maxShowPending) {
-        doc.setFont('helvetica', 'italic');
-        doc.text(`... y ${mandatoryPendingList.length - maxShowPending} alumno(s) más pendientes (revisar en el sistema).`, margin + 4, pY);
-      }
-    }
-
-    y += boxH + 5;
+    y += cuotaBoxH + 5;
   }
 
   // ==========================================
@@ -558,7 +554,7 @@ export async function buildEventSummaryPdfDoc({
     doc.setFont('helvetica', 'italic');
     doc.setFontSize(7.5);
     doc.setTextColor(148, 163, 184);
-    doc.text(`AppCurso - Control Financiero y Gestión Escolar   •   Página ${p} de ${totalPages}`, margin, pageHeight - 6);
+    doc.text(`AppCurso - Control Financiero y Gestion Escolar   |   Pagina ${p} de ${totalPages}`, margin, pageHeight - 6);
     doc.text(`Resumen Oficial Emitido para la Directiva y Apoderados`, margin + printableWidth, pageHeight - 6, { align: 'right' });
   }
 

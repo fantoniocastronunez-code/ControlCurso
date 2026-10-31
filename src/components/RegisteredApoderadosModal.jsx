@@ -25,24 +25,30 @@ const RegisteredApoderadosModal = ({ isOpen, onClose, apoderados }) => {
   });
 
   return (
-    <div style={{
-      position: 'fixed',
-      top: 0,
-      left: 0,
-      width: '100vw',
-      height: '100vh',
-      backgroundColor: 'rgba(0,0,0,0.5)',
-      backdropFilter: 'blur(4px)',
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'center',
-      zIndex: 9999,
-      padding: '1rem'
-    }}>
+    <div 
+      className="modal-overlay"
+      style={{
+        position: 'fixed',
+        top: 0,
+        left: 0,
+        width: '100vw',
+        height: '100vh',
+        backgroundColor: 'rgba(0,0,0,0.5)',
+        backdropFilter: 'blur(4px)',
+        display: 'flex',
+        alignItems: 'flex-start',
+        justifyContent: 'center',
+        zIndex: 9999,
+        padding: '1rem 0.5rem 2rem',
+        overflowY: 'auto',
+        WebkitOverflowScrolling: 'touch'
+      }}
+    >
       <div className="glass-panel" style={{
         width: '100%',
         maxWidth: '500px',
-        maxHeight: '85vh',
+        maxHeight: '88vh',
+        marginTop: '0.25rem',
         backgroundColor: '#1e293b', /* Solid background instead of transparent */
         display: 'flex',
         flexDirection: 'column',

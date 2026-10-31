@@ -210,6 +210,54 @@ h1, h2, h3, h4, h5, h6 {
 }
 
 /* ==========================================================================
+   Global Modal & Popup Top-Alignment
+   Ensures all popups/modals open at the top of the viewport and never get cut off
+   ========================================================================== */
+.modal-overlay,
+.modal-backdrop {
+  position: fixed !important;
+  inset: 0 !important;
+  display: flex !important;
+  align-items: flex-start !important;
+  justify-content: center !important;
+  overflow-y: auto !important;
+  -webkit-overflow-scrolling: touch !important;
+}
+
+@media (max-width: 768px) {
+  .modal-overlay,
+  .modal-backdrop {
+    padding-top: 0.65rem !important;
+    padding-bottom: 2.5rem !important;
+    padding-left: 0.5rem !important;
+    padding-right: 0.5rem !important;
+  }
+
+  .modal-content,
+  .modal-overlay > div,
+  .modal-backdrop > div {
+    max-height: 94vh !important;
+    margin-top: 0 !important;
+  }
+}
+
+@media (min-width: 769px) {
+  .modal-overlay,
+  .modal-backdrop {
+    padding-top: 1.5rem !important;
+    padding-bottom: 3rem !important;
+    padding-left: 1rem !important;
+    padding-right: 1rem !important;
+  }
+
+  .modal-content,
+  .modal-overlay > div,
+  .modal-backdrop > div {
+    max-height: 92vh !important;
+  }
+}
+
+/* ==========================================================================
    Mobile Responsive Layout Fixes
    ========================================================================== */
 /* Scrollable Tabs & Tables Utilities */

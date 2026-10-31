@@ -67,20 +67,28 @@ export const ModalProvider = ({ children }) => {
       {children}
       
       {modalState.isOpen && (
-        <div style={{
-          position: 'fixed',
-          top: 0, left: 0, right: 0, bottom: 0,
-          backgroundColor: 'rgba(0, 0, 0, 0.7)',
-          backdropFilter: 'blur(5px)',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          zIndex: 9999
-        }}>
+        <div 
+          className="modal-overlay"
+          style={{
+            position: 'fixed',
+            top: 0, left: 0, right: 0, bottom: 0,
+            backgroundColor: 'rgba(0, 0, 0, 0.7)',
+            backdropFilter: 'blur(5px)',
+            display: 'flex',
+            alignItems: 'flex-start',
+            justifyContent: 'center',
+            paddingTop: '3.5rem',
+            paddingBottom: '2rem',
+            overflowY: 'auto',
+            WebkitOverflowScrolling: 'touch',
+            zIndex: 9999
+          }}
+        >
           <div className="glass-panel animate-fade-in" style={{
             width: '90%',
             maxWidth: '400px',
             padding: '2rem',
+            marginTop: '0.5rem',
             backgroundColor: 'var(--bg-main)',
             boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.7)',
             border: '1px solid var(--border-color)',

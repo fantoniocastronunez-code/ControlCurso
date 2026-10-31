@@ -421,26 +421,30 @@ const EventManagement = ({ onBack }) => {
 
       {/* Modal de Creación */}
       {showCreateModal && createPortal(
-        <div style={{
-          position: 'fixed',
-          top: 0,
-          left: 0,
-          right: 0,
-          bottom: 0,
-          backgroundColor: 'rgba(15, 23, 42, 0.8)',
-          backdropFilter: 'blur(6px)',
-          zIndex: 9999,
-          display: 'flex',
-          justifyContent: 'center',
-          alignItems: 'center',
-          padding: '1rem',
-          overflowY: 'auto'
-        }}>
+        <div 
+          className="modal-overlay"
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            backgroundColor: 'rgba(15, 23, 42, 0.8)',
+            backdropFilter: 'blur(6px)',
+            zIndex: 9999,
+            display: 'flex',
+            justifyContent: 'center',
+            alignItems: 'flex-start',
+            padding: '1rem 0.5rem 2rem',
+            overflowY: 'auto',
+            WebkitOverflowScrolling: 'touch'
+          }}
+        >
           <div className="glass-panel animate-fade-in" style={{
             width: '100%',
             maxWidth: '560px',
-            maxHeight: 'min(90vh, 700px)',
-            margin: 'auto',
+            maxHeight: 'min(92vh, 750px)',
+            margin: '0.25rem auto',
             backgroundColor: '#0f172a',
             border: '1px solid rgba(99, 102, 241, 0.35)',
             borderRadius: 'var(--radius-lg)',

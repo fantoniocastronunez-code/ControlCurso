@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { Html5Qrcode } from 'html5-qrcode';
 import { Camera, X, RefreshCw, AlertCircle, Hash, Check } from 'lucide-react';
 
@@ -155,18 +156,28 @@ const QRScannerModal = ({ isOpen, onClose, onScanSuccess }) => {
 
   if (!isOpen) return null;
 
-  return (
-    <div style={{
-      position: 'fixed',
-      inset: 0,
-      backgroundColor: 'rgba(0, 0, 0, 0.85)',
-      backdropFilter: 'blur(6px)',
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'center',
-      zIndex: 100000,
-      padding: '1rem'
-    }}>
+  return createPortal(
+    <div 
+      className="modal-overlay"
+      style={{
+        position: 'fixed',
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 0,
+        width: '100vw',
+        height: '100vh',
+        backgroundColor: 'rgba(0, 0, 0, 0.85)',
+        backdropFilter: 'blur(6px)',
+        display: 'flex',
+        alignItems: 'flex-start',
+        justifyContent: 'center',
+        zIndex: 100000,
+        padding: '1.25rem 0.5rem 2rem',
+        overflowY: 'auto',
+        WebkitOverflowScrolling: 'touch'
+      }}
+    >
       <div className="glass-panel" style={{
         width: '100%',
         maxWidth: '440px',
@@ -264,7 +275,8 @@ const QRScannerModal = ({ isOpen, onClose, onScanSuccess }) => {
           </div>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 };
 

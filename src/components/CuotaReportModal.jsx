@@ -522,27 +522,33 @@ const CuotaReportModal = ({
   if (!isOpen) return null;
 
   return createPortal(
-    <div style={{
-      position: 'fixed',
-      top: 0,
-      left: 0,
-      width: '100vw',
-      height: '100vh',
-      backgroundColor: 'rgba(15, 23, 42, 0.75)',
-      backdropFilter: 'blur(6px)',
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'center',
-      zIndex: 9999,
-      padding: '1rem'
-    }}>
+    <div 
+      className="modal-overlay"
+      style={{
+        position: 'fixed',
+        top: 0,
+        left: 0,
+        width: '100vw',
+        height: '100vh',
+        backgroundColor: 'rgba(15, 23, 42, 0.75)',
+        backdropFilter: 'blur(6px)',
+        display: 'flex',
+        alignItems: 'flex-start',
+        justifyContent: 'center',
+        zIndex: 9999,
+        padding: '0.75rem 0.5rem 2rem',
+        overflowY: 'auto',
+        WebkitOverflowScrolling: 'touch'
+      }}
+    >
       <div className="glass-panel" style={{
         width: '100%',
         maxWidth: '560px',
-        maxHeight: '90vh',
+        maxHeight: '92vh',
         backgroundColor: '#0f172a',
         border: '1px solid rgba(16, 124, 65, 0.35)',
         display: 'flex',
+        marginTop: '0.25rem',
         flexDirection: 'column',
         borderRadius: 'var(--radius-lg)',
         boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.5), 0 0 25px rgba(16, 124, 65, 0.15)',

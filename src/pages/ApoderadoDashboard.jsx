@@ -608,8 +608,8 @@ const ApoderadoDashboard = () => {
         <>
           {/* MODAL RUT */}
           {linkingStudentId && (
-            <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.7)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: '1rem' }}>
-              <div className="glass-panel animate-fade-in" style={{ width: '100%', maxWidth: '400px', padding: '2rem', backgroundColor: 'var(--bg-main)' }}>
+            <div className="modal-overlay" style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.7)', display: 'flex', alignItems: 'flex-start', justifyContent: 'center', zIndex: 1000, padding: '1.25rem 0.5rem 2rem', overflowY: 'auto', WebkitOverflowScrolling: 'touch' }}>
+              <div className="glass-panel animate-fade-in" style={{ width: '100%', maxWidth: '400px', marginTop: '0.25rem', padding: '2rem', backgroundColor: 'var(--bg-main)' }}>
                 <h3 style={{ marginBottom: '1rem' }}>Confirmar Identidad</h3>
                 <p style={{ color: 'var(--text-muted)', marginBottom: '1.5rem', fontSize: '0.9rem' }}>
                   Para proteger la privacidad de los alumnos, debes ingresar el RUT de tu hijo/a para confirmar que eres su apoderado.
@@ -1073,8 +1073,8 @@ const ApoderadoDashboard = () => {
 
     {/* MODAL DE PAGO MOVED OUTSIDE CONTAINER */}
     {payingDebt && (
-      <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.7)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: '1rem' }}>
-        <div className="glass-panel" style={{ width: '100%', maxWidth: '500px', padding: '2rem', backgroundColor: 'var(--bg-main)' }}>
+      <div className="modal-overlay" style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.7)', display: 'flex', alignItems: 'flex-start', justifyContent: 'center', zIndex: 1000, padding: '1.25rem 0.5rem 2rem', overflowY: 'auto', WebkitOverflowScrolling: 'touch' }}>
+        <div className="glass-panel" style={{ width: '100%', maxWidth: '500px', marginTop: '0.25rem', padding: '2rem', backgroundColor: 'var(--bg-main)' }}>
           <h3 style={{ marginBottom: '1rem' }}>Informar Pago</h3>
           <p style={{ color: 'var(--text-muted)', marginBottom: '1.5rem' }}>
             Estás reportando el pago para <strong>{payingDebt.title}</strong> del alumno <strong>{payingDebt.studentName}</strong>. 
