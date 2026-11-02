@@ -13,7 +13,8 @@ import {
   loadEventFinancialReportData,
   buildEventClipboardReport,
   buildEventSummaryPdfDoc,
-  shareOrDownloadEventPdf
+  shareOrDownloadEventPdf,
+  formatEventDate
 } from '../../utils/eventPdfService';
 
 const formatMoney = (amount) => {
@@ -352,7 +353,7 @@ const EventReportModal = ({ isOpen, onClose, event }) => {
                 Informe Financiero del Evento
               </h3>
               <p style={{ margin: 0, fontSize: '0.8rem', color: 'var(--text-muted)' }}>
-                {event?.name} • {event?.date ? new Date(event.date).toLocaleDateString('es-CL') : 'Fecha no definida'}
+                {event?.name} • {formatEventDate(event?.date) || 'Fecha no definida'}
               </p>
             </div>
           </div>
@@ -541,7 +542,7 @@ const EventReportModal = ({ isOpen, onClose, event }) => {
               Cargando datos consolidados del informe...
             </div>
           ) : (
-          <>
+            <>
               {/* VISTA 1: RESUMEN Y RENTABILIDAD */}
               {activeSubTab === 'summary' && (
                 <div>
@@ -754,327 +755,327 @@ const EventReportModal = ({ isOpen, onClose, event }) => {
                       </div>
 
                       <div className="table-responsive" style={{ overflowX: 'auto' }}>
-                          <table style={{ width: '100%', minWidth: '480px', borderCollapse: 'collapse', fontSize: '0.88rem' }}>
-                            <thead>
-                              <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.08)', color: 'var(--text-muted)', textAlign: 'left' }}>
-                                <th style={{ padding: '0.5rem', textAlign: 'left' }}>Producto</th>
-                                <th style={{ padding: '0.5rem', textAlign: 'center', width: '85px', whiteSpace: 'nowrap' }}>Unidades</th>
-                                <th style={{ padding: '0.5rem', textAlign: 'right', width: '120px', whiteSpace: 'nowrap' }}>Total Recaudado</th>
-                                <th style={{ padding: '0.5rem', textAlign: 'right', width: '75px', whiteSpace: 'nowrap' }}>% Ventas</th>
+                        <table style={{ width: '100%', minWidth: '480px', borderCollapse: 'collapse', fontSize: '0.88rem' }}>
+                          <thead>
+                            <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.08)', color: 'var(--text-muted)', textAlign: 'left' }}>
+                              <th style={{ padding: '0.5rem', textAlign: 'left' }}>Producto</th>
+                              <th style={{ padding: '0.5rem', textAlign: 'center', width: '85px', whiteSpace: 'nowrap' }}>Unidades</th>
+                              <th style={{ padding: '0.5rem', textAlign: 'right', width: '120px', whiteSpace: 'nowrap' }}>Total Recaudado</th>
+                              <th style={{ padding: '0.5rem', textAlign: 'right', width: '75px', whiteSpace: 'nowrap' }}>% Ventas</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {itemsSummary.slice(0, 5).map((item, idx) => (
+                              <tr key={idx} style={{ borderBottom: '1px solid rgba(255,255,255,0.03)' }}>
+                                <td style={{ padding: '0.55rem 0.5rem', wordBreak: 'break-word', whiteSpace: 'normal' }}>
+                                  <strong style={{ color: '#fff', display: 'block', wordBreak: 'break-word', lineHeight: '1.3' }}>{item.name}</strong>
+                                </td>
+                                <td style={{ padding: '0.55rem 0.5rem', textAlign: 'center', width: '85px', whiteSpace: 'nowrap' }}>
+                                  {item.qty} un.
+                                </td>
+                                <td style={{ padding: '0.55rem 0.5rem', textAlign: 'right', width: '120px', whiteSpace: 'nowrap', color: 'var(--success)', fontWeight: 'bold' }}>
+                                  {formatMoney(item.total)}
+                                </td>
+                                <td style={{ padding: '0.55rem 0.5rem', textAlign: 'right', width: '75px', whiteSpace: 'nowrap', color: 'var(--text-muted)' }}>
+                                  {item.percentage.toFixed(1)}%
+                                </td>
                               </tr>
-                            </thead>
-                            <tbody>
-                              {itemsSummary.slice(0, 5).map((item, idx) => (
-                                <tr key={idx} style={{ borderBottom: '1px solid rgba(255,255,255,0.03)' }}>
-                                    <td style={{ padding: '0.55rem 0.5rem', wordBreak: 'break-word', whiteSpace: 'normal' }}>
-                                      <strong style={{ color: '#fff', display: 'block', wordBreak: 'break-word', lineHeight: '1.3' }}>{item.name}</strong>
-                                    </td>
-                                      <td style={{ padding: '0.55rem 0.5rem', textAlign: 'center', width: '85px', whiteSpace: 'nowrap' }}>
-                                        {item.qty} un.
-                                      </td>
-                                        <td style={{ padding: '0.55rem 0.5rem', textAlign: 'right', width: '120px', whiteSpace: 'nowrap', color: 'var(--success)', fontWeight: 'bold' }}>
-                                          {formatMoney(item.total)}
-                                        </td>
-                                          <td style={{ padding: '0.55rem 0.5rem', textAlign: 'right', width: '75px', whiteSpace: 'nowrap', color: 'var(--text-muted)' }}>
-                                            {item.percentage.toFixed(1)}%
-                                          </td>
-                                        </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* VISTA 2: VENTAS POR ARTÍCULOS */}
+              {activeSubTab === 'items' && (
+                <div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem', flexWrap: 'wrap', gap: '0.5rem' }}>
+                    <div>
+                      <h4 style={{ margin: 0, fontSize: '1.05rem', color: '#fff' }}>
+                        Desglose Completo de Ventas por Artículos
+                      </h4>
+                      <p style={{ margin: 0, fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+                        Total de artículos vendidos en el POS ordenados por recaudación
+                      </p>
+                    </div>
+                    <div style={{ textAlign: 'right' }}>
+                      <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>Total Ventas POS:</span>
+                      <strong style={{ fontSize: '1.2rem', color: 'var(--success)', display: 'block' }}>
+                        {formatMoney(totalSales)}
+                      </strong>
+                    </div>
+                  </div>
+
+                  {itemsSummary.length === 0 ? (
+                    <div style={{ textAlign: 'center', padding: '3rem', color: 'var(--text-muted)' }}>
+                      No hay productos registrados en las ventas de este evento.
+                    </div>
+                  ) : (
+                    <div className="table-responsive" style={{ overflowX: 'auto', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '10px' }}>
+                      <table style={{ width: '100%', minWidth: '650px', borderCollapse: 'collapse', fontSize: '0.88rem', textAlign: 'left' }}>
+                        <thead>
+                          <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.1)', backgroundColor: 'rgba(255,255,255,0.03)' }}>
+                            <th style={{ padding: '0.75rem', width: '38px' }}>#</th>
+                            <th style={{ padding: '0.75rem' }}>Artículo / Producto</th>
+                            <th style={{ padding: '0.75rem', textAlign: 'center', width: '85px', whiteSpace: 'nowrap' }}>Unidades</th>
+                            <th style={{ padding: '0.75rem', textAlign: 'right', width: '95px', whiteSpace: 'nowrap' }}>Precio Unit.</th>
+                            <th style={{ padding: '0.75rem', textAlign: 'right', width: '115px', whiteSpace: 'nowrap' }}>Total Recaudado</th>
+                            <th style={{ padding: '0.75rem', textAlign: 'right', width: '85px', whiteSpace: 'nowrap' }}>% Participación</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {itemsSummary.map((item, idx) => (
+                            <tr key={idx} style={{ borderBottom: '1px solid rgba(255,255,255,0.04)', backgroundColor: idx % 2 === 0 ? 'transparent' : 'rgba(255,255,255,0.015)' }}>
+                              <td style={{ padding: '0.75rem', color: 'var(--text-muted)' }}>{idx + 1}</td>
+                              <td style={{ padding: '0.75rem', wordBreak: 'break-word', whiteSpace: 'normal' }}>
+                                <strong style={{ color: '#fff', display: 'block', wordBreak: 'break-word', lineHeight: '1.3' }}>{item.name}</strong>
+                              </td>
+                              <td style={{ padding: '0.75rem', textAlign: 'center', width: '85px', whiteSpace: 'nowrap', fontWeight: 'bold' }}>
+                                {item.qty} un.
+                              </td>
+                              <td style={{ padding: '0.75rem', textAlign: 'right', width: '95px', whiteSpace: 'nowrap', color: 'var(--text-muted)' }}>
+                                {formatMoney(item.unitPrice)}
+                              </td>
+                              <td style={{ padding: '0.75rem', textAlign: 'right', width: '115px', whiteSpace: 'nowrap', color: 'var(--success)', fontWeight: 'bold' }}>
+                                {formatMoney(item.total)}
+                              </td>
+                              <td style={{ padding: '0.75rem', textAlign: 'right', width: '85px', whiteSpace: 'nowrap' }}>
+                                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '0.5rem' }}>
+                                  <div style={{ width: '45px', height: '6px', borderRadius: '3px', backgroundColor: 'rgba(255,255,255,0.1)', overflow: 'hidden' }}>
+                                    <div style={{ width: `${item.percentage}%`, height: '100%', backgroundColor: 'var(--primary)' }} />
+                                  </div>
+                                  <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)', minWidth: '32px' }}>
+                                    {item.percentage.toFixed(1)}%
+                                  </span>
+                                </div>
+                              </td>
+                            </tr>
                           ))}
-                                      </tbody>
-                                    </table>
-                                  </div>
-                                </div>
-                              )}
-                            </div>
-            )}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </div>
+              )}
 
-                            {/* VISTA 2: VENTAS POR ARTÍCULOS */}
-                            {activeSubTab === 'items' && (
-                              <div>
-                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem', flexWrap: 'wrap', gap: '0.5rem' }}>
-                                  <div>
-                                    <h4 style={{ margin: 0, fontSize: '1.05rem', color: '#fff' }}>
-                                      Desglose Completo de Ventas por Artículos
-                                    </h4>
-                                    <p style={{ margin: 0, fontSize: '0.8rem', color: 'var(--text-muted)' }}>
-                                      Total de artículos vendidos en el POS ordenados por recaudación
-                                    </p>
-                                  </div>
-                                  <div style={{ textAlign: 'right' }}>
-                                    <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>Total Ventas POS:</span>
-                                    <strong style={{ fontSize: '1.2rem', color: 'var(--success)', display: 'block' }}>
-                                      {formatMoney(totalSales)}
-                                    </strong>
-                                  </div>
-                                </div>
+              {/* VISTA 3: CONTROL DE CUOTA OBLIGATORIA */}
+              {activeSubTab === 'debts' && (
+                <div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem', flexWrap: 'wrap', gap: '1rem' }}>
+                    <div>
+                      <h4 style={{ margin: 0, fontSize: '1.05rem', color: '#fff' }}>
+                        Control de Cuota Obligatoria
+                      </h4>
+                      <p style={{ margin: 0, fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+                        Cuota base fijada: <strong>{formatMoney(event?.mandatoryAmount || 0)}</strong> por familia
+                      </p>
+                    </div>
 
-                                {itemsSummary.length === 0 ? (
-                                  <div style={{ textAlign: 'center', padding: '3rem', color: 'var(--text-muted)' }}>
-                                    No hay productos registrados en las ventas de este evento.
-                                  </div>
-                                ) : (
-                                  <div className="table-responsive" style={{ overflowX: 'auto', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '10px' }}>
-                                    <table style={{ width: '100%', minWidth: '650px', borderCollapse: 'collapse', fontSize: '0.88rem', textAlign: 'left' }}>
-                                      <thead>
-                                        <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.1)', backgroundColor: 'rgba(255,255,255,0.03)' }}>
-                                          <th style={{ padding: '0.75rem', width: '38px' }}>#</th>
-                                          <th style={{ padding: '0.75rem' }}>Artículo / Producto</th>
-                                          <th style={{ padding: '0.75rem', textAlign: 'center', width: '85px', whiteSpace: 'nowrap' }}>Unidades</th>
-                                          <th style={{ padding: '0.75rem', textAlign: 'right', width: '95px', whiteSpace: 'nowrap' }}>Precio Unit.</th>
-                                          <th style={{ padding: '0.75rem', textAlign: 'right', width: '115px', whiteSpace: 'nowrap' }}>Total Recaudado</th>
-                                          <th style={{ padding: '0.75rem', textAlign: 'right', width: '85px', whiteSpace: 'nowrap' }}>% Participación</th>
-                                        </tr>
-                                      </thead>
-                                      <tbody>
-                                        {itemsSummary.map((item, idx) => (
-                                          <tr key={idx} style={{ borderBottom: '1px solid rgba(255,255,255,0.04)', backgroundColor: idx % 2 === 0 ? 'transparent' : 'rgba(255,255,255,0.015)' }}>
-                                            <td style={{ padding: '0.75rem', color: 'var(--text-muted)' }}>{idx + 1}</td>
-                                              <td style={{ padding: '0.75rem', wordBreak: 'break-word', whiteSpace: 'normal' }}>
-                                                <strong style={{ color: '#fff', display: 'block', wordBreak: 'break-word', lineHeight: '1.3' }}>{item.name}</strong>
-                                              </td>
-                                                <td style={{ padding: '0.75rem', textAlign: 'center', width: '85px', whiteSpace: 'nowrap', fontWeight: 'bold' }}>
-                                                  {item.qty} un.
-                                                </td>
-                                                  <td style={{ padding: '0.75rem', textAlign: 'right', width: '95px', whiteSpace: 'nowrap', color: 'var(--text-muted)' }}>
-                                                    {formatMoney(item.unitPrice)}
-                                                  </td>
-                                                    <td style={{ padding: '0.75rem', textAlign: 'right', width: '115px', whiteSpace: 'nowrap', color: 'var(--success)', fontWeight: 'bold' }}>
-                                                      {formatMoney(item.total)}
-                                                    </td>
-                                                      <td style={{ padding: '0.75rem', textAlign: 'right', width: '85px', whiteSpace: 'nowrap' }}>
-                                                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '0.5rem' }}>
-                                                            <div style={{ width: '45px', height: '6px', borderRadius: '3px', backgroundColor: 'rgba(255,255,255,0.1)', overflow: 'hidden' }}>
-                                                              <div style={{ width: `${item.percentage}%`, height: '100%', backgroundColor: 'var(--primary)' }} />
-                                                            </div>
-                                                              <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)', minWidth: '32px' }}>
-                                                                {item.percentage.toFixed(1)}%
-                                                              </span>
-                                                          </div>
-                                                      </td>
-                                                    </tr>
-                        ))}
-                                                  </tbody>
-                                                </table>
-                                              </div>
-                )}
-                                            </div>
-            )}
+                    <div style={{ display: 'flex', gap: '1rem' }}>
+                      <div style={{ padding: '0.5rem 1rem', borderRadius: '8px', backgroundColor: 'rgba(16,185,129,0.1)', border: '1px solid rgba(16,185,129,0.3)' }}>
+                        <span style={{ fontSize: '0.72rem', color: '#6ee7b7', display: 'block' }}>Pagadas al día</span>
+                        <strong style={{ fontSize: '1.1rem', color: '#10b981' }}>{mandatoryPaidCount} alumnos</strong>
+                      </div>
+                      <div style={{ padding: '0.5rem 1rem', borderRadius: '8px', backgroundColor: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.3)' }}>
+                        <span style={{ fontSize: '0.72rem', color: '#fca5a5', display: 'block' }}>Pendientes de Pago</span>
+                        <strong style={{ fontSize: '1.1rem', color: '#f87171' }}>{mandatoryPendingCount} papás</strong>
+                      </div>
+                    </div>
+                  </div>
 
-                                            {/* VISTA 3: CONTROL DE CUOTA OBLIGATORIA */}
-                                            {activeSubTab === 'debts' && (
-                                              <div>
-                                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem', flexWrap: 'wrap', gap: '1rem' }}>
-                                                  <div>
-                                                    <h4 style={{ margin: 0, fontSize: '1.05rem', color: '#fff' }}>
-                                                      Control de Cuota Obligatoria
-                                                    </h4>
-                                                    <p style={{ margin: 0, fontSize: '0.8rem', color: 'var(--text-muted)' }}>
-                                                      Cuota base fijada: <strong>{formatMoney(event?.mandatoryAmount || 0)}</strong> por familia
-                                                    </p>
-                                                  </div>
+                  {mandatoryPendingCount === 0 ? (
+                    <div style={{
+                      padding: '2.5rem',
+                      textAlign: 'center',
+                      backgroundColor: 'rgba(16, 185, 129, 0.08)',
+                      borderRadius: '12px',
+                      border: '1px solid rgba(16, 185, 129, 0.3)'
+                    }}>
+                      <CheckCircle2 size={36} color="#10b981" style={{ margin: '0 auto 0.5rem' }} />
+                      <h4 style={{ margin: 0, color: '#fff', fontSize: '1.1rem' }}>¡Todas las familias están al día!</h4>
+                      <p style={{ margin: '0.25rem 0 0', color: 'var(--text-muted)', fontSize: '0.85rem' }}>
+                        No hay papás con cuota obligatoria pendiente en este evento.
+                      </p>
+                    </div>
+                  ) : (
+                    <div>
+                      <div style={{
+                        padding: '0.85rem 1.15rem',
+                        borderRadius: '8px',
+                        backgroundColor: 'rgba(239, 68, 68, 0.1)',
+                        border: '1px solid rgba(239, 68, 68, 0.25)',
+                        marginBottom: '1rem',
+                        fontSize: '0.85rem',
+                        color: '#fca5a5'
+                      }}>
+                        ⚠️ <strong>{mandatoryPendingCount} apoderado(s)</strong> aún no registran el pago de la cuota obligatoria. Puedes usar sus correos para recordarles o enviar el resumen por WhatsApp.
+                      </div>
 
-                                                  <div style={{ display: 'flex', gap: '1rem' }}>
-                                                    <div style={{ padding: '0.5rem 1rem', borderRadius: '8px', backgroundColor: 'rgba(16,185,129,0.1)', border: '1px solid rgba(16,185,129,0.3)' }}>
-                                                      <span style={{ fontSize: '0.72rem', color: '#6ee7b7', display: 'block' }}>Pagadas al día</span>
-                                                      <strong style={{ fontSize: '1.1rem', color: '#10b981' }}>{mandatoryPaidCount} alumnos</strong>
-                                                    </div>
-                                                    <div style={{ padding: '0.5rem 1rem', borderRadius: '8px', backgroundColor: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.3)' }}>
-                                                      <span style={{ fontSize: '0.72rem', color: '#fca5a5', display: 'block' }}>Pendientes de Pago</span>
-                                                      <strong style={{ fontSize: '1.1rem', color: '#f87171' }}>{mandatoryPendingCount} papás</strong>
-                                                    </div>
-                                                  </div>
-                                                </div>
+                      <div className="table-responsive" style={{ overflowX: 'auto', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '10px' }}>
+                        <table style={{ width: '100%', minWidth: '580px', borderCollapse: 'collapse', fontSize: '0.88rem', textAlign: 'left' }}>
+                          <thead>
+                            <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.1)', backgroundColor: 'rgba(255,255,255,0.03)' }}>
+                              <th style={{ padding: '0.75rem', width: '40px' }}>#</th>
+                              <th style={{ padding: '0.75rem' }}>Alumno(a)</th>
+                              <th style={{ padding: '0.75rem' }}>Contacto / Correo Apoderado</th>
+                              <th style={{ padding: '0.75rem', textAlign: 'center' }}>Estado</th>
+                              <th style={{ padding: '0.75rem', textAlign: 'right' }}>Monto Pendiente</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {mandatoryPendingList.map((p, idx) => (
+                              <tr key={p.id || idx} style={{ borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
+                                <td style={{ padding: '0.75rem', color: 'var(--text-muted)' }}>{idx + 1}</td>
+                                <td style={{ padding: '0.75rem' }}>
+                                  <strong style={{ color: '#fff' }}>{p.studentName}</strong>
+                                </td>
+                                <td style={{ padding: '0.75rem', color: 'var(--text-muted)', fontSize: '0.82rem' }}>
+                                  {p.apoderadoEmails && p.apoderadoEmails.length > 0
+                                    ? p.apoderadoEmails.join(', ')
+                                    : 'Sin correo registrado'}
+                                </td>
+                                <td style={{ padding: '0.75rem', textAlign: 'center' }}>
+                                  <span style={{
+                                    fontSize: '0.75rem',
+                                    padding: '2px 8px',
+                                    borderRadius: '10px',
+                                    fontWeight: 'bold',
+                                    backgroundColor: p.status === 'review' ? 'rgba(59, 130, 246, 0.2)' : 'rgba(239, 68, 68, 0.2)',
+                                    color: p.status === 'review' ? '#60a5fa' : '#f87171'
+                                  }}>
+                                    {p.status === 'review' ? 'En revisión' : 'Pendiente'}
+                                  </span>
+                                </td>
+                                <td style={{ padding: '0.75rem', textAlign: 'right', color: 'var(--danger)', fontWeight: 'bold' }}>
+                                  {formatMoney(p.amount)}
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
 
-                                                {mandatoryPendingCount === 0 ? (
-                                                  <div style={{
-                                                    padding: '2.5rem',
-                                                    textAlign: 'center',
-                                                    backgroundColor: 'rgba(16, 185, 129, 0.08)',
-                                                    borderRadius: '12px',
-                                                    border: '1px solid rgba(16, 185, 129, 0.3)'
-                                                  }}>
-                                                    <CheckCircle2 size={36} color="#10b981" style={{ margin: '0 auto 0.5rem' }} />
-                                                    <h4 style={{ margin: 0, color: '#fff', fontSize: '1.1rem' }}>¡Todas las familias están al día!</h4>
-                                                    <p style={{ margin: '0.25rem 0 0', color: 'var(--text-muted)', fontSize: '0.85rem' }}>
-                                                      No hay papás con cuota obligatoria pendiente en este evento.
-                                                    </p>
-                                                  </div>
-                                                ) : (
-                                                  <div>
-                                                    <div style={{
-                                                      padding: '0.85rem 1.15rem',
-                                                      borderRadius: '8px',
-                                                      backgroundColor: 'rgba(239, 68, 68, 0.1)',
-                                                      border: '1px solid rgba(239, 68, 68, 0.25)',
-                                                      marginBottom: '1rem',
-                                                      fontSize: '0.85rem',
-                                                      color: '#fca5a5'
-                                                    }}>
-                                                      ⚠️ <strong>{mandatoryPendingCount} apoderado(s)</strong> aún no registran el pago de la cuota obligatoria. Puedes usar sus correos para recordarles o enviar el resumen por WhatsApp.
-                                                    </div>
+              {/* VISTA 4: GASTOS DEL EVENTO */}
+              {activeSubTab === 'expenses' && (
+                <div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem', flexWrap: 'wrap', gap: '0.5rem' }}>
+                    <div>
+                      <h4 style={{ margin: 0, fontSize: '1.05rem', color: '#fff' }}>
+                        Detalle de Gastos del Evento
+                      </h4>
+                      <p style={{ margin: 0, fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+                        Egresos y compras imputadas al fondo del evento
+                      </p>
+                    </div>
+                    <div style={{ textAlign: 'right' }}>
+                      <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>Total Gastos:</span>
+                      <strong style={{ fontSize: '1.2rem', color: 'var(--danger)', display: 'block' }}>
+                        {formatMoney(totalExpenses)}
+                      </strong>
+                    </div>
+                  </div>
 
-                                                    <div className="table-responsive" style={{ overflowX: 'auto', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '10px' }}>
-                                                      <table style={{ width: '100%', minWidth: '580px', borderCollapse: 'collapse', fontSize: '0.88rem', textAlign: 'left' }}>
-                                                        <thead>
-                                                          <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.1)', backgroundColor: 'rgba(255,255,255,0.03)' }}>
-                                                            <th style={{ padding: '0.75rem', width: '40px' }}>#</th>
-                                                            <th style={{ padding: '0.75rem' }}>Alumno(a)</th>
-                                                            <th style={{ padding: '0.75rem' }}>Contacto / Correo Apoderado</th>
-                                                            <th style={{ padding: '0.75rem', textAlign: 'center' }}>Estado</th>
-                                                            <th style={{ padding: '0.75rem', textAlign: 'right' }}>Monto Pendiente</th>
-                                                          </tr>
-                                                        </thead>
-                                                        <tbody>
-                                                          {mandatoryPendingList.map((p, idx) => (
-                                                            <tr key={p.id || idx} style={{ borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
-                                                              <td style={{ padding: '0.75rem', color: 'var(--text-muted)' }}>{idx + 1}</td>
-                                                              <td style={{ padding: '0.75rem' }}>
-                                                                <strong style={{ color: '#fff' }}>{p.studentName}</strong>
-                                                              </td>
-                                                              <td style={{ padding: '0.75rem', color: 'var(--text-muted)', fontSize: '0.82rem' }}>
-                                                                {p.apoderadoEmails && p.apoderadoEmails.length > 0
-                                                                  ? p.apoderadoEmails.join(', ')
-                                                                  : 'Sin correo registrado'}
-                                                              </td>
-                                                              <td style={{ padding: '0.75rem', textAlign: 'center' }}>
-                                                                <span style={{
-                                                                  fontSize: '0.75rem',
-                                                                  padding: '2px 8px',
-                                                                  borderRadius: '10px',
-                                                                  fontWeight: 'bold',
-                                                                  backgroundColor: p.status === 'review' ? 'rgba(59, 130, 246, 0.2)' : 'rgba(239, 68, 68, 0.2)',
-                                                                  color: p.status === 'review' ? '#60a5fa' : '#f87171'
-                                                                }}>
-                                                                  {p.status === 'review' ? 'En revisión' : 'Pendiente'}
-                                                                </span>
-                                                              </td>
-                                                              <td style={{ padding: '0.75rem', textAlign: 'right', color: 'var(--danger)', fontWeight: 'bold' }}>
-                                                                {formatMoney(p.amount)}
-                                                              </td>
-                                                            </tr>
-                                                          ))}
-                                                        </tbody>
-                                                      </table>
-                                                    </div>
-                                                  </div>
-                                                )}
-                                              </div>
-                                            )}
+                  {outcomes.length === 0 ? (
+                    <div style={{ textAlign: 'center', padding: '3rem', color: 'var(--text-muted)' }}>
+                      No se han registrado gastos para este evento.
+                    </div>
+                  ) : (
+                    <div className="table-responsive" style={{ overflowX: 'auto', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '10px' }}>
+                      <table style={{ width: '100%', minWidth: '650px', borderCollapse: 'collapse', fontSize: '0.88rem', textAlign: 'left' }}>
+                        <thead>
+                          <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.1)', backgroundColor: 'rgba(255,255,255,0.03)' }}>
+                            <th style={{ padding: '0.75rem' }}>Fecha</th>
+                            <th style={{ padding: '0.75rem' }}>Descripción / Concepto</th>
+                            <th style={{ padding: '0.75rem' }}>Responsable</th>
+                            <th style={{ padding: '0.75rem', textAlign: 'center' }}>Medio de Pago</th>
+                            <th style={{ padding: '0.75rem', textAlign: 'right' }}>Monto</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {outcomes.map((out, idx) => (
+                            <tr key={out.id || idx} style={{ borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
+                              <td style={{ padding: '0.75rem', color: 'var(--text-muted)', fontSize: '0.82rem' }}>
+                                {formatEventDate(out.date) || '—'}
+                              </td>
+                              <td style={{ padding: '0.75rem' }}>
+                                <strong style={{ color: '#fff' }}>{out.title}</strong>
+                              </td>
+                              <td style={{ padding: '0.75rem', color: 'var(--text-muted)' }}>
+                                {out.responsable || out.createdBy || 'Tesorero/a'}
+                              </td>
+                              <td style={{ padding: '0.75rem', textAlign: 'center' }}>
+                                <span style={{
+                                  fontSize: '0.75rem',
+                                  padding: '2px 8px',
+                                  borderRadius: '10px',
+                                  backgroundColor: out.paymentMethod === 'transfer' ? 'rgba(59,130,246,0.15)' : 'rgba(16,185,129,0.15)',
+                                  color: out.paymentMethod === 'transfer' ? '#93c5fd' : '#6ee7b7'
+                                }}>
+                                  {out.paymentMethod === 'transfer' ? 'Transferencia' : 'Efectivo'}
+                                </span>
+                              </td>
+                              <td style={{ padding: '0.75rem', textAlign: 'right', color: 'var(--danger)', fontWeight: 'bold' }}>
+                                - {formatMoney(out.amount)}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </div>
+              )}
+            </>
+          )}
 
-                                            {/* VISTA 4: GASTOS DEL EVENTO */}
-                                            {activeSubTab === 'expenses' && (
-                                              <div>
-                                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem', flexWrap: 'wrap', gap: '0.5rem' }}>
-                                                  <div>
-                                                    <h4 style={{ margin: 0, fontSize: '1.05rem', color: '#fff' }}>
-                                                      Detalle de Gastos del Evento
-                                                    </h4>
-                                                    <p style={{ margin: 0, fontSize: '0.8rem', color: 'var(--text-muted)' }}>
-                                                      Egresos y compras imputadas al fondo del evento
-                                                    </p>
-                                                  </div>
-                                                  <div style={{ textAlign: 'right' }}>
-                                                    <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>Total Gastos:</span>
-                                                    <strong style={{ fontSize: '1.2rem', color: 'var(--danger)', display: 'block' }}>
-                                                      {formatMoney(totalExpenses)}
-                                                    </strong>
-                                                  </div>
-                                                </div>
+        </div>
 
-                                                {outcomes.length === 0 ? (
-                                                  <div style={{ textAlign: 'center', padding: '3rem', color: 'var(--text-muted)' }}>
-                                                    No se han registrado gastos para este evento.
-                                                  </div>
-                                                ) : (
-                                                  <div className="table-responsive" style={{ overflowX: 'auto', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '10px' }}>
-                                                    <table style={{ width: '100%', minWidth: '650px', borderCollapse: 'collapse', fontSize: '0.88rem', textAlign: 'left' }}>
-                                                      <thead>
-                                                        <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.1)', backgroundColor: 'rgba(255,255,255,0.03)' }}>
-                                                          <th style={{ padding: '0.75rem' }}>Fecha</th>
-                                                          <th style={{ padding: '0.75rem' }}>Descripción / Concepto</th>
-                                                          <th style={{ padding: '0.75rem' }}>Responsable</th>
-                                                          <th style={{ padding: '0.75rem', textAlign: 'center' }}>Medio de Pago</th>
-                                                          <th style={{ padding: '0.75rem', textAlign: 'right' }}>Monto</th>
-                                                        </tr>
-                                                      </thead>
-                                                      <tbody>
-                                                        {outcomes.map((out, idx) => (
-                                                          <tr key={out.id || idx} style={{ borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
-                                                            <td style={{ padding: '0.75rem', color: 'var(--text-muted)', fontSize: '0.82rem' }}>
-                                                              {out.date ? new Date(out.date).toLocaleDateString('es-CL') : '—'}
-                                                            </td>
-                                                            <td style={{ padding: '0.75rem' }}>
-                                                              <strong style={{ color: '#fff' }}>{out.title}</strong>
-                                                            </td>
-                                                            <td style={{ padding: '0.75rem', color: 'var(--text-muted)' }}>
-                                                              {out.responsable || out.createdBy || 'Tesorero/a'}
-                                                            </td>
-                                                            <td style={{ padding: '0.75rem', textAlign: 'center' }}>
-                                                              <span style={{
-                                                                fontSize: '0.75rem',
-                                                                padding: '2px 8px',
-                                                                borderRadius: '10px',
-                                                                backgroundColor: out.paymentMethod === 'transfer' ? 'rgba(59,130,246,0.15)' : 'rgba(16,185,129,0.15)',
-                                                                color: out.paymentMethod === 'transfer' ? '#93c5fd' : '#6ee7b7'
-                                                              }}>
-                                                                {out.paymentMethod === 'transfer' ? 'Transferencia' : 'Efectivo'}
-                                                              </span>
-                                                            </td>
-                                                            <td style={{ padding: '0.75rem', textAlign: 'right', color: 'var(--danger)', fontWeight: 'bold' }}>
-                                                              - {formatMoney(out.amount)}
-                                                            </td>
-                                                          </tr>
-                                                        ))}
-                                                      </tbody>
-                                                    </table>
-                                                  </div>
-                                                )}
-                                              </div>
-                                            )}
-                                          </>
-                                        )}
+        {/* Pie del Modal con Acciones */}
+        <div style={{
+          padding: '1rem 1.5rem',
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          borderTop: '1px solid rgba(255, 255, 255, 0.1)',
+          backgroundColor: 'rgba(0, 0, 0, 0.3)',
+          flexWrap: 'wrap',
+          gap: '0.75rem'
+        }}>
+          <div style={{ fontSize: '0.82rem', color: 'var(--text-muted)' }}>
+            AppCurso • Control y Transparencia Financiera Escolar
+          </div>
 
-                                      </div>
-
-                                      {/* Pie del Modal con Acciones */}
-                                      <div style={{
-                                        padding: '1rem 1.5rem',
-                                        display: 'flex',
-                                        justifyContent: 'space-between',
-                                        alignItems: 'center',
-                                        borderTop: '1px solid rgba(255, 255, 255, 0.1)',
-                                        backgroundColor: 'rgba(0, 0, 0, 0.3)',
-                                        flexWrap: 'wrap',
-                                        gap: '0.75rem'
-                                      }}>
-                                        <div style={{ fontSize: '0.82rem', color: 'var(--text-muted)' }}>
-                                          AppCurso • Control y Transparencia Financiera Escolar
-                                        </div>
-
-                                        <div style={{ display: 'flex', gap: '0.5rem' }}>
-                                          <button
-                                            type="button"
-                                            onClick={handleCopyWhatsApp}
-                                            className="btn btn-outline"
-                                            style={{ fontSize: '0.85rem', padding: '0.45rem 1rem', display: 'flex', alignItems: 'center', gap: '0.35rem' }}
-                                          >
-                                            <Share2 size={15} color="#25D366" /> Copiar para WhatsApp
-                                          </button>
-                                          <button
-                                            type="button"
-                                            onClick={handleDownloadPdf}
-                                            disabled={generatingPdf}
-                                            className="btn btn-primary"
-                                            style={{ fontSize: '0.85rem', padding: '0.45rem 1.25rem', display: 'flex', alignItems: 'center', gap: '0.35rem', backgroundColor: 'var(--primary)' }}
-                                          >
-                                            <Download size={15} /> Descargar PDF
-                                          </button>
-                                        </div>
-                                      </div>
-                                  </div>
-  </div>,
-                              document.body
-                            );
+          <div style={{ display: 'flex', gap: '0.5rem' }}>
+            <button
+              type="button"
+              onClick={handleCopyWhatsApp}
+              className="btn btn-outline"
+              style={{ fontSize: '0.85rem', padding: '0.45rem 1rem', display: 'flex', alignItems: 'center', gap: '0.35rem' }}
+            >
+              <Share2 size={15} color="#25D366" /> Copiar para WhatsApp
+            </button>
+            <button
+              type="button"
+              onClick={handleDownloadPdf}
+              disabled={generatingPdf}
+              className="btn btn-primary"
+              style={{ fontSize: '0.85rem', padding: '0.45rem 1.25rem', display: 'flex', alignItems: 'center', gap: '0.35rem', backgroundColor: 'var(--primary)' }}
+            >
+              <Download size={15} /> Descargar PDF
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>,
+    document.body
+  );
 };
 
-                            export default EventReportModal;
+export default EventReportModal;

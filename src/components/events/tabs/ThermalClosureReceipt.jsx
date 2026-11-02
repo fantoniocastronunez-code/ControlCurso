@@ -1,5 +1,6 @@
 import React from 'react';
 import { createPortal } from 'react-dom';
+import { formatEventDate } from '../../../utils/eventPdfService';
 
 const ThermalClosureReceipt = ({ event, stats, itemsSummary, expensesSummary, inventorySummary = [], cashiersSummary = [] }) => {
   if (!event || !stats) return null;
@@ -13,7 +14,7 @@ const ThermalClosureReceipt = ({ event, stats, itemsSummary, expensesSummary, in
       <div style={{ textAlign: 'center', marginBottom: '10px' }}>
         <h3 style={{ margin: '0 0 5px 0', fontSize: '14px', textTransform: 'uppercase' }}>CIERRE DE EVENTO</h3>
         <h4 style={{ margin: '0 0 5px 0', fontSize: '12px' }}>{event.name}</h4>
-        <p style={{ margin: '0', fontSize: '10px' }}>Fecha: {new Date(event.date).toLocaleDateString('es-CL')}</p>
+        <p style={{ margin: '0', fontSize: '10px' }}>Fecha: {formatEventDate(event.date)}</p>
         <p style={{ margin: '0', fontSize: '10px' }}>Impreso: {new Date().toLocaleString('es-CL')}</p>
       </div>
 
@@ -216,11 +217,11 @@ const ThermalClosureReceipt = ({ event, stats, itemsSummary, expensesSummary, in
           <div style={{ textAlign: 'center', fontSize: '10px' }}>Sin insumos registrados</div>
         )}
       </div>
-      
+
       <div style={{ textAlign: 'center', marginTop: '15px', fontSize: '10px' }}>
         <p>Fin de reporte</p>
       </div>
-      
+
       <style>{`
         @media print {
           body > *:not(.thermal-receipt) {

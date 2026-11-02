@@ -4,6 +4,7 @@ import { collection, getDocs, doc, setDoc, query, where } from 'firebase/firesto
 import { Plus, DollarSign } from 'lucide-react';
 import { useModal } from '../../../context/ModalContext';
 import { useAuth } from '../../../context/AuthContext';
+import { formatEventDate } from '../../../utils/eventPdfService';
 
 const EventExpenses = ({ event }) => {
   const { user } = useAuth();
@@ -47,184 +48,184 @@ const EventExpenses = ({ event }) => {
     } finally {
       setLoading(false);
     }
-}, [event?.id, event?.fundId]);
+  }, [event?.id, event?.fundId]);
 
-useEffect(() => {
-  fetchOutcomes();
-}, [fetchOutcomes]);
+  useEffect(() => {
+    fetchOutcomes();
+  }, [fetchOutcomes]);
 
-const handleAddOutcome = async (e) => {
-  e.preventDefault();
-  if (!title || !amount || !responsable) {
-    showAlert("Por favor, completa todos los campos requeridos.");
-    return;
-  }
+  const handleAddOutcome = async (e) => {
+    e.preventDefault();
+    if (!title || !amount || !responsable) {
+      showAlert("Por favor, completa todos los campos requeridos.");
+      return;
+    }
 
-  try {
-    const id = 'out_' + Date.now();
-    const effectiveFundId = event.fundId || ('fund_' + event.id);
-    const newOutcome = {
-      title: title.trim(),
-      amount: parseFloat(amount),
-      date,
-      paymentMethod,
-      responsable: responsable.trim(),
-      fundId: effectiveFundId,
-      eventId: event.id,
-      courseId: event.courseId || '',
-      createdAt: new Date().toISOString(),
-      createdBy: user?.email || user?.displayName || 'Unknown User'
-    };
+    try {
+      const id = 'out_' + Date.now();
+      const effectiveFundId = event.fundId || ('fund_' + event.id);
+      const newOutcome = {
+        title: title.trim(),
+        amount: parseFloat(amount),
+        date,
+        paymentMethod,
+        responsable: responsable.trim(),
+        fundId: effectiveFundId,
+        eventId: event.id,
+        courseId: event.courseId || '',
+        createdAt: new Date().toISOString(),
+        createdBy: user?.email || user?.displayName || 'Unknown User'
+      };
 
-    await setDoc(doc(db, 'outcomes', id), newOutcome);
-    setOutcomes([{ id, ...newOutcome }, ...outcomes]);
+      await setDoc(doc(db, 'outcomes', id), newOutcome);
+      setOutcomes([{ id, ...newOutcome }, ...outcomes]);
 
-    setTitle('');
-    setAmount('');
-    setResponsable('');
-    showAlert("Gasto registrado con éxito.");
-  } catch (error) {
-    console.error("Error adding outcome:", error);
-    showAlert("Hubo un error al registrar el gasto.");
-  }
-};
+      setTitle('');
+      setAmount('');
+      setResponsable('');
+      showAlert("Gasto registrado con éxito.");
+    } catch (error) {
+      console.error("Error adding outcome:", error);
+      showAlert("Hubo un error al registrar el gasto.");
+    }
+  };
 
-const formatMoney = (amount) => {
-  return new Intl.NumberFormat('es-CL', { style: 'currency', currency: 'CLP' }).format(amount);
-};
+  const formatMoney = (amount) => {
+    return new Intl.NumberFormat('es-CL', { style: 'currency', currency: 'CLP' }).format(amount);
+  };
 
-if (loading) return <div>Cargando gastos...</div>;
+  if (loading) return <div>Cargando gastos...</div>;
 
-return (
-  <div style={{ display: 'flex', gap: '2rem', flexWrap: 'wrap' }}>
-    {/* Formulario de Nuevo Gasto */}
-    <div className="glass-panel" style={{ flex: '1 1 300px', padding: '1.5rem', alignSelf: 'flex-start' }}>
-      <h3 style={{ marginBottom: '1.5rem', color: 'var(--danger)', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-        <DollarSign size={20} /> Registrar Gasto
-      </h3>
+  return (
+    <div style={{ display: 'flex', gap: '2rem', flexWrap: 'wrap' }}>
+      {/* Formulario de Nuevo Gasto */}
+      <div className="glass-panel" style={{ flex: '1 1 300px', padding: '1.5rem', alignSelf: 'flex-start' }}>
+        <h3 style={{ marginBottom: '1.5rem', color: 'var(--danger)', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+          <DollarSign size={20} /> Registrar Gasto
+        </h3>
 
-      <form onSubmit={handleAddOutcome}>
-        <div className="input-group">
-          <label className="input-label">Descripción del Gasto</label>
-          <input
-            type="text"
-            required
-            className="input-field"
-            placeholder="Ej. Compra de salchichas, pan..."
-            value={title}
-            onChange={(e) => setTitle(e.target.value)}
-          />
-        </div>
-
-        <div className="input-group">
-          <label className="input-label">Monto ($)</label>
-          <input
-            type="number"
-            min="1"
-            required
-            className="input-field"
-            placeholder="Ej. 15000"
-            value={amount}
-            onChange={(e) => setAmount(e.target.value)}
-          />
-        </div>
-
-        <div className="input-group">
-          <label className="input-label">Responsable (Quién compró)</label>
-          <input
-            type="text"
-            required
-            className="input-field"
-            placeholder="Ej. Tesorera"
-            value={responsable}
-            onChange={(e) => setResponsable(e.target.value)}
-          />
-        </div>
-
-        <div className="input-group">
-          <label className="input-label">Fecha del Gasto</label>
-          <input
-            type="date"
-            required
-            className="input-field"
-            value={date}
-            onChange={(e) => setDate(e.target.value)}
-          />
-        </div>
-
-        <div className="input-group">
-          <label className="input-label">Medio de Pago</label>
-          <div style={{ display: 'flex', gap: '1rem' }}>
-            <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer' }}>
-              <input
-                type="radio"
-                name="payMethodOut"
-                value="cash"
-                checked={paymentMethod === 'cash'}
-                onChange={(e) => setPaymentMethod(e.target.value)}
-                style={{ accentColor: 'var(--primary)' }}
-              /> Efectivo (Caja Chica)
-            </label>
-            <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer' }}>
-              <input
-                type="radio"
-                name="payMethodOut"
-                value="transfer"
-                checked={paymentMethod === 'transfer'}
-                onChange={(e) => setPaymentMethod(e.target.value)}
-                style={{ accentColor: 'var(--primary)' }}
-              /> Transferencia (Banco)
-            </label>
+        <form onSubmit={handleAddOutcome}>
+          <div className="input-group">
+            <label className="input-label">Descripción del Gasto</label>
+            <input
+              type="text"
+              required
+              className="input-field"
+              placeholder="Ej. Compra de salchichas, pan..."
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+            />
           </div>
-        </div>
 
-        <button type="submit" className="btn btn-outline" style={{ width: '100%', borderColor: 'var(--danger)', color: 'var(--danger)', marginTop: '1rem', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '0.5rem' }}>
-          <Plus size={18} /> Registrar Gasto
-        </button>
-      </form>
-    </div>
+          <div className="input-group">
+            <label className="input-label">Monto ($)</label>
+            <input
+              type="number"
+              min="1"
+              required
+              className="input-field"
+              placeholder="Ej. 15000"
+              value={amount}
+              onChange={(e) => setAmount(e.target.value)}
+            />
+          </div>
 
-    {/* Lista de Gastos */}
-    <div className="glass-panel" style={{ flex: '2 1 400px', padding: '1.5rem' }}>
-      <h3 style={{ marginBottom: '1.5rem' }}>Historial de Gastos del Evento</h3>
+          <div className="input-group">
+            <label className="input-label">Responsable (Quién compró)</label>
+            <input
+              type="text"
+              required
+              className="input-field"
+              placeholder="Ej. Tesorera"
+              value={responsable}
+              onChange={(e) => setResponsable(e.target.value)}
+            />
+          </div>
 
-      {outcomes.length === 0 ? (
-        <p style={{ color: 'var(--text-muted)' }}>No hay gastos registrados para este evento.</p>
-      ) : (
-        <div className="table-responsive" style={{ overflowX: 'auto' }}>
-          <table style={{ width: '100%', minWidth: '600px', borderCollapse: 'collapse', textAlign: 'left' }}>
-            <thead>
-              <tr style={{ borderBottom: '1px solid var(--border-color)' }}>
-                <th style={{ padding: '0.75rem 0.5rem' }}>Fecha</th>
-                <th style={{ padding: '0.75rem 0.5rem' }}>Descripción</th>
-                <th style={{ padding: '0.75rem 0.5rem' }}>Responsable</th>
-                <th style={{ padding: '0.75rem 0.5rem' }}>Método</th>
-                <th style={{ padding: '0.75rem 0.5rem', textAlign: 'right' }}>Monto</th>
-              </tr>
-            </thead>
-            <tbody>
-              {outcomes.map(out => (
-                <tr key={out.id} style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
-                  <td style={{ padding: '0.75rem 0.5rem', color: 'var(--text-muted)' }}>{new Date(out.date).toLocaleDateString('es-CL')}</td>
-                  <td style={{ padding: '0.75rem 0.5rem', fontWeight: '500' }}>{out.title}</td>
-                  <td style={{ padding: '0.75rem 0.5rem' }}>{out.responsable}</td>
-                  <td style={{ padding: '0.75rem 0.5rem' }}>
-                    <span style={{ fontSize: '0.75rem', padding: '0.2rem 0.5rem', borderRadius: '10px', backgroundColor: out.paymentMethod === 'cash' ? 'rgba(16,185,129,0.2)' : 'rgba(59,130,246,0.2)', color: out.paymentMethod === 'cash' ? 'var(--success)' : '#3b82f6' }}>
-                      {out.paymentMethod === 'cash' ? 'Efectivo' : 'Transf.'}
-                    </span>
-                  </td>
-                  <td style={{ padding: '0.75rem 0.5rem', textAlign: 'right', fontWeight: 'bold', color: 'var(--danger)' }}>
-                    -{formatMoney(out.amount)}
-                  </td>
+          <div className="input-group">
+            <label className="input-label">Fecha del Gasto</label>
+            <input
+              type="date"
+              required
+              className="input-field"
+              value={date}
+              onChange={(e) => setDate(e.target.value)}
+            />
+          </div>
+
+          <div className="input-group">
+            <label className="input-label">Medio de Pago</label>
+            <div style={{ display: 'flex', gap: '1rem' }}>
+              <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer' }}>
+                <input
+                  type="radio"
+                  name="payMethodOut"
+                  value="cash"
+                  checked={paymentMethod === 'cash'}
+                  onChange={(e) => setPaymentMethod(e.target.value)}
+                  style={{ accentColor: 'var(--primary)' }}
+                /> Efectivo (Caja Chica)
+              </label>
+              <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer' }}>
+                <input
+                  type="radio"
+                  name="payMethodOut"
+                  value="transfer"
+                  checked={paymentMethod === 'transfer'}
+                  onChange={(e) => setPaymentMethod(e.target.value)}
+                  style={{ accentColor: 'var(--primary)' }}
+                /> Transferencia (Banco)
+              </label>
+            </div>
+          </div>
+
+          <button type="submit" className="btn btn-outline" style={{ width: '100%', borderColor: 'var(--danger)', color: 'var(--danger)', marginTop: '1rem', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '0.5rem' }}>
+            <Plus size={18} /> Registrar Gasto
+          </button>
+        </form>
+      </div>
+
+      {/* Lista de Gastos */}
+      <div className="glass-panel" style={{ flex: '2 1 400px', padding: '1.5rem' }}>
+        <h3 style={{ marginBottom: '1.5rem' }}>Historial de Gastos del Evento</h3>
+
+        {outcomes.length === 0 ? (
+          <p style={{ color: 'var(--text-muted)' }}>No hay gastos registrados para este evento.</p>
+        ) : (
+          <div className="table-responsive" style={{ overflowX: 'auto' }}>
+            <table style={{ width: '100%', minWidth: '600px', borderCollapse: 'collapse', textAlign: 'left' }}>
+              <thead>
+                <tr style={{ borderBottom: '1px solid var(--border-color)' }}>
+                  <th style={{ padding: '0.75rem 0.5rem' }}>Fecha</th>
+                  <th style={{ padding: '0.75rem 0.5rem' }}>Descripción</th>
+                  <th style={{ padding: '0.75rem 0.5rem' }}>Responsable</th>
+                  <th style={{ padding: '0.75rem 0.5rem' }}>Método</th>
+                  <th style={{ padding: '0.75rem 0.5rem', textAlign: 'right' }}>Monto</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
+              </thead>
+              <tbody>
+                {outcomes.map(out => (
+                  <tr key={out.id} style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+                    <td style={{ padding: '0.75rem 0.5rem', color: 'var(--text-muted)' }}>{formatEventDate(out.date)}</td>
+                    <td style={{ padding: '0.75rem 0.5rem', fontWeight: '500' }}>{out.title}</td>
+                    <td style={{ padding: '0.75rem 0.5rem' }}>{out.responsable}</td>
+                    <td style={{ padding: '0.75rem 0.5rem' }}>
+                      <span style={{ fontSize: '0.75rem', padding: '0.2rem 0.5rem', borderRadius: '10px', backgroundColor: out.paymentMethod === 'cash' ? 'rgba(16,185,129,0.2)' : 'rgba(59,130,246,0.2)', color: out.paymentMethod === 'cash' ? 'var(--success)' : '#3b82f6' }}>
+                        {out.paymentMethod === 'cash' ? 'Efectivo' : 'Transf.'}
+                      </span>
+                    </td>
+                    <td style={{ padding: '0.75rem 0.5rem', textAlign: 'right', fontWeight: 'bold', color: 'var(--danger)' }}>
+                      -{formatMoney(out.amount)}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
     </div>
-  </div>
-);
+  );
 };
 
 export default EventExpenses;

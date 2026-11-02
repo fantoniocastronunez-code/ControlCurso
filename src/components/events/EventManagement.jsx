@@ -10,6 +10,7 @@ import EventDetail from './EventDetail';
 import { useCourse } from '../../context/CourseContext';
 import { useLockBodyScroll } from '../../hooks/useLockBodyScroll';
 import { loadDemoEventData } from '../../utils/eventTestUtils';
+import { formatEventDate } from '../../utils/eventPdfService';
 
 const EventManagement = ({ onBack }) => {
   const { user } = useAuth();
@@ -376,7 +377,7 @@ const EventManagement = ({ onBack }) => {
                       {event.isTestEvent && <span style={{ fontSize: '0.65rem', padding: '0.2rem 0.5rem', backgroundColor: 'var(--warning)', color: '#000', borderRadius: '1rem', fontWeight: 'bold' }}>PRUEBA</span>}
                     </h4>
                     <p style={{ margin: 0, fontSize: '0.85rem', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '0.4rem', flexWrap: 'wrap' }}>
-                      <span>{new Date(event.date).toLocaleDateString('es-CL')}</span>
+                      <span>{formatEventDate(event.date)}</span>
                       {typeof event.studentsCount === 'number' && (
                         <span>• {event.studentsCount} alumnos</span>
                       )}
@@ -421,7 +422,7 @@ const EventManagement = ({ onBack }) => {
 
       {/* Modal de Creación */}
       {showCreateModal && createPortal(
-        <div 
+        <div
           className="modal-overlay"
           style={{
             position: 'fixed',

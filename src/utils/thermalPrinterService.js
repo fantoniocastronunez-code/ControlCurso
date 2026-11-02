@@ -8,6 +8,8 @@
  * 3. 'system': Impresión estándar mediante el diálogo de impresión del navegador (window.print).
  */
 
+import { formatEventDate } from './eventPdfService';
+
 // Ancho estándar en columnas para impresoras térmicas portátiles de 58mm
 export const DEFAULT_PAPER_WIDTH = 40; // 40 caracteres en Fuente B compacta, 28 en Fuente A
 
@@ -251,7 +253,7 @@ export const buildSaleReceiptPayload = (sale, eventName, width = getPaperWidth()
           const spPrice = sp.price > 0 ? `+${formatMoneyCLP(sp.price * item.quantity)}` : '$0';
           const maxSpNameWidth = width - 4 - spPrice.length - 1;
           const spLines = wrapText(cleanText(sp.name), Math.max(6, maxSpNameWidth));
-          
+
           if (spLines.length <= 1) {
             p += `${justify(`   + ${spLines[0] || sp.name}`, spPrice, width)}\n`;
           } else {
@@ -390,7 +392,7 @@ export const buildClosureReceiptPayload = (event, stats, itemsSummary = [], expe
   nameLines.forEach(l => { p += `${l}\n`; });
   p += CMD_BOLD_OFF;
 
-  p += `Fecha: ${new Date(event.date).toLocaleDateString('es-CL')}\n`;
+  p += `Fecha: ${formatEventDate(event.date)}\n`;
   p += `Impreso: ${new Date().toLocaleString('es-CL')}\n`;
   p += `${DOUBLE_LINE}\n`;
 

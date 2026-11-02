@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { db } from '../../firebase/config';
-import { doc, getDoc } from 'firebase/firestore';
-import { ArrowLeft, LayoutDashboard, CheckSquare, ShoppingBag, DollarSign, Receipt, Package, Printer, Sparkles, RotateCcw, Settings, ChefHat, Camera, Calculator, FileText } from 'lucide-react';
+import { doc, getDoc, updateDoc } from 'firebase/firestore';
+import { ArrowLeft, LayoutDashboard, CheckSquare, ShoppingBag, DollarSign, Receipt, Package, Printer, Sparkles, RotateCcw, Settings, ChefHat, Camera, Calculator, FileText, Edit, Calendar, X, Check } from 'lucide-react';
 import EventSummary from './tabs/EventSummary';
 import EventAttendance from './tabs/EventAttendance';
 import EventInventory from './tabs/EventInventory';
@@ -18,12 +18,13 @@ import EventReportModal from './EventReportModal';
 import { useModal } from '../../context/ModalContext';
 import { useAuth } from '../../context/AuthContext';
 import { loadDemoEventData, resetTestEventData } from '../../utils/eventTestUtils';
-import { 
-  getPrinterConfig, 
-  buildTestReceiptPayload, 
-  printViaRawBT, 
-  printViaWebBluetooth 
+import {
+  getPrinterConfig,
+  buildTestReceiptPayload,
+  printViaRawBT,
+  printViaWebBluetooth
 } from '../../utils/thermalPrinterService';
+import { formatEventDate } from '../../utils/eventPdfService';
 
 const EventDetail = ({ eventId, onBack }) => {
   const navigate = useNavigate();
@@ -38,6 +39,56 @@ const EventDetail = ({ eventId, onBack }) => {
   const [showComandasModal, setShowComandasModal] = useState(false);
   const [showScanner, setShowScanner] = useState(false);
   const [showReportModal, setShowReportModal] = useState(false);
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [editName, setEditName] = useState('');
+  const [editDate, setEditDate] = useState('');
+  const [editMandatoryAmount, setEditMandatoryAmount] = useState('');
+  const [editNoShowAmount, setEditNoShowAmount] = useState('');
+
+  const handleOpenEditModal = () => {
+    setEditName(eventData?.name || '');
+    setEditDate(eventData?.date || '');
+    setEditMandatoryAmount(String(eventData?.mandatoryAmount ?? ''));
+    setEditNoShowAmount(String(eventData?.noShowAmount ?? ''));
+    setShowEditModal(true);
+  };
+
+  const handleSaveEditEvent = async (e) => {
+    e.preventDefault();
+    if (!editName.trim() || !editDate) {
+      await showAlert("Por favor ingresa nombre y fecha.");
+      return;
+    }
+    setActionLoading(true);
+    try {
+      const updatedFields = {
+        name: editName.trim(),
+        date: editDate,
+        mandatoryAmount: parseFloat(editMandatoryAmount) || 0,
+        noShowAmount: parseFloat(editNoShowAmount) || 0,
+        updatedAt: new Date().toISOString()
+      };
+      await updateDoc(doc(db, 'events', eventData.id), updatedFields);
+
+      try {
+        await updateDoc(doc(db, 'expenses', `exp_evt_${eventData.id}`), {
+          title: `Cuota Obligatoria: ${editName.trim()}`,
+          date: editDate
+        });
+      } catch {
+        // Ignorar si no existe
+      }
+
+      setEventData(prev => ({ ...prev, ...updatedFields }));
+      setShowEditModal(false);
+      await showAlert("Evento y fecha actualizados correctamente.");
+    } catch (err) {
+      console.error("Error al actualizar evento:", err);
+      await showAlert("Error al actualizar el evento: " + err.message);
+    } finally {
+      setActionLoading(false);
+    }
+  };
 
   const handleScanSuccess = (decodedText) => {
     setShowScanner(false);
@@ -173,9 +224,22 @@ const EventDetail = ({ eventId, onBack }) => {
                 </span>
               )}
             </h2>
-            <p style={{ margin: 0, color: 'var(--text-muted)', fontSize: '0.9rem' }}>
-              {new Date(eventData.date).toLocaleDateString('es-CL')} • Cuota: ${eventData.mandatoryAmount} • Multa: ${eventData.noShowAmount}
-            </p>
+              <p style={{ margin: 0, color: 'var(--text-muted)', fontSize: '0.9rem', display: 'flex', alignItems: 'center', gap: '0.4rem', flexWrap: 'wrap' }}>
+                <span style={{ fontWeight: '500', color: 'var(--text)' }}>{formatEventDate(eventData.date)}</span>
+                <span>•</span>
+                <span>Cuota: ${eventData.mandatoryAmount}</span>
+                <span>•</span>
+                <span>Multa: ${eventData.noShowAmount}</span>
+                <button
+                  type="button"
+                  onClick={handleOpenEditModal}
+                  className="btn btn-outline"
+                  style={{ padding: '0.15rem 0.5rem', fontSize: '0.75rem', display: 'inline-flex', alignItems: 'center', gap: '0.25rem', borderColor: 'rgba(255,255,255,0.2)' }}
+                  title="Editar fecha y datos del evento"
+                >
+                  <Edit size={12} /> Editar Fecha
+                </button>
+              </p>
           </div>
         </div>
 
@@ -272,15 +336,15 @@ const EventDetail = ({ eventId, onBack }) => {
       )}
 
       {/* Tabs */}
-      <div 
+      <div
         className="event-tabs-bar"
-        style={{ 
-          display: 'flex', 
-          gap: '0.5rem', 
-          marginBottom: '2rem', 
-          borderBottom: '1px solid var(--border-color)', 
-          paddingBottom: '0.85rem', 
-          overflowX: 'auto', 
+        style={{
+          display: 'flex',
+          gap: '0.5rem',
+          marginBottom: '2rem',
+          borderBottom: '1px solid var(--border-color)',
+          paddingBottom: '0.85rem',
+          overflowX: 'auto',
           WebkitOverflowScrolling: 'touch',
           touchAction: 'pan-x pan-y',
           maxWidth: '100%',
@@ -292,10 +356,10 @@ const EventDetail = ({ eventId, onBack }) => {
             key={tab.id}
             onClick={() => setActiveTab(tab.id)}
             className={`btn ${activeTab === tab.id ? 'btn-primary' : 'btn-outline'}`}
-            style={{ 
-              display: 'inline-flex', 
-              alignItems: 'center', 
-              gap: '0.5rem', 
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '0.5rem',
               padding: '0.5rem 1rem',
               borderColor: activeTab === tab.id ? 'var(--primary)' : 'rgba(255,255,255,0.1)',
               backgroundColor: activeTab === tab.id ? 'var(--primary)' : 'transparent',
@@ -341,6 +405,107 @@ const EventDetail = ({ eventId, onBack }) => {
         onClose={() => setShowReportModal(false)}
         event={eventData}
       />
+
+      {/* Modal para Editar Datos y Fecha del Evento */}
+      {showEditModal && (
+        <div className="modal-overlay" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.6)', zIndex: 1000, padding: '1rem' }}>
+          <div className="glass-panel" style={{ width: '100%', maxWidth: '480px', padding: '1.5rem', borderRadius: '12px', background: '#1e293b', border: '1px solid rgba(255,255,255,0.1)' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem' }}>
+              <h3 style={{ margin: 0, fontSize: '1.2rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                <Calendar size={20} color="var(--primary)" /> Editar Evento y Fecha
+              </h3>
+              <button
+                type="button"
+                onClick={() => setShowEditModal(false)}
+                style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer' }}
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveEditEvent}>
+              <div style={{ marginBottom: '1rem' }}>
+                <label style={{ display: 'block', fontSize: '0.85rem', color: 'var(--text-muted)', marginBottom: '0.35rem' }}>
+                  Nombre del Evento:
+                </label>
+                <input
+                  type="text"
+                  className="input-field"
+                  style={{ width: '100%' }}
+                  value={editName}
+                  onChange={(e) => setEditName(e.target.value)}
+                  required
+                />
+              </div>
+
+              <div style={{ marginBottom: '1rem' }}>
+                <label style={{ display: 'block', fontSize: '0.85rem', color: 'var(--text-muted)', marginBottom: '0.35rem' }}>
+                  Fecha del Evento:
+                </label>
+                <input
+                  type="date"
+                  className="input-field"
+                  style={{ width: '100%' }}
+                  value={editDate}
+                  onChange={(e) => setEditDate(e.target.value)}
+                  required
+                />
+                <small style={{ color: 'var(--text-muted)', fontSize: '0.75rem', display: 'block', marginTop: '0.25rem' }}>
+                  Formato de fecha (ej: 30/10/2026). Cambiar la fecha aquí actualizará todos los reportes, PDFs y tickets.
+                </small>
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '1.5rem' }}>
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.85rem', color: 'var(--text-muted)', marginBottom: '0.35rem' }}>
+                    Cuota Obligatoria ($):
+                  </label>
+                  <input
+                    type="number"
+                    min="0"
+                    className="input-field"
+                    style={{ width: '100%' }}
+                    value={editMandatoryAmount}
+                    onChange={(e) => setEditMandatoryAmount(e.target.value)}
+                  />
+                </div>
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.85rem', color: 'var(--text-muted)', marginBottom: '0.35rem' }}>
+                    Multa Inasistencia ($):
+                  </label>
+                  <input
+                    type="number"
+                    min="0"
+                    className="input-field"
+                    style={{ width: '100%' }}
+                    value={editNoShowAmount}
+                    onChange={(e) => setEditNoShowAmount(e.target.value)}
+                  />
+                </div>
+              </div>
+
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem' }}>
+                <button
+                  type="button"
+                  className="btn btn-outline"
+                  onClick={() => setShowEditModal(false)}
+                  disabled={actionLoading}
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  className="btn btn-primary"
+                  disabled={actionLoading}
+                  style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}
+                >
+                  {actionLoading ? 'Guardando...' : <><Check size={16} /> Guardar Cambios</>}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

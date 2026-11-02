@@ -11,6 +11,42 @@ export const formatCLP = (amount) => {
 };
 
 /**
+ * Formatea una fecha de evento sin desfase horario por zona UTC.
+ * Si dateVal es '2026-10-30', se formatea directamente a '30/10/2026'
+ * evitando que JavaScript reste un día por interpretar UTC medianoche.
+ */
+export const formatEventDate = (dateVal) => {
+  if (!dateVal) return '';
+  if (typeof dateVal === 'string') {
+    const clean = dateVal.trim();
+    // Si contiene hora en formato ISO 'T', extraer sólo la fecha
+    const str = clean.includes('T') ? clean.split('T')[0] : clean;
+    // Formato YYYY-MM-DD o YYYY/MM/DD
+    const isoMatch = str.match(/^(\d{4})[-/](\d{1,2})[-/](\d{1,2})/);
+    if (isoMatch) {
+      return `${isoMatch[3].padStart(2, '0')}/${isoMatch[2].padStart(2, '0')}/${isoMatch[1]}`;
+    }
+    // Formato DD-MM-YYYY o DD/MM/YYYY
+    const dmyMatch = str.match(/^(\d{1,2})[-/](\d{1,2})[-/](\d{4})/);
+    if (dmyMatch) {
+      return `${dmyMatch[1].padStart(2, '0')}/${dmyMatch[2].padStart(2, '0')}/${dmyMatch[3]}`;
+    }
+  }
+  try {
+    const d = new Date(dateVal);
+    if (!isNaN(d.getTime())) {
+      const day = String(d.getDate()).padStart(2, '0');
+      const month = String(d.getMonth() + 1).padStart(2, '0');
+      const year = d.getFullYear();
+      return `${day}/${month}/${year}`;
+    }
+  } catch {
+    // fallback
+  }
+  return String(dateVal);
+};
+
+/**
  * Carga centralizada y completa de todos los datos financieros de un evento:
  * - Ventas POS (efectivo, transferencia, productos y cajeros)
  * - Cuotas obligatorias y multas (debts)
@@ -344,7 +380,7 @@ export function buildEventClipboardReport(data) {
     : (data.itemsSummary || []).slice(0, 5);
 
   let msg = `*INFORME FINANCIERO - ${(event?.name || 'EVENTO').toUpperCase()}*\n`;
-  msg += `*Fecha:* ${event?.date ? new Date(event.date).toLocaleDateString('es-CL') : 'Hoy'}\n\n`;
+  msg += `*Fecha:* ${formatEventDate(event?.date) || 'Hoy'}\n\n`;
 
   msg += `*RESUMEN DE INGRESOS:*\n`;
   msg += `• Ventas POS en Efectivo: ${formatCLP(cashSalesTotal)}\n`;
@@ -493,7 +529,7 @@ export async function buildEventSummaryPdfDoc({
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(8.5);
   doc.setTextColor(203, 213, 225);
-  const dateStr = activeEvent?.date ? new Date(activeEvent.date).toLocaleDateString('es-CL') : 'Sin fecha';
+  const dateStr = formatEventDate(activeEvent?.date) || 'Sin fecha';
   const genStr = new Date().toLocaleString('es-CL', { dateStyle: 'short', timeStyle: 'short' });
   const metaCourse = courseName ? `Curso: ${courseName}   |   ` : '';
   doc.text(`${metaCourse}Fecha Evento: ${dateStr}   |   Generado: ${genStr}`, margin + 6, y + 17);
@@ -797,7 +833,7 @@ export async function buildEventSummaryPdfDoc({
         doc.rect(margin, y, printableWidth, 5.2, 'F');
       }
       doc.setTextColor(51, 65, 85);
-      const outDate = out.date ? new Date(out.date).toLocaleDateString('es-CL') : '—';
+      const outDate = formatEventDate(out.date) || '—';
       doc.text(outDate, margin + 3, y + 3.8);
       doc.text((out.title || out.description || 'Gasto').substring(0, 45), margin + 28, y + 3.8);
       doc.text((out.responsable || 'General').substring(0, 18), margin + 115, y + 3.8);
