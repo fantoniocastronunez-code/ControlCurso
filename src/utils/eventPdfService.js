@@ -343,42 +343,42 @@ export function buildEventClipboardReport(data) {
     ? data.top5Items
     : (data.itemsSummary || []).slice(0, 5);
 
-  let msg = `📊 *INFORME FINANCIERO - ${(event?.name || 'EVENTO').toUpperCase()}*\n`;
-  msg += `📅 *Fecha:* ${event?.date ? new Date(event.date).toLocaleDateString('es-CL') : 'Hoy'}\n\n`;
+  let msg = `*INFORME FINANCIERO - ${(event?.name || 'EVENTO').toUpperCase()}*\n`;
+  msg += `*Fecha:* ${event?.date ? new Date(event.date).toLocaleDateString('es-CL') : 'Hoy'}\n\n`;
 
-  msg += `💰 *RESUMEN DE INGRESOS:*\n`;
+  msg += `*RESUMEN DE INGRESOS:*\n`;
   msg += `• Ventas POS en Efectivo: ${formatCLP(cashSalesTotal)}\n`;
   msg += `• Ventas POS por Transferencia: ${formatCLP(transferSalesTotal)}\n`;
-  msg += `👉 *Total Ventas POS:* ${formatCLP(salesTotal)}\n`;
+  msg += `• Total Ventas POS: ${formatCLP(salesTotal)}\n`;
   if (mandatoryTotalExpected > 0) {
     msg += `• Cuotas Obligatorias Recaudadas: ${formatCLP(mandatoryTotalPaid)} (de ${formatCLP(mandatoryTotalExpected)})\n`;
   }
   if (fineTotalPaid > 0) {
     msg += `• Multas de Inasistencia Recaudadas: ${formatCLP(fineTotalPaid)}\n`;
   }
-  msg += `📈 *TOTAL INGRESOS BRUTOS:* ${formatCLP(totalIncomes)}\n\n`;
+  msg += `• *TOTAL INGRESOS BRUTOS:* ${formatCLP(totalIncomes)}\n\n`;
 
-  msg += `📉 *GASTOS DEL EVENTO:*\n`;
+  msg += `*GASTOS DEL EVENTO:*\n`;
   msg += `• Total Gastos Realizados: ${formatCLP(totalExpenses)}\n\n`;
 
-  msg += `🏆 *BALANCE FINAL Y RENTABILIDAD:*\n`;
+  msg += `*BALANCE FINAL Y RENTABILIDAD:*\n`;
   msg += `• *GANANCIA NETA REAL:* ${formatCLP(netProfit)}\n`;
-  msg += `• *Rentabilidad vs Gastos:* ${profitVsExpensesPct >= 0 ? '+' : ''}${profitVsExpensesPct.toFixed(1)}%\n`;
-  msg += `• *Margen de Ganancia:* ${profitMarginPct.toFixed(1)}%\n\n`;
+  msg += `• Rentabilidad vs Gastos: ${profitVsExpensesPct >= 0 ? '+' : ''}${profitVsExpensesPct.toFixed(1)}%\n`;
+  msg += `• Margen de Ganancia: ${profitMarginPct.toFixed(1)}%\n\n`;
 
   if (mandatoryDebts && mandatoryDebts.length > 0) {
-    msg += `👥 *CONTROL CUOTA OBLIGATORIA:*\n`;
+    msg += `*CONTROL CUOTA OBLIGATORIA:*\n`;
     msg += `• Familias al día: ${mandatoryPaidCount} de ${mandatoryDebts.length}\n`;
     if (mandatoryPendingCount > 0) {
-      msg += `• ⚠️ *Faltan por pagar:* ${mandatoryPendingCount} apoderado(s)\n`;
+      msg += `• Faltan por pagar: ${mandatoryPendingCount} apoderado(s)\n`;
     } else {
-      msg += `• ✅ ¡Todas las familias están al día con la cuota!\n`;
+      msg += `• Todas las familias están al día con la cuota.\n`;
     }
     msg += `\n`;
   }
 
   if (top5Items.length > 0) {
-    msg += `🍔 *TOP 5 ARTÍCULOS VENDIDOS:*\n`;
+    msg += `*TOP 5 ARTÍCULOS MÁS VENDIDOS:*\n`;
     top5Items.forEach((item, idx) => {
       msg += `  ${idx + 1}. ${item.name}: ${item.qty} un. (${formatCLP(item.total)})\n`;
     });
@@ -653,280 +653,280 @@ export async function buildEventSummaryPdfDoc({
   // ==========================================
   // TOP 5 ARTÍCULOS MÁS VENDIDOS
   // ==========================================
-    if (top5Items.length > 0) {
-      checkPageBreak(35);
+  if (top5Items.length > 0) {
+    checkPageBreak(35);
 
-      doc.setFont('helvetica', 'bold');
-      doc.setFontSize(9);
-      doc.setTextColor(30, 41, 59);
-      doc.text('TOP 5 ARTÍCULOS MÁS VENDIDOS', margin, y);
-      y += 4;
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(9);
+    doc.setTextColor(30, 41, 59);
+    doc.text('TOP 5 ARTÍCULOS MÁS VENDIDOS', margin, y);
+    y += 4;
 
-      // Header Tabla
-      doc.setFillColor(226, 232, 240);
-      doc.rect(margin, y, printableWidth, 6, 'F');
-      doc.setFont('helvetica', 'bold');
-      doc.setFontSize(7.5);
-      doc.setTextColor(30, 41, 59);
+    // Header Tabla
+    doc.setFillColor(226, 232, 240);
+    doc.rect(margin, y, printableWidth, 6, 'F');
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(7.5);
+    doc.setTextColor(30, 41, 59);
 
-      doc.text('#', margin + 2, y + 4.2);
-      doc.text('Producto / Artículo', margin + 8, y + 4.2);
-      doc.text('Unidades', margin + 124, y + 4.2, { align: 'right' });
-      doc.text('Precio Unit.', margin + 146, y + 4.2, { align: 'right' });
-      doc.text('Total Recaudado', margin + 170, y + 4.2, { align: 'right' });
-      doc.text('% Ventas', margin + printableWidth - 2, y + 4.2, { align: 'right' });
+    doc.text('#', margin + 2, y + 4.2);
+    doc.text('Producto / Artículo', margin + 8, y + 4.2);
+    doc.text('Unidades', margin + 124, y + 4.2, { align: 'right' });
+    doc.text('Precio Unit.', margin + 146, y + 4.2, { align: 'right' });
+    doc.text('Total Recaudado', margin + 170, y + 4.2, { align: 'right' });
+    doc.text('% Ventas', margin + printableWidth - 2, y + 4.2, { align: 'right' });
 
-      y += 6;
+    y += 6;
 
-      doc.setFont('helvetica', 'normal');
-      doc.setFontSize(7.5);
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(7.5);
 
-      top5Items.forEach((item, idx) => {
-        checkPageBreak(6);
-        if (idx % 2 === 1) {
-          doc.setFillColor(248, 250, 252);
-          doc.rect(margin, y, printableWidth, 5.2, 'F');
-        }
-        doc.setTextColor(51, 65, 85);
-        doc.text(`${idx + 1}`, margin + 2, y + 3.8);
-
-        // Mayor ancho disponible para el producto (102 mm) sin cortar texto
-        const maxProductNameWidth = 102;
-        let productName = item.name || '';
-        if (doc.getTextWidth(productName) > maxProductNameWidth) {
-          while (productName.length > 0 && doc.getTextWidth(productName + '...') > maxProductNameWidth) {
-            productName = productName.slice(0, -1);
-          }
-          productName += '...';
-        }
-
-        doc.text(productName, margin + 8, y + 3.8);
-        doc.text(`${item.qty} un.`, margin + 124, y + 3.8, { align: 'right' });
-        doc.text(formatCLP(item.unitPrice || 0), margin + 146, y + 3.8, { align: 'right' });
-        doc.text(formatCLP(item.total || 0), margin + 170, y + 3.8, { align: 'right' });
-        const pct = totalSales > 0 ? ((item.total || 0) / totalSales) * 100 : 0;
-        doc.text(`${pct.toFixed(1)}%`, margin + printableWidth - 2, y + 3.8, { align: 'right' });
-        y += 5.2;
-      });
-
-      y += 5;
-    }
-
-    // ==========================================
-    // RENDICIÓN DE CAJEROS
-    // ==========================================
-    if (cashiersSummary.length > 0) {
-      checkPageBreak(30);
-
-      doc.setFont('helvetica', 'bold');
-      doc.setFontSize(9);
-      doc.setTextColor(30, 41, 59);
-      doc.text('RENDICIÓN DE VENTAS POR CAJERO(A)', margin, y);
-      y += 4;
-
-      doc.setFillColor(226, 232, 240);
-      doc.rect(margin, y, printableWidth, 6, 'F');
-      doc.setFont('helvetica', 'bold');
-      doc.setFontSize(7.5);
-      doc.setTextColor(30, 41, 59);
-
-      doc.text('Cajero(a)', margin + 3, y + 4.2);
-      doc.text('N° Ventas', margin + 70, y + 4.2, { align: 'center' });
-      doc.text('Efectivo', margin + 105, y + 4.2, { align: 'right' });
-      doc.text('Transferencia', margin + 145, y + 4.2, { align: 'right' });
-      doc.text('Total Recaudado', margin + printableWidth - 2, y + 4.2, { align: 'right' });
-
-      y += 6;
-
-      doc.setFont('helvetica', 'normal');
-      doc.setFontSize(7.5);
-
-      cashiersSummary.forEach((c, idx) => {
-        checkPageBreak(6);
-        if (idx % 2 === 1) {
-          doc.setFillColor(248, 250, 252);
-          doc.rect(margin, y, printableWidth, 5.2, 'F');
-        }
-        doc.setTextColor(51, 65, 85);
-        doc.text(c.name || 'Cajero', margin + 3, y + 3.8);
-        doc.text(`${c.salesCount || 0}`, margin + 70, y + 3.8, { align: 'center' });
-        doc.text(formatCLP(c.cashTotal || 0), margin + 105, y + 3.8, { align: 'right' });
-        doc.text(formatCLP(c.transferTotal || 0), margin + 145, y + 3.8, { align: 'right' });
-        doc.setFont('helvetica', 'bold');
-        doc.text(formatCLP(c.total || 0), margin + printableWidth - 2, y + 3.8, { align: 'right' });
-        doc.setFont('helvetica', 'normal');
-        y += 5.2;
-      });
-
-      y += 5;
-    }
-
-    // ==========================================
-    // DETALLE DE GASTOS DEL EVENTO
-    // ==========================================
-    if (outcomes.length > 0) {
-      checkPageBreak(30);
-
-      doc.setFont('helvetica', 'bold');
-      doc.setFontSize(9);
-      doc.setTextColor(30, 41, 59);
-      doc.text(`GASTOS DEL EVENTO (Total: ${formatCLP(totalExpenses)})`, margin, y);
-      y += 4;
-
-      doc.setFillColor(226, 232, 240);
-      doc.rect(margin, y, printableWidth, 6, 'F');
-      doc.setFont('helvetica', 'bold');
-      doc.setFontSize(7.5);
-      doc.setTextColor(30, 41, 59);
-
-      doc.text('Fecha', margin + 3, y + 4.2);
-      doc.text('Descripción / Concepto', margin + 28, y + 4.2);
-      doc.text('Responsable', margin + 115, y + 4.2);
-      doc.text('Medio', margin + 150, y + 4.2);
-      doc.text('Monto', margin + printableWidth - 2, y + 4.2, { align: 'right' });
-
-      y += 6;
-
-      doc.setFont('helvetica', 'normal');
-      doc.setFontSize(7.5);
-
-      outcomes.forEach((out, idx) => {
-        checkPageBreak(6);
-        if (idx % 2 === 1) {
-          doc.setFillColor(248, 250, 252);
-          doc.rect(margin, y, printableWidth, 5.2, 'F');
-        }
-        doc.setTextColor(51, 65, 85);
-        const outDate = out.date ? new Date(out.date).toLocaleDateString('es-CL') : '—';
-        doc.text(outDate, margin + 3, y + 3.8);
-        doc.text((out.title || out.description || 'Gasto').substring(0, 45), margin + 28, y + 3.8);
-        doc.text((out.responsable || 'General').substring(0, 18), margin + 115, y + 3.8);
-        doc.text(out.paymentMethod === 'cash' ? 'Efectivo' : 'Transf.', margin + 150, y + 3.8);
-        doc.setFont('helvetica', 'bold');
-        doc.setTextColor(220, 38, 38);
-        doc.text(`-${formatCLP(out.amount || 0)}`, margin + printableWidth - 2, y + 3.8, { align: 'right' });
-        doc.setFont('helvetica', 'normal');
-        y += 5.2;
-      });
-
-      y += 5;
-    }
-
-    // ==========================================
-    // BALANCE DE INVENTARIO Y SOBRANTES
-    // ==========================================
-    if (inventorySummary.length > 0) {
-      checkPageBreak(30);
-
-      doc.setFont('helvetica', 'bold');
-      doc.setFontSize(9);
-      doc.setTextColor(30, 41, 59);
-      doc.text('BALANCE DE INVENTARIO Y SOBRANTES FÍSICOS', margin, y);
-      y += 4;
-
-      doc.setFillColor(226, 232, 240);
-      doc.rect(margin, y, printableWidth, 6, 'F');
-      doc.setFont('helvetica', 'bold');
-      doc.setFontSize(7.5);
-      doc.setTextColor(30, 41, 59);
-
-      doc.text('Insumo', margin + 3, y + 4.2);
-      doc.text('Comprado', margin + 65, y + 4.2, { align: 'center' });
-      doc.text('Consumido POS', margin + 98, y + 4.2, { align: 'center' });
-      doc.text('Teórico Restante', margin + 132, y + 4.2, { align: 'center' });
-      doc.text('Sobrante Real', margin + 162, y + 4.2, { align: 'center' });
-      doc.text('Diferencia', margin + printableWidth - 2, y + 4.2, { align: 'right' });
-
-      y += 6;
-
-      doc.setFont('helvetica', 'normal');
-      doc.setFontSize(7.5);
-
-      inventorySummary.forEach((item, idx) => {
-        checkPageBreak(6);
-        if (idx % 2 === 1) {
-          doc.setFillColor(248, 250, 252);
-          doc.rect(margin, y, printableWidth, 5.2, 'F');
-        }
-        const purchased = item.totalPurchased || item.initialQuantity || 0;
-        const current = item.currentStock !== undefined ? item.currentStock : purchased;
-        const consumed = Math.max(0, purchased - current);
-        const hasPhysical = item.finalCount !== undefined && item.finalCount !== null;
-        const diff = hasPhysical ? (item.finalCount - current) : 0;
-
-        doc.setTextColor(51, 65, 85);
-        doc.text((item.name || '').substring(0, 30), margin + 3, y + 3.8);
-        doc.text(`${purchased}`, margin + 65, y + 3.8, { align: 'center' });
-        doc.text(`${consumed}`, margin + 98, y + 3.8, { align: 'center' });
-        doc.text(`${current}`, margin + 132, y + 3.8, { align: 'center' });
-        doc.text(hasPhysical ? `${item.finalCount}` : '—', margin + 162, y + 3.8, { align: 'center' });
-
-        if (hasPhysical) {
-          doc.setFont('helvetica', 'bold');
-          if (diff === 0) {
-            doc.setTextColor(16, 185, 129);
-            doc.text('Exacto', margin + printableWidth - 2, y + 3.8, { align: 'right' });
-          } else if (diff > 0) {
-            doc.setTextColor(59, 130, 246);
-            doc.text(`+${diff} sob.`, margin + printableWidth - 2, y + 3.8, { align: 'right' });
-          } else {
-            doc.setTextColor(239, 68, 68);
-            doc.text(`${diff} merma`, margin + printableWidth - 2, y + 3.8, { align: 'right' });
-          }
-          doc.setFont('helvetica', 'normal');
-        } else {
-          doc.text('—', margin + printableWidth - 2, y + 3.8, { align: 'right' });
-        }
-        y += 5.2;
-      });
-
-      y += 5;
-    }
-
-    // ==========================================
-    // PIE DE PÁGINA EN TODAS LAS PÁGINAS
-    // ==========================================
-    const totalPages = doc.internal.getNumberOfPages();
-    for (let p = 1; p <= totalPages; p++) {
-      doc.setPage(p);
-      doc.setFont('helvetica', 'italic');
-      doc.setFontSize(7.5);
-      doc.setTextColor(148, 163, 184);
-      doc.text(`AppCurso - Control Financiero y Gestion Escolar   |   Pagina ${p} de ${totalPages}`, margin, pageHeight - 6);
-      doc.text(`Informe Oficial Emitido para la Directiva y Apoderados`, margin + printableWidth, pageHeight - 6, { align: 'right' });
-    }
-
-    return doc;
-  }
-
-  /**
-   * Función universal para compartir o descargar el PDF:
-   * - En celulares (Android/iOS): abre el menú nativo de Compartir con el archivo PDF adjunto (WhatsApp, Drive, Gmail, etc.)
-   * - En PC o navegadores sin Web Share con archivos: descarga el PDF directamente.
-   */
-  export async function shareOrDownloadEventPdf(doc, baseFileName, shareTitle, shareText) {
-    const safeFileName = baseFileName.toLowerCase().endsWith('.pdf') ? baseFileName : `${baseFileName}.pdf`;
-    const pdfBlob = doc.output('blob');
-    const file = new File([pdfBlob], safeFileName, { type: 'application/pdf' });
-
-    // 1. Intentar Web Share API con archivos (Soportado en celulares modernos)
-    if (typeof navigator !== 'undefined' && navigator.canShare && navigator.canShare({ files: [file] })) {
-      try {
-        await navigator.share({
-          title: shareTitle || 'Informe de Evento',
-          text: shareText || 'Adjunto el informe y balance financiero oficial del evento en formato PDF.',
-          files: [file]
-        });
-        return { success: true, method: 'shared' };
-      } catch (err) {
-        if (err.name === 'AbortError') {
-          return { success: true, method: 'aborted' };
-        }
-        console.warn('Error en navigator.share, procediendo a descarga directa:', err);
+    top5Items.forEach((item, idx) => {
+      checkPageBreak(6);
+      if (idx % 2 === 1) {
+        doc.setFillColor(248, 250, 252);
+        doc.rect(margin, y, printableWidth, 5.2, 'F');
       }
-    }
+      doc.setTextColor(51, 65, 85);
+      doc.text(`${idx + 1}`, margin + 2, y + 3.8);
 
-    // 2. Si no soporta compartir archivos o falló, descargar directamente
-    doc.save(safeFileName);
-    return { success: true, method: 'downloaded' };
+      // Mayor ancho disponible para el producto (102 mm) sin cortar texto
+      const maxProductNameWidth = 102;
+      let productName = item.name || '';
+      if (doc.getTextWidth(productName) > maxProductNameWidth) {
+        while (productName.length > 0 && doc.getTextWidth(productName + '...') > maxProductNameWidth) {
+          productName = productName.slice(0, -1);
+        }
+        productName += '...';
+      }
+
+      doc.text(productName, margin + 8, y + 3.8);
+      doc.text(`${item.qty} un.`, margin + 124, y + 3.8, { align: 'right' });
+      doc.text(formatCLP(item.unitPrice || 0), margin + 146, y + 3.8, { align: 'right' });
+      doc.text(formatCLP(item.total || 0), margin + 170, y + 3.8, { align: 'right' });
+      const pct = totalSales > 0 ? ((item.total || 0) / totalSales) * 100 : 0;
+      doc.text(`${pct.toFixed(1)}%`, margin + printableWidth - 2, y + 3.8, { align: 'right' });
+      y += 5.2;
+    });
+
+    y += 5;
   }
+
+  // ==========================================
+  // RENDICIÓN DE CAJEROS
+  // ==========================================
+  if (cashiersSummary.length > 0) {
+    checkPageBreak(30);
+
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(9);
+    doc.setTextColor(30, 41, 59);
+    doc.text('RENDICIÓN DE VENTAS POR CAJERO(A)', margin, y);
+    y += 4;
+
+    doc.setFillColor(226, 232, 240);
+    doc.rect(margin, y, printableWidth, 6, 'F');
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(7.5);
+    doc.setTextColor(30, 41, 59);
+
+    doc.text('Cajero(a)', margin + 3, y + 4.2);
+    doc.text('N° Ventas', margin + 70, y + 4.2, { align: 'center' });
+    doc.text('Efectivo', margin + 105, y + 4.2, { align: 'right' });
+    doc.text('Transferencia', margin + 145, y + 4.2, { align: 'right' });
+    doc.text('Total Recaudado', margin + printableWidth - 2, y + 4.2, { align: 'right' });
+
+    y += 6;
+
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(7.5);
+
+    cashiersSummary.forEach((c, idx) => {
+      checkPageBreak(6);
+      if (idx % 2 === 1) {
+        doc.setFillColor(248, 250, 252);
+        doc.rect(margin, y, printableWidth, 5.2, 'F');
+      }
+      doc.setTextColor(51, 65, 85);
+      doc.text(c.name || 'Cajero', margin + 3, y + 3.8);
+      doc.text(`${c.salesCount || 0}`, margin + 70, y + 3.8, { align: 'center' });
+      doc.text(formatCLP(c.cashTotal || 0), margin + 105, y + 3.8, { align: 'right' });
+      doc.text(formatCLP(c.transferTotal || 0), margin + 145, y + 3.8, { align: 'right' });
+      doc.setFont('helvetica', 'bold');
+      doc.text(formatCLP(c.total || 0), margin + printableWidth - 2, y + 3.8, { align: 'right' });
+      doc.setFont('helvetica', 'normal');
+      y += 5.2;
+    });
+
+    y += 5;
+  }
+
+  // ==========================================
+  // DETALLE DE GASTOS DEL EVENTO
+  // ==========================================
+  if (outcomes.length > 0) {
+    checkPageBreak(30);
+
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(9);
+    doc.setTextColor(30, 41, 59);
+    doc.text(`GASTOS DEL EVENTO (Total: ${formatCLP(totalExpenses)})`, margin, y);
+    y += 4;
+
+    doc.setFillColor(226, 232, 240);
+    doc.rect(margin, y, printableWidth, 6, 'F');
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(7.5);
+    doc.setTextColor(30, 41, 59);
+
+    doc.text('Fecha', margin + 3, y + 4.2);
+    doc.text('Descripción / Concepto', margin + 28, y + 4.2);
+    doc.text('Responsable', margin + 115, y + 4.2);
+    doc.text('Medio', margin + 150, y + 4.2);
+    doc.text('Monto', margin + printableWidth - 2, y + 4.2, { align: 'right' });
+
+    y += 6;
+
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(7.5);
+
+    outcomes.forEach((out, idx) => {
+      checkPageBreak(6);
+      if (idx % 2 === 1) {
+        doc.setFillColor(248, 250, 252);
+        doc.rect(margin, y, printableWidth, 5.2, 'F');
+      }
+      doc.setTextColor(51, 65, 85);
+      const outDate = out.date ? new Date(out.date).toLocaleDateString('es-CL') : '—';
+      doc.text(outDate, margin + 3, y + 3.8);
+      doc.text((out.title || out.description || 'Gasto').substring(0, 45), margin + 28, y + 3.8);
+      doc.text((out.responsable || 'General').substring(0, 18), margin + 115, y + 3.8);
+      doc.text(out.paymentMethod === 'cash' ? 'Efectivo' : 'Transf.', margin + 150, y + 3.8);
+      doc.setFont('helvetica', 'bold');
+      doc.setTextColor(220, 38, 38);
+      doc.text(`-${formatCLP(out.amount || 0)}`, margin + printableWidth - 2, y + 3.8, { align: 'right' });
+      doc.setFont('helvetica', 'normal');
+      y += 5.2;
+    });
+
+    y += 5;
+  }
+
+  // ==========================================
+  // BALANCE DE INVENTARIO Y SOBRANTES
+  // ==========================================
+  if (inventorySummary.length > 0) {
+    checkPageBreak(30);
+
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(9);
+    doc.setTextColor(30, 41, 59);
+    doc.text('BALANCE DE INVENTARIO Y SOBRANTES FÍSICOS', margin, y);
+    y += 4;
+
+    doc.setFillColor(226, 232, 240);
+    doc.rect(margin, y, printableWidth, 6, 'F');
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(7.5);
+    doc.setTextColor(30, 41, 59);
+
+    doc.text('Insumo', margin + 3, y + 4.2);
+    doc.text('Comprado', margin + 65, y + 4.2, { align: 'center' });
+    doc.text('Consumido POS', margin + 98, y + 4.2, { align: 'center' });
+    doc.text('Teórico Restante', margin + 132, y + 4.2, { align: 'center' });
+    doc.text('Sobrante Real', margin + 162, y + 4.2, { align: 'center' });
+    doc.text('Diferencia', margin + printableWidth - 2, y + 4.2, { align: 'right' });
+
+    y += 6;
+
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(7.5);
+
+    inventorySummary.forEach((item, idx) => {
+      checkPageBreak(6);
+      if (idx % 2 === 1) {
+        doc.setFillColor(248, 250, 252);
+        doc.rect(margin, y, printableWidth, 5.2, 'F');
+      }
+      const purchased = item.totalPurchased || item.initialQuantity || 0;
+      const current = item.currentStock !== undefined ? item.currentStock : purchased;
+      const consumed = Math.max(0, purchased - current);
+      const hasPhysical = item.finalCount !== undefined && item.finalCount !== null;
+      const diff = hasPhysical ? (item.finalCount - current) : 0;
+
+      doc.setTextColor(51, 65, 85);
+      doc.text((item.name || '').substring(0, 30), margin + 3, y + 3.8);
+      doc.text(`${purchased}`, margin + 65, y + 3.8, { align: 'center' });
+      doc.text(`${consumed}`, margin + 98, y + 3.8, { align: 'center' });
+      doc.text(`${current}`, margin + 132, y + 3.8, { align: 'center' });
+      doc.text(hasPhysical ? `${item.finalCount}` : '—', margin + 162, y + 3.8, { align: 'center' });
+
+      if (hasPhysical) {
+        doc.setFont('helvetica', 'bold');
+        if (diff === 0) {
+          doc.setTextColor(16, 185, 129);
+          doc.text('Exacto', margin + printableWidth - 2, y + 3.8, { align: 'right' });
+        } else if (diff > 0) {
+          doc.setTextColor(59, 130, 246);
+          doc.text(`+${diff} sob.`, margin + printableWidth - 2, y + 3.8, { align: 'right' });
+        } else {
+          doc.setTextColor(239, 68, 68);
+          doc.text(`${diff} merma`, margin + printableWidth - 2, y + 3.8, { align: 'right' });
+        }
+        doc.setFont('helvetica', 'normal');
+      } else {
+        doc.text('—', margin + printableWidth - 2, y + 3.8, { align: 'right' });
+      }
+      y += 5.2;
+    });
+
+    y += 5;
+  }
+
+  // ==========================================
+  // PIE DE PÁGINA EN TODAS LAS PÁGINAS
+  // ==========================================
+  const totalPages = doc.internal.getNumberOfPages();
+  for (let p = 1; p <= totalPages; p++) {
+    doc.setPage(p);
+    doc.setFont('helvetica', 'italic');
+    doc.setFontSize(7.5);
+    doc.setTextColor(148, 163, 184);
+    doc.text(`AppCurso - Control Financiero y Gestion Escolar   |   Pagina ${p} de ${totalPages}`, margin, pageHeight - 6);
+    doc.text(`Informe Oficial Emitido para la Directiva y Apoderados`, margin + printableWidth, pageHeight - 6, { align: 'right' });
+  }
+
+  return doc;
+}
+
+/**
+ * Función universal para compartir o descargar el PDF:
+ * - En celulares (Android/iOS): abre el menú nativo de Compartir con el archivo PDF adjunto (WhatsApp, Drive, Gmail, etc.)
+ * - En PC o navegadores sin Web Share con archivos: descarga el PDF directamente.
+ */
+export async function shareOrDownloadEventPdf(doc, baseFileName, shareTitle, shareText) {
+  const safeFileName = baseFileName.toLowerCase().endsWith('.pdf') ? baseFileName : `${baseFileName}.pdf`;
+  const pdfBlob = doc.output('blob');
+  const file = new File([pdfBlob], safeFileName, { type: 'application/pdf' });
+
+  // 1. Intentar Web Share API con archivos (Soportado en celulares modernos)
+  if (typeof navigator !== 'undefined' && navigator.canShare && navigator.canShare({ files: [file] })) {
+    try {
+      await navigator.share({
+        title: shareTitle || 'Informe de Evento',
+        text: shareText || 'Adjunto el informe y balance financiero oficial del evento en formato PDF.',
+        files: [file]
+      });
+      return { success: true, method: 'shared' };
+    } catch (err) {
+      if (err.name === 'AbortError') {
+        return { success: true, method: 'aborted' };
+      }
+      console.warn('Error en navigator.share, procediendo a descarga directa:', err);
+    }
+  }
+
+  // 2. Si no soporta compartir archivos o falló, descargar directamente
+  doc.save(safeFileName);
+  return { success: true, method: 'downloaded' };
+}
