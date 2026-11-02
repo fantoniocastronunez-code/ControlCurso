@@ -94,8 +94,8 @@ const EventPOS = ({ event, onNavigateTab }) => {
   }, [user, event.id, cashierName]);
 
   useEffect(() => {
-    let unsubscribeSales = () => {};
-    let unsubscribePettyCash = () => {};
+    let unsubscribeSales = () => { };
+    let unsubscribePettyCash = () => { };
 
     const fetchData = async () => {
       setLoading(true);
@@ -195,7 +195,7 @@ const EventPOS = ({ event, onNavigateTab }) => {
     setIsFullscreen(true);
     setIsNativeFullscreen(true);
     if (document.documentElement.requestFullscreen) {
-      document.documentElement.requestFullscreen().catch(() => {});
+      document.documentElement.requestFullscreen().catch(() => { });
     }
   };
 
@@ -203,7 +203,7 @@ const EventPOS = ({ event, onNavigateTab }) => {
     setIsFullscreen(false);
     setIsNativeFullscreen(false);
     if (document.fullscreenElement && document.exitFullscreen) {
-      document.exitFullscreen().catch(() => {});
+      document.exitFullscreen().catch(() => { });
     }
   };
 
@@ -212,7 +212,7 @@ const EventPOS = ({ event, onNavigateTab }) => {
     // reanudamos la pantalla completa nativa en el primer toque del usuario (excepto si hizo click en un botón/input)
     if (isFullscreen && !document.fullscreenElement && !e.target.closest('button') && !e.target.closest('input') && !e.target.closest('select')) {
       if (document.documentElement.requestFullscreen) {
-        document.documentElement.requestFullscreen().catch(() => {});
+        document.documentElement.requestFullscreen().catch(() => { });
       }
     }
   };
@@ -259,7 +259,7 @@ const EventPOS = ({ event, onNavigateTab }) => {
     // 1. Insumos del ítem base
     const baseIngredients = item.ingredients || [];
     // 2. Insumos de los agregados
-    const spDeductions = (selectedSp || []).flatMap(sp => 
+    const spDeductions = (selectedSp || []).flatMap(sp =>
       resolveSubproductDeductions(sp, item, inventory, items)
     );
 
@@ -809,11 +809,11 @@ const EventPOS = ({ event, onNavigateTab }) => {
             type="button"
             onClick={() => setShowPettyCashModal(true)}
             className="btn btn-outline"
-            style={{ 
-              padding: '0.4rem 0.75rem', 
-              display: 'flex', 
-              alignItems: 'center', 
-              gap: '0.35rem', 
+            style={{
+              padding: '0.4rem 0.75rem',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '0.35rem',
               fontSize: '0.8rem',
               borderColor: pettyCashTotal > 0 ? '#10b981' : '#f59e0b',
               color: pettyCashTotal > 0 ? '#6ee7b7' : '#fcd34d',
@@ -910,11 +910,11 @@ const EventPOS = ({ event, onNavigateTab }) => {
                 type="button"
                 onClick={exitFullscreenMode}
                 className="btn btn-outline"
-                style={{ 
-                  padding: '0.4rem 0.75rem', 
-                  display: 'flex', 
-                  alignItems: 'center', 
-                  gap: '0.4rem', 
+                style={{
+                  padding: '0.4rem 0.75rem',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '0.4rem',
                   fontSize: '0.8rem',
                   backgroundColor: 'rgba(255, 255, 255, 0.05)',
                   borderColor: 'rgba(255, 255, 255, 0.2)'
@@ -930,11 +930,11 @@ const EventPOS = ({ event, onNavigateTab }) => {
               type="button"
               onClick={enterFullscreenMode}
               className="btn btn-outline"
-              style={{ 
-                padding: '0.4rem 0.75rem', 
-                display: 'flex', 
-                alignItems: 'center', 
-                gap: '0.4rem', 
+              style={{
+                padding: '0.4rem 0.75rem',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.4rem',
                 fontSize: '0.8rem'
               }}
               title="Entrar a Pantalla Completa"
@@ -1098,8 +1098,8 @@ const EventPOS = ({ event, onNavigateTab }) => {
                 const hasOptions = Boolean(sp.hasOptions && sp.options && sp.options.length > 0);
 
                 // Stock check para subproducto sin opciones (ej. "Té" directo o "Palta extra")
-                const spStockInfo = !hasOptions 
-                  ? getSubproductStockInfo(sp, null, selectedItemForSubproducts, inventory, items) 
+                const spStockInfo = !hasOptions
+                  ? getSubproductStockInfo(sp, null, selectedItemForSubproducts, inventory, items)
                   : null;
                 const isSpOutOfStock = spStockInfo?.hasStockLimit && spStockInfo.availableStock <= 0;
 
@@ -1126,11 +1126,11 @@ const EventPOS = ({ event, onNavigateTab }) => {
                           onChange={(e) => {
                             if (e.target.checked) {
                               if (isSpOutOfStock) return;
-                              const firstAvailOpt = hasOptions 
+                              const firstAvailOpt = hasOptions
                                 ? (sp.options.find(opt => {
-                                    const st = getSubproductStockInfo(sp, opt, selectedItemForSubproducts, inventory, items);
-                                    return !st.hasStockLimit || st.availableStock > 0;
-                                  }) || sp.options[0])
+                                  const st = getSubproductStockInfo(sp, opt, selectedItemForSubproducts, inventory, items);
+                                  return !st.hasStockLimit || st.availableStock > 0;
+                                }) || sp.options[0])
                                 : null;
                               const defaultOptionName = firstAvailOpt ? (typeof firstAvailOpt === 'string' ? firstAvailOpt : firstAvailOpt.name) : null;
                               const defaultOptionInvId = typeof firstAvailOpt === 'object' ? firstAvailOpt.inventoryId : (sp.inventoryId || null);
@@ -1157,9 +1157,9 @@ const EventPOS = ({ event, onNavigateTab }) => {
                         <span style={{ fontWeight: isSelected ? '600' : 'normal', color: isSpOutOfStock ? 'var(--text-muted)' : 'var(--text-main)' }}>
                           {sp.name}
                           {spStockInfo?.hasStockLimit && (
-                            <span style={{ 
-                              fontSize: '0.75rem', 
-                              marginLeft: '0.4rem', 
+                            <span style={{
+                              fontSize: '0.75rem',
+                              marginLeft: '0.4rem',
                               color: isSpOutOfStock ? 'var(--danger)' : 'var(--success)',
                               fontWeight: '500'
                             }}>
@@ -1221,20 +1221,20 @@ const EventPOS = ({ event, onNavigateTab }) => {
                                   fontSize: '0.8rem',
                                   fontWeight: isOptActive ? 'bold' : 'normal',
                                   borderRadius: '20px',
-                                  border: isOptActive 
-                                    ? '1px solid var(--primary)' 
-                                    : isOutOfStock 
-                                      ? '1px solid rgba(239, 68, 68, 0.3)' 
+                                  border: isOptActive
+                                    ? '1px solid var(--primary)'
+                                    : isOutOfStock
+                                      ? '1px solid rgba(239, 68, 68, 0.3)'
                                       : '1px solid rgba(255,255,255,0.15)',
-                                  backgroundColor: isOptActive 
-                                    ? 'var(--primary)' 
-                                    : isOutOfStock 
-                                      ? 'rgba(239, 68, 68, 0.08)' 
+                                  backgroundColor: isOptActive
+                                    ? 'var(--primary)'
+                                    : isOutOfStock
+                                      ? 'rgba(239, 68, 68, 0.08)'
                                       : 'rgba(255,255,255,0.05)',
-                                  color: isOptActive 
-                                    ? '#ffffff' 
-                                    : isOutOfStock 
-                                      ? 'var(--text-muted)' 
+                                  color: isOptActive
+                                    ? '#ffffff'
+                                    : isOutOfStock
+                                      ? 'var(--text-muted)'
                                       : 'var(--text-main)',
                                   opacity: isOutOfStock ? 0.6 : 1,
                                   cursor: isOutOfStock ? 'not-allowed' : 'pointer',
@@ -1244,10 +1244,10 @@ const EventPOS = ({ event, onNavigateTab }) => {
                                 {isOptActive && <Check size={12} />}
                                 <span>{optName}</span>
                                 {optStockInfo.hasStockLimit && (
-                                  <span style={{ 
-                                    fontSize: '0.7rem', 
-                                    opacity: 0.85, 
-                                    color: isOutOfStock ? 'var(--danger)' : isOptActive ? '#ffffff' : 'var(--success)' 
+                                  <span style={{
+                                    fontSize: '0.7rem',
+                                    opacity: 0.85,
+                                    color: isOutOfStock ? 'var(--danger)' : isOptActive ? '#ffffff' : 'var(--success)'
                                   }}>
                                     {isOutOfStock ? '(Agotado)' : `(${optStockInfo.availableStock})`}
                                   </span>
@@ -1543,7 +1543,7 @@ const EventPOS = ({ event, onNavigateTab }) => {
             {displayedSales.length === 0 ? (
               <div style={{ textAlign: 'center', padding: '1.5rem', backgroundColor: 'rgba(255, 255, 255, 0.02)', borderRadius: '10px' }}>
                 <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', margin: '0 0 0.5rem 0' }}>
-                  {clientNameFilter.trim() 
+                  {clientNameFilter.trim()
                     ? `No se encontraron ventas para "${clientNameFilter}".`
                     : 'No hay ventas registradas con los filtros seleccionados.'}
                 </p>
@@ -1651,22 +1651,22 @@ const EventPOS = ({ event, onNavigateTab }) => {
                               }}
                               title="Haz clic para cambiar método de pago (Efectivo / Transferencia)"
                             >
-                              {sale.paymentMethod === 'cash' 
-                                ? '💵 Efectivo' 
-                                : sale.transferVerified 
-                                  ? '🏦 Transf ✓' 
+                              {sale.paymentMethod === 'cash'
+                                ? '💵 Efectivo'
+                                : sale.transferVerified
+                                  ? '🏦 Transf ✓'
                                   : '🏦 Transf ⏳'}
                             </button>
                           </td>
-                          <td 
-                            style={{ 
-                              padding: '0.4rem', 
-                              color: 'var(--text-muted)', 
-                              maxWidth: '180px', 
-                              overflow: 'hidden', 
-                              textOverflow: 'ellipsis', 
-                              whiteSpace: 'nowrap' 
-                            }} 
+                          <td
+                            style={{
+                              padding: '0.4rem',
+                              color: 'var(--text-muted)',
+                              maxWidth: '180px',
+                              overflow: 'hidden',
+                              textOverflow: 'ellipsis',
+                              whiteSpace: 'nowrap'
+                            }}
                             title={sale.items.map(i => `${i.quantity}x ${i.name}`).join(', ')}
                           >
                             {sale.items.map(i => `${i.quantity}x ${i.name}`).join(', ')}

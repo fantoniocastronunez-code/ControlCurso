@@ -92,7 +92,7 @@ const QRScannerModal = ({ isOpen, onClose, onScanSuccess }) => {
 
             playSuccessBeep();
             if (navigator.vibrate) {
-              try { navigator.vibrate(100); } catch {}
+              try { navigator.vibrate(100); } catch { }
             }
 
             const currentInstance = scannerRef.current;
@@ -157,7 +157,7 @@ const QRScannerModal = ({ isOpen, onClose, onScanSuccess }) => {
   if (!isOpen) return null;
 
   return createPortal(
-    <div 
+    <div
       className="modal-overlay"
       style={{
         position: 'fixed',

@@ -2,33 +2,33 @@ import React, { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { db } from '../../firebase/config';
 import { doc, setDoc } from 'firebase/firestore';
-import { 
-  Calculator, Banknote, Coins, Printer, Check, X, 
-  RotateCcw, AlertTriangle, CheckCircle2, 
+import {
+  Calculator, Banknote, Coins, Printer, Check, X,
+  RotateCcw, AlertTriangle, CheckCircle2,
   TrendingUp, Edit3, Save
 } from 'lucide-react';
-import { 
-  formatMoneyCLP, 
-  getPrinterConfig, 
-  buildCashReconciliationReceiptPayload, 
-  printViaRawBT, 
-  printViaWebBluetooth 
+import {
+  formatMoneyCLP,
+  getPrinterConfig,
+  buildCashReconciliationReceiptPayload,
+  printViaRawBT,
+  printViaWebBluetooth
 } from '../../utils/thermalPrinterService';
 
 // Denominaciones chilenas oficiales
 const BILL_CONFIG = [
   { value: 20000, label: '$20.000', color: '#1e40af', bg: 'rgba(30, 64, 175, 0.25)', border: '#3b82f6' }, // Azul
   { value: 10000, label: '$10.000', color: '#15803d', bg: 'rgba(21, 128, 61, 0.25)', border: '#22c55e' }, // Verde
-  { value: 5000,  label: '$5.000',  color: '#b91c1c', bg: 'rgba(185, 28, 28, 0.25)', border: '#ef4444' }, // Rojo
-  { value: 2000,  label: '$2.000',  color: '#7e22ce', bg: 'rgba(126, 34, 206, 0.25)', border: '#a855f7' }, // Morado
-  { value: 1000,  label: '$1.000',  color: '#0e7490', bg: 'rgba(14, 116, 144, 0.25)', border: '#06b6d4' }  // Verde agua / Celeste
+  { value: 5000, label: '$5.000', color: '#b91c1c', bg: 'rgba(185, 28, 28, 0.25)', border: '#ef4444' }, // Rojo
+  { value: 2000, label: '$2.000', color: '#7e22ce', bg: 'rgba(126, 34, 206, 0.25)', border: '#a855f7' }, // Morado
+  { value: 1000, label: '$1.000', color: '#0e7490', bg: 'rgba(14, 116, 144, 0.25)', border: '#06b6d4' }  // Verde agua / Celeste
 ];
 
 const COIN_CONFIG = [
   { value: 500, label: '$500', color: '#d97706', bg: 'rgba(217, 119, 6, 0.25)', border: '#f59e0b' }, // Bimetálica
   { value: 100, label: '$100', color: '#ca8a04', bg: 'rgba(202, 138, 4, 0.25)', border: '#eab308' }, // Dorada
-  { value: 50,  label: '$50',  color: '#94a3b8', bg: 'rgba(148, 163, 184, 0.2)', border: '#cbd5e1' }, // Plateada decagonal
-  { value: 10,  label: '$10',  color: '#c2410c', bg: 'rgba(194, 65, 12, 0.25)', border: '#ea580c' }   // Cobriza
+  { value: 50, label: '$50', color: '#94a3b8', bg: 'rgba(148, 163, 184, 0.2)', border: '#cbd5e1' }, // Plateada decagonal
+  { value: 10, label: '$10', color: '#c2410c', bg: 'rgba(194, 65, 12, 0.25)', border: '#ea580c' }   // Cobriza
 ];
 
 const CashReconciliationModal = ({
@@ -45,7 +45,7 @@ const CashReconciliationModal = ({
 }) => {
   // Modo de ingreso: 'breakdown' (billetes y monedas) | 'quick' (monto total directo)
   const [inputMode, setInputMode] = useState('breakdown');
-  
+
   // Fondo inicial que había antes de comenzar (por defecto viene de la caja chica registrada)
   const [initialFund, setInitialFund] = useState(initialPettyCash || 0);
   const [isEditingInitialFund, setIsEditingInitialFund] = useState(false);
@@ -141,8 +141,8 @@ const CashReconciliationModal = ({
   const totalCoins = COIN_CONFIG.reduce((sum, c) => sum + (coins[c.value] || 0) * c.value, 0);
   const calculatedBreakdownTotal = totalBills + totalCoins;
 
-  const finalCashCounted = inputMode === 'breakdown' 
-    ? calculatedBreakdownTotal 
+  const finalCashCounted = inputMode === 'breakdown'
+    ? calculatedBreakdownTotal
     : Math.max(0, parseInt(quickTotalCounted.replace(/\D/g, ''), 10) || 0);
 
   // Recaudación Neta Real = Efectivo Físico Contado - Lo que había antes de comenzar
@@ -226,7 +226,7 @@ const CashReconciliationModal = ({
       };
 
       await setDoc(doc(db, 'eventPettyCash', docId), docPayload, { merge: true });
-      
+
       setSaveSuccess(true);
       if (onReconciliationSaved) {
         onReconciliationSaved(closingAuditPayload);
@@ -271,7 +271,7 @@ const CashReconciliationModal = ({
   };
 
   return createPortal(
-    <div 
+    <div
       className="modal-overlay"
       style={{
         position: 'fixed',

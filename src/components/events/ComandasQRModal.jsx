@@ -29,7 +29,7 @@ const ComandasQRModal = ({ isOpen, onClose, eventId, eventName }) => {
   };
 
   return createPortal(
-    <div 
+    <div
       className="modal-overlay"
       style={{
         position: 'fixed',
@@ -50,7 +50,7 @@ const ComandasQRModal = ({ isOpen, onClose, eventId, eventName }) => {
         WebkitOverflowScrolling: 'touch'
       }}
     >
-      <div 
+      <div
         className="glass-panel"
         style={{
           width: '100%',
@@ -122,7 +122,7 @@ const ComandasQRModal = ({ isOpen, onClose, eventId, eventName }) => {
           margin: '0 auto 1.5rem auto',
           width: 'fit-content'
         }}>
-          <QRCodeSVG 
+          <QRCodeSVG
             value={comandasUrl}
             size={220}
             level="M"

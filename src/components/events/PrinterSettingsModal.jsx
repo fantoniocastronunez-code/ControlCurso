@@ -1,16 +1,16 @@
 import React, { useState } from 'react';
 import { createPortal } from 'react-dom';
-import { 
-  Printer, Smartphone, Bluetooth, Monitor, CheckCircle, 
-  ExternalLink, X, HelpCircle, AlertCircle, RefreshCw 
+import {
+  Printer, Smartphone, Bluetooth, Monitor, CheckCircle,
+  ExternalLink, X, HelpCircle, AlertCircle, RefreshCw
 } from 'lucide-react';
-import { 
+import {
   getPrinterConfig, setPrinterConfig, isAndroid,
   getPaperWidth, setPaperWidth,
   getFontSize, setFontSize,
   getCutterConfig, setCutterConfig,
   connectWebBluetooth, disconnectWebBluetooth, getConnectedBluetoothDevice,
-  printViaRawBT, printViaWebBluetooth, buildTestReceiptPayload 
+  printViaRawBT, printViaWebBluetooth, buildTestReceiptPayload
 } from '../../utils/thermalPrinterService';
 import { useModal } from '../../context/ModalContext';
 
@@ -74,7 +74,7 @@ const PrinterSettingsModal = ({ isOpen, onClose, eventName }) => {
 
   const handleTestPrint = async (modeToTest) => {
     const payload = buildTestReceiptPayload(eventName || 'APPCURSO POS', 'Test de Impresora');
-    
+
     if (modeToTest === 'rawbt') {
       try {
         printViaRawBT(payload);
@@ -94,7 +94,7 @@ const PrinterSettingsModal = ({ isOpen, onClose, eventName }) => {
   };
 
   return createPortal(
-    <div 
+    <div
       className="modal-overlay"
       style={{
         position: 'fixed',
@@ -162,7 +162,7 @@ const PrinterSettingsModal = ({ isOpen, onClose, eventName }) => {
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
             {/* Opción 1: RawBT (Automático Android) */}
-            <div 
+            <div
               onClick={() => handleSaveMode('rawbt')}
               style={{
                 border: selectedMode === 'rawbt' ? '2px solid var(--primary, #6366f1)' : '1px solid rgba(255, 255, 255, 0.1)',
@@ -251,7 +251,7 @@ const PrinterSettingsModal = ({ isOpen, onClose, eventName }) => {
             </div>
 
             {/* Opción 2: Web Bluetooth Directo */}
-            <div 
+            <div
               onClick={() => handleSaveMode('bluetooth')}
               style={{
                 border: selectedMode === 'bluetooth' ? '2px solid var(--primary, #6366f1)' : '1px solid rgba(255, 255, 255, 0.1)',
@@ -350,7 +350,7 @@ const PrinterSettingsModal = ({ isOpen, onClose, eventName }) => {
             </div>
 
             {/* Opción 3: Diálogo del Navegador (window.print) */}
-            <div 
+            <div
               onClick={() => handleSaveMode('system')}
               style={{
                 border: selectedMode === 'system' ? '2px solid var(--primary, #6366f1)' : '1px solid rgba(255, 255, 255, 0.1)',
@@ -377,7 +377,7 @@ const PrinterSettingsModal = ({ isOpen, onClose, eventName }) => {
             {/* Opciones avanzadas para Impresión Térmica */}
             {(selectedMode === 'rawbt' || selectedMode === 'bluetooth') && (
               <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', marginTop: '0.5rem' }}>
-                
+
                 {/* 1. Tamaño de Letra */}
                 <div style={{
                   padding: '1rem',
@@ -394,8 +394,8 @@ const PrinterSettingsModal = ({ isOpen, onClose, eventName }) => {
                     </span>
                   </div>
                   <p style={{ margin: '0 0 0.75rem 0', fontSize: '0.78rem', color: '#94a3b8', lineHeight: 1.4 }}>
-                    {fontSize === 'compact' 
-                      ? 'Fuente B compacta (como en la Foto 1). Letras más pequeñas, proporcionadas y elegantes.' 
+                    {fontSize === 'compact'
+                      ? 'Fuente B compacta (como en la Foto 1). Letras más pequeñas, proporcionadas y elegantes.'
                       : 'Fuente A estándar. Letras más grandes (puede requerir más líneas).'}
                   </p>
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem' }}>
@@ -450,8 +450,8 @@ const PrinterSettingsModal = ({ isOpen, onClose, eventName }) => {
                     </span>
                   </div>
                   <p style={{ margin: '0 0 0.75rem 0', fontSize: '0.78rem', color: '#94a3b8', lineHeight: 1.4 }}>
-                    {cutterMode === 'tear' 
-                      ? 'Para impresoras portátiles 58mm: avanza solo lo mínimo para cortar con los dientes manuales (elimina el trozo de 35mm en blanco).' 
+                    {cutterMode === 'tear'
+                      ? 'Para impresoras portátiles 58mm: avanza solo lo mínimo para cortar con los dientes manuales (elimina el trozo de 35mm en blanco).'
                       : 'Para impresoras de sobremesa con guillotina automática.'}
                   </p>
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem' }}>
