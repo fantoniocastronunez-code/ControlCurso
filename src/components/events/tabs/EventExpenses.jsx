@@ -316,7 +316,7 @@ const EventExpenses = ({ event }) => {
                         {out.paymentMethod === 'cash' ? 'Efectivo' : 'Transf.'}
                       </span>
                     </td>
-                    <td style={{ padding: '0.75rem 0.5rem', textAlign: 'right', fontWeight: 'bold', color: 'var(--danger)' }}>
+                    <td style={{ padding: '0.75rem 0.5rem', textAlign: 'right', fontWeight: 'bold', color: 'var(--danger)', whiteSpace: 'nowrap' }}>
                       -{formatMoney(out.amount)}
                     </td>
                     <td style={{ padding: '0.75rem 0.5rem', textAlign: 'center' }}>

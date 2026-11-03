@@ -4,7 +4,7 @@ import { collection, getDocs, doc, setDoc, deleteDoc, updateDoc, query, where } 
 import {
   ArrowLeft, CheckCircle, Trash2, TrendingDown, Edit2, Calculator,
   CheckSquare, Sparkles, RotateCcw, Save, AlertTriangle, ShieldCheck,
-  Check, Eye, EyeOff, Search, Filter, Tag, Calendar, User
+  Check, Eye, EyeOff, Search, Filter, Tag, Calendar, User, X
 } from 'lucide-react';
 import { useModal } from '../context/ModalContext';
 import { useCourse } from '../context/CourseContext';
@@ -809,15 +809,15 @@ const OutcomeManagement = ({ onBack }) => {
         <table style={{ width: '100%', minWidth: '820px', borderCollapse: 'collapse', textAlign: 'left' }}>
           <thead>
             <tr style={{ borderBottom: '1px solid var(--border-color)', backgroundColor: 'rgba(255,255,255,0.03)' }}>
-              {isAuditMode && <th style={{ padding: '1rem' }}>Audit.</th>}
-              <th style={{ padding: '1rem' }}>Fecha</th>
-              <th style={{ padding: '1rem' }}>Motivo / Origen</th>
-              <th style={{ padding: '1rem' }}>{isAuditMode ? 'Monto Sistema' : 'Monto'}</th>
-              {isAuditMode && <th style={{ padding: '1rem' }}>Monto Manual ($)</th>}
-              {isAuditMode && <th style={{ padding: '1rem' }}>Cuadratura</th>}
-              <th style={{ padding: '1rem' }}>Medio / Fondo</th>
-              <th style={{ padding: '1rem' }}>Portal</th>
-              <th style={{ padding: '1rem', textAlign: 'center' }}>Acciones</th>
+              {isAuditMode && <th style={{ padding: '0.75rem 0.5rem', width: '36px' }}>Audit.</th>}
+              <th style={{ padding: '0.75rem', width: '100px', whiteSpace: 'nowrap' }}>Fecha</th>
+              <th style={{ padding: '0.75rem' }}>Motivo / Origen</th>
+              <th style={{ padding: '0.75rem 1rem', whiteSpace: 'nowrap', minWidth: '125px' }}>{isAuditMode ? 'Monto Sistema' : 'Monto'}</th>
+              {isAuditMode && <th style={{ padding: '0.75rem', width: '110px' }}>Monto Manual ($)</th>}
+              {isAuditMode && <th style={{ padding: '0.75rem', width: '90px' }}>Cuadratura</th>}
+              <th style={{ padding: '0.75rem' }}>Medio / Fondo</th>
+              <th style={{ padding: '0.75rem', textAlign: 'center', width: '60px' }}>Portal</th>
+              <th style={{ padding: '0.75rem', textAlign: 'center', width: '85px' }}>Acciones</th>
             </tr>
           </thead>
           <tbody>
@@ -900,23 +900,73 @@ const OutcomeManagement = ({ onBack }) => {
                           ))}
                         </select>
                       </td>
-                      <td style={{ padding: '1rem' }}>
-                        <label style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', cursor: 'pointer', fontSize: '0.8rem', color: editOutcomeVisibleInPortal ? 'var(--success)' : '#f87171' }}>
-                          <input
-                            type="checkbox"
-                            checked={editOutcomeVisibleInPortal}
-                            onChange={e => setEditOutcomeVisibleInPortal(e.target.checked)}
-                          />
-                          {editOutcomeVisibleInPortal ? 'Visible en portal' : 'Oculto'}
-                        </label>
-                      </td>
-                      <td style={{ padding: '1rem', textAlign: 'center' }}>
-                        <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'center' }}>
-                          <button onClick={() => handleSaveEdit(o.id)} className="btn btn-primary" style={{ padding: '0.4rem 0.75rem', backgroundColor: 'var(--success)' }}>
-                            <CheckCircle size={16} /> Guardar
+                      <td style={{ padding: '0.5rem', textAlign: 'center', width: '60px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                          <button
+                            type="button"
+                            role="switch"
+                            aria-checked={editOutcomeVisibleInPortal}
+                            onClick={() => setEditOutcomeVisibleInPortal(!editOutcomeVisibleInPortal)}
+                            style={{
+                              width: '40px',
+                              height: '22px',
+                              borderRadius: '11px',
+                              backgroundColor: editOutcomeVisibleInPortal ? '#10b981' : '#334155',
+                              border: `1px solid ${editOutcomeVisibleInPortal ? '#059669' : '#475569'}`,
+                              position: 'relative',
+                              cursor: 'pointer',
+                              padding: 0,
+                              transition: 'all 0.2s ease',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              outline: 'none'
+                            }}
+                            title={editOutcomeVisibleInPortal ? 'Visible en portal' : 'Oculto'}
+                          >
+                            <span
+                              style={{
+                                width: '16px',
+                                height: '16px',
+                                borderRadius: '50%',
+                                backgroundColor: '#ffffff',
+                                position: 'absolute',
+                                top: '2px',
+                                left: editOutcomeVisibleInPortal ? '20px' : '2px',
+                                transition: 'all 0.2s ease',
+                                boxShadow: '0 1px 3px rgba(0,0,0,0.4)',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center'
+                              }}
+                            >
+                              {editOutcomeVisibleInPortal ? (
+                                <Eye size={10} color="#059669" />
+                              ) : (
+                                <EyeOff size={10} color="#64748b" />
+                              )}
+                            </span>
                           </button>
-                          <button onClick={() => setEditingOutcomeId(null)} className="btn btn-outline" style={{ padding: '0.4rem 0.75rem' }}>
-                            Cancelar
+                        </div>
+                      </td>
+                      <td style={{ padding: '0.5rem', textAlign: 'center', width: '85px', whiteSpace: 'nowrap' }}>
+                        <div style={{ display: 'inline-flex', gap: '0.35rem', justifyContent: 'center' }}>
+                          <button
+                            type="button"
+                            onClick={() => handleSaveEdit(o.id)}
+                            className="btn btn-primary"
+                            style={{ padding: '0.45rem', backgroundColor: 'var(--success)', borderRadius: '8px' }}
+                            title="Guardar cambios"
+                          >
+                            <CheckCircle size={16} />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setEditingOutcomeId(null)}
+                            className="btn btn-outline"
+                            style={{ padding: '0.45rem', borderRadius: '8px' }}
+                            title="Cancelar edición"
+                          >
+                            <X size={16} />
                           </button>
                         </div>
                       </td>
@@ -973,7 +1023,9 @@ const OutcomeManagement = ({ onBack }) => {
                           )}
                         </div>
                       </td>
-                      <td style={{ padding: '1rem', color: 'var(--danger)', fontWeight: 'bold' }}>{formatMoney(o.amount)}</td>
+                      <td style={{ padding: '0.85rem 1rem', color: 'var(--danger)', fontWeight: 'bold', whiteSpace: 'nowrap', minWidth: '125px' }}>
+                        -{formatMoney(o.amount)}
+                      </td>
 
                       <td style={{ padding: '1rem' }}>
                         <input
@@ -1026,25 +1078,53 @@ const OutcomeManagement = ({ onBack }) => {
                         </div>
                       </td>
 
-                      <td style={{ padding: '1rem' }}>
-                        <button
-                          type="button"
-                          onClick={() => handleToggleOutcomeVisibility(o.id, o.visibleInPortal !== false)}
-                          className="btn btn-outline"
-                          style={{
-                            padding: '0.35rem 0.6rem',
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: '0.35rem',
-                            borderColor: o.visibleInPortal === false ? 'rgba(239, 68, 68, 0.4)' : 'rgba(16, 185, 129, 0.4)',
-                            color: o.visibleInPortal === false ? '#f87171' : 'var(--success)',
-                            backgroundColor: o.visibleInPortal === false ? 'rgba(239, 68, 68, 0.08)' : 'rgba(16, 185, 129, 0.08)'
-                          }}
-                          title={o.visibleInPortal === false ? 'Gasto oculto en portal apoderados. Clic para hacerlo visible.' : 'Gasto visible en portal apoderados. Clic para ocultarlo.'}
-                        >
-                          {o.visibleInPortal === false ? <EyeOff size={14} /> : <Eye size={14} />}
-                          <span style={{ fontSize: '0.75rem' }}>{o.visibleInPortal === false ? 'Oculto' : 'Visible'}</span>
-                        </button>
+                      <td style={{ padding: '0.75rem 0.5rem', textAlign: 'center', width: '60px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                          <button
+                            type="button"
+                            role="switch"
+                            aria-checked={o.visibleInPortal !== false}
+                            onClick={() => handleToggleOutcomeVisibility(o.id, o.visibleInPortal !== false)}
+                            style={{
+                              width: '40px',
+                              height: '22px',
+                              borderRadius: '11px',
+                              backgroundColor: o.visibleInPortal !== false ? '#10b981' : '#334155',
+                              border: `1px solid ${o.visibleInPortal !== false ? '#059669' : '#475569'}`,
+                              position: 'relative',
+                              cursor: 'pointer',
+                              padding: 0,
+                              transition: 'all 0.2s ease',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              outline: 'none'
+                            }}
+                            title={o.visibleInPortal !== false ? 'Gasto visible en portal de apoderados (clic para ocultar)' : 'Gasto oculto en portal de apoderados (clic para mostrar)'}
+                          >
+                            <span
+                              style={{
+                                width: '16px',
+                                height: '16px',
+                                borderRadius: '50%',
+                                backgroundColor: '#ffffff',
+                                position: 'absolute',
+                                top: '2px',
+                                left: o.visibleInPortal !== false ? '20px' : '2px',
+                                transition: 'all 0.2s ease',
+                                boxShadow: '0 1px 3px rgba(0,0,0,0.4)',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center'
+                              }}
+                            >
+                              {o.visibleInPortal !== false ? (
+                                <Eye size={10} color="#059669" />
+                              ) : (
+                                <EyeOff size={10} color="#64748b" />
+                              )}
+                            </span>
+                          </button>
+                        </div>
                       </td>
 
                       <td style={{ padding: '1rem', textAlign: 'center' }}>
@@ -1096,50 +1176,105 @@ const OutcomeManagement = ({ onBack }) => {
                           )}
                         </div>
                       </td>
-                      <td style={{ padding: '1rem', color: 'var(--danger)', fontWeight: 'bold' }}>
-                        - {formatMoney(o.amount)}
+                      <td style={{
+                        padding: '0.85rem 1rem',
+                        color: 'var(--danger)',
+                        fontWeight: 'bold',
+                        whiteSpace: 'nowrap',
+                        minWidth: '125px',
+                        fontSize: '0.95rem'
+                      }}>
+                        -{formatMoney(o.amount)}
                       </td>
-                      <td style={{ padding: '1rem' }}>
+                      <td style={{ padding: '0.85rem 1rem' }}>
                         <div style={{ fontSize: '0.9rem' }}>{o.paymentMethod === 'cash' ? '💵 Efectivo' : '🏦 Transferencia'}</div>
                         <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
                           {f ? f.name : (isEvent ? `Evento: ${eventNameDisplay}` : 'Fondo General')}
                         </div>
                       </td>
-                      <td style={{ padding: '1rem' }}>
-                        <button
-                          type="button"
-                          onClick={() => handleToggleOutcomeVisibility(o.id, o.visibleInPortal !== false)}
-                          className="btn btn-outline"
-                          style={{
-                            padding: '0.35rem 0.6rem',
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: '0.35rem',
-                            borderColor: o.visibleInPortal === false ? 'rgba(239, 68, 68, 0.4)' : 'rgba(16, 185, 129, 0.4)',
-                            color: o.visibleInPortal === false ? '#f87171' : 'var(--success)',
-                            backgroundColor: o.visibleInPortal === false ? 'rgba(239, 68, 68, 0.08)' : 'rgba(16, 185, 129, 0.08)'
-                          }}
-                          title={o.visibleInPortal === false ? 'Gasto oculto en portal apoderados. Clic para hacerlo visible.' : 'Gasto visible en portal apoderados. Clic para ocultarlo.'}
-                        >
-                          {o.visibleInPortal === false ? <EyeOff size={14} /> : <Eye size={14} />}
-                          <span style={{ fontSize: '0.75rem' }}>{o.visibleInPortal === false ? 'Oculto' : 'Visible'}</span>
-                        </button>
-                      </td>
-                      <td style={{ padding: '1rem', textAlign: 'center' }}>
-                        <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'center' }}>
+                      <td style={{ padding: '0.75rem 0.5rem', textAlign: 'center', width: '60px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                           <button
+                            type="button"
+                            role="switch"
+                            aria-checked={o.visibleInPortal !== false}
+                            onClick={() => handleToggleOutcomeVisibility(o.id, o.visibleInPortal !== false)}
+                            style={{
+                              width: '40px',
+                              height: '22px',
+                              borderRadius: '11px',
+                              backgroundColor: o.visibleInPortal !== false ? '#10b981' : '#334155',
+                              border: `1px solid ${o.visibleInPortal !== false ? '#059669' : '#475569'}`,
+                              position: 'relative',
+                              cursor: 'pointer',
+                              padding: 0,
+                              transition: 'all 0.2s ease',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              outline: 'none'
+                            }}
+                            title={o.visibleInPortal !== false ? 'Gasto visible en portal de apoderados (clic para ocultar)' : 'Gasto oculto en portal de apoderados (clic para mostrar)'}
+                          >
+                            <span
+                              style={{
+                                width: '16px',
+                                height: '16px',
+                                borderRadius: '50%',
+                                backgroundColor: '#ffffff',
+                                position: 'absolute',
+                                top: '2px',
+                                left: o.visibleInPortal !== false ? '20px' : '2px',
+                                transition: 'all 0.2s ease',
+                                boxShadow: '0 1px 3px rgba(0,0,0,0.4)',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center'
+                              }}
+                            >
+                              {o.visibleInPortal !== false ? (
+                                <Eye size={10} color="#059669" />
+                              ) : (
+                                <EyeOff size={10} color="#64748b" />
+                              )}
+                            </span>
+                          </button>
+                        </div>
+                      </td>
+                      <td style={{ padding: '0.75rem 0.5rem', textAlign: 'center', width: '85px', whiteSpace: 'nowrap' }}>
+                        <div style={{ display: 'inline-flex', gap: '0.35rem', justifyContent: 'center', alignItems: 'center' }}>
+                          <button
+                            type="button"
                             onClick={() => handleStartEdit(o)}
                             className="btn btn-outline"
-                            style={{ padding: '0.4rem 0.75rem', gap: '0.4rem', display: 'flex', alignItems: 'center' }}
+                            style={{
+                              padding: '0.45rem',
+                              borderRadius: '8px',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              color: 'var(--text-main)',
+                              borderColor: 'rgba(255, 255, 255, 0.15)'
+                            }}
+                            title="Editar gasto"
                           >
-                            <Edit2 size={15} /> Editar
+                            <Edit2 size={15} />
                           </button>
                           <button
+                            type="button"
                             onClick={() => handleDelete(o.id)}
                             className="btn btn-outline"
-                            style={{ padding: '0.4rem 0.75rem', color: 'var(--danger)', borderColor: 'rgba(239, 68, 68, 0.3)', gap: '0.4rem', display: 'flex', alignItems: 'center' }}
+                            style={{
+                              padding: '0.45rem',
+                              borderRadius: '8px',
+                              color: 'var(--danger)',
+                              borderColor: 'rgba(239, 68, 68, 0.3)',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              justifyContent: 'center'
+                            }}
+                            title="Eliminar gasto"
                           >
-                            <Trash2 size={15} /> Eliminar
+                            <Trash2 size={15} />
                           </button>
                         </div>
                       </td>
