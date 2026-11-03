@@ -3,9 +3,10 @@ import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
 import { db } from '../../../firebase/config';
 import { collection, getDocs, doc, setDoc, query, where, orderBy, updateDoc, deleteDoc, onSnapshot } from 'firebase/firestore';
-import { ShoppingCart, Plus, Minus, Trash2, Printer, Maximize, Minimize, Check, Package, AlertTriangle, UserCheck, Users, RefreshCw, Settings, ChefHat, Camera, Banknote, Calculator, Search, X, Edit2 } from 'lucide-react';
+import { ShoppingCart, Plus, Minus, Trash2, Printer, Maximize, Minimize, Check, Package, AlertTriangle, UserCheck, Users, RefreshCw, Settings, ChefHat, Camera, Banknote, Calculator, Search, X, Edit2, DollarSign } from 'lucide-react';
 import { useModal } from '../../../context/ModalContext';
 import { useAuth } from '../../../context/AuthContext';
+import { useCourse } from '../../../context/CourseContext';
 import ThermalReceipt from './ThermalReceipt';
 import PrinterSettingsModal from '../PrinterSettingsModal';
 import ComandasQRModal from '../ComandasQRModal';
@@ -27,11 +28,20 @@ import {
 
 const EventPOS = ({ event, onNavigateTab }) => {
   const { user } = useAuth();
+  const { selectedCourse } = useCourse();
   const { showAlert, showConfirm } = useModal();
   const [items, setItems] = useState([]);
   const [sales, setSales] = useState([]);
   const [inventory, setInventory] = useState([]);
   const [loading, setLoading] = useState(true);
+
+  // Quick Expense Modal State
+  const [showQuickExpenseModal, setShowQuickExpenseModal] = useState(false);
+  const [quickExpenseTitle, setQuickExpenseTitle] = useState('');
+  const [quickExpenseAmount, setQuickExpenseAmount] = useState('');
+  const [quickExpenseResponsable, setQuickExpenseResponsable] = useState('');
+  const [quickExpenseMethod, setQuickExpenseMethod] = useState('cash');
+  const [quickExpenseSubmitting, setQuickExpenseSubmitting] = useState(false);
 
   // Fullscreen State
   const posContainerRef = useRef(null);
@@ -552,6 +562,66 @@ const EventPOS = ({ event, onNavigateTab }) => {
     }
   };
 
+  const handleCreateQuickExpense = async (e) => {
+    e?.preventDefault();
+    if (!quickExpenseTitle.trim() || !quickExpenseAmount) {
+      await showAlert("Por favor ingresa la descripción y el monto del gasto.");
+      return;
+    }
+    const amt = parseFloat(quickExpenseAmount);
+    if (isNaN(amt) || amt <= 0) {
+      await showAlert("El monto debe ser un valor numérico mayor a 0.");
+      return;
+    }
+
+    setQuickExpenseSubmitting(true);
+    try {
+      const outcomeId = 'out_' + Date.now();
+      const effectiveCourseId = event?.courseId || selectedCourse?.id || '';
+      const effectiveFundId = event?.fundId || ('fund_' + event?.id);
+
+      // Si el evento no tenía courseId en su doc, actualizarlo
+      if (event?.id && effectiveCourseId && (!event.courseId || event.courseId !== effectiveCourseId)) {
+        try {
+          await updateDoc(doc(db, 'events', event.id), { courseId: effectiveCourseId });
+        } catch (evErr) {
+          console.warn("Error actualizando courseId:", evErr);
+        }
+      }
+
+      const newOutcome = {
+        title: quickExpenseTitle.trim(),
+        amount: amt,
+        date: new Date().toISOString().split('T')[0],
+        paymentMethod: quickExpenseMethod,
+        responsable: quickExpenseResponsable.trim() || activeCashierDisplayName || user?.displayName || 'Cajero',
+        fundId: effectiveFundId,
+        eventId: event.id,
+        eventName: event.name || 'Evento',
+        courseId: effectiveCourseId,
+        isEventExpense: true,
+        visibleInPortal: true,
+        createdAt: new Date().toISOString(),
+        createdBy: user?.email || user?.displayName || 'Cajero POS'
+      };
+
+      await setDoc(doc(db, 'outcomes', outcomeId), newOutcome);
+
+      setQuickExpenseTitle('');
+      setQuickExpenseAmount('');
+      setQuickExpenseResponsable('');
+      setQuickExpenseMethod('cash');
+      setShowQuickExpenseModal(false);
+
+      await showAlert(`Gasto de ${formatMoney(amt)} registrado con éxito.\nSe sincronizó con el Historial y Registro de Gastos general.`);
+    } catch (err) {
+      console.error("Error registrando gasto desde POS:", err);
+      await showAlert("Hubo un error al registrar el gasto.");
+    } finally {
+      setQuickExpenseSubmitting(false);
+    }
+  };
+
   const handleChangePaymentMethod = async (sale) => {
     if (sale.status === 'cancelled') return;
     const currentMethod = sale.paymentMethod || 'cash';
@@ -823,6 +893,30 @@ const EventPOS = ({ event, onNavigateTab }) => {
           >
             <Banknote size={15} />
             <span>{pettyCashTotal > 0 ? `Caja Chica (${formatMoney(pettyCashTotal)})` : 'Ingresar Caja Chica'}</span>
+          </button>
+
+          {/* Botón para Registrar Gasto Rápido del Evento */}
+          <button
+            type="button"
+            onClick={() => {
+              setQuickExpenseResponsable(activeCashierDisplayName);
+              setShowQuickExpenseModal(true);
+            }}
+            className="btn btn-outline"
+            style={{
+              padding: '0.4rem 0.75rem',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '0.35rem',
+              fontSize: '0.8rem',
+              borderColor: 'rgba(239, 68, 68, 0.5)',
+              color: '#f87171',
+              backgroundColor: 'rgba(239, 68, 68, 0.1)'
+            }}
+            title="Registrar un gasto del evento (compra de insumos, hielo, etc.). Se sincroniza automáticamente con el Historial y Registro de Gastos."
+          >
+            <DollarSign size={15} />
+            <span>Registrar Gasto</span>
           </button>
 
           {/* Botón para Cuadrar Efectivo Final en Caja */}
@@ -1919,6 +2013,144 @@ const EventPOS = ({ event, onNavigateTab }) => {
           }));
         }}
       />
+
+      {/* Modal para Registrar Gasto Rápido desde POS */}
+      {showQuickExpenseModal && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          backgroundColor: 'rgba(0,0,0,0.7)',
+          backdropFilter: 'blur(4px)',
+          display: 'flex',
+          justifyContent: 'center',
+          alignItems: 'center',
+          zIndex: 9999,
+          padding: '1rem'
+        }}>
+          <div className="glass-panel animate-fade-in" style={{
+            maxWidth: '460px',
+            width: '100%',
+            padding: '1.75rem',
+            borderRadius: '16px',
+            border: '1px solid rgba(239, 68, 68, 0.3)',
+            boxShadow: '0 20px 40px rgba(0,0,0,0.5)'
+          }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: 'var(--danger)' }}>
+                <DollarSign size={22} />
+                <h3 style={{ margin: 0, fontSize: '1.2rem' }}>Registrar Gasto del Evento</h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowQuickExpenseModal(false)}
+                className="btn btn-outline"
+                style={{ padding: '0.3rem', borderRadius: '50%', border: 'none' }}
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <p style={{ fontSize: '0.825rem', color: 'var(--text-muted)', marginBottom: '1.25rem' }}>
+              Registra compras menores o egresos durante el evento. Quedará incorporado automáticamente al <strong>Historial y Registro de Gastos</strong> del curso.
+            </p>
+
+            <form onSubmit={handleCreateQuickExpense}>
+              <div className="input-group" style={{ marginBottom: '1rem' }}>
+                <label className="input-label">Motivo o Descripción *</label>
+                <input
+                  type="text"
+                  required
+                  placeholder="Ej. Hielo para bebidas, servilletas, pan..."
+                  className="input-field"
+                  value={quickExpenseTitle}
+                  onChange={(e) => setQuickExpenseTitle(e.target.value)}
+                  autoFocus
+                />
+              </div>
+
+              <div className="input-group" style={{ marginBottom: '1rem' }}>
+                <label className="input-label">Monto del Gasto ($) *</label>
+                <input
+                  type="number"
+                  min="1"
+                  required
+                  placeholder="Ej. 5000"
+                  className="input-field"
+                  value={quickExpenseAmount}
+                  onChange={(e) => setQuickExpenseAmount(e.target.value)}
+                />
+              </div>
+
+              <div className="input-group" style={{ marginBottom: '1rem' }}>
+                <label className="input-label">Responsable (Quién compró) *</label>
+                <input
+                  type="text"
+                  required
+                  placeholder="Ej. Nombre del encargado/cajero"
+                  className="input-field"
+                  value={quickExpenseResponsable}
+                  onChange={(e) => setQuickExpenseResponsable(e.target.value)}
+                />
+              </div>
+
+              <div className="input-group" style={{ marginBottom: '1.5rem' }}>
+                <label className="input-label">Medio de Pago</label>
+                <div style={{ display: 'flex', gap: '1.5rem' }}>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', cursor: 'pointer', fontSize: '0.9rem' }}>
+                    <input
+                      type="radio"
+                      name="quickPayMethod"
+                      value="cash"
+                      checked={quickExpenseMethod === 'cash'}
+                      onChange={(e) => setQuickExpenseMethod(e.target.value)}
+                      style={{ accentColor: 'var(--primary)' }}
+                    /> 💵 Efectivo (Caja)
+                  </label>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', cursor: 'pointer', fontSize: '0.9rem' }}>
+                    <input
+                      type="radio"
+                      name="quickPayMethod"
+                      value="transfer"
+                      checked={quickExpenseMethod === 'transfer'}
+                      onChange={(e) => setQuickExpenseMethod(e.target.value)}
+                      style={{ accentColor: 'var(--primary)' }}
+                    /> 🏦 Transferencia
+                  </label>
+                </div>
+              </div>
+
+              <div style={{ display: 'flex', gap: '0.75rem', justifyContent: 'flex-end' }}>
+                <button
+                  type="button"
+                  onClick={() => setShowQuickExpenseModal(false)}
+                  className="btn btn-outline"
+                  disabled={quickExpenseSubmitting}
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  disabled={quickExpenseSubmitting}
+                  className="btn btn-primary"
+                  style={{
+                    backgroundColor: 'var(--danger)',
+                    borderColor: 'var(--danger)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '0.4rem'
+                  }}
+                >
+                  <Plus size={16} />
+                  {quickExpenseSubmitting ? 'Guardando...' : 'Guardar Gasto'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 

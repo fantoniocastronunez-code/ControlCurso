@@ -379,7 +379,9 @@ export function buildEventClipboardReport(data) {
     ? data.top5Items
     : (data.itemsSummary || []).slice(0, 5);
 
+  const isEventCompleted = Boolean(event?.isCompleted || event?.status === 'completed' || event?.status === 'closed');
   let msg = `*INFORME FINANCIERO - ${(event?.name || 'EVENTO').toUpperCase()}*\n`;
+  msg += `*Estado:* ${isEventCompleted ? '✅ Terminado y Cuadrado' : '⚡ En Curso'}\n`;
   msg += `*Fecha:* ${formatEventDate(event?.date) || 'Hoy'}\n\n`;
 
   msg += `*RESUMEN DE INGRESOS:*\n`;
@@ -535,13 +537,14 @@ export async function buildEventSummaryPdfDoc({
   doc.text(`${metaCourse}Fecha Evento: ${dateStr}   |   Generado: ${genStr}`, margin + 6, y + 17);
 
   // Badge Estado
-  const isClosed = activeEvent?.status === 'closed';
-  doc.setFillColor(isClosed ? 16 : 99, isClosed ? 185 : 102, isClosed ? 129 : 241);
-  doc.roundedRect(margin + 6, y + 20, 24, 4.5, 1, 1, 'F');
+  const isCompletedEvent = Boolean(activeEvent?.isCompleted || activeEvent?.status === 'completed' || activeEvent?.status === 'closed');
+  doc.setFillColor(isCompletedEvent ? 16 : 99, isCompletedEvent ? 185 : 102, isCompletedEvent ? 129 : 241);
+  const badgeWidth = isCompletedEvent ? 42 : 24;
+  doc.roundedRect(margin + 6, y + 20, badgeWidth, 4.5, 1, 1, 'F');
   doc.setFontSize(6.5);
   doc.setFont('helvetica', 'bold');
   doc.setTextColor(255, 255, 255);
-  doc.text(isClosed ? 'FINALIZADO' : 'EN CURSO', margin + 18, y + 23.3, { align: 'center' });
+  doc.text(isCompletedEvent ? 'TERMINADO Y CUADRADO' : 'EN CURSO', margin + 6 + (badgeWidth / 2), y + 23.3, { align: 'center' });
 
   y += 32;
 

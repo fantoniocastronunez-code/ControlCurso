@@ -1,10 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { db } from '../../../firebase/config';
-import { collection, doc, getDoc, getDocs, query, where } from 'firebase/firestore';
+import { collection, doc, getDoc, getDocs, query, where, updateDoc } from 'firebase/firestore';
 import {
   DollarSign, Activity, FileText, Printer, Package, UserCheck, Users, Settings,
-  Banknote, Coins, Calculator, ChevronDown, ChevronUp, Wallet, Share2, Download, Check, Copy
+  Banknote, Coins, Calculator, ChevronDown, ChevronUp, Wallet, Share2, Download, Check, Copy, CheckCircle
 } from 'lucide-react';
+import { useModal } from '../../../context/ModalContext';
+import { useAuth } from '../../../context/AuthContext';
 import ThermalClosureReceipt from './ThermalClosureReceipt';
 import PrinterSettingsModal from '../PrinterSettingsModal';
 import CashReconciliationModal from '../CashReconciliationModal';
@@ -23,6 +25,10 @@ import {
 } from '../../../utils/eventPdfService';
 
 const EventSummary = ({ event, onNavigateTab }) => {
+  const { user } = useAuth();
+  const { showAlert, showConfirm } = useModal();
+  const [isEventCompleted, setIsEventCompleted] = useState(Boolean(event?.isCompleted || event?.status === 'completed'));
+
   const [stats, setStats] = useState({
     totalQuotas: 0,
     paidQuotas: 0,
@@ -141,6 +147,35 @@ const EventSummary = ({ event, onNavigateTab }) => {
       }
     };
 
+    const handleToggleCompleted = async () => {
+      const willBeDone = !isEventCompleted;
+      const confirmMsg = willBeDone
+        ? `¿Deseas marcar el evento "${event?.name}" como TERMINADO Y CUADRADO?\nEsto dejará constancia de que el evento finalizó con éxito y su caja está lista.`
+        : `¿Deseas reabrir el evento "${event?.name}" y dejarlo en estado Activo / En Curso?`;
+
+      if (!(await showConfirm(confirmMsg))) return;
+
+      try {
+        const updateData = {
+          isCompleted: willBeDone,
+          status: willBeDone ? 'completed' : 'active',
+          completedAt: willBeDone ? new Date().toISOString() : null,
+          completedBy: willBeDone ? (user?.displayName || user?.email || 'Admin') : null
+        };
+
+        await updateDoc(doc(db, 'events', event.id), updateData);
+        setIsEventCompleted(willBeDone);
+        if (event) {
+          event.isCompleted = willBeDone;
+          event.status = willBeDone ? 'completed' : 'active';
+        }
+        await showAlert(willBeDone ? 'Evento marcado como TERMINADO Y CUADRADO con éxito.' : 'Evento reabierto a estado En Curso.');
+      } catch (err) {
+        console.error("Error actualizando estado del evento:", err);
+        await showAlert("Error al actualizar el estado del evento.");
+      }
+    };
+
     if (loading) return <div>Cargando resumen...</div>;
 
     return (
@@ -248,6 +283,92 @@ const EventSummary = ({ event, onNavigateTab }) => {
             style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: 'var(--primary)', borderColor: 'var(--primary)' }}
           >
             <Printer size={18} /> Imprimir Cierre de Evento
+          </button>
+
+          <button
+            type="button"
+            onClick={handleToggleCompleted}
+            className="btn btn-outline"
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '0.45rem',
+              borderColor: isEventCompleted ? 'var(--success)' : 'rgba(16, 185, 129, 0.5)',
+              color: isEventCompleted ? 'var(--success)' : '#6ee7b7',
+              backgroundColor: isEventCompleted ? 'rgba(16, 185, 129, 0.15)' : 'rgba(16, 185, 129, 0.08)',
+              fontWeight: '600'
+            }}
+            title={isEventCompleted ? "Clic para reabrir el evento" : "Marcar como terminado y cuadrado"}
+          >
+            <CheckCircle size={18} /> {isEventCompleted ? 'Terminado y Cuadrado ✓' : 'Marcar Cuadrado'}
+          </button>
+        </div>
+
+        {/* Banner de Estado del Evento */}
+        <div style={{
+          padding: '1.25rem 1.5rem',
+          borderRadius: '16px',
+          marginBottom: '2rem',
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          flexWrap: 'wrap',
+          gap: '1rem',
+          backgroundColor: isEventCompleted ? 'rgba(16, 185, 129, 0.12)' : 'rgba(99, 102, 241, 0.08)',
+          border: `1px solid ${isEventCompleted ? 'rgba(16, 185, 129, 0.4)' : 'rgba(99, 102, 241, 0.25)'}`,
+          boxShadow: isEventCompleted ? '0 4px 20px rgba(16, 185, 129, 0.1)' : 'none'
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+            <div style={{
+              backgroundColor: isEventCompleted ? 'rgba(16, 185, 129, 0.2)' : 'rgba(99, 102, 241, 0.15)',
+              padding: '0.85rem',
+              borderRadius: '50%',
+              color: isEventCompleted ? 'var(--success)' : 'var(--primary)'
+            }}>
+              <CheckCircle size={24} />
+            </div>
+            <div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+                <h4 style={{ margin: 0, fontSize: '1.15rem', color: isEventCompleted ? 'var(--success)' : 'var(--text-main)' }}>
+                  {isEventCompleted ? 'Evento Terminado y Cuadrado' : 'Evento en Curso / Pendiente'}
+                </h4>
+                <span style={{
+                  fontSize: '0.75rem',
+                  padding: '0.15rem 0.6rem',
+                  borderRadius: '12px',
+                  backgroundColor: isEventCompleted ? 'rgba(16, 185, 129, 0.2)' : 'rgba(99, 102, 241, 0.15)',
+                  color: isEventCompleted ? 'var(--success)' : '#c4b5fd',
+                  fontWeight: 'bold'
+                }}>
+                  {isEventCompleted ? 'Listo ✓' : 'En Curso'}
+                </span>
+              </div>
+              <p style={{ margin: '0.35rem 0 0 0', fontSize: '0.85rem', color: 'var(--text-muted)' }}>
+                {isEventCompleted
+                  ? 'Este evento se encuentra completamente cerrado, sus ventas e inventario están consolidados y su arqueo de caja fue cuadrado.'
+                  : 'Registra ventas, gastos y realiza la cuadratura de caja. Cuando esté todo listo, marca el evento como terminado y cuadrado.'}
+              </p>
+            </div>
+          </div>
+
+          <button
+            type="button"
+            onClick={handleToggleCompleted}
+            className="btn btn-primary"
+            style={{
+              backgroundColor: isEventCompleted ? 'transparent' : 'var(--success)',
+              borderColor: 'var(--success)',
+              color: isEventCompleted ? 'var(--success)' : '#fff',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '0.45rem',
+              padding: '0.55rem 1rem',
+              fontSize: '0.9rem',
+              fontWeight: '600'
+            }}
+          >
+            <CheckCircle size={17} />
+            <span>{isEventCompleted ? 'Reabrir Evento' : 'Marcar Terminado y Cuadrado'}</span>
           </button>
         </div>
 

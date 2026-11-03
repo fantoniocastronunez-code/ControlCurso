@@ -260,7 +260,7 @@ const AdminDashboard = () => {
       outcomesDocs.forEach(doc => {
         const data = doc.data();
         let fundId = data.fundId || 'general';
-        if (!fundsMap.has(fundId)) return;
+        if (!fundsMap.has(fundId)) fundId = 'general';
 
         const amt = data.amount || 0;
         if (data.paymentMethod === 'cash') cashOut += amt;
@@ -349,7 +349,7 @@ const AdminDashboard = () => {
       outcomesDocs.forEach(doc => {
         const data = doc.data();
         let fundId = data.fundId || 'general';
-        if (!fundsMap.has(fundId)) return;
+        if (!fundsMap.has(fundId)) fundId = 'general';
         
         const amt = data.amount || 0;
         fundsMap.get(fundId).balance -= amt;

@@ -28,6 +28,7 @@ import { calculateTotalDeductions } from '../../../utils/inventoryDeductions';
 const EventReconciliation = ({ event, onNavigateTab }) => {
   const { user } = useAuth();
   const { showAlert, showConfirm } = useModal();
+  const [isEventCompleted, setIsEventCompleted] = useState(Boolean(event?.isCompleted || event?.status === 'completed'));
 
   // Estados de datos
   const [sales, setSales] = useState([]);
@@ -505,6 +506,35 @@ const EventReconciliation = ({ event, onNavigateTab }) => {
     }
   };
 
+  const handleToggleCompleted = async () => {
+    const willBeDone = !isEventCompleted;
+    const confirmMsg = willBeDone
+      ? `¿Deseas marcar el evento "${event?.name}" como TERMINADO Y CUADRADO?\nEsto dejará constancia de que el evento finalizó con éxito y su caja está lista.`
+      : `¿Deseas reabrir el evento "${event?.name}" y dejarlo en estado Activo / En Curso?`;
+
+    if (!(await showConfirm(confirmMsg))) return;
+
+    try {
+      const updateData = {
+        isCompleted: willBeDone,
+        status: willBeDone ? 'completed' : 'active',
+        completedAt: willBeDone ? new Date().toISOString() : null,
+        completedBy: willBeDone ? (user?.displayName || user?.email || 'Admin') : null
+      };
+
+      await updateDoc(doc(db, 'events', event.id), updateData);
+      setIsEventCompleted(willBeDone);
+      if (event) {
+        event.isCompleted = willBeDone;
+        event.status = willBeDone ? 'completed' : 'active';
+      }
+      await showAlert(willBeDone ? 'Evento marcado como TERMINADO Y CUADRADO con éxito.' : 'Evento reabierto a estado En Curso.');
+    } catch (err) {
+      console.error("Error actualizando estado del evento:", err);
+      await showAlert("Error al actualizar el estado del evento.");
+    }
+  };
+
   // Toggle para expandir fila de productos
   const toggleExpandSale = (saleId) => {
     setExpandedSaleIds(prev => {
@@ -672,6 +702,27 @@ const EventReconciliation = ({ event, onNavigateTab }) => {
           >
             <Printer size={15} />
             <span>Imprimir Resumen</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={handleToggleCompleted}
+            className="btn btn-outline"
+            style={{
+              fontSize: '0.82rem',
+              padding: '0.5rem 0.85rem',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '0.45rem',
+              borderColor: isEventCompleted ? '#10b981' : 'rgba(16, 185, 129, 0.5)',
+              color: isEventCompleted ? '#10b981' : '#6ee7b7',
+              backgroundColor: isEventCompleted ? 'rgba(16, 185, 129, 0.15)' : 'rgba(16, 185, 129, 0.08)',
+              fontWeight: '600'
+            }}
+            title={isEventCompleted ? "Clic para reabrir el evento" : "Marcar que este evento está terminado y su caja cuadrada"}
+          >
+            <CheckCircle2 size={16} />
+            <span>{isEventCompleted ? 'Terminado y Cuadrado ✓' : 'Marcar Cuadrado'}</span>
           </button>
         </div>
       </div>

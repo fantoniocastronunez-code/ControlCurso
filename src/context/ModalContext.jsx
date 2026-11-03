@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useState, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 
 const ModalContext = createContext();
 
@@ -66,14 +67,14 @@ export const ModalProvider = ({ children }) => {
     <ModalContext.Provider value={{ showAlert, showConfirm, showPrompt }}>
       {children}
       
-      {modalState.isOpen && (
+      {modalState.isOpen && typeof document !== 'undefined' && createPortal(
         <div 
           className="modal-overlay"
           style={{
             position: 'fixed',
             top: 0, left: 0, right: 0, bottom: 0,
-            backgroundColor: 'rgba(0, 0, 0, 0.7)',
-            backdropFilter: 'blur(5px)',
+            backgroundColor: 'rgba(0, 0, 0, 0.75)',
+            backdropFilter: 'blur(6px)',
             display: 'flex',
             alignItems: 'flex-start',
             justifyContent: 'center',
@@ -81,20 +82,21 @@ export const ModalProvider = ({ children }) => {
             paddingBottom: '2rem',
             overflowY: 'auto',
             WebkitOverflowScrolling: 'touch',
-            zIndex: 9999
+            zIndex: 999999
           }}
         >
           <div className="glass-panel animate-fade-in" style={{
             width: '90%',
-            maxWidth: '400px',
+            maxWidth: '420px',
             padding: '2rem',
             marginTop: '0.5rem',
             backgroundColor: 'var(--bg-main)',
-            boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.7)',
+            boxShadow: '0 25px 60px -12px rgba(0, 0, 0, 0.8), 0 0 35px rgba(99, 102, 241, 0.2)',
             border: '1px solid var(--border-color)',
+            borderRadius: '16px',
             textAlign: 'center'
           }}>
-            <p style={{ fontSize: '1.1rem', marginBottom: '1.5rem', color: 'var(--text-main)', whiteSpace: 'pre-wrap', lineHeight: '1.5' }}>
+            <p style={{ fontSize: '1.1rem', marginBottom: '1.5rem', color: 'var(--text-main)', whiteSpace: 'pre-wrap', lineHeight: '1.5', fontWeight: 500 }}>
               {modalState.message}
             </p>
             
@@ -134,7 +136,8 @@ export const ModalProvider = ({ children }) => {
               </button>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </ModalContext.Provider>
   );

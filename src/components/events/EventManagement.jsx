@@ -1,8 +1,8 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { db } from '../../firebase/config';
-import { collection, getDocs, doc, setDoc, query, deleteDoc, where } from 'firebase/firestore';
-import { ArrowLeft, PlusCircle, CheckCircle, Calendar, X, Save, Trash2, Users, UserCheck, Search, Sparkles } from 'lucide-react';
+import { collection, getDocs, doc, setDoc, query, deleteDoc, where, updateDoc } from 'firebase/firestore';
+import { ArrowLeft, PlusCircle, CheckCircle, Calendar, X, Save, Trash2, Users, UserCheck, Search, Sparkles, Filter } from 'lucide-react';
 import { useModal } from '../../context/ModalContext';
 import { formatStudentName } from '../../utils/nameUtils';
 import { useAuth } from '../../context/AuthContext';
@@ -19,6 +19,7 @@ const EventManagement = ({ onBack }) => {
   const [events, setEvents] = useState([]);
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState('');
+  const [filterStatus, setFilterStatus] = useState('all'); // 'all' | 'active' | 'completed'
 
   // Vista actual dentro de EventManagement
   const [selectedEventId, setSelectedEventId] = useState(null);
@@ -149,7 +150,13 @@ const EventManagement = ({ onBack }) => {
       ? `¿Estás seguro de crear el evento "${eventName}"?\nES UN EVENTO DE PRUEBA. No se cobrará nada a los alumnos.`
       : `¿Estás seguro de crear el evento "${eventName}"?\nEsto cobrará automáticamente $${mandatoryAmount} a los ${targetStudents.length} alumno(s) ${studentSelectionMode === 'all' ? '(todos)' : 'seleccionados'}.`;
 
-    if (!(await showConfirm(confirmMessage))) {
+    // Cerrar temporalmente la ventana modal para mostrar la confirmación de forma limpia
+    setShowCreateModal(false);
+
+    const confirmed = await showConfirm(confirmMessage);
+    if (!confirmed) {
+      // Si el usuario cancela la confirmación, reabrir el formulario con los datos intactos
+      setShowCreateModal(true);
       return;
     }
 
@@ -243,6 +250,7 @@ const EventManagement = ({ onBack }) => {
 
     } catch (error) {
       console.error("Error creando evento:", error);
+      setShowCreateModal(true);
       await showAlert('Hubo un error al crear el evento.');
     } finally {
       setLoading(false);
@@ -290,6 +298,33 @@ const EventManagement = ({ onBack }) => {
     }
   };
 
+  const handleToggleEventCompleted = async (e, ev) => {
+    e.stopPropagation();
+    const willBeCompleted = !(ev.isCompleted || ev.status === 'completed');
+    const confirmMsg = willBeCompleted
+      ? `¿Deseas marcar el evento "${ev.name}" como TERMINADO Y CUADRADO?\nEsto dejará constancia de que el evento finalizó con éxito y su caja está lista.`
+      : `¿Deseas reabrir el evento "${ev.name}" y dejarlo en estado Activo / En Curso?`;
+
+    if (!(await showConfirm(confirmMsg))) return;
+
+    try {
+      const updateData = {
+        isCompleted: willBeCompleted,
+        status: willBeCompleted ? 'completed' : 'active',
+        completedAt: willBeCompleted ? new Date().toISOString() : null,
+        completedBy: willBeCompleted ? (user?.displayName || user?.email || 'Admin') : null
+      };
+
+      await updateDoc(doc(db, 'events', ev.id), updateData);
+      setEvents(prev => prev.map(item => item.id === ev.id ? { ...item, ...updateData } : item));
+      setMessage(willBeCompleted ? `Evento "${ev.name}" marcado como Terminado y Cuadrado.` : `Evento "${ev.name}" reabierto a En Curso.`);
+      setTimeout(() => setMessage(''), 3000);
+    } catch (err) {
+      console.error("Error al cambiar estado del evento:", err);
+      showAlert("Error al actualizar el estado del evento.");
+    }
+  };
+
   const formatMoney = (amount) => {
     return new Intl.NumberFormat('es-CL', { style: 'currency', currency: 'CLP' }).format(amount);
   };
@@ -311,6 +346,13 @@ const EventManagement = ({ onBack }) => {
   const targetStudentsCount = studentSelectionMode === 'all'
     ? courseStudents.length
     : selectedStudentIds.size;
+
+  const filteredEvents = events.filter(ev => {
+    const isDone = Boolean(ev.isCompleted || ev.status === 'completed');
+    if (filterStatus === 'active') return !isDone;
+    if (filterStatus === 'completed') return isDone;
+    return true;
+  });
 
   return (
     <div className="animate-fade-in">
@@ -347,6 +389,47 @@ const EventManagement = ({ onBack }) => {
       )}
 
       {/* Lista de Eventos */}
+      {events.length > 0 && (
+        <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1.25rem', flexWrap: 'wrap', alignItems: 'center' }}>
+          <button
+            type="button"
+            onClick={() => setFilterStatus('all')}
+            className={`btn ${filterStatus === 'all' ? 'btn-primary' : 'btn-outline'}`}
+            style={{ fontSize: '0.85rem', padding: '0.35rem 0.85rem' }}
+          >
+            Todos ({events.length})
+          </button>
+          <button
+            type="button"
+            onClick={() => setFilterStatus('active')}
+            className={`btn ${filterStatus === 'active' ? 'btn-primary' : 'btn-outline'}`}
+            style={{
+              fontSize: '0.85rem',
+              padding: '0.35rem 0.85rem',
+              borderColor: filterStatus === 'active' ? 'var(--primary)' : 'rgba(99, 102, 241, 0.3)',
+              color: filterStatus === 'active' ? '#fff' : '#c4b5fd'
+            }}
+          >
+            ⚡ En Curso ({events.filter(e => !(e.isCompleted || e.status === 'completed')).length})
+          </button>
+          <button
+            type="button"
+            onClick={() => setFilterStatus('completed')}
+            className={`btn ${filterStatus === 'completed' ? 'btn-primary' : 'btn-outline'}`}
+            style={{
+              fontSize: '0.85rem',
+              padding: '0.35rem 0.85rem',
+              borderColor: filterStatus === 'completed' ? 'var(--success)' : 'rgba(16, 185, 129, 0.35)',
+              color: filterStatus === 'completed' ? '#fff' : 'var(--success)',
+              backgroundColor: filterStatus === 'completed' ? 'var(--success)' : 'transparent',
+              fontWeight: '600'
+            }}
+          >
+            ✅ Terminados y Cuadrados ({events.filter(e => e.isCompleted || e.status === 'completed').length})
+          </button>
+        </div>
+      )}
+
       {loading ? (
         <div style={{ textAlign: 'center', padding: '2rem' }}>Cargando eventos...</div>
       ) : events.length === 0 ? (
@@ -355,68 +438,149 @@ const EventManagement = ({ onBack }) => {
           <p style={{ color: 'var(--text-muted)', margin: 0 }}>No hay eventos creados todavía.</p>
           <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem' }}>Crea un evento para organizar ventas y asistencia.</p>
         </div>
+      ) : filteredEvents.length === 0 ? (
+        <div className="glass-panel" style={{ textAlign: 'center', padding: '2.5rem 1rem' }}>
+          <p style={{ color: 'var(--text-muted)', margin: 0 }}>No hay eventos con el filtro seleccionado.</p>
+        </div>
       ) : (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: '1rem' }}>
-          {events.map(event => (
-            <div
-              key={event.id}
-              onClick={() => setSelectedEventId(event.id)}
-              className="glass-panel"
-              style={{ padding: '1.5rem', cursor: 'pointer', transition: 'all 0.2s', border: '1px solid transparent' }}
-              onMouseOver={(e) => e.currentTarget.style.borderColor = 'var(--primary)'}
-              onMouseOut={(e) => e.currentTarget.style.borderColor = 'transparent'}
-            >
-              <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: '1rem' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-                  <div style={{ backgroundColor: 'rgba(99,102,241,0.1)', padding: '1rem', borderRadius: '50%', color: 'var(--primary)' }}>
-                    <Calendar size={24} />
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: '1rem' }}>
+          {filteredEvents.map(event => {
+            const isDone = Boolean(event.isCompleted || event.status === 'completed');
+            return (
+              <div
+                key={event.id}
+                onClick={() => setSelectedEventId(event.id)}
+                className="glass-panel"
+                style={{
+                  padding: '1.5rem',
+                  cursor: 'pointer',
+                  transition: 'all 0.2s',
+                  border: isDone ? '1px solid rgba(16, 185, 129, 0.4)' : '1px solid rgba(255,255,255,0.06)',
+                  backgroundColor: isDone ? 'rgba(16, 185, 129, 0.03)' : undefined
+                }}
+                onMouseOver={(e) => e.currentTarget.style.borderColor = isDone ? '#10b981' : 'var(--primary)'}
+                onMouseOut={(e) => e.currentTarget.style.borderColor = isDone ? 'rgba(16, 185, 129, 0.4)' : 'rgba(255,255,255,0.06)'}
+              >
+                <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: '1rem', gap: '0.5rem' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.85rem' }}>
+                    <div style={{
+                      backgroundColor: isDone ? 'rgba(16, 185, 129, 0.15)' : 'rgba(99,102,241,0.1)',
+                      padding: '0.85rem',
+                      borderRadius: '50%',
+                      color: isDone ? 'var(--success)' : 'var(--primary)'
+                    }}>
+                      <Calendar size={22} />
+                    </div>
+                    <div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', flexWrap: 'wrap', marginBottom: '0.2rem' }}>
+                        <h4 style={{ margin: 0, fontSize: '1.05rem' }}>
+                          {event.name}
+                        </h4>
+                        {event.isTestEvent && (
+                          <span style={{ fontSize: '0.65rem', padding: '0.15rem 0.45rem', backgroundColor: 'var(--warning)', color: '#000', borderRadius: '1rem', fontWeight: 'bold' }}>
+                            PRUEBA
+                          </span>
+                        )}
+                      </div>
+
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', flexWrap: 'wrap', marginBottom: '0.25rem' }}>
+                        {isDone ? (
+                          <span style={{
+                            fontSize: '0.72rem',
+                            padding: '0.15rem 0.55rem',
+                            backgroundColor: 'rgba(16, 185, 129, 0.15)',
+                            color: 'var(--success)',
+                            border: '1px solid rgba(16, 185, 129, 0.35)',
+                            borderRadius: '1rem',
+                            fontWeight: 'bold',
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '0.25rem'
+                          }}>
+                            <CheckCircle size={12} /> Terminado y Cuadrado
+                          </span>
+                        ) : (
+                          <span style={{
+                            fontSize: '0.7rem',
+                            padding: '0.12rem 0.5rem',
+                            backgroundColor: 'rgba(99, 102, 241, 0.12)',
+                            color: '#c4b5fd',
+                            border: '1px solid rgba(99, 102, 241, 0.25)',
+                            borderRadius: '1rem',
+                            fontWeight: '600'
+                          }}>
+                            ⚡ En Curso
+                          </span>
+                        )}
+                      </div>
+
+                      <p style={{ margin: 0, fontSize: '0.825rem', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '0.4rem', flexWrap: 'wrap' }}>
+                        <span>{formatEventDate(event.date)}</span>
+                        {typeof event.studentsCount === 'number' && (
+                          <span>• {event.studentsCount} alumnos</span>
+                        )}
+                        {event.studentSelectionMode === 'custom' && (
+                          <span style={{ fontSize: '0.7rem', padding: '0.1rem 0.4rem', backgroundColor: 'rgba(99,102,241,0.2)', color: '#a5b4fc', borderRadius: '4px' }}>
+                            Sólo algunos
+                          </span>
+                        )}
+                      </p>
+                    </div>
                   </div>
-                  <div>
-                    <h4 style={{ margin: 0, fontSize: '1.1rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                      {event.name}
-                      {event.isTestEvent && <span style={{ fontSize: '0.65rem', padding: '0.2rem 0.5rem', backgroundColor: 'var(--warning)', color: '#000', borderRadius: '1rem', fontWeight: 'bold' }}>PRUEBA</span>}
-                    </h4>
-                    <p style={{ margin: 0, fontSize: '0.85rem', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '0.4rem', flexWrap: 'wrap' }}>
-                      <span>{formatEventDate(event.date)}</span>
-                      {typeof event.studentsCount === 'number' && (
-                        <span>• {event.studentsCount} alumnos</span>
-                      )}
-                      {event.studentSelectionMode === 'custom' && (
-                        <span style={{ fontSize: '0.7rem', padding: '0.1rem 0.4rem', backgroundColor: 'rgba(99,102,241,0.2)', color: '#a5b4fc', borderRadius: '4px' }}>
-                          Sólo algunos
-                        </span>
-                      )}
-                    </p>
+
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                    <button
+                      type="button"
+                      onClick={(e) => handleToggleEventCompleted(e, event)}
+                      style={{
+                        background: isDone ? 'rgba(16, 185, 129, 0.15)' : 'rgba(255, 255, 255, 0.05)',
+                        border: `1px solid ${isDone ? 'rgba(16, 185, 129, 0.4)' : 'var(--border-color)'}`,
+                        color: isDone ? 'var(--success)' : 'var(--text-muted)',
+                        borderRadius: '8px',
+                        padding: '0.35rem 0.65rem',
+                        fontSize: '0.75rem',
+                        cursor: 'pointer',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '0.3rem',
+                        fontWeight: isDone ? 'bold' : 'normal'
+                      }}
+                      title={isDone ? "Evento cuadrado. Clic para marcar como En Curso" : "Marcar que este evento está terminado y su caja cuadrada"}
+                    >
+                      <CheckCircle size={13} />
+                      <span>{isDone ? 'Listo ✓' : 'Cuadrar'}</span>
+                    </button>
+                    <button
+                      onClick={(e) => handleDeleteEvent(e, event)}
+                      style={{ background: 'none', border: 'none', color: 'var(--danger)', cursor: 'pointer', padding: '0.4rem', opacity: 0.7 }}
+                      onMouseOver={(e) => e.currentTarget.style.opacity = 1}
+                      onMouseOut={(e) => e.currentTarget.style.opacity = 0.7}
+                      title="Eliminar Evento"
+                    >
+                      <Trash2 size={16} />
+                    </button>
                   </div>
                 </div>
-                <button
-                  onClick={(e) => handleDeleteEvent(e, event)}
-                  style={{ background: 'none', border: 'none', color: 'var(--danger)', cursor: 'pointer', padding: '0.5rem', opacity: 0.7 }}
-                  onMouseOver={(e) => e.currentTarget.style.opacity = 1}
-                  onMouseOut={(e) => e.currentTarget.style.opacity = 0.7}
-                  title="Eliminar Evento"
-                >
-                  <Trash2 size={18} />
-                </button>
+
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.9rem', color: 'var(--text-muted)', borderTop: '1px solid rgba(255,255,255,0.1)', paddingTop: '0.85rem' }}>
+                  {event.isTestEvent ? (
+                    <div style={{ width: '100%', textAlign: 'center', color: 'var(--warning)', fontWeight: 'bold', fontSize: '0.85rem' }}>EVENTO DE MUESTRA / PRUEBA</div>
+                  ) : (
+                    <>
+                      <div>
+                        <span style={{ display: 'block', fontSize: '0.8rem' }}>Cuota</span>
+                        <strong style={{ color: 'var(--text)' }}>{formatMoney(event.mandatoryAmount)}</strong>
+                      </div>
+                      <div style={{ textAlign: 'right' }}>
+                        <span style={{ display: 'block', fontSize: '0.8rem' }}>Multa</span>
+                        <strong style={{ color: 'var(--danger)' }}>{formatMoney(event.noShowAmount)}</strong>
+                      </div>
+                    </>
+                  )}
+                </div>
               </div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.9rem', color: 'var(--text-muted)', borderTop: '1px solid rgba(255,255,255,0.1)', paddingTop: '1rem' }}>
-                {event.isTestEvent ? (
-                  <div style={{ width: '100%', textAlign: 'center', color: 'var(--warning)', fontWeight: 'bold', fontSize: '0.85rem' }}>EVENTO DE MUESTRA / PRUEBA</div>
-                ) : (
-                  <>
-                    <div>
-                      <span style={{ display: 'block' }}>Cuota</span>
-                      <strong style={{ color: 'var(--text)' }}>{formatMoney(event.mandatoryAmount)}</strong>
-                    </div>
-                    <div style={{ textAlign: 'right' }}>
-                      <span style={{ display: 'block' }}>Multa</span>
-                      <strong style={{ color: 'var(--danger)' }}>{formatMoney(event.noShowAmount)}</strong>
-                    </div>
-                  </>
-                )}
-              </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
 

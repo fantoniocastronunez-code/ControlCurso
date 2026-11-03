@@ -352,9 +352,36 @@ const EventReportModal = ({ isOpen, onClose, event }) => {
               <h3 style={{ margin: 0, fontSize: '1.25rem', color: '#fff', fontWeight: 800 }}>
                 Informe Financiero del Evento
               </h3>
-              <p style={{ margin: 0, fontSize: '0.8rem', color: 'var(--text-muted)' }}>
-                {event?.name} • {formatEventDate(event?.date) || 'Fecha no definida'}
-              </p>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap', marginTop: '2px' }}>
+                <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+                  {event?.name} • {formatEventDate(event?.date) || 'Fecha no definida'}
+                </span>
+                {Boolean(event?.isCompleted || event?.status === 'completed' || event?.status === 'closed') ? (
+                  <span style={{
+                    fontSize: '0.72rem',
+                    padding: '1px 8px',
+                    borderRadius: '12px',
+                    backgroundColor: 'rgba(16, 185, 129, 0.2)',
+                    color: '#34d399',
+                    border: '1px solid rgba(16, 185, 129, 0.4)',
+                    fontWeight: 700
+                  }}>
+                    ✅ Terminado y Cuadrado
+                  </span>
+                ) : (
+                  <span style={{
+                    fontSize: '0.72rem',
+                    padding: '1px 8px',
+                    borderRadius: '12px',
+                    backgroundColor: 'rgba(234, 179, 8, 0.2)',
+                    color: '#facc15',
+                    border: '1px solid rgba(234, 179, 8, 0.4)',
+                    fontWeight: 700
+                  }}>
+                    ⚡ En Curso
+                  </span>
+                )}
+              </div>
             </div>
           </div>
 

@@ -1177,6 +1177,18 @@ const MeetingReport = ({ onBack }) => {
                           }}>
                             {fundName}
                           </span>
+                          {(o.eventName || o.eventId) && (
+                            <span style={{ 
+                              fontSize: '0.75rem', 
+                              padding: '0.15rem 0.5rem', 
+                              borderRadius: '10px', 
+                              backgroundColor: 'rgba(234, 88, 12, 0.15)', 
+                              color: '#fb923c',
+                              fontWeight: '600'
+                            }}>
+                              🎉 {o.eventName || 'Evento'}
+                            </span>
+                          )}
                           <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>• {methodLabel}</span>
                         </div>
                         <h4 style={{ margin: '0.35rem 0 0 0', fontSize: '1rem' }}>{o.title}</h4>

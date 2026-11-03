@@ -7,6 +7,7 @@ import {
 } from 'lucide-react';
 import { useModal } from '../../../context/ModalContext';
 import { useAuth } from '../../../context/AuthContext';
+import { useCourse } from '../../../context/CourseContext';
 import { loadDemoEventData } from '../../../utils/eventTestUtils';
 
 const UNIT_OPTIONS = [
@@ -22,7 +23,10 @@ const UNIT_OPTIONS = [
 
 const EventInventory = ({ event }) => {
   const { user } = useAuth();
+  const { selectedCourse } = useCourse();
   const { showAlert, showConfirm } = useModal();
+
+  const effectiveCourseId = event?.courseId || selectedCourse?.id || '';
 
   const [inventory, setInventory] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -160,7 +164,10 @@ const EventInventory = ({ event }) => {
               responsable: user?.displayName || user?.email || 'Tesorero',
               fundId: event.fundId || ('fund_' + event.id),
               eventId: event.id,
-              courseId: event.courseId || '',
+              eventName: event.name || 'Evento',
+              courseId: effectiveCourseId,
+              isEventExpense: true,
+              visibleInPortal: true,
               inventoryId: itemId,
               isTest: Boolean(event.isTestEvent),
               createdAt: new Date().toISOString(),
@@ -247,7 +254,10 @@ const EventInventory = ({ event }) => {
               responsable: user?.displayName || user?.email || 'Tesorero',
               fundId: event.fundId || ('fund_' + event.id),
               eventId: event.id,
-              courseId: event.courseId || '',
+              eventName: event.name || 'Evento',
+              courseId: effectiveCourseId,
+              isEventExpense: true,
+              visibleInPortal: true,
               inventoryId: restockItem.id,
               isTest: Boolean(event.isTestEvent),
               createdAt: new Date().toISOString(),

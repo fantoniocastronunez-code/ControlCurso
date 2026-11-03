@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { db } from '../../firebase/config';
 import { doc, getDoc, updateDoc } from 'firebase/firestore';
-import { ArrowLeft, LayoutDashboard, CheckSquare, ShoppingBag, DollarSign, Receipt, Package, Printer, Sparkles, RotateCcw, Settings, ChefHat, Camera, Calculator, FileText, Edit, Calendar, X, Check } from 'lucide-react';
+import { ArrowLeft, LayoutDashboard, CheckSquare, ShoppingBag, DollarSign, Receipt, Package, Printer, Sparkles, RotateCcw, Settings, ChefHat, Camera, Calculator, FileText, Edit, Calendar, X, Check, CheckCircle } from 'lucide-react';
 import EventSummary from './tabs/EventSummary';
 import EventAttendance from './tabs/EventAttendance';
 import EventInventory from './tabs/EventInventory';
@@ -98,6 +98,34 @@ const EventDetail = ({ eventId, onBack }) => {
     }
     cleanId = cleanId.replace('#', '').trim();
     navigate(`/entrega/${cleanId}`);
+  };
+
+  const handleToggleCompleted = async () => {
+    if (!eventData) return;
+    const isCurrentlyDone = Boolean(eventData.isCompleted || eventData.status === 'completed');
+    const willBeDone = !isCurrentlyDone;
+
+    const confirmMsg = willBeDone
+      ? `¿Deseas marcar el evento "${eventData.name}" como TERMINADO Y CUADRADO?\nEsto dejará constancia de que el evento finalizó con éxito y su caja está lista.`
+      : `¿Deseas reabrir el evento "${eventData.name}" y dejarlo en estado Activo / En Curso?`;
+
+    if (!(await showConfirm(confirmMsg))) return;
+
+    try {
+      const updateData = {
+        isCompleted: willBeDone,
+        status: willBeDone ? 'completed' : 'active',
+        completedAt: willBeDone ? new Date().toISOString() : null,
+        completedBy: willBeDone ? (user?.displayName || user?.email || 'Admin') : null
+      };
+
+      await updateDoc(doc(db, 'events', eventData.id), updateData);
+      setEventData(prev => ({ ...prev, ...updateData }));
+      await showAlert(willBeDone ? 'Evento marcado como TERMINADO Y CUADRADO con éxito.' : 'Evento reabierto a estado En Curso.');
+    } catch (err) {
+      console.error("Error al actualizar estado del evento:", err);
+      await showAlert("Error al actualizar el estado del evento.");
+    }
   };
 
   useEffect(() => {
@@ -223,6 +251,34 @@ const EventDetail = ({ eventId, onBack }) => {
                   🧪 MODO PRUEBA
                 </span>
               )}
+              {(eventData.isCompleted || eventData.status === 'completed') ? (
+                <span style={{
+                  fontSize: '0.75rem',
+                  padding: '0.2rem 0.65rem',
+                  backgroundColor: 'rgba(16, 185, 129, 0.15)',
+                  color: 'var(--success)',
+                  border: '1px solid rgba(16, 185, 129, 0.4)',
+                  borderRadius: '1rem',
+                  fontWeight: 'bold',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '0.3rem'
+                }}>
+                  <CheckCircle size={14} /> Terminado y Cuadrado
+                </span>
+              ) : (
+                <span style={{
+                  fontSize: '0.72rem',
+                  padding: '0.15rem 0.55rem',
+                  backgroundColor: 'rgba(99, 102, 241, 0.12)',
+                  color: '#c4b5fd',
+                  border: '1px solid rgba(99, 102, 241, 0.25)',
+                  borderRadius: '1rem',
+                  fontWeight: '600'
+                }}>
+                  ⚡ En Curso
+                </span>
+              )}
             </h2>
               <p style={{ margin: 0, color: 'var(--text-muted)', fontSize: '0.9rem', display: 'flex', alignItems: 'center', gap: '0.4rem', flexWrap: 'wrap' }}>
                 <span style={{ fontWeight: '500', color: 'var(--text)' }}>{formatEventDate(eventData.date)}</span>
@@ -244,6 +300,27 @@ const EventDetail = ({ eventId, onBack }) => {
         </div>
 
         <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', flexWrap: 'wrap' }}>
+          <button
+            type="button"
+            onClick={handleToggleCompleted}
+            className="btn btn-outline"
+            style={{
+              fontSize: '0.85rem',
+              padding: '0.45rem 0.85rem',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '0.4rem',
+              borderColor: (eventData.isCompleted || eventData.status === 'completed') ? 'var(--success)' : 'rgba(16, 185, 129, 0.5)',
+              color: (eventData.isCompleted || eventData.status === 'completed') ? 'var(--success)' : '#6ee7b7',
+              backgroundColor: (eventData.isCompleted || eventData.status === 'completed') ? 'rgba(16, 185, 129, 0.18)' : 'rgba(16, 185, 129, 0.08)',
+              fontWeight: '600'
+            }}
+            title={(eventData.isCompleted || eventData.status === 'completed') ? "Clic para reabrir el evento" : "Marcar que este evento está terminado y su caja cuadrada"}
+          >
+            <CheckCircle size={16} />
+            <span>{(eventData.isCompleted || eventData.status === 'completed') ? 'Terminado y Cuadrado ✓' : 'Marcar Terminado y Cuadrado'}</span>
+          </button>
+
           <button
             type="button"
             onClick={() => setShowReportModal(true)}
