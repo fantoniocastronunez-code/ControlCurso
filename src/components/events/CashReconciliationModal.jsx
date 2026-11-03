@@ -46,6 +46,10 @@ const CashReconciliationModal = ({
   // Modo de ingreso: 'breakdown' (billetes y monedas) | 'quick' (monto total directo)
   const [inputMode, setInputMode] = useState('breakdown');
 
+  // Modificación directa del total contado en gaveta
+  const [isEditingTotal, setIsEditingTotal] = useState(false);
+  const [totalInput, setTotalInput] = useState('');
+
   // Fondo inicial que había antes de comenzar (por defecto viene de la caja chica registrada)
   const [initialFund, setInitialFund] = useState(initialPettyCash || 0);
   const [isEditingInitialFund, setIsEditingInitialFund] = useState(false);
@@ -88,6 +92,9 @@ const CashReconciliationModal = ({
 
       setInitialFund(baseInitial);
       setInitialFundInput(String(baseInitial));
+      setIsEditingInitialFund(false);
+      setIsEditingTotal(false);
+      setTotalInput('');
 
       if (savedAudit) {
         if (savedAudit.bills) {
@@ -114,8 +121,8 @@ const CashReconciliationModal = ({
           setInitialFund(baseInitial);
           setInitialFundInput(String(baseInitial));
         }
-        if (savedAudit.quickTotalCounted) {
-          setQuickTotalCounted(String(savedAudit.quickTotalCounted));
+        if (savedAudit.inputMode === 'quick' || (savedAudit.quickTotalCounted !== undefined && savedAudit.quickTotalCounted !== null && savedAudit.quickTotalCounted !== '')) {
+          setQuickTotalCounted(String(savedAudit.quickTotalCounted ?? 0));
           setInputMode('quick');
         } else {
           setInputMode('breakdown');
@@ -173,6 +180,13 @@ const CashReconciliationModal = ({
       setCoins({ 500: 0, 100: 0, 50: 0, 10: 0 });
       setQuickTotalCounted('');
     }
+  };
+
+  const handleSaveTotal = () => {
+    const parsed = Math.max(0, parseInt(String(totalInput).replace(/\D/g, ''), 10) || 0);
+    setQuickTotalCounted(String(parsed));
+    setInputMode('quick');
+    setIsEditingTotal(false);
   };
 
   const handleSaveInitialFund = async () => {
@@ -368,14 +382,80 @@ const CashReconciliationModal = ({
               backgroundColor: 'rgba(16, 185, 129, 0.1)',
               border: '1px solid rgba(16, 185, 129, 0.35)'
             }}>
-              <span style={{ fontSize: '0.72rem', color: '#6ee7b7', textTransform: 'uppercase', letterSpacing: '0.5px', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                <Banknote size={14} /> Total Contado en Gaveta
-              </span>
-              <strong style={{ fontSize: '1.35rem', color: '#10b981', display: 'block', marginTop: '0.2rem' }}>
-                {formatMoneyCLP(finalCashCounted)}
-              </strong>
-              <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>
-                Billetes y monedas físicos
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span style={{ fontSize: '0.72rem', color: '#6ee7b7', textTransform: 'uppercase', letterSpacing: '0.5px', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                  <Banknote size={14} /> Total Contado en Gaveta
+                </span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (isEditingTotal) {
+                      setIsEditingTotal(false);
+                    } else {
+                      setTotalInput(String(finalCashCounted || ''));
+                      setIsEditingTotal(true);
+                    }
+                  }}
+                  style={{
+                    background: 'transparent',
+                    border: 'none',
+                    color: '#6ee7b7',
+                    fontSize: '0.72rem',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '2px',
+                    padding: 0
+                  }}
+                  title="Cambiar monto del total contado directamente"
+                >
+                  <Edit3 size={11} /> {isEditingTotal ? 'Cancelar' : 'Modificar'}
+                </button>
+              </div>
+
+              {isEditingTotal ? (
+                <div style={{ display: 'flex', alignItems: 'center', gap: '4px', marginTop: '0.35rem' }}>
+                  <input
+                    type="number"
+                    min="0"
+                    value={totalInput}
+                    onChange={(e) => setTotalInput(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault();
+                        handleSaveTotal();
+                      } else if (e.key === 'Escape') {
+                        setIsEditingTotal(false);
+                      }
+                    }}
+                    placeholder="0"
+                    className="input-field"
+                    style={{ padding: '0.2rem 0.4rem', fontSize: '0.85rem', width: '110px' }}
+                    autoFocus
+                  />
+                  <button
+                    type="button"
+                    onClick={handleSaveTotal}
+                    className="btn btn-primary"
+                    style={{ padding: '0.25rem 0.5rem', fontSize: '0.75rem', backgroundColor: '#10b981', borderColor: '#10b981' }}
+                  >
+                    OK
+                  </button>
+                </div>
+              ) : (
+                <strong
+                  onClick={() => {
+                    setTotalInput(String(finalCashCounted || ''));
+                    setIsEditingTotal(true);
+                  }}
+                  title="Haz clic para modificar el monto total contado"
+                  style={{ fontSize: '1.35rem', color: '#10b981', display: 'block', marginTop: '0.2rem', cursor: 'pointer' }}
+                >
+                  {formatMoneyCLP(finalCashCounted)}
+                </strong>
+              )}
+              <span style={{ fontSize: '0.72rem', color: inputMode === 'quick' ? '#93c5fd' : 'var(--text-muted)' }}>
+                {inputMode === 'quick' ? 'Monto manual directo' : 'Billetes y monedas físicos'}
               </span>
             </div>
 
@@ -417,6 +497,14 @@ const CashReconciliationModal = ({
                     min="0"
                     value={initialFundInput}
                     onChange={(e) => setInitialFundInput(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault();
+                        handleSaveInitialFund();
+                      } else if (e.key === 'Escape') {
+                        setIsEditingInitialFund(false);
+                      }
+                    }}
                     className="input-field"
                     style={{ padding: '0.2rem 0.4rem', fontSize: '0.85rem', width: '100px' }}
                     autoFocus
@@ -431,7 +519,11 @@ const CashReconciliationModal = ({
                   </button>
                 </div>
               ) : (
-                <strong style={{ fontSize: '1.35rem', color: '#f87171', display: 'block', marginTop: '0.2rem' }}>
+                <strong
+                  onClick={() => setIsEditingInitialFund(true)}
+                  title="Haz clic para modificar el fondo inicial"
+                  style={{ fontSize: '1.35rem', color: '#f87171', display: 'block', marginTop: '0.2rem', cursor: 'pointer' }}
+                >
                   - {formatMoneyCLP(initialFund)}
                 </strong>
               )}
@@ -799,6 +891,32 @@ const CashReconciliationModal = ({
                       </div>
                     );
                   })}
+                </div>
+
+                {/* Enlace rápido para modificar monto total directo */}
+                <div style={{ marginTop: '0.85rem', textAlign: 'center' }}>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setTotalInput(String(finalCashCounted || ''));
+                      setIsEditingTotal(true);
+                      setInputMode('quick');
+                    }}
+                    style={{
+                      background: 'transparent',
+                      border: '1px dashed rgba(16, 185, 129, 0.4)',
+                      borderRadius: '8px',
+                      color: '#6ee7b7',
+                      fontSize: '0.8rem',
+                      padding: '0.4rem 0.85rem',
+                      cursor: 'pointer',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '0.4rem'
+                    }}
+                  >
+                    <Edit3 size={13} /> ¿Prefieres escribir el total directamente? Modificar Total
+                  </button>
                 </div>
               </div>
             </div>
