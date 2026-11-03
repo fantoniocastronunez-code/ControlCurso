@@ -472,7 +472,7 @@ export async function buildEventSummaryPdfDoc({
   const pettyCashTotal = Number(reportData?.pettyCashTotal ?? stats?.pettyCashTotal ?? 0);
   const closingAudit = reportData?.closingAudit ?? stats?.pettyCashData?.closingAudit ?? null;
   const totalExpenses = Number(reportData?.totalExpenses ?? stats?.expensesTotal ?? 0);
-  const totalIncomes = Number(reportData?.totalIncomes ?? (totalSales + (reportData?.mandatoryTotalPaid || 0)));
+  const totalIncomes = Number(reportData?.totalIncomes ?? (totalSales + (reportData?.mandatoryTotalPaid || 0) + (reportData?.fineTotalPaid || 0)));
   const netProfit = Number(reportData?.netProfit ?? (totalIncomes - totalExpenses));
   const profitVsExpensesPct = Number(reportData?.profitVsExpensesPct ?? (totalExpenses > 0 ? (netProfit / totalExpenses) * 100 : (netProfit > 0 ? 100 : 0)));
 

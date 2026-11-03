@@ -594,7 +594,8 @@ const EventReportModal = ({ isOpen, onClose, event }) => {
                         {formatMoney(totalIncomes)}
                       </strong>
                       <span style={{ fontSize: '0.74rem', color: 'var(--text-muted)' }}>
-                        Ventas POS ({formatMoney(totalSales)}) + Cuotas ({formatMoney(mandatoryTotalPaid + fineTotalPaid)})
+                        Ventas POS ({formatMoney(totalSales)}) + Cuotas ({formatMoney(mandatoryTotalPaid)})
+                        {fineTotalPaid > 0 && ` + Multas (${formatMoney(fineTotalPaid)})`}
                       </span>
                     </div>
 
@@ -683,7 +684,10 @@ const EventReportModal = ({ isOpen, onClose, event }) => {
                             : '¡Todas las familias tienen la cuota obligatoria al día!'}
                         </strong>
                         <span style={{ fontSize: '0.82rem', color: 'var(--text-muted)' }}>
-                          Cuota fijada: <strong>{formatMoney(event?.mandatoryAmount || 0)}</strong> por alumno • Pagadas: <strong>{mandatoryPaidCount}</strong> de <strong>{mandatoryDebts.length}</strong>
+                          Cuota: <strong>{formatMoney(event?.mandatoryAmount || 0)}</strong> por alumno • Recaudado: <strong>{formatMoney(mandatoryTotalPaid)}</strong> ({mandatoryPaidCount} de {mandatoryDebts.length} familias)
+                          {fineTotalPaid > 0 && (
+                            <span> • Multas inasistencia: <strong>{formatMoney(fineTotalPaid)}</strong></span>
+                          )}
                         </span>
                       </div>
                     </div>
