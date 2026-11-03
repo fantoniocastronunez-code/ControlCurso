@@ -1,8 +1,8 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { db } from '../../firebase/config';
-import { collection, getDocs, doc, setDoc, query, deleteDoc, where, updateDoc } from 'firebase/firestore';
-import { ArrowLeft, PlusCircle, CheckCircle, Calendar, X, Save, Trash2, Users, UserCheck, Search, Sparkles, Filter } from 'lucide-react';
+import { collection, getDocs, doc, setDoc, query, deleteDoc, where, updateDoc, onSnapshot, getDoc } from 'firebase/firestore';
+import { ArrowLeft, PlusCircle, CheckCircle, Calendar, X, Save, Trash2, Users, UserCheck, Search, Sparkles, Filter, AlertTriangle, AlertCircle } from 'lucide-react';
 import { useModal } from '../../context/ModalContext';
 import { formatStudentName } from '../../utils/nameUtils';
 import { useAuth } from '../../context/AuthContext';
@@ -11,6 +11,7 @@ import { useCourse } from '../../context/CourseContext';
 import { useLockBodyScroll } from '../../hooks/useLockBodyScroll';
 import { loadDemoEventData } from '../../utils/eventTestUtils';
 import { formatEventDate } from '../../utils/eventPdfService';
+import { checkEventClosureReadiness } from '../../utils/eventClosureValidation';
 
 const EventManagement = ({ onBack }) => {
   const { user } = useAuth();
@@ -40,24 +41,92 @@ const EventManagement = ({ onBack }) => {
   const [selectedStudentIds, setSelectedStudentIds] = useState(new Set());
   const [studentSearchTerm, setStudentSearchTerm] = useState('');
 
-  const fetchEvents = useCallback(async () => {
-    if (!selectedCourse) return;
-    setLoading(true);
-    try {
-      const q = query(collection(db, 'events'), where('courseId', '==', selectedCourse.id));
-      const querySnapshot = await getDocs(q);
-      const eventsList = querySnapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
-      }));
-      eventsList.sort((a, b) => new Date(b.createdAt || b.date || 0) - new Date(a.createdAt || a.date || 0));
-      setEvents(eventsList);
-    } catch (error) {
-      console.error("Error al obtener eventos:", error);
-    } finally {
-      setLoading(false);
+  const [eventsStatusMap, setEventsStatusMap] = useState({});
+
+  const loadEventsStatus = useCallback(async (eventsList) => {
+    if (!selectedCourse?.id || !eventsList || eventsList.length === 0) {
+      setEventsStatusMap({});
+      return;
     }
-  }, [selectedCourse]);
+    try {
+      // 1. Obtener deudas del curso para este lote de eventos
+      const qDebts = query(collection(db, 'debts'), where('courseId', '==', selectedCourse.id));
+      const snapDebts = await getDocs(qDebts);
+      const debtsByEvent = {};
+      snapDebts.docs.forEach(d => {
+        const debt = d.data();
+        const evId = debt.eventId;
+        if (!evId) return;
+        if (!debtsByEvent[evId]) debtsByEvent[evId] = [];
+        debtsByEvent[evId].push(debt);
+      });
+
+      // 2. Obtener cajas chicas de los eventos
+      const pettyPromises = eventsList.map(ev =>
+        getDoc(doc(db, 'eventPettyCash', `petty_${ev.id}`)).catch(() => null)
+      );
+      const pettySnaps = await Promise.all(pettyPromises);
+      const pettyByEvent = {};
+      pettySnaps.forEach((snap, idx) => {
+        if (snap && snap.exists()) {
+          pettyByEvent[eventsList[idx].id] = snap.data();
+        }
+      });
+
+      // 3. Consolidar estado por cada evento
+      const map = {};
+      eventsList.forEach(ev => {
+        const evDebts = debtsByEvent[ev.id] || [];
+        const isTest = Boolean(ev.isTestEvent);
+
+        const mandatoryDebts = evDebts.filter(d => {
+          const t = (d.title || '').toLowerCase();
+          const exp = d.expenseId || '';
+          return !t.includes('multa') && !exp.includes('_fine_');
+        });
+
+        const pendingQuotasList = mandatoryDebts.filter(d => d.status !== 'paid');
+        const pendingQuotas = pendingQuotasList.length;
+        const pendingQuotasAmount = pendingQuotasList.reduce((sum, d) => {
+          const total = Number(d.amount) || 0;
+          const paid = Number(d.paidAmount) || 0;
+          return sum + (total - paid);
+        }, 0);
+
+        const pData = pettyByEvent[ev.id];
+        const closingAudit = pData?.closingAudit || null;
+        const hasClosingAudit = Boolean(closingAudit);
+        const auditDifference = closingAudit ? Number(closingAudit.difference || 0) : null;
+        const isCashBalanced = hasClosingAudit && auditDifference === 0;
+
+        const blockingReasons = [];
+        if (!isTest && pendingQuotas > 0) {
+          blockingReasons.push(`Faltan ${pendingQuotas} cuota(s) obligatoria(s) por pagar.`);
+        }
+        if (!hasClosingAudit) {
+          blockingReasons.push('Falta realizar el arqueo de cierre de caja.');
+        } else if (auditDifference !== 0) {
+          blockingReasons.push(`Caja con descuadre.`);
+        }
+
+        map[ev.id] = {
+          totalQuotas: mandatoryDebts.length,
+          pendingQuotas,
+          pendingQuotasAmount,
+          hasClosingAudit,
+          closingAudit,
+          auditDifference,
+          isCashBalanced,
+          canClose: blockingReasons.length === 0,
+          blockingReasons
+        };
+      });
+
+      setEventsStatusMap(map);
+    } catch (err) {
+      console.warn("Error cargando estado de eventos:", err);
+    }
+  }, [selectedCourse?.id]);
 
   const fetchCourseStudents = useCallback(async () => {
     if (!selectedCourse?.id) return;
@@ -77,10 +146,30 @@ const EventManagement = ({ onBack }) => {
     }
   }, [selectedCourse]);
 
+  // Escuchar eventos en tiempo real con onSnapshot
   useEffect(() => {
-    fetchEvents();
+    if (!selectedCourse?.id) return;
+    setLoading(true);
+
+    const q = query(collection(db, 'events'), where('courseId', '==', selectedCourse.id));
+    const unsubscribe = onSnapshot(q, (querySnapshot) => {
+      const eventsList = querySnapshot.docs.map(d => ({
+        id: d.id,
+        ...d.data()
+      }));
+      eventsList.sort((a, b) => new Date(b.createdAt || b.date || 0) - new Date(a.createdAt || a.date || 0));
+      setEvents(eventsList);
+      setLoading(false);
+      loadEventsStatus(eventsList);
+    }, (error) => {
+      console.error("Error al escuchar eventos en tiempo real:", error);
+      setLoading(false);
+    });
+
     fetchCourseStudents();
-  }, [fetchEvents, fetchCourseStudents]);
+
+    return () => unsubscribe();
+  }, [selectedCourse?.id, fetchCourseStudents, loadEventsStatus]);
 
   useEffect(() => {
     if (showCreateModal) {
@@ -289,38 +378,74 @@ const EventManagement = ({ onBack }) => {
       }
 
       setMessage('Evento eliminado con éxito.');
-      fetchEvents();
       setTimeout(() => setMessage(''), 3000);
     } catch (error) {
       console.error("Error eliminando evento:", error);
       await showAlert('Hubo un error al eliminar el evento.');
-      setLoading(false); // only set false on error because fetchEvents will set false on success
+      setLoading(false);
     }
   };
 
   const handleToggleEventCompleted = async (e, ev) => {
     e.stopPropagation();
-    const willBeCompleted = !(ev.isCompleted || ev.status === 'completed');
-    const confirmMsg = willBeCompleted
-      ? `¿Deseas marcar el evento "${ev.name}" como TERMINADO Y CUADRADO?\nEsto dejará constancia de que el evento finalizó con éxito y su caja está lista.`
-      : `¿Deseas reabrir el evento "${ev.name}" y dejarlo en estado Activo / En Curso?`;
+    const isDone = Boolean(ev.isCompleted || ev.status === 'completed');
+    const willBeCompleted = !isDone;
+
+    // Si ya está terminado y se desea reabrir a En Curso:
+    if (!willBeCompleted) {
+      if (!(await showConfirm(`¿Deseas reabrir el evento "${ev.name}" y dejarlo en estado Activo / En Curso?`))) return;
+      try {
+        const updateData = {
+          isCompleted: false,
+          status: 'active',
+          reopenedAt: new Date().toISOString(),
+          reopenedBy: user?.displayName || user?.email || 'Admin'
+        };
+        await updateDoc(doc(db, 'events', ev.id), updateData);
+        setMessage(`Evento "${ev.name}" reabierto a En Curso.`);
+        setTimeout(() => setMessage(''), 3000);
+      } catch (err) {
+        console.error("Error al reabrir evento:", err);
+        showAlert("Error al actualizar el estado del evento.");
+      }
+      return;
+    }
+
+    // SI SE DESEA CERRAR: VALIDACIÓN ESTRICTA
+    const validation = await checkEventClosureReadiness(ev);
+    if (!validation.canClose) {
+      await showAlert(
+        `⚠️ NO SE PUEDE CERRAR EL EVENTO\n\n` +
+        `El evento "${ev.name}" aún no cumple los requisitos para ser marcado como "Terminado y Cuadrado":\n\n` +
+        validation.blockingReasons.map((r, i) => `• ${r}`).join('\n\n') +
+        `\n\n💡 Para cerrarlo debes:\n` +
+        `• Recaudar y dejar al día las cuotas obligatorias pendientes.\n` +
+        `• Realizar el arqueo de cierre de caja en la pestaña "Arqueo" o "Caja POS" asegurando que la diferencia sea exactamente $0.`
+      );
+      return;
+    }
+
+    // Confirmación oficial cuando todo está cuadrado
+    const confirmMsg = `¿Confirmas marcar el evento "${ev.name}" como TERMINADO Y CUADRADO?\n\n` +
+      `✅ Cuotas obligatorias: 100% al día.\n` +
+      `✅ Caja del evento: Cuadrada ($0 de diferencia).\n\n` +
+      `Esto dejará constancia oficial del cierre y cuadratura del evento.`;
 
     if (!(await showConfirm(confirmMsg))) return;
 
     try {
       const updateData = {
-        isCompleted: willBeCompleted,
-        status: willBeCompleted ? 'completed' : 'active',
-        completedAt: willBeCompleted ? new Date().toISOString() : null,
-        completedBy: willBeCompleted ? (user?.displayName || user?.email || 'Admin') : null
+        isCompleted: true,
+        status: 'completed',
+        completedAt: new Date().toISOString(),
+        completedBy: user?.displayName || user?.email || 'Admin'
       };
 
       await updateDoc(doc(db, 'events', ev.id), updateData);
-      setEvents(prev => prev.map(item => item.id === ev.id ? { ...item, ...updateData } : item));
-      setMessage(willBeCompleted ? `Evento "${ev.name}" marcado como Terminado y Cuadrado.` : `Evento "${ev.name}" reabierto a En Curso.`);
+      setMessage(`Evento "${ev.name}" marcado como Terminado y Cuadrado.`);
       setTimeout(() => setMessage(''), 3000);
     } catch (err) {
-      console.error("Error al cambiar estado del evento:", err);
+      console.error("Error al marcar evento como terminado:", err);
       showAlert("Error al actualizar el estado del evento.");
     }
   };
@@ -331,7 +456,15 @@ const EventManagement = ({ onBack }) => {
 
   // Si hay un evento seleccionado, mostramos la vista de detalle
   if (selectedEventId) {
-    return <EventDetail eventId={selectedEventId} onBack={() => setSelectedEventId(null)} />;
+    return (
+      <EventDetail
+        eventId={selectedEventId}
+        onBack={() => {
+          setSelectedEventId(null);
+          loadEventsStatus(events);
+        }}
+      />
+    );
   }
 
   // Alumnos filtrados para el selector
@@ -446,6 +579,7 @@ const EventManagement = ({ onBack }) => {
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: '1rem' }}>
           {filteredEvents.map(event => {
             const isDone = Boolean(event.isCompleted || event.status === 'completed');
+            const statusInfo = eventsStatusMap[event.id];
             return (
               <div
                 key={event.id}
@@ -461,7 +595,7 @@ const EventManagement = ({ onBack }) => {
                 onMouseOver={(e) => e.currentTarget.style.borderColor = isDone ? '#10b981' : 'var(--primary)'}
                 onMouseOut={(e) => e.currentTarget.style.borderColor = isDone ? 'rgba(16, 185, 129, 0.4)' : 'rgba(255,255,255,0.06)'}
               >
-                <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: '1rem', gap: '0.5rem' }}>
+                <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: '0.75rem', gap: '0.5rem' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '0.85rem' }}>
                     <div style={{
                       backgroundColor: isDone ? 'rgba(16, 185, 129, 0.15)' : 'rgba(99,102,241,0.1)',
@@ -533,9 +667,23 @@ const EventManagement = ({ onBack }) => {
                       type="button"
                       onClick={(e) => handleToggleEventCompleted(e, event)}
                       style={{
-                        background: isDone ? 'rgba(16, 185, 129, 0.15)' : 'rgba(255, 255, 255, 0.05)',
-                        border: `1px solid ${isDone ? 'rgba(16, 185, 129, 0.4)' : 'var(--border-color)'}`,
-                        color: isDone ? 'var(--success)' : 'var(--text-muted)',
+                        background: isDone
+                          ? 'rgba(16, 185, 129, 0.15)'
+                          : statusInfo?.canClose
+                            ? 'rgba(99, 102, 241, 0.18)'
+                            : 'rgba(255, 255, 255, 0.05)',
+                        border: `1px solid ${
+                          isDone
+                            ? 'rgba(16, 185, 129, 0.4)'
+                            : statusInfo?.canClose
+                              ? 'rgba(99, 102, 241, 0.45)'
+                              : 'rgba(255, 255, 255, 0.12)'
+                        }`,
+                        color: isDone
+                          ? 'var(--success)'
+                          : statusInfo?.canClose
+                            ? '#a5b4fc'
+                            : 'var(--text-muted)',
                         borderRadius: '8px',
                         padding: '0.35rem 0.65rem',
                         fontSize: '0.75rem',
@@ -543,9 +691,15 @@ const EventManagement = ({ onBack }) => {
                         display: 'inline-flex',
                         alignItems: 'center',
                         gap: '0.3rem',
-                        fontWeight: isDone ? 'bold' : 'normal'
+                        fontWeight: (isDone || statusInfo?.canClose) ? 'bold' : 'normal'
                       }}
-                      title={isDone ? "Evento cuadrado. Clic para marcar como En Curso" : "Marcar que este evento está terminado y su caja cuadrada"}
+                      title={
+                        isDone
+                          ? "Evento cuadrado. Clic para reabrir como En Curso"
+                          : statusInfo?.canClose
+                            ? "Caja cuadrada y cuotas al día. Clic para marcar Terminado y Cuadrado"
+                            : "Ver requisitos pendientes para poder cerrar el evento"
+                      }
                     >
                       <CheckCircle size={13} />
                       <span>{isDone ? 'Listo ✓' : 'Cuadrar'}</span>
@@ -560,6 +714,73 @@ const EventManagement = ({ onBack }) => {
                       <Trash2 size={16} />
                     </button>
                   </div>
+                </div>
+
+                {/* Cuadratura de Caja y Estado de Cuotas */}
+                <div style={{
+                  margin: '0.75rem 0',
+                  padding: '0.65rem 0.85rem',
+                  borderRadius: '10px',
+                  backgroundColor: isDone ? 'rgba(16, 185, 129, 0.05)' : 'rgba(255, 255, 255, 0.02)',
+                  border: isDone ? '1px solid rgba(16, 185, 129, 0.25)' : '1px solid rgba(255, 255, 255, 0.07)',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '0.4rem',
+                  fontSize: '0.8rem'
+                }}>
+                  {/* Caja / Arqueo */}
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.5rem' }}>
+                    <span style={{ color: 'var(--text-muted)' }}>Caja / Arqueo:</span>
+                    {statusInfo?.hasClosingAudit ? (
+                      statusInfo.auditDifference === 0 ? (
+                        <span style={{ color: '#34d399', fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: '0.25rem' }}>
+                          <CheckCircle size={13} /> Cuadrada ($0 dif.)
+                        </span>
+                      ) : (
+                        <span style={{ color: '#f87171', fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: '0.25rem' }}>
+                          <AlertCircle size={13} /> Descuadre {statusInfo.auditDifference > 0 ? '+' : ''}{formatMoney(statusInfo.auditDifference)}
+                        </span>
+                      )
+                    ) : (
+                      <span style={{ color: '#fbbf24', fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: '0.25rem' }}>
+                        <AlertTriangle size={13} /> Falta arqueo de caja
+                      </span>
+                    )}
+                  </div>
+
+                  {/* Cuotas del Evento */}
+                  {!event.isTestEvent && (
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.5rem' }}>
+                      <span style={{ color: 'var(--text-muted)' }}>Cuotas familias:</span>
+                      {statusInfo?.pendingQuotas > 0 ? (
+                        <span style={{ color: '#f87171', fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: '0.25rem' }}>
+                          <AlertCircle size={13} /> {statusInfo.pendingQuotas} sin pagar ({formatMoney(statusInfo.pendingQuotasAmount)})
+                        </span>
+                      ) : (statusInfo?.totalQuotas || 0) > 0 ? (
+                        <span style={{ color: '#34d399', fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: '0.25rem' }}>
+                          <CheckCircle size={13} /> Al día (100% pagado)
+                        </span>
+                      ) : (
+                        <span style={{ color: 'var(--text-muted)' }}>Sin cuotas asignadas</span>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Advertencia si no se puede cerrar */}
+                  {!isDone && statusInfo && !statusInfo.canClose && (
+                    <div style={{
+                      fontSize: '0.73rem',
+                      color: '#fca5a5',
+                      marginTop: '0.2rem',
+                      borderTop: '1px dashed rgba(239, 68, 68, 0.25)',
+                      paddingTop: '0.35rem',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '0.3rem'
+                    }}>
+                      <span>⛔ No se puede cerrar hasta cuadrar caja y cobrar cuotas</span>
+                    </div>
+                  )}
                 </div>
 
                 <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.9rem', color: 'var(--text-muted)', borderTop: '1px solid rgba(255,255,255,0.1)', paddingTop: '0.85rem' }}>

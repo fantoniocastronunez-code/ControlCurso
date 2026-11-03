@@ -25,6 +25,7 @@ import {
   printViaWebBluetooth
 } from '../../utils/thermalPrinterService';
 import { formatEventDate } from '../../utils/eventPdfService';
+import { checkEventClosureReadiness } from '../../utils/eventClosureValidation';
 
 const EventDetail = ({ eventId, onBack }) => {
   const navigate = useNavigate();
@@ -105,23 +106,57 @@ const EventDetail = ({ eventId, onBack }) => {
     const isCurrentlyDone = Boolean(eventData.isCompleted || eventData.status === 'completed');
     const willBeDone = !isCurrentlyDone;
 
-    const confirmMsg = willBeDone
-      ? `¿Deseas marcar el evento "${eventData.name}" como TERMINADO Y CUADRADO?\nEsto dejará constancia de que el evento finalizó con éxito y su caja está lista.`
-      : `¿Deseas reabrir el evento "${eventData.name}" y dejarlo en estado Activo / En Curso?`;
+    // Si ya está terminado y se desea reabrir a En Curso:
+    if (!willBeDone) {
+      if (!(await showConfirm(`¿Deseas reabrir el evento "${eventData.name}" y dejarlo en estado Activo / En Curso?`))) return;
+      try {
+        const updateData = {
+          isCompleted: false,
+          status: 'active',
+          reopenedAt: new Date().toISOString()
+        };
+        await updateDoc(doc(db, 'events', eventData.id), updateData);
+        setEventData(prev => ({ ...prev, ...updateData }));
+        await showAlert('Evento reabierto a estado En Curso.');
+      } catch (err) {
+        console.error("Error al reabrir evento:", err);
+        await showAlert("Error al actualizar el estado del evento.");
+      }
+      return;
+    }
+
+    // SI SE DESEA CERRAR: VALIDACIÓN ESTRICTA DE CUADRATURA Y CUOTAS
+    const validation = await checkEventClosureReadiness(eventData);
+    if (!validation.canClose) {
+      await showAlert(
+        `⚠️ NO SE PUEDE CERRAR EL EVENTO\n\n` +
+        `El evento "${eventData.name}" aún no cumple los requisitos para ser marcado como "Terminado y Cuadrado":\n\n` +
+        validation.blockingReasons.map((r, i) => `• ${r}`).join('\n\n') +
+        `\n\n💡 Para cerrarlo debes:\n` +
+        `• Recaudar y dejar al día las cuotas obligatorias pendientes.\n` +
+        `• Realizar el arqueo de cierre de caja en la pestaña "Arqueo" o "Caja POS" asegurando que la diferencia sea exactamente $0.`
+      );
+      return;
+    }
+
+    const confirmMsg = `¿Confirmas marcar el evento "${eventData.name}" como TERMINADO Y CUADRADO?\n\n` +
+      `✅ Cuotas obligatorias: 100% al día.\n` +
+      `✅ Caja del evento: Cuadrada ($0 de diferencia).\n\n` +
+      `Esto dejará constancia oficial del cierre y cuadratura del evento.`;
 
     if (!(await showConfirm(confirmMsg))) return;
 
     try {
       const updateData = {
-        isCompleted: willBeDone,
-        status: willBeDone ? 'completed' : 'active',
-        completedAt: willBeDone ? new Date().toISOString() : null,
-        completedBy: willBeDone ? (user?.displayName || user?.email || 'Admin') : null
+        isCompleted: true,
+        status: 'completed',
+        completedAt: new Date().toISOString(),
+        completedBy: user?.displayName || user?.email || 'Admin'
       };
 
       await updateDoc(doc(db, 'events', eventData.id), updateData);
       setEventData(prev => ({ ...prev, ...updateData }));
-      await showAlert(willBeDone ? 'Evento marcado como TERMINADO Y CUADRADO con éxito.' : 'Evento reabierto a estado En Curso.');
+      await showAlert('Evento marcado como TERMINADO Y CUADRADO con éxito.');
     } catch (err) {
       console.error("Error al actualizar estado del evento:", err);
       await showAlert("Error al actualizar el estado del evento.");
