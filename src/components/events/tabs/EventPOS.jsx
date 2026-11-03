@@ -653,6 +653,34 @@ const EventPOS = ({ event, onNavigateTab }) => {
     }
   };
 
+  const handleEditSaleTotal = async (sale) => {
+    if (sale.status === 'cancelled') return;
+    const input = window.prompt(
+      `Modificar total del ticket #${sale.correlative} (${sale.clientName || 'General'}):\nTotal actual: ${formatMoney(sale.total)}`,
+      String(sale.total)
+    );
+    if (input === null) return;
+    const parsed = Math.max(0, parseInt(input.replace(/\D/g, ''), 10) || 0);
+    if (parsed === sale.total) return;
+
+    try {
+      await updateDoc(doc(db, 'eventSales', sale.id), {
+        total: parsed,
+        updatedAt: new Date().toISOString()
+      });
+      const qIncome = query(collection(db, 'incomes'), where('saleId', '==', sale.id));
+      const snapIncome = await getDocs(qIncome);
+      for (const docSnap of snapIncome.docs) {
+        await updateDoc(doc(db, 'incomes', docSnap.id), { amount: parsed });
+      }
+      setSales(prev => prev.map(s => s.id === sale.id ? { ...s, total: parsed } : s));
+      await showAlert(`Total del ticket #${sale.correlative} actualizado a ${formatMoney(parsed)}.`);
+    } catch (err) {
+      console.error("Error al actualizar total:", err);
+      await showAlert("Error al actualizar total: " + err.message);
+    }
+  };
+
   const handleEditSaleNote = async (sale) => {
     if (sale.status === 'cancelled') return;
     const currentNote = sale.saleNote || '';
@@ -1784,7 +1812,18 @@ const EventPOS = ({ event, onNavigateTab }) => {
                               </span>
                             )}
                           </td>
-                          <td style={{ padding: '0.4rem', textAlign: 'right', fontWeight: 'bold', whiteSpace: 'nowrap', color: isCancelled ? 'var(--text-muted)' : 'var(--success)' }}>
+                          <td
+                            onClick={() => !isCancelled && handleEditSaleTotal(sale)}
+                            style={{
+                              padding: '0.4rem',
+                              textAlign: 'right',
+                              fontWeight: 'bold',
+                              whiteSpace: 'nowrap',
+                              color: isCancelled ? 'var(--text-muted)' : 'var(--success)',
+                              cursor: !isCancelled ? 'pointer' : 'default'
+                            }}
+                            title={!isCancelled ? "Haz clic para modificar el total de este ticket" : "Venta anulada"}
+                          >
                             {formatMoney(sale.total)}
                           </td>
                           <td style={{ padding: '0.4rem', textAlign: 'center', whiteSpace: 'nowrap' }}>
@@ -1792,10 +1831,17 @@ const EventPOS = ({ event, onNavigateTab }) => {
                               <div style={{ display: 'flex', gap: '0.3rem', justifyContent: 'center' }}>
                                 <button
                                   type="button"
-                                  onClick={() => handleEditSaleNote(sale)}
+                                  onClick={async () => {
+                                    const action = window.prompt("¿Qué deseas modificar del ticket #" + sale.correlative + "?\n1. Monto Total\n2. Nota del Pedido\nEscribe 1 o 2:", "1");
+                                    if (action === "1") {
+                                      handleEditSaleTotal(sale);
+                                    } else if (action === "2") {
+                                      handleEditSaleNote(sale);
+                                    }
+                                  }}
                                   className="btn btn-outline"
                                   style={{ padding: '0.2rem 0.35rem', fontSize: '0.72rem' }}
-                                  title="Editar nota del pedido"
+                                  title="Editar total o nota del pedido"
                                 >
                                   <Edit2 size={13} />
                                 </button>

@@ -54,9 +54,15 @@ const EventReconciliation = ({ event, onNavigateTab }) => {
   const [updatingSaleId, setUpdatingSaleId] = useState(null);
   const [statusMessage, setStatusMessage] = useState(null);
 
-  // Modal para editar nota de venta
+  // Modal para editar venta (total, nota, medio de pago)
   const [editingSale, setEditingSale] = useState(null);
   const [editingNoteValue, setEditingNoteValue] = useState('');
+  const [editingTotalValue, setEditingTotalValue] = useState('');
+  const [editingPaymentMethod, setEditingPaymentMethod] = useState('cash');
+
+  // Edición directa / inline de total en la tabla
+  const [inlineEditingTotalId, setInlineEditingTotalId] = useState(null);
+  const [inlineTotalInput, setInlineTotalInput] = useState('');
 
   // 1. Cargar ventas en tiempo real
   useEffect(() => {
@@ -385,26 +391,110 @@ const EventReconciliation = ({ event, onNavigateTab }) => {
     }
   };
 
-  // Abrir modal de edición de notas
-  const handleOpenEditNote = (sale) => {
+  // Abrir modal de edición de venta (total, nota, medio de pago)
+  const handleOpenEditSale = (sale) => {
     setEditingSale(sale);
     setEditingNoteValue(sale.saleNote || '');
+    setEditingTotalValue(String(sale.total ?? 0));
+    setEditingPaymentMethod(sale.paymentMethod || 'cash');
   };
+  const handleOpenEditNote = handleOpenEditSale;
 
-  // Guardar nota editada
-  const handleSaveNote = async () => {
+  // Guardar cambios de venta desde el modal
+  const handleSaveSaleEdits = async () => {
     if (!editingSale) return;
+    const parsedTotal = Math.max(0, parseInt(String(editingTotalValue).replace(/\D/g, ''), 10) || 0);
+    const trimmedNote = editingNoteValue.trim();
+    const nowIso = new Date().toISOString();
+    const updatedBy = user?.displayName || user?.email?.split('@')[0] || 'Admin';
+
     try {
-      await updateDoc(doc(db, 'eventSales', editingSale.id), {
-        saleNote: editingNoteValue.trim(),
-        updatedAt: new Date().toISOString()
-      });
-      setSales(prev => prev.map(s => s.id === editingSale.id ? { ...s, saleNote: editingNoteValue.trim() } : s));
-      showToast(`Nota del ticket #${editingSale.correlative} guardada.`);
+      // 1. Actualizar en colección eventSales
+      const updateData = {
+        total: parsedTotal,
+        saleNote: trimmedNote,
+        paymentMethod: editingPaymentMethod,
+        updatedAt: nowIso,
+        modifiedBy: updatedBy
+      };
+      if (editingSale.originalTotal === undefined && parsedTotal !== editingSale.total) {
+        updateData.originalTotal = editingSale.total;
+      }
+      await updateDoc(doc(db, 'eventSales', editingSale.id), updateData);
+
+      // 2. Actualizar también en colección incomes si existe ingreso asociado
+      const qIncome = query(collection(db, 'incomes'), where('saleId', '==', editingSale.id));
+      const snapIncome = await getDocs(qIncome);
+      for (const docSnap of snapIncome.docs) {
+        await updateDoc(doc(db, 'incomes', docSnap.id), {
+          amount: parsedTotal,
+          paymentMethod: editingPaymentMethod,
+          updatedAt: nowIso
+        });
+      }
+
+      // 3. Actualizar estado local inmediato
+      setSales(prev => prev.map(s => s.id === editingSale.id ? {
+        ...s,
+        ...updateData
+      } : s));
+
+      showToast(`Venta #${editingSale.correlative} actualizada (Total: ${formatMoneyCLP(parsedTotal)}).`);
       setEditingSale(null);
     } catch (err) {
-      console.error("Error al guardar nota:", err);
-      await showAlert("Error al guardar nota: " + err.message);
+      console.error("Error al guardar cambios de la venta:", err);
+      await showAlert("Error al guardar cambios: " + err.message);
+    }
+  };
+  const handleSaveNote = handleSaveSaleEdits;
+
+  // Guardar total editado directamente en la celda de la tabla
+  const handleSaveInlineTotal = async (saleId) => {
+    const sale = sales.find(s => s.id === saleId);
+    if (!sale) {
+      setInlineEditingTotalId(null);
+      return;
+    }
+    const parsedTotal = Math.max(0, parseInt(String(inlineTotalInput).replace(/\D/g, ''), 10) || 0);
+    const nowIso = new Date().toISOString();
+    const updatedBy = user?.displayName || user?.email?.split('@')[0] || 'Admin';
+
+    setInlineEditingTotalId(null);
+
+    if (parsedTotal === sale.total) return;
+
+    try {
+      // 1. Actualizar en eventSales
+      const updateData = {
+        total: parsedTotal,
+        updatedAt: nowIso,
+        modifiedBy: updatedBy
+      };
+      if (sale.originalTotal === undefined) {
+        updateData.originalTotal = sale.total;
+      }
+      await updateDoc(doc(db, 'eventSales', saleId), updateData);
+
+      // 2. Actualizar también en incomes
+      const qIncome = query(collection(db, 'incomes'), where('saleId', '==', saleId));
+      const snapIncome = await getDocs(qIncome);
+      for (const docSnap of snapIncome.docs) {
+        await updateDoc(doc(db, 'incomes', docSnap.id), {
+          amount: parsedTotal,
+          updatedAt: nowIso
+        });
+      }
+
+      // 3. Actualizar estado local
+      setSales(prev => prev.map(s => s.id === saleId ? {
+        ...s,
+        ...updateData
+      } : s));
+
+      showToast(`Total del ticket #${sale.correlative} cambiado a ${formatMoneyCLP(parsedTotal)}.`);
+    } catch (err) {
+      console.error("Error al actualizar total:", err);
+      await showAlert("Error al actualizar total: " + err.message);
     }
   };
 
@@ -1329,15 +1419,87 @@ const EventReconciliation = ({ event, onNavigateTab }) => {
                           </div>
                         </td>
 
-                        {/* 5. Total de Venta */}
+                        {/* 5. Total de Venta (Editable) */}
                         <td style={{ padding: '0.65rem 0.75rem', textAlign: 'right', whiteSpace: 'nowrap' }}>
-                          <span style={{
-                            fontWeight: 800,
-                            fontSize: '0.95rem',
-                            color: isCancelled ? 'var(--text-muted)' : 'var(--success)'
-                          }}>
-                            {formatMoneyCLP(sale.total)}
-                          </span>
+                          {inlineEditingTotalId === sale.id ? (
+                            <div style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                              <span style={{ fontSize: '0.85rem', color: '#10b981', fontWeight: 'bold' }}>$</span>
+                              <input
+                                type="number"
+                                min="0"
+                                value={inlineTotalInput}
+                                onChange={(e) => setInlineTotalInput(e.target.value)}
+                                onKeyDown={(e) => {
+                                  if (e.key === 'Enter') {
+                                    e.preventDefault();
+                                    handleSaveInlineTotal(sale.id);
+                                  } else if (e.key === 'Escape') {
+                                    setInlineEditingTotalId(null);
+                                  }
+                                }}
+                                className="input-field"
+                                style={{
+                                  width: '90px',
+                                  padding: '0.2rem 0.4rem',
+                                  fontSize: '0.85rem',
+                                  fontWeight: 'bold',
+                                  textAlign: 'right',
+                                  color: '#10b981',
+                                  border: '1px solid #10b981'
+                                }}
+                                autoFocus
+                              />
+                              <button
+                                type="button"
+                                onClick={() => handleSaveInlineTotal(sale.id)}
+                                className="btn btn-primary"
+                                style={{ padding: '0.2rem 0.45rem', fontSize: '0.75rem', backgroundColor: '#10b981', borderColor: '#10b981' }}
+                                title="Guardar total"
+                              >
+                                ✓
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => setInlineEditingTotalId(null)}
+                                className="btn btn-outline"
+                                style={{ padding: '0.2rem 0.4rem', fontSize: '0.75rem' }}
+                                title="Cancelar"
+                              >
+                                ✕
+                              </button>
+                            </div>
+                          ) : (
+                            <div
+                              onClick={() => {
+                                if (!isCancelled) {
+                                  setInlineEditingTotalId(sale.id);
+                                  setInlineTotalInput(String(sale.total ?? 0));
+                                }
+                              }}
+                              style={{
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                justifyContent: 'flex-end',
+                                gap: '5px',
+                                cursor: !isCancelled ? 'pointer' : 'default',
+                                padding: '2px 6px',
+                                borderRadius: '6px',
+                                transition: 'all 0.15s ease'
+                              }}
+                              title={!isCancelled ? "Haz clic para modificar el total de este ticket" : "Venta anulada"}
+                            >
+                              <span style={{
+                                fontWeight: 800,
+                                fontSize: '0.95rem',
+                                color: isCancelled ? 'var(--text-muted)' : 'var(--success)'
+                              }}>
+                                {formatMoneyCLP(sale.total)}
+                              </span>
+                              {!isCancelled && (
+                                <Edit2 size={12} style={{ color: '#10b981', opacity: 0.6 }} />
+                              )}
+                            </div>
+                          )}
                         </td>
 
                         {/* 6. MEDIO DE PAGO MODIFICABLE (Segmented Switch) */}
@@ -1544,7 +1706,7 @@ const EventReconciliation = ({ event, onNavigateTab }) => {
         )}
       </div>
 
-      {/* Modal para Editar Nota de Venta */}
+      {/* Modal para editar venta (Total, Medio de Pago, Nota) */}
       {editingSale && (
         <div style={{
           position: 'fixed',
@@ -1564,22 +1726,113 @@ const EventReconciliation = ({ event, onNavigateTab }) => {
             border: '1px solid rgba(255,255,255,0.15)',
             borderRadius: 'var(--radius-lg)'
           }}>
-            <h3 style={{ margin: '0 0 0.5rem', fontSize: '1.15rem', color: '#fff' }}>
-              Editar Nota de Venta - Ticket #{editingSale.correlative}
-            </h3>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' }}>
+              <h3 style={{ margin: 0, fontSize: '1.15rem', color: '#fff', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                <Edit2 size={18} color="#10b981" />
+                Editar Venta - Ticket #{editingSale.correlative}
+              </h3>
+              <button
+                type="button"
+                onClick={() => setEditingSale(null)}
+                style={{ background: 'transparent', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', padding: '0.2rem' }}
+              >
+                <X size={18} />
+              </button>
+            </div>
+
             <p style={{ margin: '0 0 1rem', fontSize: '0.85rem', color: 'var(--text-muted)' }}>
-              Cliente: <strong>{editingSale.clientName || 'General'}</strong> • Monto: <strong>{formatMoneyCLP(editingSale.total)}</strong>
+              Cliente: <strong style={{ color: '#fef08a' }}>{editingSale.clientName || 'General'}</strong>
+              {editingSale.items && editingSale.items.length > 0 && (
+                <span> • {editingSale.items.map(i => `${i.quantity}x ${i.name}`).join(', ')}</span>
+              )}
             </p>
 
-            <textarea
-              value={editingNoteValue}
-              onChange={(e) => setEditingNoteValue(e.target.value)}
-              placeholder="Ej: Transferencia enviada por WhatsApp, pago pendiente a Juan, comprobante #123456..."
-              rows={3}
-              className="input-field"
-              style={{ width: '100%', fontSize: '0.88rem', padding: '0.6rem', marginBottom: '1.25rem', resize: 'vertical' }}
-              autoFocus
-            />
+            {/* Campo 1: Monto Total */}
+            <div style={{ marginBottom: '1rem' }}>
+              <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, color: '#e2e8f0', marginBottom: '0.35rem' }}>
+                Monto Total de la Venta ($ CLP):
+              </label>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <span style={{ fontSize: '1.1rem', fontWeight: 'bold', color: '#10b981' }}>$</span>
+                <input
+                  type="number"
+                  min="0"
+                  value={editingTotalValue}
+                  onChange={(e) => setEditingTotalValue(e.target.value)}
+                  placeholder="0"
+                  className="input-field"
+                  style={{ width: '100%', fontSize: '1.1rem', fontWeight: 'bold', padding: '0.5rem 0.75rem', color: '#10b981' }}
+                  autoFocus
+                />
+              </div>
+              <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '0.25rem', display: 'block' }}>
+                Al modificar este total, se recalcula inmediatamente la recaudación y la cuadratura de caja.
+              </span>
+            </div>
+
+            {/* Campo 2: Medio de Pago */}
+            <div style={{ marginBottom: '1rem' }}>
+              <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, color: '#e2e8f0', marginBottom: '0.35rem' }}>
+                Medio de Pago:
+              </label>
+              <div style={{ display: 'flex', gap: '0.5rem' }}>
+                <button
+                  type="button"
+                  onClick={() => setEditingPaymentMethod('cash')}
+                  style={{
+                    flex: 1,
+                    padding: '0.5rem',
+                    borderRadius: '8px',
+                    border: editingPaymentMethod === 'cash' ? '2px solid #10b981' : '1px solid rgba(255,255,255,0.15)',
+                    backgroundColor: editingPaymentMethod === 'cash' ? 'rgba(16, 185, 129, 0.2)' : 'rgba(0,0,0,0.2)',
+                    color: editingPaymentMethod === 'cash' ? '#6ee7b7' : 'var(--text-muted)',
+                    fontWeight: editingPaymentMethod === 'cash' ? 'bold' : 'normal',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '4px'
+                  }}
+                >
+                  💵 Efectivo
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setEditingPaymentMethod('transfer')}
+                  style={{
+                    flex: 1,
+                    padding: '0.5rem',
+                    borderRadius: '8px',
+                    border: editingPaymentMethod === 'transfer' ? '2px solid #3b82f6' : '1px solid rgba(255,255,255,0.15)',
+                    backgroundColor: editingPaymentMethod === 'transfer' ? 'rgba(59, 130, 246, 0.2)' : 'rgba(0,0,0,0.2)',
+                    color: editingPaymentMethod === 'transfer' ? '#93c5fd' : 'var(--text-muted)',
+                    fontWeight: editingPaymentMethod === 'transfer' ? 'bold' : 'normal',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '4px'
+                  }}
+                >
+                  🏦 Transferencia
+                </button>
+              </div>
+            </div>
+
+            {/* Campo 3: Nota / Observación */}
+            <div style={{ marginBottom: '1.25rem' }}>
+              <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, color: '#e2e8f0', marginBottom: '0.35rem' }}>
+                Nota / Observación del Pedido:
+              </label>
+              <textarea
+                value={editingNoteValue}
+                onChange={(e) => setEditingNoteValue(e.target.value)}
+                placeholder="Ej: Descuento acordado, precio especial, comprobante de pago..."
+                rows={2}
+                className="input-field"
+                style={{ width: '100%', fontSize: '0.88rem', padding: '0.5rem 0.75rem', resize: 'vertical' }}
+              />
+            </div>
 
             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.5rem' }}>
               <button
@@ -1592,11 +1845,11 @@ const EventReconciliation = ({ event, onNavigateTab }) => {
               </button>
               <button
                 type="button"
-                onClick={handleSaveNote}
+                onClick={handleSaveSaleEdits}
                 className="btn btn-primary"
                 style={{ fontSize: '0.85rem', padding: '0.45rem 1.25rem', backgroundColor: '#10b981', borderColor: '#10b981' }}
               >
-                Guardar Nota
+                Guardar Cambios
               </button>
             </div>
           </div>
