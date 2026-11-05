@@ -481,6 +481,14 @@ const AdminDashboard = () => {
     }
   };
 
+  const handleLogout = async () => {
+    setIsSidebarOpen(false);
+    const confirmed = await showConfirm('¿Estás seguro de que deseas cerrar sesión?');
+    if (confirmed) {
+      logout();
+    }
+  };
+
   return (
     <>
       <div className={`sidebar-overlay ${isSidebarOpen ? 'open' : ''}`} onClick={() => setIsSidebarOpen(false)}></div>
@@ -610,6 +618,16 @@ const AdminDashboard = () => {
               </button>
             </>
           )}
+
+          <div style={{ marginTop: '1.5rem', paddingTop: '1rem', borderTop: '1px solid var(--border-color)' }}>
+            <button 
+              onClick={handleLogout} 
+              className="btn btn-outline" 
+              style={{ justifyContent: 'flex-start', width: '100%', color: 'var(--danger)', borderColor: 'var(--border-color)' }}
+            >
+              <LogOut size={18} /> Cerrar Sesión
+            </button>
+          </div>
         </div>
       </div>
 
@@ -699,10 +717,6 @@ const AdminDashboard = () => {
             Actualizar
           </button>
           <InstallAppGuide />
-          <button onClick={logout} className="btn btn-outline">
-            <LogOut size={18} />
-            Salir
-          </button>
         </div>
       </header>
 

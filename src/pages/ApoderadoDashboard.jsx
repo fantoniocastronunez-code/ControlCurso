@@ -14,7 +14,7 @@ import { useModal } from '../context/ModalContext';
 import InstallAppGuide from '../components/InstallAppGuide';
 
 const ApoderadoDashboard = () => {
-  const { showAlert } = useModal();
+  const { showAlert, showConfirm } = useModal();
   const { user, role, logout } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
@@ -520,6 +520,13 @@ const ApoderadoDashboard = () => {
     return <div style={{ textAlign: 'center', padding: '2rem' }}>Cargando portal...</div>;
   }
 
+  const handleLogout = async () => {
+    const confirmed = await showConfirm('¿Estás seguro de que deseas cerrar sesión?');
+    if (confirmed) {
+      logout();
+    }
+  };
+
   return (
     <>
     <div className="container animate-fade-in">
@@ -543,9 +550,9 @@ const ApoderadoDashboard = () => {
             </button>
           )}
           <InstallAppGuide />
-          <button onClick={logout} className="btn btn-outline">
+          <button onClick={handleLogout} className="btn btn-outline" title="Cerrar sesión">
             <LogOut size={18} />
-            Salir
+            Cerrar Sesión
           </button>
         </div>
       </header>

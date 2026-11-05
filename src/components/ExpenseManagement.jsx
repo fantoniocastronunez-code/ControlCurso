@@ -18,7 +18,7 @@ const ExpenseManagement = ({ onBack }) => {
   const [students, setStudents] = useState([]);
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState('');
-  
+
   const [title, setTitle] = useState('');
   const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
   const [totalAmount, setTotalAmount] = useState('');
@@ -26,11 +26,11 @@ const ExpenseManagement = ({ onBack }) => {
   const [selectedStudents, setSelectedStudents] = useState(new Set());
   const [customAmounts, setCustomAmounts] = useState({});
   const [balanceToUse, setBalanceToUse] = useState({});
-  
+
   const [funds, setFunds] = useState([]);
   const [selectedFundId, setSelectedFundId] = useState('');
   const [createAutoFund, setCreateAutoFund] = useState(false);
-  
+
   const [transferAccounts, setTransferAccounts] = useState([]);
   const [selectedAccountId, setSelectedAccountId] = useState('');
   const [visibleInPortal, setVisibleInPortal] = useState(true);
@@ -181,7 +181,7 @@ const ExpenseManagement = ({ onBack }) => {
         amountPerStudent = 'Variable';
         finalTotalAmount = Array.from(selectedStudents).reduce((sum, id) => sum + parseFloat(customAmounts[id]), 0);
       }
-      
+
       let finalFundId = selectedFundId;
       if (createAutoFund) {
         finalFundId = 'fund_' + Date.now().toString();
@@ -207,7 +207,7 @@ const ExpenseManagement = ({ onBack }) => {
       };
 
       let fullyPaidCount = 0;
-      
+
       const debtsData = [];
       const studentBalances = [];
 
@@ -215,9 +215,9 @@ const ExpenseManagement = ({ onBack }) => {
       for (const studentId of selectedStudents) {
         const student = students.find(s => s.id === studentId);
         const debtId = `debt_${expenseId}_${studentId}`;
-        
+
         const finalStudentAmount = calculationMode === 'custom' ? parseFloat(customAmounts[studentId]) : amountPerStudent;
-        
+
         let status = 'pending';
         let paidAmount = 0;
         let paymentMethod = null;
@@ -225,26 +225,26 @@ const ExpenseManagement = ({ onBack }) => {
 
         const requestedBalance = parseFloat(balanceToUse[studentId]) || 0;
         if (requestedBalance > 0 && student.balance > 0) {
-            const amountToUse = Math.min(requestedBalance, finalStudentAmount, student.balance);
-            if (amountToUse > 0) {
-                paidAmount = amountToUse;
-                paymentMethod = 'balance';
-                approvedAt = new Date().toISOString();
-                
-                if (amountToUse >= finalStudentAmount) {
-                    status = 'paid';
-                    fullyPaidCount++;
-                } else {
-                    status = 'partial';
-                }
+          const amountToUse = Math.min(requestedBalance, finalStudentAmount, student.balance);
+          if (amountToUse > 0) {
+            paidAmount = amountToUse;
+            paymentMethod = 'balance';
+            approvedAt = new Date().toISOString();
 
-                studentBalances.push({
-                  studentId: student.id,
-                  newBalance: student.balance - amountToUse
-                });
+            if (amountToUse >= finalStudentAmount) {
+              status = 'paid';
+              fullyPaidCount++;
+            } else {
+              status = 'partial';
             }
+
+            studentBalances.push({
+              studentId: student.id,
+              newBalance: student.balance - amountToUse
+            });
+          }
         }
-        
+
         debtsData.push({
           debtId,
           debtData: {
@@ -287,7 +287,7 @@ const ExpenseManagement = ({ onBack }) => {
           studentBalances
         };
         await requestApproval('CREATE_EXPENSE', `Cuota: ${title}`, payload, user, selectedCourse.id);
-        
+
         setMessage('Solicitud de creación enviada a la tesorera para su aprobación.');
       } else {
         // Ejecución inmediata (Tesorero o Superadmin)
@@ -300,13 +300,13 @@ const ExpenseManagement = ({ onBack }) => {
             createdAt: new Date().toISOString()
           });
         }
-        
+
         await setDoc(expenseRef, newExpense);
-        
+
         for (const debt of debtsData) {
           await setDoc(doc(db, 'debts', debt.debtId), debt.debtData);
         }
-        
+
         if (studentBalances.length > 0) {
           for (const studentUpdate of studentBalances) {
             await updateDoc(doc(db, 'students', studentUpdate.studentId), {
@@ -314,7 +314,7 @@ const ExpenseManagement = ({ onBack }) => {
             });
           }
         }
-        
+
         setMessage('Cuota registrada correctamente');
       }
       setTimeout(() => {
@@ -352,23 +352,23 @@ const ExpenseManagement = ({ onBack }) => {
       <form onSubmit={handleSubmit}>
         <div className="glass-panel" style={{ padding: '2rem', marginBottom: '2rem' }}>
           <h4 style={{ marginBottom: '1.5rem', color: 'var(--primary)' }}>Datos del Cobro</h4>
-          
+
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1.5rem' }}>
             <div className="input-group">
               <label className="input-label">Motivo o Título</label>
-              <input 
-                type="text" 
+              <input
+                type="text"
                 required
-                className="input-field" 
+                className="input-field"
                 placeholder="Ej. Cuota Aniversario, Materiales..."
                 value={title}
                 onChange={(e) => setTitle(e.target.value)}
               />
             </div>
-            
+
             <div className="input-group">
               <label className="input-label">Modo de Cálculo</label>
-              <select 
+              <select
                 className="input-field"
                 value={calculationMode}
                 onChange={(e) => {
@@ -389,11 +389,11 @@ const ExpenseManagement = ({ onBack }) => {
                 <label className="input-label">
                   {calculationMode === 'divide' ? 'Monto Total a Dividir ($)' : 'Monto por Alumno ($)'}
                 </label>
-                <input 
-                  type="number" 
+                <input
+                  type="number"
                   required
                   min="1"
-                  className="input-field" 
+                  className="input-field"
                   placeholder="Ej. 50000"
                   value={totalAmount}
                   onChange={(e) => setTotalAmount(e.target.value)}
@@ -403,10 +403,10 @@ const ExpenseManagement = ({ onBack }) => {
 
             <div className="input-group">
               <label className="input-label">Fecha Límite / Emisión</label>
-              <input 
-                type="date" 
+              <input
+                type="date"
                 required
-                className="input-field" 
+                className="input-field"
                 value={date}
                 onChange={(e) => setDate(e.target.value)}
               />
@@ -414,9 +414,9 @@ const ExpenseManagement = ({ onBack }) => {
 
             <div className="input-group">
               <label className="input-label">Fondo al que ingresará el dinero</label>
-              <select 
-                className="input-field" 
-                value={selectedFundId} 
+              <select
+                className="input-field"
+                value={selectedFundId}
                 onChange={(e) => setSelectedFundId(e.target.value)}
                 disabled={createAutoFund}
               >
@@ -427,8 +427,8 @@ const ExpenseManagement = ({ onBack }) => {
                 ))}
               </select>
               <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginTop: '0.5rem', cursor: 'pointer', fontSize: '0.85rem' }}>
-                <input 
-                  type="checkbox" 
+                <input
+                  type="checkbox"
                   checked={createAutoFund}
                   onChange={(e) => setCreateAutoFund(e.target.checked)}
                   style={{ accentColor: 'var(--primary)' }}
@@ -439,7 +439,7 @@ const ExpenseManagement = ({ onBack }) => {
 
             <div className="input-group">
               <label className="input-label">Cuenta para Transferencias</label>
-              <select 
+              <select
                 className="input-field"
                 value={selectedAccountId}
                 onChange={(e) => setSelectedAccountId(e.target.value)}
@@ -469,14 +469,14 @@ const ExpenseManagement = ({ onBack }) => {
                     <span>{visibleInPortal ? 'Visible para los apoderados' : 'Oculta para los apoderados'}</span>
                   </div>
                   <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginTop: '0.25rem' }}>
-                    {visibleInPortal 
+                    {visibleInPortal
                       ? 'Los apoderados podrán ver esta cuota y su estado de pago en su portal.'
                       : 'Esta cuota estará oculta en el portal de los apoderados. Solo administradores y tesoreros podrán verla.'}
                   </div>
                 </div>
                 <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer', fontWeight: 500, fontSize: '0.9rem' }}>
-                  <input 
-                    type="checkbox" 
+                  <input
+                    type="checkbox"
                     checked={visibleInPortal}
                     onChange={(e) => setVisibleInPortal(e.target.checked)}
                     style={{ width: '18px', height: '18px', accentColor: 'var(--primary)', cursor: 'pointer' }}
@@ -489,7 +489,7 @@ const ExpenseManagement = ({ onBack }) => {
 
           {calculationMode !== 'custom' && totalAmount && selectedStudents.size > 0 && (
             <div style={{ marginTop: '1rem', padding: '1rem', backgroundColor: 'rgba(99, 102, 241, 0.1)', borderRadius: 'var(--radius-md)', border: '1px solid var(--primary)' }}>
-              <strong>Resumen:</strong> 
+              <strong>Resumen:</strong>
               {calculationMode === 'divide' ? (
                 <span> Se cobrará <strong>${Math.round(parseFloat(totalAmount) / selectedStudents.size)}</strong> a cada alumno (Total a recaudar: ${parseFloat(totalAmount)}).</span>
               ) : (
@@ -497,7 +497,7 @@ const ExpenseManagement = ({ onBack }) => {
               )}
             </div>
           )}
-          
+
           {calculationMode === 'custom' && selectedStudents.size > 0 && (
             <div style={{ marginTop: '1rem', padding: '1rem', backgroundColor: 'rgba(99, 102, 241, 0.1)', borderRadius: 'var(--radius-md)', border: '1px solid var(--primary)' }}>
               <strong>Resumen:</strong> Total a recaudar: <strong>${Array.from(selectedStudents).reduce((sum, id) => sum + (parseFloat(customAmounts[id]) || 0), 0)}</strong>
@@ -510,15 +510,15 @@ const ExpenseManagement = ({ onBack }) => {
             <h4 style={{ color: 'var(--primary)', margin: 0 }}>Alumnos Involucrados</h4>
             <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', alignItems: 'center' }}>
               {students.some(s => selectedStudents.has(s.id) && (parseFloat(s.balance) || 0) > 0) && (
-                <button 
-                  type="button" 
-                  onClick={handleApplyAllBalances} 
-                  className="btn btn-outline" 
-                  style={{ 
-                    fontSize: '0.85rem', 
-                    padding: '0.4rem 0.75rem', 
-                    borderColor: 'var(--success)', 
-                    color: 'var(--success)', 
+                <button
+                  type="button"
+                  onClick={handleApplyAllBalances}
+                  className="btn btn-outline"
+                  style={{
+                    fontSize: '0.85rem',
+                    padding: '0.4rem 0.75rem',
+                    borderColor: 'var(--success)',
+                    color: 'var(--success)',
                     backgroundColor: 'rgba(16, 185, 129, 0.08)',
                     display: 'inline-flex',
                     alignItems: 'center',
@@ -534,14 +534,14 @@ const ExpenseManagement = ({ onBack }) => {
               </button>
             </div>
           </div>
-          
+
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(340px, 1fr))', gap: '1rem' }}>
             {students.map(student => (
               <div key={student.id} style={{ display: 'flex', flexDirection: 'column' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', padding: '0.75rem', backgroundColor: 'rgba(255,255,255,0.03)', borderRadius: 'var(--radius-sm)', border: selectedStudents.has(student.id) ? '1px solid var(--primary)' : '1px solid var(--border-color)' }}>
                   <div onClick={() => handleToggleStudent(student.id)} style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', cursor: 'pointer', flex: 1, minWidth: 0 }}>
-                    <input 
-                      type="checkbox" 
+                    <input
+                      type="checkbox"
                       checked={selectedStudents.has(student.id)}
                       onChange={() => handleToggleStudent(student.id)}
                       style={{ width: '18px', height: '18px', accentColor: 'var(--primary)', cursor: 'pointer', flexShrink: 0 }}
@@ -554,14 +554,14 @@ const ExpenseManagement = ({ onBack }) => {
                     </div>
                   </div>
                   {calculationMode === 'custom' && selectedStudents.has(student.id) && (
-                    <input 
+                    <input
                       type="number"
                       min="1"
                       placeholder="Monto $"
                       className="input-field"
                       style={{ width: '100px', padding: '0.25rem 0.5rem' }}
                       value={customAmounts[student.id] || ''}
-                      onChange={(e) => setCustomAmounts({...customAmounts, [student.id]: e.target.value})}
+                      onChange={(e) => setCustomAmounts({ ...customAmounts, [student.id]: e.target.value })}
                     />
                   )}
                 </div>
@@ -570,7 +570,7 @@ const ExpenseManagement = ({ onBack }) => {
                     <span style={{ fontSize: '0.8rem', color: 'var(--success)' }}>Saldo a favor: <strong>${student.balance}</strong></span>
                     <div style={{ height: '15px', width: '1px', backgroundColor: 'rgba(255,255,255,0.1)' }}></div>
                     <label style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Usar para pagar:</label>
-                    <input 
+                    <input
                       type="number"
                       min="0"
                       max={student.balance}
@@ -579,11 +579,11 @@ const ExpenseManagement = ({ onBack }) => {
                       style={{ width: '80px', padding: '0.2rem 0.5rem', fontSize: '0.85rem' }}
                       value={balanceToUse[student.id] || ''}
                       onChange={(e) => {
-                          const val = Math.min(Number(e.target.value), student.balance);
-                          setBalanceToUse({...balanceToUse, [student.id]: val || ''});
+                        const val = Math.min(Number(e.target.value), student.balance);
+                        setBalanceToUse({ ...balanceToUse, [student.id]: val || '' });
                       }}
                     />
-                    <button type="button" onClick={() => setBalanceToUse({...balanceToUse, [student.id]: student.balance})} className="btn btn-outline" style={{ padding: '0.2rem 0.5rem', fontSize: '0.75rem', borderColor: 'var(--success)', color: 'var(--success)' }}>
+                    <button type="button" onClick={() => setBalanceToUse({ ...balanceToUse, [student.id]: student.balance })} className="btn btn-outline" style={{ padding: '0.2rem 0.5rem', fontSize: '0.75rem', borderColor: 'var(--success)', color: 'var(--success)' }}>
                       Todo
                     </button>
                   </div>
@@ -598,7 +598,7 @@ const ExpenseManagement = ({ onBack }) => {
 
         <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
           <button type="submit" disabled={loading} className="btn btn-primary" style={{ padding: '0.75rem 2rem', fontSize: '1.1rem' }}>
-            {loading ? 'Procesando...' : <><PlusCircle size={20}/> Generar Cobros</>}
+            {loading ? 'Procesando...' : <><PlusCircle size={20} /> Generar Cobros</>}
           </button>
         </div>
       </form>
