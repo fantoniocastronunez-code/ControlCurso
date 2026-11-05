@@ -65,8 +65,10 @@ const ApoderadoDashboard = () => {
     try {
       // 0. Check Profile Completion
       if (!impersonateStudentId) {
-        const userDocRef = doc(db, 'users', user.email);
-        const userSnap = await getDoc(userDocRef);
+        let userSnap = await getDoc(doc(db, 'users', user.uid));
+        if (!userSnap.exists() && user.email) {
+          userSnap = await getDoc(doc(db, 'users', user.email.toLowerCase().trim()));
+        }
         if (userSnap.exists()) {
           const userData = userSnap.data();
           if (!userData.formalName) {
@@ -408,8 +410,25 @@ const ApoderadoDashboard = () => {
     e.preventDefault();
     if (!formalName.trim()) return;
     try {
-      const userDocRef = doc(db, 'users', user.email);
-      await updateDoc(userDocRef, { formalName: formalName.trim() });
+      const trimmedName = formalName.trim();
+      // Guardar en user.uid (identificador canónico de autenticación)
+      await setDoc(doc(db, 'users', user.uid), { 
+        formalName: trimmedName,
+        displayName: trimmedName,
+        email: user.email ? user.email.toLowerCase().trim() : '',
+        uid: user.uid,
+        updatedAt: new Date().toISOString()
+      }, { merge: true });
+
+      // Si existe un documento histórico por email, sincronizarlo también
+      if (user.email) {
+        const emailDocRef = doc(db, 'users', user.email.toLowerCase().trim());
+        const emailSnap = await getDoc(emailDocRef);
+        if (emailSnap.exists()) {
+          await updateDoc(emailDocRef, { formalName: trimmedName, displayName: trimmedName });
+        }
+      }
+
       setIsProfileComplete(true);
       fetchData(); // Now fetch students and debts
     } catch (error) {

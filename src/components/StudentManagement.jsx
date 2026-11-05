@@ -557,14 +557,37 @@ const StudentManagement = ({ onBack }) => {
       const updateApoderadoName = async (email, newName) => {
         if (!email || !newName) return;
         const emailLower = email.toLowerCase().trim();
-        const userRef = doc(db, 'users', emailLower);
+        
+        let targetDocId = emailLower;
+        let existingRoles = {};
+        let existingDefaultCourse = selectedCourse.id;
+        let existingRole = 'apoderado';
+        let isPreRegistered = true;
+
+        try {
+          const qUser = query(collection(db, 'users'), where('email', '==', emailLower));
+          const snapUser = await getDocs(qUser);
+          if (!snapUser.empty) {
+            const foundDoc = snapUser.docs[0];
+            targetDocId = foundDoc.id;
+            const fData = foundDoc.data() || {};
+            existingRoles = fData.roles || {};
+            existingDefaultCourse = fData.defaultCourseId || selectedCourse.id;
+            existingRole = fData.role || 'apoderado';
+            isPreRegistered = !fData.uid;
+          }
+        } catch (e) {
+          console.warn("Could not query existing user, falling back to email id", e);
+        }
+
+        const userRef = doc(db, 'users', targetDocId);
         await setDoc(userRef, {
           email: emailLower,
           displayName: newName.trim(),
-          role: 'apoderado',
-          roles: { [selectedCourse.id]: 'apoderado' },
-          defaultCourseId: selectedCourse.id,
-          preRegistered: true,
+          role: existingRole,
+          roles: { ...existingRoles, [selectedCourse.id]: 'apoderado' },
+          defaultCourseId: existingDefaultCourse,
+          preRegistered: isPreRegistered,
           updatedAt: new Date().toISOString()
         }, { merge: true });
         setUsersMap(prev => ({ ...prev, [emailLower]: newName.trim() }));
