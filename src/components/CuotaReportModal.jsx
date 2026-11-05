@@ -560,16 +560,16 @@ const CuotaReportModal = ({
           justifyContent: 'space-between',
           alignItems: 'center',
           padding: '1.25rem 1.5rem',
-          borderBottom: '1px solid rgba(255,255,255,0.08)',
-          background: 'linear-gradient(135deg, rgba(16, 124, 65, 0.15) 0%, rgba(15, 23, 42, 0) 100%)'
+          borderBottom: '1px solid var(--border-color)',
+          backgroundColor: 'var(--bg-surface-elevated)'
         }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
             <div style={{
               width: '40px',
               height: '40px',
-              borderRadius: '10px',
-              backgroundColor: 'rgba(16, 124, 65, 0.2)',
-              border: '1px solid rgba(16, 124, 65, 0.4)',
+              borderRadius: 'var(--radius-sm)',
+              backgroundColor: 'rgba(16, 185, 129, 0.12)',
+              border: '1px solid rgba(16, 185, 129, 0.3)',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
@@ -578,7 +578,7 @@ const CuotaReportModal = ({
               <Table size={22} />
             </div>
             <div>
-              <h3 style={{ margin: 0, fontSize: '1.2rem', color: '#fff', fontWeight: '700' }}>
+              <h3 style={{ margin: 0, fontSize: '1.2rem', color: 'var(--text-main)', fontWeight: '600' }}>
                 Descargar Reporte de Cuotas
               </h3>
               <p style={{ margin: '0.15rem 0 0 0', color: 'var(--text-muted)', fontSize: '0.8rem' }}>
@@ -632,11 +632,11 @@ const CuotaReportModal = ({
                     }}
                   >
                     <option value="all" style={{ backgroundColor: '#1e293b', color: '#fff' }}>
-                      📚 Todas las Cuotas (Consolidado de Cuotas Totales)
+                      Todas las Cuotas (Consolidado de Cuotas Totales)
                     </option>
                     {expenses.map(exp => (
                       <option key={exp.id} value={exp.id} style={{ backgroundColor: '#1e293b', color: '#fff' }}>
-                        📌 {exp.title} ({exp.date ? `Emitido: ${exp.date}` : 'Sin fecha'})
+                        {exp.title} ({exp.date ? `Emitido: ${exp.date}` : 'Sin fecha'})
                       </option>
                     ))}
                   </select>

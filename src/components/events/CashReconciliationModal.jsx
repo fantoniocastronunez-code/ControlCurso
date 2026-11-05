@@ -325,8 +325,8 @@ const CashReconciliationModal = ({
           display: 'flex',
           justifyContent: 'space-between',
           alignItems: 'center',
-          borderBottom: '1px solid rgba(255, 255, 255, 0.1)',
-          background: 'linear-gradient(90deg, rgba(16, 185, 129, 0.1) 0%, rgba(99, 102, 241, 0.05) 100%)'
+          borderBottom: '1px solid var(--border-color)',
+          backgroundColor: 'var(--bg-surface-elevated)'
         }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
             <div style={{

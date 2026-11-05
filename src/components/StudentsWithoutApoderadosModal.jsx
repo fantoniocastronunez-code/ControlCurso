@@ -31,8 +31,8 @@ const StudentsWithoutApoderadosModal = ({ isOpen, onClose, students }) => {
         </button>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginBottom: '1.5rem' }}>
-          <div style={{ backgroundColor: 'rgba(239, 68, 68, 0.2)', padding: '1rem', borderRadius: '50%', color: 'var(--danger)' }}>
-            <AlertTriangle size={24} />
+          <div style={{ width: '42px', height: '42px', minWidth: '42px', borderRadius: 'var(--radius-sm)', display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: 'var(--bg-card-hover)', border: '1px solid var(--border-color)', color: 'var(--danger)' }}>
+            <AlertTriangle size={20} />
           </div>
           <div>
             <h2 style={{ margin: 0, fontSize: '1.5rem' }}>Sin Apoderado</h2>
@@ -42,7 +42,7 @@ const StudentsWithoutApoderadosModal = ({ isOpen, onClose, students }) => {
 
         {students.length === 0 ? (
           <p style={{ textAlign: 'center', color: 'var(--text-muted)', padding: '2rem 0' }}>
-            ¡Excelente! Todos los alumnos tienen un apoderado vinculado.
+            Todos los alumnos tienen un apoderado vinculado.
           </p>
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '0.8rem' }}>

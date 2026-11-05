@@ -415,10 +415,10 @@ const EventManagement = ({ onBack }) => {
     const validation = await checkEventClosureReadiness(ev);
     if (!validation.canClose) {
       await showAlert(
-        `⚠️ NO SE PUEDE CERRAR EL EVENTO\n\n` +
+        `AVISO: NO SE PUEDE CERRAR EL EVENTO\n\n` +
         `El evento "${ev.name}" aún no cumple los requisitos para ser marcado como "Terminado y Cuadrado":\n\n` +
         validation.blockingReasons.map((r, i) => `• ${r}`).join('\n\n') +
-        `\n\n💡 Para cerrarlo debes:\n` +
+        `\n\nRequisitos para cerrarlo:\n` +
         `• Recaudar y dejar al día las cuotas obligatorias pendientes.\n` +
         `• Realizar el arqueo de cierre de caja en la pestaña "Arqueo" o "Caja POS" asegurando que la diferencia sea exactamente $0.`
       );
@@ -427,8 +427,8 @@ const EventManagement = ({ onBack }) => {
 
     // Confirmación oficial cuando todo está cuadrado
     const confirmMsg = `¿Confirmas marcar el evento "${ev.name}" como TERMINADO Y CUADRADO?\n\n` +
-      `✅ Cuotas obligatorias: 100% al día.\n` +
-      `✅ Caja del evento: Cuadrada ($0 de diferencia).\n\n` +
+      `• Cuotas obligatorias: 100% al día.\n` +
+      `• Caja del evento: Cuadrada ($0 de diferencia).\n\n` +
       `Esto dejará constancia oficial del cierre y cuadratura del evento.`;
 
     if (!(await showConfirm(confirmMsg))) return;
@@ -500,10 +500,10 @@ const EventManagement = ({ onBack }) => {
           <button
             onClick={handleOpenQuickTestEvent}
             className="btn btn-outline"
-            style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', borderColor: 'var(--warning)', color: 'var(--warning)' }}
+            style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', borderColor: 'var(--border-focus)', color: 'var(--text-main)' }}
             title="Crear un evento de simulación para ensayar ventas, stock e impresora térmica"
           >
-            🧪 Crear Evento de Prueba
+            Crear Evento de Prueba
           </button>
           <button
             onClick={handleOpenCreateModal}
@@ -516,7 +516,7 @@ const EventManagement = ({ onBack }) => {
       </div>
 
       {message && (
-        <div style={{ backgroundColor: 'rgba(16,185,129,0.2)', color: 'var(--success)', padding: '1rem', borderRadius: 'var(--radius-md)', marginBottom: '1.5rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+        <div style={{ backgroundColor: 'rgba(16,185,129,0.1)', color: 'var(--success)', border: '1px solid rgba(16,185,129,0.25)', padding: '0.85rem 1rem', borderRadius: 'var(--radius-md)', marginBottom: '1.5rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
           <CheckCircle size={18} /> {message}
         </div>
       )}
@@ -538,12 +538,10 @@ const EventManagement = ({ onBack }) => {
             className={`btn ${filterStatus === 'active' ? 'btn-primary' : 'btn-outline'}`}
             style={{
               fontSize: '0.85rem',
-              padding: '0.35rem 0.85rem',
-              borderColor: filterStatus === 'active' ? 'var(--primary)' : 'rgba(99, 102, 241, 0.3)',
-              color: filterStatus === 'active' ? '#fff' : '#c4b5fd'
+              padding: '0.35rem 0.85rem'
             }}
           >
-            ⚡ En Curso ({events.filter(e => !(e.isCompleted || e.status === 'completed')).length})
+            En Curso ({events.filter(e => !(e.isCompleted || e.status === 'completed')).length})
           </button>
           <button
             type="button"
@@ -551,14 +549,10 @@ const EventManagement = ({ onBack }) => {
             className={`btn ${filterStatus === 'completed' ? 'btn-primary' : 'btn-outline'}`}
             style={{
               fontSize: '0.85rem',
-              padding: '0.35rem 0.85rem',
-              borderColor: filterStatus === 'completed' ? 'var(--success)' : 'rgba(16, 185, 129, 0.35)',
-              color: filterStatus === 'completed' ? '#fff' : 'var(--success)',
-              backgroundColor: filterStatus === 'completed' ? 'var(--success)' : 'transparent',
-              fontWeight: '600'
+              padding: '0.35rem 0.85rem'
             }}
           >
-            ✅ Terminados y Cuadrados ({events.filter(e => e.isCompleted || e.status === 'completed').length})
+            Terminados y Cuadrados ({events.filter(e => e.isCompleted || e.status === 'completed').length})
           </button>
         </div>
       )}
@@ -637,13 +631,13 @@ const EventManagement = ({ onBack }) => {
                           <span style={{
                             fontSize: '0.7rem',
                             padding: '0.12rem 0.5rem',
-                            backgroundColor: 'rgba(99, 102, 241, 0.12)',
-                            color: '#c4b5fd',
-                            border: '1px solid rgba(99, 102, 241, 0.25)',
-                            borderRadius: '1rem',
+                            backgroundColor: 'rgba(37, 99, 235, 0.1)',
+                            color: '#93c5fd',
+                            border: '1px solid rgba(37, 99, 235, 0.25)',
+                            borderRadius: 'var(--radius-sm)',
                             fontWeight: '600'
                           }}>
-                            ⚡ En Curso
+                            En Curso
                           </span>
                         )}
                       </div>
@@ -654,7 +648,7 @@ const EventManagement = ({ onBack }) => {
                           <span>• {event.studentsCount} alumnos</span>
                         )}
                         {event.studentSelectionMode === 'custom' && (
-                          <span style={{ fontSize: '0.7rem', padding: '0.1rem 0.4rem', backgroundColor: 'rgba(99,102,241,0.2)', color: '#a5b4fc', borderRadius: '4px' }}>
+                          <span style={{ fontSize: '0.7rem', padding: '0.1rem 0.4rem', backgroundColor: 'var(--bg-main)', color: 'var(--text-muted)', border: '1px solid var(--border-color)', borderRadius: '4px' }}>
                             Sólo algunos
                           </span>
                         )}
@@ -668,30 +662,30 @@ const EventManagement = ({ onBack }) => {
                       onClick={(e) => handleToggleEventCompleted(e, event)}
                       style={{
                         background: isDone
-                          ? 'rgba(16, 185, 129, 0.15)'
+                          ? 'rgba(16, 185, 129, 0.12)'
                           : statusInfo?.canClose
-                            ? 'rgba(99, 102, 241, 0.18)'
-                            : 'rgba(255, 255, 255, 0.05)',
+                            ? 'rgba(37, 99, 235, 0.15)'
+                            : 'var(--bg-main)',
                         border: `1px solid ${
                           isDone
-                            ? 'rgba(16, 185, 129, 0.4)'
+                            ? 'rgba(16, 185, 129, 0.3)'
                             : statusInfo?.canClose
-                              ? 'rgba(99, 102, 241, 0.45)'
-                              : 'rgba(255, 255, 255, 0.12)'
+                              ? 'rgba(37, 99, 235, 0.35)'
+                              : 'var(--border-color)'
                         }`,
                         color: isDone
                           ? 'var(--success)'
                           : statusInfo?.canClose
-                            ? '#a5b4fc'
+                            ? '#93c5fd'
                             : 'var(--text-muted)',
-                        borderRadius: '8px',
+                        borderRadius: 'var(--radius-sm)',
                         padding: '0.35rem 0.65rem',
                         fontSize: '0.75rem',
                         cursor: 'pointer',
                         display: 'inline-flex',
                         alignItems: 'center',
                         gap: '0.3rem',
-                        fontWeight: (isDone || statusInfo?.canClose) ? 'bold' : 'normal'
+                        fontWeight: (isDone || statusInfo?.canClose) ? '600' : 'normal'
                       }}
                       title={
                         isDone
@@ -702,7 +696,7 @@ const EventManagement = ({ onBack }) => {
                       }
                     >
                       <CheckCircle size={13} />
-                      <span>{isDone ? 'Listo ✓' : 'Cuadrar'}</span>
+                      <span>{isDone ? 'Listo' : 'Cuadrar'}</span>
                     </button>
                     <button
                       onClick={(e) => handleDeleteEvent(e, event)}
@@ -720,9 +714,9 @@ const EventManagement = ({ onBack }) => {
                 <div style={{
                   margin: '0.75rem 0',
                   padding: '0.65rem 0.85rem',
-                  borderRadius: '10px',
-                  backgroundColor: isDone ? 'rgba(16, 185, 129, 0.05)' : 'rgba(255, 255, 255, 0.02)',
-                  border: isDone ? '1px solid rgba(16, 185, 129, 0.25)' : '1px solid rgba(255, 255, 255, 0.07)',
+                  borderRadius: 'var(--radius-md)',
+                  backgroundColor: isDone ? 'rgba(16, 185, 129, 0.04)' : 'var(--bg-main)',
+                  border: isDone ? '1px solid rgba(16, 185, 129, 0.2)' : '1px solid var(--border-color)',
                   display: 'flex',
                   flexDirection: 'column',
                   gap: '0.4rem',
@@ -778,7 +772,7 @@ const EventManagement = ({ onBack }) => {
                       alignItems: 'center',
                       gap: '0.3rem'
                     }}>
-                      <span>⛔ No se puede cerrar hasta cuadrar caja y cobrar cuotas</span>
+                      <span>No se puede cerrar hasta cuadrar caja y cobrar cuotas</span>
                     </div>
                   )}
                 </div>
@@ -837,7 +831,7 @@ const EventManagement = ({ onBack }) => {
             display: 'flex',
             flexDirection: 'column',
             overflow: 'hidden',
-            boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.5), 0 0 25px rgba(99, 102, 241, 0.15)'
+            boxShadow: 'var(--shadow-lg)'
           }}>
             {/* 1. Encabezado Fijo del Modal (Siempre visible) */}
             <div style={{
@@ -845,17 +839,17 @@ const EventManagement = ({ onBack }) => {
               justifyContent: 'space-between',
               alignItems: 'center',
               padding: '1.25rem 1.5rem',
-              borderBottom: '1px solid rgba(255,255,255,0.08)',
-              background: 'linear-gradient(135deg, rgba(99, 102, 241, 0.15) 0%, rgba(15, 23, 42, 0) 100%)',
+              borderBottom: '1px solid var(--border-color)',
+              backgroundColor: 'var(--bg-surface-elevated)',
               flexShrink: 0
             }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
                 <div style={{
                   width: '38px',
                   height: '38px',
-                  borderRadius: '10px',
-                  backgroundColor: 'rgba(99, 102, 241, 0.2)',
-                  border: '1px solid rgba(99, 102, 241, 0.4)',
+                  borderRadius: 'var(--radius-sm)',
+                  backgroundColor: 'rgba(37, 99, 235, 0.12)',
+                  border: '1px solid rgba(37, 99, 235, 0.3)',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',

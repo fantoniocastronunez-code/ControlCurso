@@ -143,9 +143,9 @@ const ClientOrderStatus = () => {
   return (
     <div style={{
       minHeight: '100vh',
-      backgroundColor: '#090d16',
-      backgroundImage: 'radial-gradient(at 50% 0%, rgba(99, 102, 241, 0.2) 0px, transparent 65%), radial-gradient(at 100% 100%, rgba(245, 158, 11, 0.1) 0px, transparent 65%)',
-      color: '#f8fafc',
+      backgroundColor: '#0c0d10',
+      backgroundImage: 'none',
+      color: '#f3f4f6',
       padding: '1.25rem 1rem 3rem',
       display: 'flex',
       flexDirection: 'column',
@@ -214,9 +214,9 @@ const ClientOrderStatus = () => {
             <div className="glass-panel" style={{
               padding: '1.25rem 1.5rem',
               textAlign: 'center',
-              background: 'linear-gradient(135deg, rgba(99, 102, 241, 0.15) 0%, rgba(30, 41, 59, 0.7) 100%)',
-              border: '1px solid rgba(99, 102, 241, 0.3)',
-              borderRadius: '16px'
+              backgroundColor: 'var(--bg-card)',
+              border: '1px solid var(--border-color)',
+              borderRadius: 'var(--radius-lg)'
             }}>
               <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '1px' }}>
                 Número de Ticket
@@ -224,9 +224,8 @@ const ClientOrderStatus = () => {
               <h1 style={{
                 margin: '0.2rem 0',
                 fontSize: '3.2rem',
-                fontWeight: 900,
-                color: '#fff',
-                textShadow: '0 0 20px rgba(99, 102, 241, 0.5)'
+                fontWeight: 700,
+                color: '#fff'
               }}>
                 #{sale.correlative || 'S/N'}
               </h1>
@@ -399,7 +398,7 @@ const ClientOrderStatus = () => {
                       Tu comida se está cocinando en este momento. ¡Falta muy poco!
                     </p>
                     <p style={{ margin: '0.5rem 0 0 0', fontSize: '0.8rem', color: '#fde68a' }}>
-                      🔔 Te avisaremos con sonido cuando esté lista para retirar.
+                      Te avisaremos con sonido cuando esté lista para retirar.
                     </p>
                   </>
                 ) : (

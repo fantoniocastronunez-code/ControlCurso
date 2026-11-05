@@ -359,26 +359,26 @@ const EventReportModal = ({ isOpen, onClose, event }) => {
                 {Boolean(event?.isCompleted || event?.status === 'completed' || event?.status === 'closed') ? (
                   <span style={{
                     fontSize: '0.72rem',
-                    padding: '1px 8px',
-                    borderRadius: '12px',
-                    backgroundColor: 'rgba(16, 185, 129, 0.2)',
+                    padding: '2px 8px',
+                    borderRadius: 'var(--radius-sm)',
+                    backgroundColor: 'rgba(16, 185, 129, 0.12)',
                     color: '#34d399',
-                    border: '1px solid rgba(16, 185, 129, 0.4)',
-                    fontWeight: 700
+                    border: '1px solid rgba(16, 185, 129, 0.3)',
+                    fontWeight: 600
                   }}>
-                    ✅ Terminado y Cuadrado
+                    Terminado y Cuadrado
                   </span>
                 ) : (
                   <span style={{
                     fontSize: '0.72rem',
-                    padding: '1px 8px',
-                    borderRadius: '12px',
-                    backgroundColor: 'rgba(234, 179, 8, 0.2)',
-                    color: '#facc15',
-                    border: '1px solid rgba(234, 179, 8, 0.4)',
-                    fontWeight: 700
+                    padding: '2px 8px',
+                    borderRadius: 'var(--radius-sm)',
+                    backgroundColor: 'rgba(37, 99, 235, 0.1)',
+                    color: '#93c5fd',
+                    border: '1px solid rgba(37, 99, 235, 0.25)',
+                    fontWeight: 600
                   }}>
-                    ⚡ En Curso
+                    En Curso
                   </span>
                 )}
               </div>
@@ -669,19 +669,19 @@ const EventReportModal = ({ isOpen, onClose, event }) => {
                   }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.85rem' }}>
                       {mandatoryPendingCount > 0 ? (
-                        <div style={{ width: '40px', height: '40px', borderRadius: '50%', backgroundColor: 'rgba(245, 158, 11, 0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#f59e0b' }}>
-                          <AlertCircle size={22} />
+                        <div style={{ width: '40px', height: '40px', borderRadius: 'var(--radius-sm)', backgroundColor: 'var(--bg-card-hover)', border: '1px solid var(--border-color)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--warning)' }}>
+                          <AlertCircle size={20} />
                         </div>
                       ) : (
-                        <div style={{ width: '40px', height: '40px', borderRadius: '50%', backgroundColor: 'rgba(16, 185, 129, 0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#10b981' }}>
-                          <CheckCircle2 size={22} />
+                        <div style={{ width: '40px', height: '40px', borderRadius: 'var(--radius-sm)', backgroundColor: 'var(--bg-card-hover)', border: '1px solid var(--border-color)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--success)' }}>
+                          <CheckCircle2 size={20} />
                         </div>
                       )}
                       <div>
                         <strong style={{ fontSize: '1rem', color: '#fff', display: 'block' }}>
                           {mandatoryPendingCount > 0
-                            ? `Faltan ${mandatoryPendingCount} papás por pagar la cuota obligatoria`
-                            : '¡Todas las familias tienen la cuota obligatoria al día!'}
+                            ? `Faltan ${mandatoryPendingCount} apoderados por pagar la cuota obligatoria`
+                            : 'Todas las familias tienen la cuota obligatoria al día.'}
                         </strong>
                         <span style={{ fontSize: '0.82rem', color: 'var(--text-muted)' }}>
                           Cuota: <strong>{formatMoney(event?.mandatoryAmount || 0)}</strong> por alumno • Recaudado: <strong>{formatMoney(mandatoryTotalPaid)}</strong> ({mandatoryPaidCount} de {mandatoryDebts.length} familias)
@@ -935,14 +935,14 @@ const EventReportModal = ({ isOpen, onClose, event }) => {
                     <div>
                       <div style={{
                         padding: '0.85rem 1.15rem',
-                        borderRadius: '8px',
-                        backgroundColor: 'rgba(239, 68, 68, 0.1)',
-                        border: '1px solid rgba(239, 68, 68, 0.25)',
+                        borderRadius: 'var(--radius-sm)',
+                        backgroundColor: 'rgba(239, 68, 68, 0.08)',
+                        border: '1px solid rgba(239, 68, 68, 0.2)',
                         marginBottom: '1rem',
                         fontSize: '0.85rem',
                         color: '#fca5a5'
                       }}>
-                        ⚠️ <strong>{mandatoryPendingCount} apoderado(s)</strong> aún no registran el pago de la cuota obligatoria. Puedes usar sus correos para recordarles o enviar el resumen por WhatsApp.
+                        <strong>{mandatoryPendingCount} apoderado(s)</strong> aún no registran el pago de la cuota obligatoria. Puedes usar sus correos para recordarles o enviar el resumen por WhatsApp.
                       </div>
 
                       <div className="table-responsive" style={{ overflowX: 'auto', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '10px' }}>

@@ -106,15 +106,15 @@ const Login = () => {
         <div className="glass-panel animate-fade-in" style={{ padding: '3rem 2rem', textAlign: 'center', maxWidth: '400px', width: '100%' }}>
           
           <div style={{ marginBottom: '2rem' }}>
-            <div style={{ backgroundColor: 'rgba(99, 102, 241, 0.1)', width: '80px', height: '80px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 1.5rem' }}>
-              <Key size={40} style={{ color: 'var(--primary)' }} />
+            <div style={{ backgroundColor: 'rgba(37, 99, 235, 0.1)', width: '56px', height: '56px', borderRadius: 'var(--radius-md)', border: '1px solid rgba(37, 99, 235, 0.25)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 1.25rem' }}>
+              <Key size={28} style={{ color: 'var(--primary)' }} />
             </div>
-            <h2 className="text-gradient" style={{ fontSize: '1.8rem', marginBottom: '0.5rem' }}>Únete a tu Curso</h2>
-            <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem' }}>Ingresa el código de invitación proporcionado por la directiva de tu curso.</p>
+            <h2 style={{ fontSize: '1.5rem', marginBottom: '0.4rem', color: 'var(--text-main)', fontWeight: 600 }}>Únete a tu Curso</h2>
+            <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem' }}>Ingresa el código de invitación proporcionado por la directiva de tu curso.</p>
           </div>
 
           {error && (
-            <div style={{ backgroundColor: 'rgba(239, 68, 68, 0.1)', color: 'var(--danger)', padding: '0.75rem', borderRadius: 'var(--radius-sm)', marginBottom: '1rem', fontSize: '0.9rem' }}>
+            <div style={{ backgroundColor: 'rgba(239, 68, 68, 0.1)', color: 'var(--danger)', border: '1px solid rgba(239, 68, 68, 0.25)', padding: '0.75rem', borderRadius: 'var(--radius-sm)', marginBottom: '1rem', fontSize: '0.875rem' }}>
               {error}
             </div>
           )}
@@ -125,9 +125,9 @@ const Login = () => {
                 <label className="input-label" style={{ marginBottom: 0 }}>Código de Invitación</label>
                 <div 
                   style={{ 
-                    width: '20px', height: '20px', borderRadius: '50%', backgroundColor: 'rgba(99, 102, 241, 0.2)', 
-                    color: 'var(--primary)', display: 'flex', alignItems: 'center', justifyContent: 'center', 
-                    fontSize: '12px', fontWeight: 'bold', cursor: 'help'
+                    width: '18px', height: '18px', borderRadius: 'var(--radius-sm)', backgroundColor: 'var(--bg-surface-elevated)', 
+                    color: 'var(--text-muted)', border: '1px solid var(--border-color)', display: 'flex', alignItems: 'center', justifyContent: 'center', 
+                    fontSize: '11px', fontWeight: 'bold', cursor: 'help'
                   }}
                   title="Contactate con el administrador, presidente o tesorero de tu curso para obtener el código de invitación"
                 >
@@ -148,7 +148,7 @@ const Login = () => {
             <button 
               type="submit" 
               className="btn btn-primary" 
-              style={{ width: '100%', padding: '0.8rem', marginTop: '0.5rem', justifyContent: 'center' }}
+              style={{ width: '100%', padding: '0.75rem', marginTop: '0.5rem', justifyContent: 'center' }}
               disabled={validatingCode || !inviteCode.trim()}
             >
               {validatingCode ? 'Validando...' : 'Unirse al Curso'}
@@ -159,7 +159,7 @@ const Login = () => {
             onClick={logout}
             type="button"
             className="btn btn-outline" 
-            style={{ width: '100%', padding: '0.8rem', justifyContent: 'center', borderColor: 'var(--border-color)', color: 'var(--text-muted)' }}
+            style={{ width: '100%', padding: '0.75rem', justifyContent: 'center' }}
           >
             Volver / Cerrar Sesión
           </button>
@@ -170,34 +170,34 @@ const Login = () => {
 
   return (
     <div className="container" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '100vh', padding: '1rem' }}>
-      <div className="glass-panel animate-fade-in" style={{ padding: '3rem 2rem', textAlign: 'center', maxWidth: '400px', width: '100%' }}>
+      <div className="glass-panel animate-fade-in" style={{ padding: '2.5rem 2rem', textAlign: 'center', maxWidth: '400px', width: '100%' }}>
         
-        <div style={{ marginBottom: '2rem' }}>
+        <div style={{ marginBottom: '1.75rem' }}>
           <img 
             src="/LOGOAPPCURSO.jpg" 
             alt="Logo Curso" 
-            style={{ width: '120px', height: '120px', borderRadius: '50%', marginBottom: '1.5rem', objectFit: 'cover', backgroundColor: 'white', padding: 0 }} 
+            style={{ width: '84px', height: '84px', borderRadius: 'var(--radius-md)', marginBottom: '1.25rem', objectFit: 'cover', border: '1px solid var(--border-color)' }} 
             onError={(e) => e.target.style.display = 'none'}
           />
-          <h1 className="text-gradient" style={{ fontSize: '2rem', marginBottom: '0.5rem' }}>AppCurso</h1>
-          <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem' }}>Portal de control de gastos y cobros</p>
+          <h1 style={{ fontSize: '1.75rem', marginBottom: '0.35rem', color: 'var(--text-main)', fontWeight: 700 }}>AppCurso</h1>
+          <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem' }}>Portal de control de gastos y cobros</p>
         </div>
 
         <div style={{ 
-          backgroundColor: 'rgba(59, 130, 246, 0.1)', 
-          border: '1px solid rgba(59, 130, 246, 0.3)', 
+          backgroundColor: 'var(--bg-main)', 
+          border: '1px solid var(--border-color)', 
           borderRadius: 'var(--radius-md)', 
           padding: '1rem', 
           marginBottom: '1.5rem', 
           textAlign: 'left',
-          fontSize: '0.85rem',
+          fontSize: '0.825rem',
           color: 'var(--text-main)'
         }}>
-          <h4 style={{ color: 'var(--primary)', marginBottom: '0.75rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-            <UserPlus size={18} /> ¿Eres un apoderado nuevo?
+          <h4 style={{ color: 'var(--text-main)', marginBottom: '0.65rem', display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.9rem', fontWeight: 600 }}>
+            <UserPlus size={16} style={{ color: 'var(--primary)' }} /> ¿Eres un apoderado nuevo?
           </h4>
-          <p style={{ marginBottom: '0.5rem', lineHeight: '1.4' }}>Sigue estos sencillos pasos para vincularte:</p>
-          <ol style={{ margin: 0, paddingLeft: '1.5rem', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+          <p style={{ marginBottom: '0.5rem', lineHeight: '1.4', color: 'var(--text-muted)' }}>Sigue estos sencillos pasos para vincularte:</p>
+          <ol style={{ margin: 0, paddingLeft: '1.25rem', display: 'flex', flexDirection: 'column', gap: '0.4rem', color: 'var(--text-muted)' }}>
             <li>Crea una cuenta o ingresa más rápido usando Google.</li>
             <li>Ingresa el código de invitación entregado por la directiva.</li>
             <li>Dentro del portal, busca a tu hijo/a por su apellido y confírmalo con su RUT.</li>
@@ -205,7 +205,7 @@ const Login = () => {
         </div>
 
         {error && (
-          <div style={{ backgroundColor: 'rgba(239, 68, 68, 0.1)', color: 'var(--danger)', padding: '0.75rem', borderRadius: 'var(--radius-sm)', marginBottom: '1rem', fontSize: '0.9rem' }}>
+          <div style={{ backgroundColor: 'rgba(239, 68, 68, 0.1)', color: 'var(--danger)', border: '1px solid rgba(239, 68, 68, 0.25)', padding: '0.75rem', borderRadius: 'var(--radius-sm)', marginBottom: '1rem', fontSize: '0.875rem' }}>
             {error}
           </div>
         )}

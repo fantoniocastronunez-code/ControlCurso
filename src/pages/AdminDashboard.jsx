@@ -496,64 +496,116 @@ const AdminDashboard = () => {
         <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
           {['superadmin', 'admin', 'presidente', 'tesorero'].includes(courseRole) && (
             <>
-              <button onClick={() => { setCurrentView('dashboard'); setIsSidebarOpen(false); }} className="btn btn-outline" style={{ justifyContent: 'flex-start' }}>
+              <button 
+                onClick={() => { setCurrentView('dashboard'); setIsSidebarOpen(false); }} 
+                className="btn btn-outline" 
+                style={{ justifyContent: 'flex-start', ...(currentView === 'dashboard' ? { borderColor: 'var(--border-color-focus)', backgroundColor: 'var(--bg-card-hover)', color: 'var(--text-main)' } : {}) }}
+              >
                 <Activity size={18} /> Panel Principal
               </button>
-              <button onClick={() => { setCurrentView('meeting_report'); setIsSidebarOpen(false); }} className="btn btn-outline" style={{ borderColor: '#8b5cf6', color: '#8b5cf6', justifyContent: 'flex-start' }}>
+              <button 
+                onClick={() => { setCurrentView('meeting_report'); setIsSidebarOpen(false); }} 
+                className="btn btn-outline" 
+                style={{ justifyContent: 'flex-start', ...(currentView === 'meeting_report' ? { borderColor: 'var(--border-color-focus)', backgroundColor: 'var(--bg-card-hover)', color: 'var(--text-main)' } : {}) }}
+              >
                 <FileText size={18} /> Informe Reunión
               </button>
-              <button onClick={() => { setCurrentView('outcomes'); setIsSidebarOpen(false); }} className="btn btn-outline" style={{ borderColor: 'rgba(239, 68, 68, 0.3)', color: 'var(--danger)', justifyContent: 'flex-start' }}>
+              <button 
+                onClick={() => { setCurrentView('outcomes'); setIsSidebarOpen(false); }} 
+                className="btn btn-outline" 
+                style={{ justifyContent: 'flex-start', ...(currentView === 'outcomes' ? { borderColor: 'var(--border-color-focus)', backgroundColor: 'var(--bg-card-hover)', color: 'var(--text-main)' } : {}) }}
+              >
                 <DollarSign size={18} /> Historial Gastos
               </button>
-              <button onClick={() => { setCurrentView('funds'); setIsSidebarOpen(false); }} className="btn btn-outline" style={{ justifyContent: 'flex-start' }}>
+              <button 
+                onClick={() => { setCurrentView('funds'); setIsSidebarOpen(false); }} 
+                className="btn btn-outline" 
+                style={{ justifyContent: 'flex-start', ...(currentView === 'funds' ? { borderColor: 'var(--border-color-focus)', backgroundColor: 'var(--bg-card-hover)', color: 'var(--text-main)' } : {}) }}
+              >
                 <CreditCard size={18} /> Administrar Fondos
               </button>
             </>
           )}
-          <button onClick={() => { setCurrentView('events'); setIsSidebarOpen(false); }} className="btn btn-outline" style={{ borderColor: 'rgba(16, 185, 129, 0.3)', color: 'var(--success)', justifyContent: 'flex-start' }}>
+          <button 
+            onClick={() => { setCurrentView('events'); setIsSidebarOpen(false); }} 
+            className="btn btn-outline" 
+            style={{ justifyContent: 'flex-start', ...(currentView === 'events' ? { borderColor: 'var(--border-color-focus)', backgroundColor: 'var(--bg-card-hover)', color: 'var(--text-main)' } : {}) }}
+          >
             <Activity size={18} /> Eventos y Ventas
           </button>
           {['superadmin', 'admin', 'presidente', 'tesorero'].includes(courseRole) && (
             <>
-              <button onClick={() => { setCurrentView('expenses_add'); setIsSidebarOpen(false); }} className="btn btn-outline" style={{ borderColor: 'var(--primary)', color: 'var(--primary)', justifyContent: 'flex-start' }}>
+              <button 
+                onClick={() => { setCurrentView('expenses_add'); setIsSidebarOpen(false); }} 
+                className="btn btn-outline" 
+                style={{ justifyContent: 'flex-start', ...(currentView === 'expenses_add' ? { borderColor: 'var(--border-color-focus)', backgroundColor: 'var(--bg-card-hover)', color: 'var(--text-main)' } : {}) }}
+              >
                 <PlusCircle size={18} /> Crear Cuota
               </button>
-              <button onClick={() => { setCurrentView('debtors'); setIsSidebarOpen(false); }} className="btn btn-outline" style={{ borderColor: 'var(--warning)', color: 'var(--warning)', justifyContent: 'flex-start' }}>
+              <button 
+                onClick={() => { setCurrentView('debtors'); setIsSidebarOpen(false); }} 
+                className="btn btn-outline" 
+                style={{ justifyContent: 'flex-start', ...(currentView === 'debtors' ? { borderColor: 'var(--border-color-focus)', backgroundColor: 'var(--bg-card-hover)', color: 'var(--text-main)' } : {}) }}
+              >
                 <AlertTriangle size={18} /> Deudas
               </button>
             </>
           )}
           {['superadmin', 'admin', 'presidente'].includes(courseRole) && (
-            <button onClick={() => { setCurrentView('students'); setIsSidebarOpen(false); }} className="btn btn-outline" style={{ borderColor: '#3b82f6', color: '#3b82f6', justifyContent: 'flex-start' }}>
+            <button 
+              onClick={() => { setCurrentView('students'); setIsSidebarOpen(false); }} 
+              className="btn btn-outline" 
+              style={{ justifyContent: 'flex-start', ...(currentView === 'students' ? { borderColor: 'var(--border-color-focus)', backgroundColor: 'var(--bg-card-hover)', color: 'var(--text-main)' } : {}) }}
+            >
               <Users size={18} /> Alumnos
             </button>
           )}
           {courseRole === 'superadmin' || courseRole === 'tesorero' ? (
-            <button onClick={() => { setCurrentView('approvals'); setIsSidebarOpen(false); }} className="btn btn-outline" style={{ borderColor: 'var(--success)', color: 'var(--success)', justifyContent: 'space-between' }}>
+            <button 
+              onClick={() => { setCurrentView('approvals'); setIsSidebarOpen(false); }} 
+              className="btn btn-outline" 
+              style={{ justifyContent: 'space-between', ...(currentView === 'approvals' ? { borderColor: 'var(--border-color-focus)', backgroundColor: 'var(--bg-card-hover)', color: 'var(--text-main)' } : {}) }}
+            >
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
                 <CheckCircle size={18} /> Aprobaciones
               </div>
               {stats.pendingApprovalsCount > 0 && (
-                <span style={{ backgroundColor: 'var(--warning)', color: '#000', padding: '0.1rem 0.5rem', borderRadius: '1rem', fontSize: '0.75rem', fontWeight: 'bold' }}>
+                <span style={{ backgroundColor: 'var(--bg-card-hover)', border: '1px solid var(--border-color-focus)', color: 'var(--text-main)', padding: '0.1rem 0.5rem', borderRadius: 'var(--radius-sm)', fontSize: '0.75rem', fontWeight: 'bold' }}>
                   {stats.pendingApprovalsCount}
                 </span>
               )}
             </button>
           ) : null}
           {['superadmin', 'admin', 'presidente'].includes(courseRole) && (
-            <button onClick={() => { setCurrentView('settings'); setIsSidebarOpen(false); }} className="btn btn-outline" style={{ justifyContent: 'flex-start' }}>
+            <button 
+              onClick={() => { setCurrentView('settings'); setIsSidebarOpen(false); }} 
+              className="btn btn-outline" 
+              style={{ justifyContent: 'flex-start', ...(currentView === 'settings' ? { borderColor: 'var(--border-color-focus)', backgroundColor: 'var(--bg-card-hover)', color: 'var(--text-main)' } : {}) }}
+            >
               <Settings size={18} /> Configuración del Curso
             </button>
           )}
           {courseRole === 'superadmin' && (
             <>
-              <button onClick={() => { setCurrentView('admins'); setIsSidebarOpen(false); }} className="btn btn-outline" style={{ borderColor: 'var(--warning)', color: 'var(--warning)', justifyContent: 'flex-start' }}>
+              <button 
+                onClick={() => { setCurrentView('admins'); setIsSidebarOpen(false); }} 
+                className="btn btn-outline" 
+                style={{ justifyContent: 'flex-start', ...(currentView === 'admins' ? { borderColor: 'var(--border-color-focus)', backgroundColor: 'var(--bg-card-hover)', color: 'var(--text-main)' } : {}) }}
+              >
                 <Users size={18} /> Admins
               </button>
-              <button onClick={() => { setCurrentView('users'); setIsSidebarOpen(false); }} className="btn btn-outline" style={{ borderColor: '#3b82f6', color: '#3b82f6', justifyContent: 'flex-start' }}>
+              <button 
+                onClick={() => { setCurrentView('users'); setIsSidebarOpen(false); }} 
+                className="btn btn-outline" 
+                style={{ justifyContent: 'flex-start', ...(currentView === 'users' ? { borderColor: 'var(--border-color-focus)', backgroundColor: 'var(--bg-card-hover)', color: 'var(--text-main)' } : {}) }}
+              >
                 <Users size={18} /> Usuarios
               </button>
-              <button onClick={() => { setCurrentView('courses'); setIsSidebarOpen(false); }} className="btn btn-outline" style={{ borderColor: '#ec4899', color: '#ec4899', justifyContent: 'flex-start' }}>
+              <button 
+                onClick={() => { setCurrentView('courses'); setIsSidebarOpen(false); }} 
+                className="btn btn-outline" 
+                style={{ justifyContent: 'flex-start', ...(currentView === 'courses' ? { borderColor: 'var(--border-color-focus)', backgroundColor: 'var(--bg-card-hover)', color: 'var(--text-main)' } : {}) }}
+              >
                 <Activity size={18} /> Cursos
               </button>
             </>
@@ -611,38 +663,38 @@ const AdminDashboard = () => {
                   display: 'flex',
                   alignItems: 'center',
                   gap: '0.6rem',
-                  backgroundColor: 'rgba(255, 255, 255, 0.05)',
-                  border: '1px solid rgba(99, 102, 241, 0.4)',
+                  backgroundColor: 'var(--bg-card)',
+                  border: '1px solid var(--border-color)',
                   borderRadius: 'var(--radius-md)',
                   padding: '0.55rem 1rem',
                   cursor: 'pointer',
                   color: 'var(--text-muted)',
-                  transition: 'all 0.2s ease',
+                  transition: 'all 0.15s ease',
                   minWidth: '240px'
                 }}
                 onMouseOver={(e) => {
-                  e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.09)';
-                  e.currentTarget.style.borderColor = 'var(--primary)';
+                  e.currentTarget.style.backgroundColor = 'var(--bg-card-hover)';
+                  e.currentTarget.style.borderColor = 'var(--border-color-focus)';
                 }}
                 onMouseOut={(e) => {
-                  e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.05)';
-                  e.currentTarget.style.borderColor = 'rgba(99, 102, 241, 0.4)';
+                  e.currentTarget.style.backgroundColor = 'var(--bg-card)';
+                  e.currentTarget.style.borderColor = 'var(--border-color)';
                 }}
               >
                 <Search size={17} style={{ color: 'var(--primary)' }} />
                 <span style={{ fontSize: '0.9rem', color: 'var(--text-main)', opacity: 0.8 }}>Buscar alumno o apoderado...</span>
               </div>
 
-              <button onClick={() => setCurrentView('meeting_report')} className="btn btn-outline" style={{ borderColor: '#8b5cf6', color: '#8b5cf6', display: 'flex', alignItems: 'center', gap: '0.4rem' }} title="Generar informe y PDF para la reunión de apoderados">
+              <button onClick={() => setCurrentView('meeting_report')} className="btn btn-outline" style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }} title="Generar informe y PDF para la reunión de apoderados">
                 <FileText size={17} />
                 Reunión Apoderados
               </button>
-              <button onClick={() => navigate('/apoderado')} className="btn btn-outline" style={{ borderColor: 'var(--success)', color: 'var(--success)' }} title="Ver cómo se ve la app para un apoderado">
+              <button onClick={() => navigate('/apoderado')} className="btn btn-outline" title="Ver cómo se ve la app para un apoderado">
                 Vista Apoderado
               </button>
             </>
           )}
-          <button onClick={() => window.location.reload()} className="btn btn-outline" style={{ borderColor: 'var(--primary)', color: 'var(--primary)' }} title="Forzar recarga de la página">
+          <button onClick={() => window.location.reload()} className="btn btn-outline" title="Forzar recarga de la página">
             <RefreshCw size={18} />
             Actualizar
           </button>
@@ -682,8 +734,8 @@ const AdminDashboard = () => {
               )}
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '1.5rem', marginBottom: '2rem' }}>
                 <div className="glass-panel" style={{ padding: '1.5rem', display: 'flex', alignItems: 'center', gap: '1rem' }}>
-                  <div style={{ backgroundColor: 'rgba(99,102,241,0.2)', padding: '1rem', borderRadius: '50%', color: 'var(--primary)' }}>
-                    <Users size={24} />
+                  <div style={{ width: '42px', height: '42px', minWidth: '42px', borderRadius: 'var(--radius-sm)', display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: 'var(--bg-card-hover)', border: '1px solid var(--border-color)', color: 'var(--primary)' }}>
+                    <Users size={22} />
                   </div>
                   <div>
                     <h3 style={{ fontSize: '1.5rem', margin: 0 }}>{stats.activeStudents}</h3>
@@ -695,12 +747,10 @@ const AdminDashboard = () => {
                   className="glass-panel" 
                   style={{ padding: '1.5rem', display: 'flex', alignItems: 'center', gap: '1rem', cursor: 'pointer', transition: 'all 0.2s ease' }}
                   onClick={() => setIsNoApoderadosModalOpen(true)}
-                  onMouseOver={(e) => e.currentTarget.style.transform = 'translateY(-2px)'}
-                  onMouseOut={(e) => e.currentTarget.style.transform = 'translateY(0)'}
                   title="Ver lista de alumnos sin apoderado"
                 >
-                  <div style={{ backgroundColor: 'rgba(16, 185, 129, 0.2)', padding: '1rem', borderRadius: '50%', color: 'var(--success)' }}>
-                    <Users size={24} />
+                  <div style={{ width: '42px', height: '42px', minWidth: '42px', borderRadius: 'var(--radius-sm)', display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: 'var(--bg-card-hover)', border: '1px solid var(--border-color)', color: 'var(--text-main)' }}>
+                    <Users size={22} />
                   </div>
                   <div>
                     <h3 style={{ fontSize: '1.5rem', margin: 0 }}>{stats.studentsWithApoderados}</h3>
@@ -713,12 +763,10 @@ const AdminDashboard = () => {
                     className="glass-panel" 
                     style={{ padding: '1.5rem', display: 'flex', alignItems: 'center', gap: '1rem', cursor: 'pointer', transition: 'all 0.2s ease' }}
                     onClick={() => setIsApoderadosModalOpen(true)}
-                    onMouseOver={(e) => e.currentTarget.style.transform = 'translateY(-2px)'}
-                    onMouseOut={(e) => e.currentTarget.style.transform = 'translateY(0)'}
                     title="Ver lista de apoderados registrados"
                   >
-                    <div style={{ backgroundColor: 'rgba(245, 158, 11, 0.2)', padding: '1rem', borderRadius: '50%', color: 'var(--warning)' }}>
-                      <Users size={24} />
+                    <div style={{ width: '42px', height: '42px', minWidth: '42px', borderRadius: 'var(--radius-sm)', display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: 'var(--bg-card-hover)', border: '1px solid var(--border-color)', color: 'var(--text-main)' }}>
+                      <Users size={22} />
                     </div>
                     <div>
                       <h3 style={{ fontSize: '1.5rem', margin: 0 }}>{stats.registeredApoderados}</h3>
@@ -728,12 +776,12 @@ const AdminDashboard = () => {
                 )}
 
                 <div className="glass-panel" style={{ padding: '1.5rem', display: 'flex', alignItems: 'center', gap: '1rem', gridColumn: '1 / -1' }}>
-                  <div style={{ backgroundColor: 'rgba(239,68,68,0.2)', padding: '1.5rem', borderRadius: '50%', color: 'var(--danger)' }}>
-                    <FileText size={32} />
+                  <div style={{ width: '48px', height: '48px', minWidth: '48px', borderRadius: 'var(--radius-sm)', display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: 'var(--bg-card-hover)', border: '1px solid var(--border-color)', color: 'var(--primary)' }}>
+                    <FileText size={26} />
                   </div>
                   <div>
-                    <h3 style={{ fontSize: '2rem', margin: 0 }}>{formatMoney(stats.totalAvailable)}</h3>
-                    <p style={{ color: 'var(--text-muted)', fontSize: '1rem', margin: 0 }}>Fondo Total Disponible (Suma de todos los fondos)</p>
+                    <h3 style={{ fontSize: '2rem', margin: 0, fontWeight: '700' }}>{formatMoney(stats.totalAvailable)}</h3>
+                    <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem', margin: 0 }}>Fondo Total Disponible (Suma de todos los fondos)</p>
                   </div>
                 </div>
 
@@ -741,11 +789,9 @@ const AdminDashboard = () => {
                   className="glass-panel" 
                   onClick={() => setSelectedFundForHistory({ id: 'cash_history', name: 'Historial de Efectivo (Caja)', balance: stats.cashBalance || 0 })}
                   style={{ padding: '1.5rem', display: 'flex', alignItems: 'center', gap: '1rem', cursor: 'pointer', transition: 'all 0.2s ease' }}
-                  onMouseOver={(e) => e.currentTarget.style.transform = 'translateY(-2px)'}
-                  onMouseOut={(e) => e.currentTarget.style.transform = 'translateY(0)'}
                 >
-                  <div style={{ backgroundColor: 'rgba(16, 185, 129, 0.2)', padding: '1rem', borderRadius: '50%', color: 'var(--success)' }}>
-                    <DollarSign size={24} />
+                  <div style={{ width: '42px', height: '42px', minWidth: '42px', borderRadius: 'var(--radius-sm)', display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: 'var(--bg-card-hover)', border: '1px solid var(--border-color)', color: 'var(--text-main)' }}>
+                    <DollarSign size={22} />
                   </div>
                   <div>
                     <h3 style={{ fontSize: '1.5rem', margin: 0 }}>{formatMoney(stats.cashBalance || 0)}</h3>
@@ -757,11 +803,9 @@ const AdminDashboard = () => {
                   className="glass-panel" 
                   onClick={() => setSelectedFundForHistory({ id: 'transfer_history', name: 'Historial de Banco (Transferencias)', balance: stats.transferBalance || 0 })}
                   style={{ padding: '1.5rem', display: 'flex', alignItems: 'center', gap: '1rem', cursor: 'pointer', transition: 'all 0.2s ease' }}
-                  onMouseOver={(e) => e.currentTarget.style.transform = 'translateY(-2px)'}
-                  onMouseOut={(e) => e.currentTarget.style.transform = 'translateY(0)'}
                 >
-                  <div style={{ backgroundColor: 'rgba(59, 130, 246, 0.2)', padding: '1rem', borderRadius: '50%', color: '#3b82f6' }}>
-                    <CreditCard size={24} />
+                  <div style={{ width: '42px', height: '42px', minWidth: '42px', borderRadius: 'var(--radius-sm)', display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: 'var(--bg-card-hover)', border: '1px solid var(--border-color)', color: 'var(--text-main)' }}>
+                    <CreditCard size={22} />
                   </div>
                   <div>
                     <h3 style={{ fontSize: '1.5rem', margin: 0 }}>{formatMoney(stats.transferBalance || 0)}</h3>
@@ -772,13 +816,11 @@ const AdminDashboard = () => {
                 <div 
                   className="glass-panel" 
                   onClick={handleUpdateRealBankBalance}
-                  style={{ padding: '1.5rem', display: 'flex', alignItems: 'center', gap: '1rem', cursor: 'pointer', transition: 'all 0.2s ease', border: '1px solid rgba(139, 92, 246, 0.3)' }}
-                  onMouseOver={(e) => e.currentTarget.style.transform = 'translateY(-2px)'}
-                  onMouseOut={(e) => e.currentTarget.style.transform = 'translateY(0)'}
+                  style={{ padding: '1.5rem', display: 'flex', alignItems: 'center', gap: '1rem', cursor: 'pointer', transition: 'all 0.2s ease' }}
                   title="Haz clic para actualizar tu saldo real del banco"
                 >
-                  <div style={{ backgroundColor: 'rgba(139, 92, 246, 0.2)', padding: '1rem', borderRadius: '50%', color: '#8b5cf6' }}>
-                    <CreditCard size={24} />
+                  <div style={{ width: '42px', height: '42px', minWidth: '42px', borderRadius: 'var(--radius-sm)', display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: 'var(--bg-card-hover)', border: '1px solid var(--border-color)', color: 'var(--text-main)' }}>
+                    <CreditCard size={22} />
                   </div>
                   <div>
                     <h3 style={{ fontSize: '1.5rem', margin: 0 }}>{formatMoney(stats.realBankBalance)}</h3>
@@ -790,15 +832,16 @@ const AdminDashboard = () => {
                   className="glass-panel" 
                   style={{ 
                     padding: '1.5rem', display: 'flex', alignItems: 'center', gap: '1rem', 
-                    border: stats.realBankBalance - (stats.transferBalance || 0) === 0 ? '1px solid rgba(16, 185, 129, 0.3)' : '1px solid rgba(245, 158, 11, 0.3)' 
+                    border: stats.realBankBalance - (stats.transferBalance || 0) === 0 ? '1px solid var(--border-color)' : '1px solid var(--warning)' 
                   }}
                 >
                   <div style={{ 
-                    backgroundColor: stats.realBankBalance - (stats.transferBalance || 0) === 0 ? 'rgba(16, 185, 129, 0.2)' : 'rgba(245, 158, 11, 0.2)', 
-                    padding: '1rem', borderRadius: '50%', 
+                    width: '42px', height: '42px', minWidth: '42px', borderRadius: 'var(--radius-sm)', 
+                    display: 'flex', alignItems: 'center', justifyContent: 'center', 
+                    backgroundColor: 'var(--bg-card-hover)', border: '1px solid var(--border-color)', 
                     color: stats.realBankBalance - (stats.transferBalance || 0) === 0 ? 'var(--success)' : 'var(--warning)' 
                   }}>
-                    <Activity size={24} />
+                    <Activity size={22} />
                   </div>
                   <div>
                     <h3 style={{ fontSize: '1.5rem', margin: 0 }}>
@@ -848,8 +891,6 @@ const AdminDashboard = () => {
                         onClick={() => setIsCuotaReportOpen(true)}
                         className="btn btn-outline"
                         style={{
-                          borderColor: '#107C41',
-                          color: '#34d399',
                           display: 'flex',
                           alignItems: 'center',
                           gap: '0.4rem',
@@ -889,8 +930,8 @@ const AdminDashboard = () => {
                           }}
                         >
                           <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-                             <div style={{ backgroundColor: 'rgba(99,102,241,0.1)', padding: '0.8rem', borderRadius: '50%', color: 'var(--primary)' }}>
-                               <FileText size={20} />
+                             <div style={{ width: '40px', height: '40px', minWidth: '40px', borderRadius: 'var(--radius-sm)', display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: 'var(--bg-card-hover)', border: '1px solid var(--border-color)', color: 'var(--primary)' }}>
+                               <FileText size={18} />
                              </div>
                              <div>
                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
@@ -940,12 +981,18 @@ const AdminDashboard = () => {
                             <div key={t.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '1rem', backgroundColor: 'rgba(255,255,255,0.03)', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-color)' }}>
                               <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
                                 <div style={{ 
-                                  backgroundColor: isTransfer ? 'rgba(59, 130, 246, 0.1)' : (isIncome ? 'rgba(16, 185, 129, 0.1)' : 'rgba(239, 68, 68, 0.1)'), 
-                                  padding: '0.6rem', 
-                                  borderRadius: '50%', 
-                                  color: isTransfer ? '#3b82f6' : (isIncome ? 'var(--success)' : 'var(--danger)') 
+                                  width: '36px', 
+                                  height: '36px', 
+                                  minWidth: '36px', 
+                                  borderRadius: 'var(--radius-sm)', 
+                                  display: 'flex', 
+                                  alignItems: 'center', 
+                                  justifyContent: 'center', 
+                                  backgroundColor: 'var(--bg-card-hover)', 
+                                  border: '1px solid var(--border-color)', 
+                                  color: isTransfer ? 'var(--primary)' : (isIncome ? 'var(--success)' : 'var(--danger)') 
                                 }}>
-                                  {isTransfer ? <ArrowRightLeft size={18} /> : (isIncome ? <ArrowDownRight size={18} /> : <ArrowUpRight size={18} />)}
+                                  {isTransfer ? <ArrowRightLeft size={16} /> : (isIncome ? <ArrowDownRight size={16} /> : <ArrowUpRight size={16} />)}
                                 </div>
                                 <div>
                                   <p style={{ margin: 0, fontWeight: '500', fontSize: '0.9rem' }}>{t.description}</p>

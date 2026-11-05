@@ -29,10 +29,10 @@ const ThermalReceipt = ({ sale, eventName }) => {
           <p style={{ margin: '0', fontSize: '10px' }}>Cajero/a: {sale.cashierName || 'Cajero de Prueba'}</p>
 
           <div style={{ borderTop: '1px dashed black', borderBottom: '1px dashed black', padding: '6px 0', margin: '8px 0', fontSize: '11px', textAlign: 'left', fontFamily: 'monospace' }}>
-            <p style={{ margin: '2px 0' }}>✓ Formato POS Térmico 58mm</p>
-            <p style={{ margin: '2px 0' }}>✓ Impresora conectada y lista</p>
-            <p style={{ margin: '2px 0' }}>✓ Test números: $1.000 / $25.990</p>
-            <p style={{ margin: '2px 0' }}>✓ Test acentos: á, é, í, ó, ú, ñ</p>
+            <p style={{ margin: '2px 0' }}>[OK] Formato POS Térmico 58mm</p>
+            <p style={{ margin: '2px 0' }}>[OK] Impresora conectada y lista</p>
+            <p style={{ margin: '2px 0' }}>[OK] Test números: $1.000 / $25.990</p>
+            <p style={{ margin: '2px 0' }}>[OK] Test acentos: á, é, í, ó, ú, ñ</p>
           </div>
 
           <div style={{ margin: '8px 0', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>

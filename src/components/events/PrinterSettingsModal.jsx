@@ -413,7 +413,7 @@ const PrinterSettingsModal = ({ isOpen, onClose, eventName }) => {
                         cursor: 'pointer'
                       }}
                     >
-                      ✨ Compacta / Pequeña (Recomendada)
+                      Compacta (Recomendada)
                     </button>
                     <button
                       type="button"
@@ -469,7 +469,7 @@ const PrinterSettingsModal = ({ isOpen, onClose, eventName }) => {
                         cursor: 'pointer'
                       }}
                     >
-                      ✂️ Corte Manual (Sin 35mm blanco)
+                      Corte Manual (Sin desperdicio)
                     </button>
                     <button
                       type="button"

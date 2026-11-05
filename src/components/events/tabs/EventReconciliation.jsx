@@ -275,7 +275,7 @@ const EventReconciliation = ({ event, onNavigateTab }) => {
     const currentMethod = sale.paymentMethod || 'cash';
     if (currentMethod === targetMethod) return;
 
-    const targetLabel = targetMethod === 'cash' ? 'Efectivo (💵)' : 'Transferencia (🏦)';
+    const targetLabel = targetMethod === 'cash' ? 'Efectivo' : 'Transferencia';
     const confirm = await showConfirm(
       `¿Cambiar el medio de pago del Ticket #${sale.correlative} (${sale.clientName || 'General'}) a ${targetLabel}?\n\nEl monto de ${formatMoneyCLP(sale.total)} se recalculará inmediatamente en la cuadratura de caja.`
     );
@@ -346,8 +346,8 @@ const EventReconciliation = ({ event, onNavigateTab }) => {
 
       showToast(
         newStatus
-          ? `Ticket #${sale.correlative} marcado como transfer verificada en banco (✓).`
-          : `Ticket #${sale.correlative} marcado como transfer pendiente (⏳).`
+          ? `Ticket #${sale.correlative} marcado como transfer verificada en banco.`
+          : `Ticket #${sale.correlative} marcado como transfer pendiente.`
       );
     } catch (err) {
       console.error("Error al actualizar verificación de transferencia:", err);
@@ -627,10 +627,10 @@ const EventReconciliation = ({ event, onNavigateTab }) => {
     const validation = await checkEventClosureReadiness(event);
     if (!validation.canClose) {
       await showAlert(
-        `⚠️ NO SE PUEDE CERRAR EL EVENTO\n\n` +
+        `AVISO: NO SE PUEDE CERRAR EL EVENTO\n\n` +
         `El evento "${event?.name}" aún no cumple los requisitos para ser marcado como "Terminado y Cuadrado":\n\n` +
         validation.blockingReasons.map((r, i) => `• ${r}`).join('\n\n') +
-        `\n\n💡 Para cerrarlo debes:\n` +
+        `\n\nRequisitos para cerrarlo:\n` +
         `• Recaudar y dejar al día las cuotas obligatorias pendientes.\n` +
         `• Realizar el arqueo de cierre de caja en la pestaña "Arqueo" o "Caja POS" asegurando que la diferencia sea exactamente $0.`
       );
@@ -638,8 +638,8 @@ const EventReconciliation = ({ event, onNavigateTab }) => {
     }
 
     const confirmMsg = `¿Confirmas marcar el evento "${event?.name}" como TERMINADO Y CUADRADO?\n\n` +
-      `✅ Cuotas obligatorias: 100% al día.\n` +
-      `✅ Caja del evento: Cuadrada ($0 de diferencia).\n\n` +
+      `• Cuotas obligatorias: 100% al día.\n` +
+      `• Caja del evento: Cuadrada ($0 de diferencia).\n\n` +
       `Esto dejará constancia oficial del cierre y cuadratura del evento.`;
 
     if (!(await showConfirm(confirmMsg))) return;
@@ -852,7 +852,7 @@ const EventReconciliation = ({ event, onNavigateTab }) => {
             title={isEventCompleted ? "Clic para reabrir el evento" : "Marcar que este evento está terminado y su caja cuadrada"}
           >
             <CheckCircle2 size={16} />
-            <span>{isEventCompleted ? 'Terminado y Cuadrado ✓' : 'Marcar Cuadrado'}</span>
+            <span>{isEventCompleted ? 'Terminado y Cuadrado' : 'Marcar Cuadrado'}</span>
           </button>
         </div>
       </div>
@@ -897,7 +897,7 @@ const EventReconciliation = ({ event, onNavigateTab }) => {
         >
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '0.5rem' }}>
             <span style={{ fontSize: '0.78rem', color: '#6ee7b7', textTransform: 'uppercase', letterSpacing: '0.5px', fontWeight: 600 }}>
-              💵 En Efectivo
+              En Efectivo
             </span>
             <div style={{ color: '#10b981', backgroundColor: 'rgba(16, 185, 129, 0.15)', padding: '0.35rem', borderRadius: '6px' }}>
               <Banknote size={18} />
@@ -926,7 +926,7 @@ const EventReconciliation = ({ event, onNavigateTab }) => {
         >
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '0.5rem' }}>
             <span style={{ fontSize: '0.78rem', color: '#93c5fd', textTransform: 'uppercase', letterSpacing: '0.5px', fontWeight: 600 }}>
-              🏦 Por Transferencia
+              Por Transferencia
             </span>
             <div style={{ color: '#3b82f6', backgroundColor: 'rgba(59, 130, 246, 0.15)', padding: '0.35rem', borderRadius: '6px' }}>
               <CreditCard size={18} />
@@ -949,10 +949,10 @@ const EventReconciliation = ({ event, onNavigateTab }) => {
               fontSize: '0.74rem'
             }}>
               <span style={{ color: '#34d399', fontWeight: 600 }}>
-                ✓ {verifiedTransfers.length} Verificadas ({formatMoneyCLP(verifiedTransfersAmount)})
+                {verifiedTransfers.length} Verificadas ({formatMoneyCLP(verifiedTransfersAmount)})
               </span>
               <span style={{ color: pendingTransfers.length > 0 ? '#fbbf24' : 'var(--text-muted)', fontWeight: 600 }}>
-                ⏳ {pendingTransfers.length} Pendientes ({formatMoneyCLP(pendingTransfersAmount)})
+                {pendingTransfers.length} Pendientes ({formatMoneyCLP(pendingTransfersAmount)})
               </span>
             </div>
           )}
@@ -966,7 +966,7 @@ const EventReconciliation = ({ event, onNavigateTab }) => {
         }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '0.5rem' }}>
             <span style={{ fontSize: '0.78rem', color: '#fcd34d', textTransform: 'uppercase', letterSpacing: '0.5px', fontWeight: 600 }}>
-              💰 Esperado en Caja
+              Esperado en Caja
             </span>
             <div style={{ color: '#f59e0b', backgroundColor: 'rgba(245, 158, 11, 0.15)', padding: '0.35rem', borderRadius: '6px' }}>
               <Calculator size={18} />
@@ -1010,7 +1010,7 @@ const EventReconciliation = ({ event, onNavigateTab }) => {
                 marginBottom: '0.2rem'
               }}>
                 {auditDiff === 0
-                  ? '✓ Cuadrado Exacto'
+                  ? 'Cuadrado Exacto'
                   : auditDiff > 0
                     ? `Sobrante (+${formatMoneyCLP(auditDiff)})`
                     : `Faltante (${formatMoneyCLP(auditDiff)})`}
@@ -1126,7 +1126,7 @@ const EventReconciliation = ({ event, onNavigateTab }) => {
                 fontWeight: paymentFilter === 'cash' ? 700 : 500
               }}
             >
-              💵 Solo Efectivo ({cashSales.length})
+              Solo Efectivo ({cashSales.length})
             </button>
             <button
               type="button"
@@ -1141,7 +1141,7 @@ const EventReconciliation = ({ event, onNavigateTab }) => {
                 fontWeight: paymentFilter === 'transfer' ? 700 : 500
               }}
             >
-              🏦 Solo Transferencia ({transferSales.length})
+              Solo Transferencia ({transferSales.length})
             </button>
           </div>
         </div>
@@ -1190,8 +1190,8 @@ const EventReconciliation = ({ event, onNavigateTab }) => {
                 style={{ fontSize: '0.78rem', padding: '0.25rem 0.5rem', height: '32px', backgroundColor: 'rgba(0,0,0,0.3)' }}
               >
                 <option value="all">Todas las transfs.</option>
-                <option value="verified">✓ Solo Verificadas ({verifiedTransfers.length})</option>
-                <option value="pending">⏳ Solo Pendientes ({pendingTransfers.length})</option>
+                <option value="verified">Solo Verificadas ({verifiedTransfers.length})</option>
+                <option value="pending">Solo Pendientes ({pendingTransfers.length})</option>
               </select>
             </div>
 
@@ -1369,7 +1369,7 @@ const EventReconciliation = ({ event, onNavigateTab }) => {
                               }}
                               title="Haz clic para editar esta nota"
                             >
-                              <span>📝 {sale.saleNote}</span>
+                              <span>Nota: {sale.saleNote}</span>
                             </div>
                           ) : (
                             <button
@@ -1456,7 +1456,7 @@ const EventReconciliation = ({ event, onNavigateTab }) => {
                                 style={{ padding: '0.2rem 0.45rem', fontSize: '0.75rem', backgroundColor: '#10b981', borderColor: '#10b981' }}
                                 title="Guardar total"
                               >
-                                ✓
+                                <Check size={14} />
                               </button>
                               <button
                                 type="button"
@@ -1465,7 +1465,7 @@ const EventReconciliation = ({ event, onNavigateTab }) => {
                                 style={{ padding: '0.2rem 0.4rem', fontSize: '0.75rem' }}
                                 title="Cancelar"
                               >
-                                ✕
+                                <X size={14} />
                               </button>
                             </div>
                           ) : (
@@ -1547,7 +1547,7 @@ const EventReconciliation = ({ event, onNavigateTab }) => {
                                 title={currentMethod === 'cash' ? 'Pagado en Efectivo' : 'Cambiar a Efectivo'}
                               >
                                 {currentMethod === 'cash' && <Check size={12} />}
-                                <span>💵 Efectivo</span>
+                                <span>Efectivo</span>
                               </button>
 
                               {/* Botón Transferencia */}
@@ -1573,7 +1573,7 @@ const EventReconciliation = ({ event, onNavigateTab }) => {
                                 title={currentMethod === 'transfer' ? 'Pagado por Transferencia' : 'Cambiar a Transferencia'}
                               >
                                 {currentMethod === 'transfer' && <Check size={12} />}
-                                <span>🏦 Transferencia</span>
+                                <span>Transferencia</span>
                               </button>
                             </div>
                           )}
@@ -1615,11 +1615,11 @@ const EventReconciliation = ({ event, onNavigateTab }) => {
                                   cursor: 'pointer'
                                 }}
                               />
-                              <span>{sale.transferVerified ? '✓ Verificada' : '⏳ Pendiente'}</span>
+                              <span>{sale.transferVerified ? 'Verificada' : 'Pendiente'}</span>
                             </label>
                           ) : (
                             <span style={{ fontSize: '0.74rem', color: 'var(--text-muted)', opacity: 0.6 }}>
-                              💵 Efectivo
+                              Efectivo
                             </span>
                           )}
                         </td>
@@ -1794,7 +1794,7 @@ const EventReconciliation = ({ event, onNavigateTab }) => {
                     gap: '4px'
                   }}
                 >
-                  💵 Efectivo
+                  Efectivo
                 </button>
                 <button
                   type="button"
@@ -1814,7 +1814,7 @@ const EventReconciliation = ({ event, onNavigateTab }) => {
                     gap: '4px'
                   }}
                 >
-                  🏦 Transferencia
+                  Transferencia
                 </button>
               </div>
             </div>

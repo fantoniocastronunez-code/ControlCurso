@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { db } from '../firebase/config';
 import { collection, getDocs, doc, setDoc, updateDoc, getDoc, query, where } from 'firebase/firestore';
-import { ArrowLeft, PlusCircle, CheckCircle, Sparkles } from 'lucide-react';
+import { ArrowLeft, PlusCircle, CheckCircle, Sparkles, Eye, EyeOff } from 'lucide-react';
 import { useModal } from '../context/ModalContext';
 import { formatStudentName } from '../utils/nameUtils';
 import { useCourse } from '../context/CourseContext';
@@ -465,7 +465,8 @@ const ExpenseManagement = ({ onBack }) => {
               }}>
                 <div>
                   <div style={{ fontWeight: 600, fontSize: '0.95rem', display: 'flex', alignItems: 'center', gap: '0.5rem', color: visibleInPortal ? 'var(--success)' : 'var(--danger)' }}>
-                    <span>{visibleInPortal ? '👁️ Visible para los apoderados' : '🔒 Oculta para los apoderados'}</span>
+                    {visibleInPortal ? <Eye size={18} /> : <EyeOff size={18} />}
+                    <span>{visibleInPortal ? 'Visible para los apoderados' : 'Oculta para los apoderados'}</span>
                   </div>
                   <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginTop: '0.25rem' }}>
                     {visibleInPortal 

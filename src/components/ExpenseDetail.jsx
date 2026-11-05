@@ -241,16 +241,16 @@ const ExpenseDetail = ({ expenseId, onBack }) => {
       perStudentText = 'Variable (según alumno)';
     }
 
-    let text = `📌 *${expense.title}*\n`;
-    text += `💰 Total a recaudar: ${money(expense.totalAmount)}\n`;
-    text += `👤 Monto por alumno: ${perStudentText}\n`;
-    if (expense.date) text += `📅 Emitida el: ${expense.date}\n`;
+    let text = `*${expense.title}*\n`;
+    text += `Total a recaudar: ${money(expense.totalAmount)}\n`;
+    text += `Monto por alumno: ${perStudentText}\n`;
+    if (expense.date) text += `Emitida el: ${expense.date}\n`;
     text += `\n`;
 
     if (pending.length === 0) {
-      text += `✅ ¡Todos han pagado esta cuota!`;
+      text += `¡Todos han pagado esta cuota!`;
     } else {
-      text += `⚠️ *Pendientes de pago (${pending.length}):*\n\n`;
+      text += `*Pendientes de pago (${pending.length}):*\n\n`;
       pending.forEach((d, idx) => {
         const student = students.find(s => s.id === d.studentId);
         const studentName = student ? formatStudentName(student) : (d.studentName || 'Alumno desconocido');
@@ -1280,7 +1280,7 @@ const ExpenseDetail = ({ expenseId, onBack }) => {
       return;
     }
 
-    if (!(await showConfirm(`¿Estás seguro de reemplazar TODOS los montos en sistema por las sumas manuales auditadas?\n\n⚠️ ATENCIÓN: Cualquier alumno que NO tenga un monto manual ingresado quedará en $0 (Pendiente). La Suma Registrada en Sistema pasará a ser exactamente la Suma Manual Auditada.`))) return;
+    if (!(await showConfirm(`¿Estás seguro de reemplazar TODOS los montos en sistema por las sumas manuales auditadas?\n\nATENCIÓN: Cualquier alumno que NO tenga un monto manual ingresado quedará en $0 (Pendiente). La Suma Registrada en Sistema pasará a ser exactamente la Suma Manual Auditada.`))) return;
 
     try {
       const debtsToUpdate = [];
@@ -1676,14 +1676,14 @@ const ExpenseDetail = ({ expenseId, onBack }) => {
 
       {/* Panel de Auditoría y Cuadratura Manual */}
       {isAuditMode && (
-        <div className="glass-panel animate-fade-in" style={{ padding: '1.5rem', marginBottom: '2rem', border: '1px solid rgba(139, 92, 246, 0.4)', background: 'linear-gradient(135deg, rgba(30, 41, 59, 0.9) 0%, rgba(88, 28, 135, 0.2) 100%)' }}>
+        <div className="glass-panel animate-fade-in" style={{ padding: '1.5rem', marginBottom: '2rem', border: '1px solid var(--border-color)', backgroundColor: 'var(--bg-card)' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem', flexWrap: 'wrap', gap: '1rem' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-              <div style={{ backgroundColor: 'rgba(139, 92, 246, 0.25)', padding: '0.6rem', borderRadius: '10px', color: '#a78bfa' }}>
+              <div style={{ backgroundColor: 'rgba(37, 99, 235, 0.12)', padding: '0.6rem', borderRadius: 'var(--radius-sm)', color: 'var(--primary)' }}>
                 <Calculator size={22} />
               </div>
               <div>
-                <h3 style={{ margin: 0, fontSize: '1.2rem', color: '#c4b5fd' }}>Panel de Auditoría y Cuadratura Manual</h3>
+                <h3 style={{ margin: 0, fontSize: '1.2rem', color: 'var(--text-main)' }}>Panel de Auditoría y Cuadratura Manual</h3>
                 <p style={{ margin: 0, fontSize: '0.85rem', color: 'var(--text-muted)' }}>
                   Tickea cada cuota e ingresa la suma manual real para verificar que no falte ni sobre ningún peso.
                 </p>
@@ -2052,9 +2052,9 @@ const ExpenseDetail = ({ expenseId, onBack }) => {
                       <button
                         onClick={(e) => { e.stopPropagation(); handleToggleAuditCheck(debt.id); }}
                         className="btn btn-outline"
-                        style={{ padding: '0.3rem 0.6rem', fontSize: '0.8rem', borderColor: isAudited ? 'var(--success)' : '#8b5cf6', color: isAudited ? 'var(--success)' : '#c4b5fd' }}
+                        style={{ padding: '0.3rem 0.6rem', fontSize: '0.8rem', borderColor: isAudited ? 'var(--success)' : 'var(--border-color)', color: isAudited ? 'var(--success)' : 'var(--text-muted)' }}
                       >
-                        {isAudited ? '✔ Listo' : 'Verificar'}
+                        {isAudited ? 'Listo' : 'Verificar'}
                       </button>
                     </td>
                   </>
@@ -2079,7 +2079,7 @@ const ExpenseDetail = ({ expenseId, onBack }) => {
                             {student ? `${student.listNumber || '-'}. ${formatStudentName(student)}` : debt.studentName}
                             {student && student.balance > 0 && (
                               <div style={{ fontSize: '0.75rem', color: 'var(--success)', marginTop: '0.2rem', display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
-                                <span>💰 Saldo a favor:</span>
+                                <span>Saldo a favor:</span>
                                 <strong>{formatMoney(student.balance)}</strong>
                               </div>
                             )}

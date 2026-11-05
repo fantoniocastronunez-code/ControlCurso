@@ -326,7 +326,7 @@ const EventAttendance = ({ event }) => {
 
         {/* Asistentes */}
         <div>
-          <span style={{ fontSize: '0.75rem', color: '#6ee7b7', textTransform: 'uppercase' }}>✓ Presentes ({attendedCount})</span>
+          <span style={{ fontSize: '0.75rem', color: '#6ee7b7', textTransform: 'uppercase' }}>Presentes ({attendedCount})</span>
           <strong style={{ fontSize: '1.25rem', color: 'var(--success)', display: 'block', marginTop: '0.15rem' }}>
             {attendedCount} alumnos
           </strong>
@@ -335,7 +335,7 @@ const EventAttendance = ({ event }) => {
 
         {/* Inasistentes */}
         <div>
-          <span style={{ fontSize: '0.75rem', color: '#f87171', textTransform: 'uppercase' }}>✗ Inasistentes ({absentCount})</span>
+          <span style={{ fontSize: '0.75rem', color: '#f87171', textTransform: 'uppercase' }}>Inasistentes ({absentCount})</span>
           <strong style={{ fontSize: '1.25rem', color: 'var(--danger)', display: 'block', marginTop: '0.15rem' }}>
             {absentCount} alumnos
           </strong>
@@ -443,10 +443,10 @@ const EventAttendance = ({ event }) => {
               const attended = !s.notAttended;
               let statusEl = null;
               if (s.mainDebt) {
-                if (s.mainDebt.status === 'paid') statusEl = <span style={{ color: 'var(--success)', fontWeight: 'bold' }}>✓ Pagado</span>;
-                else if (s.mainDebt.status === 'review') statusEl = <span style={{ color: '#3b82f6', fontWeight: 'bold' }}>⏳ En revisión</span>;
-                else if (s.mainDebt.status === 'partial') statusEl = <span style={{ color: 'var(--warning)', fontWeight: 'bold' }}>⚠ Pago Parcial</span>;
-                else statusEl = <span style={{ color: 'var(--danger)', fontWeight: 'bold' }}>✗ Pendiente</span>;
+                if (s.mainDebt.status === 'paid') statusEl = <span style={{ color: 'var(--success)', fontWeight: '600' }}>Pagado</span>;
+                else if (s.mainDebt.status === 'review') statusEl = <span style={{ color: '#3b82f6', fontWeight: '600' }}>En revisión</span>;
+                else if (s.mainDebt.status === 'partial') statusEl = <span style={{ color: 'var(--warning)', fontWeight: '600' }}>Pago Parcial</span>;
+                else statusEl = <span style={{ color: 'var(--danger)', fontWeight: '600' }}>Pendiente</span>;
               } else {
                 statusEl = <span style={{ color: 'var(--text-muted)', fontStyle: 'italic', fontSize: '0.8rem' }}>Sin cuota obligatoria</span>;
               }

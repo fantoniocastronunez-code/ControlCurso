@@ -6,7 +6,7 @@ import { signInAnonymously } from 'firebase/auth';
 import { 
   ChefHat, Clock, CheckCircle2, Flame, AlertCircle, Volume2, 
   VolumeX, Maximize, Minimize, RefreshCw, MessageSquare, 
-  ArrowLeft, Search, Filter, Check, RotateCcw, Camera
+  ArrowLeft, Search, Filter, Check, RotateCcw, Camera, X
 } from 'lucide-react';
 import QRScannerModal from '../components/events/QRScannerModal';
 
@@ -253,9 +253,9 @@ const EventComandas = () => {
   return (
     <div style={{
       minHeight: '100vh',
-      backgroundColor: '#090d16',
-      backgroundImage: 'radial-gradient(at 0% 0%, rgba(99, 102, 241, 0.12) 0px, transparent 50%), radial-gradient(at 100% 100%, rgba(236, 72, 153, 0.08) 0px, transparent 50%)',
-      color: '#f8fafc',
+      backgroundColor: '#0c0d10',
+      backgroundImage: 'none',
+      color: '#f3f4f6',
       fontFamily: 'Inter, system-ui, sans-serif',
       padding: '1rem',
       boxSizing: 'border-box'
@@ -415,7 +415,7 @@ const EventComandas = () => {
               textDecoration: activeTab === 'all' ? 'none' : 'underline'
             }}
           >
-            {activeTab === 'all' ? '✓ Mostrando Todas' : `Ver todas (${orders.filter(o => o.status !== 'cancelled').length})`}
+            {activeTab === 'all' ? 'Mostrando Todas' : `Ver todas (${orders.filter(o => o.status !== 'cancelled').length})`}
           </button>
         </div>
 
@@ -597,17 +597,17 @@ const EventComandas = () => {
             }
 
             // Borde y fondo según estado
-            let cardBorder = '1px solid rgba(255, 255, 255, 0.1)';
-            let cardBg = 'rgba(15, 23, 42, 0.75)';
+            let cardBorder = '1px solid var(--border-color)';
+            let cardBg = '#13151b';
             if (isPending) {
-              cardBorder = '2px solid rgba(245, 158, 11, 0.5)';
-              cardBg = 'linear-gradient(180deg, rgba(245, 158, 11, 0.08) 0%, rgba(15, 23, 42, 0.85) 100%)';
+              cardBorder = '1px solid rgba(245, 158, 11, 0.4)';
+              cardBg = '#161920';
             } else if (isPreparing) {
-              cardBorder = '2px solid rgba(59, 130, 246, 0.6)';
-              cardBg = 'linear-gradient(180deg, rgba(59, 130, 246, 0.08) 0%, rgba(15, 23, 42, 0.85) 100%)';
+              cardBorder = '1px solid rgba(37, 99, 235, 0.5)';
+              cardBg = '#151922';
             } else if (isDelivered) {
-              cardBorder = '1px solid rgba(16, 185, 129, 0.3)';
-              cardBg = 'rgba(15, 23, 42, 0.5)';
+              cardBorder = '1px solid var(--border-color)';
+              cardBg = 'var(--bg-main)';
             }
 
             return (
@@ -616,9 +616,9 @@ const EventComandas = () => {
                 style={{
                   backgroundColor: cardBg,
                   border: cardBorder,
-                  borderRadius: '14px',
+                  borderRadius: 'var(--radius-lg)',
                   padding: '1.15rem',
-                  boxShadow: '0 4px 12px rgba(0, 0, 0, 0.3)',
+                  boxShadow: 'var(--shadow-sm)',
                   display: 'flex',
                   flexDirection: 'column',
                   gap: '0.85rem'
@@ -627,10 +627,10 @@ const EventComandas = () => {
                 {/* Cabecera de la Comanda: # Ticket, Tiempo y Estado */}
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                   <div>
-                    <span style={{ fontSize: '1.6rem', fontWeight: 900, color: '#fff', letterSpacing: '-0.02em', display: 'block' }}>
+                    <span style={{ fontSize: '1.6rem', fontWeight: 700, color: '#fff', letterSpacing: '-0.02em', display: 'block' }}>
                       Ticket #{order.correlative}
                     </span>
-                    <span style={{ fontSize: '0.78rem', color: timeColor, fontWeight: 700, display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
+                    <span style={{ fontSize: '0.78rem', color: timeColor, fontWeight: 600, display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
                       <Clock size={12} />
                       {getTimeElapsed(order.createdAt)} • {new Date(order.createdAt).toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit' })}
                     </span>
@@ -639,18 +639,18 @@ const EventComandas = () => {
                   {/* Badge de Estado */}
                   <div>
                     {isPending && (
-                      <span style={{ backgroundColor: 'rgba(245, 158, 11, 0.2)', color: '#f59e0b', border: '1px solid rgba(245, 158, 11, 0.4)', padding: '3px 9px', borderRadius: '12px', fontSize: '0.75rem', fontWeight: 800 }}>
-                        ⏳ PENDIENTE
+                      <span style={{ backgroundColor: 'rgba(245, 158, 11, 0.15)', color: '#f59e0b', border: '1px solid rgba(245, 158, 11, 0.3)', padding: '3px 9px', borderRadius: 'var(--radius-sm)', fontSize: '0.75rem', fontWeight: 600 }}>
+                        PENDIENTE
                       </span>
                     )}
                     {isPreparing && (
-                      <span style={{ backgroundColor: 'rgba(59, 130, 246, 0.2)', color: '#60a5fa', border: '1px solid rgba(59, 130, 246, 0.4)', padding: '3px 9px', borderRadius: '12px', fontSize: '0.75rem', fontWeight: 800 }}>
-                        🔥 PREPARANDO
+                      <span style={{ backgroundColor: 'rgba(37, 99, 235, 0.15)', color: '#60a5fa', border: '1px solid rgba(37, 99, 235, 0.3)', padding: '3px 9px', borderRadius: 'var(--radius-sm)', fontSize: '0.75rem', fontWeight: 600 }}>
+                        PREPARANDO
                       </span>
                     )}
                     {isDelivered && (
-                      <span style={{ backgroundColor: 'rgba(16, 185, 129, 0.2)', color: '#34d399', border: '1px solid rgba(16, 185, 129, 0.4)', padding: '3px 9px', borderRadius: '12px', fontSize: '0.75rem', fontWeight: 800 }}>
-                        ✓ ENTREGADO
+                      <span style={{ backgroundColor: 'rgba(16, 185, 129, 0.15)', color: '#34d399', border: '1px solid rgba(16, 185, 129, 0.3)', padding: '3px 9px', borderRadius: 'var(--radius-sm)', fontSize: '0.75rem', fontWeight: 600 }}>
+                        ENTREGADO
                       </span>
                     )}
                   </div>
@@ -679,7 +679,7 @@ const EventComandas = () => {
                     fontSize: '0.82rem',
                     color: '#fef08a'
                   }}>
-                    <strong>⚠️ Nota Cliente:</strong> {order.saleNote}
+                    <strong>Nota Cliente:</strong> {order.saleNote}
                   </div>
                 )}
 
@@ -747,7 +747,7 @@ const EventComandas = () => {
                     fontSize: '0.8rem',
                     color: '#c7d2fe'
                   }}>
-                    💬 <strong>Cocina:</strong> {order.kitchenNotes}
+                    <strong>Cocina:</strong> {order.kitchenNotes}
                   </div>
                 )}
 
@@ -790,7 +790,7 @@ const EventComandas = () => {
                       className="btn btn-outline"
                       style={{ padding: '0.4rem 0.6rem', fontSize: '0.8rem' }}
                     >
-                      ✕
+                      <X size={14} />
                     </button>
                   </div>
                 )}

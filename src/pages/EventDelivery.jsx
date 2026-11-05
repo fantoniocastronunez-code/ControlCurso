@@ -191,9 +191,9 @@ const EventDelivery = () => {
   return (
     <div style={{
       minHeight: '100vh',
-      backgroundColor: '#090d16',
-      backgroundImage: 'radial-gradient(at 0% 0%, rgba(99, 102, 241, 0.15) 0px, transparent 50%), radial-gradient(at 100% 100%, rgba(16, 185, 129, 0.1) 0px, transparent 50%)',
-      color: '#f8fafc',
+      backgroundColor: '#0c0d10',
+      backgroundImage: 'none',
+      color: '#f3f4f6',
       padding: '1rem',
       display: 'flex',
       flexDirection: 'column',
@@ -504,15 +504,15 @@ const EventDelivery = () => {
               <div style={{ display: 'flex', gap: '0.75rem', flexDirection: 'column' }}>
                 <div style={{
                   padding: '0.75rem',
-                  backgroundColor: 'rgba(16, 185, 129, 0.15)',
-                  border: '1px solid #10b981',
-                  borderRadius: '8px',
+                  backgroundColor: 'rgba(16, 185, 129, 0.12)',
+                  border: '1px solid rgba(16, 185, 129, 0.3)',
+                  borderRadius: 'var(--radius-sm)',
                   textAlign: 'center',
                   color: '#6ee7b7',
                   fontSize: '0.9rem',
-                  fontWeight: 'bold'
+                  fontWeight: '600'
                 }}>
-                  ✓ Entrega Registrada en el Sistema
+                  Entrega Registrada en el Sistema
                 </div>
 
                 <button

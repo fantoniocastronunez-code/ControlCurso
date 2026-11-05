@@ -381,7 +381,7 @@ export function buildEventClipboardReport(data) {
 
   const isEventCompleted = Boolean(event?.isCompleted || event?.status === 'completed' || event?.status === 'closed');
   let msg = `*INFORME FINANCIERO - ${(event?.name || 'EVENTO').toUpperCase()}*\n`;
-  msg += `*Estado:* ${isEventCompleted ? '✅ Terminado y Cuadrado' : '⚡ En Curso'}\n`;
+  msg += `*Estado:* ${isEventCompleted ? '[Completado y Cuadrado]' : '[En Curso]'}\n`;
   msg += `*Fecha:* ${formatEventDate(event?.date) || 'Hoy'}\n\n`;
 
   msg += `*RESUMEN DE INGRESOS:*\n`;

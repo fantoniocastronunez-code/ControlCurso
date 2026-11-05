@@ -129,10 +129,10 @@ const EventDetail = ({ eventId, onBack }) => {
     const validation = await checkEventClosureReadiness(eventData);
     if (!validation.canClose) {
       await showAlert(
-        `⚠️ NO SE PUEDE CERRAR EL EVENTO\n\n` +
+        `AVISO: NO SE PUEDE CERRAR EL EVENTO\n\n` +
         `El evento "${eventData.name}" aún no cumple los requisitos para ser marcado como "Terminado y Cuadrado":\n\n` +
         validation.blockingReasons.map((r, i) => `• ${r}`).join('\n\n') +
-        `\n\n💡 Para cerrarlo debes:\n` +
+        `\n\nRequisitos para cerrarlo:\n` +
         `• Recaudar y dejar al día las cuotas obligatorias pendientes.\n` +
         `• Realizar el arqueo de cierre de caja en la pestaña "Arqueo" o "Caja POS" asegurando que la diferencia sea exactamente $0.`
       );
@@ -140,8 +140,8 @@ const EventDetail = ({ eventId, onBack }) => {
     }
 
     const confirmMsg = `¿Confirmas marcar el evento "${eventData.name}" como TERMINADO Y CUADRADO?\n\n` +
-      `✅ Cuotas obligatorias: 100% al día.\n` +
-      `✅ Caja del evento: Cuadrada ($0 de diferencia).\n\n` +
+      `• Cuotas obligatorias: 100% al día.\n` +
+      `• Caja del evento: Cuadrada ($0 de diferencia).\n\n` +
       `Esto dejará constancia oficial del cierre y cuadratura del evento.`;
 
     if (!(await showConfirm(confirmMsg))) return;
@@ -279,22 +279,22 @@ const EventDetail = ({ eventId, onBack }) => {
             <ArrowLeft size={18} />
           </button>
           <div>
-            <h2 style={{ margin: 0, color: 'var(--primary)', display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+            <h2 style={{ margin: 0, color: 'var(--text-main)', display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
               {eventData.name}
               {eventData.isTestEvent && (
-                <span style={{ fontSize: '0.75rem', padding: '0.2rem 0.65rem', backgroundColor: 'var(--warning)', color: '#000', borderRadius: '1rem', fontWeight: 'bold' }}>
-                  🧪 MODO PRUEBA
+                <span style={{ fontSize: '0.72rem', padding: '0.15rem 0.5rem', backgroundColor: 'var(--warning)', color: '#000', borderRadius: 'var(--radius-sm)', fontWeight: 'bold' }}>
+                  MODO PRUEBA
                 </span>
               )}
               {(eventData.isCompleted || eventData.status === 'completed') ? (
                 <span style={{
                   fontSize: '0.75rem',
                   padding: '0.2rem 0.65rem',
-                  backgroundColor: 'rgba(16, 185, 129, 0.15)',
+                  backgroundColor: 'rgba(16, 185, 129, 0.12)',
                   color: 'var(--success)',
-                  border: '1px solid rgba(16, 185, 129, 0.4)',
-                  borderRadius: '1rem',
-                  fontWeight: 'bold',
+                  border: '1px solid rgba(16, 185, 129, 0.3)',
+                  borderRadius: 'var(--radius-sm)',
+                  fontWeight: '600',
                   display: 'inline-flex',
                   alignItems: 'center',
                   gap: '0.3rem'
@@ -304,14 +304,14 @@ const EventDetail = ({ eventId, onBack }) => {
               ) : (
                 <span style={{
                   fontSize: '0.72rem',
-                  padding: '0.15rem 0.55rem',
-                  backgroundColor: 'rgba(99, 102, 241, 0.12)',
-                  color: '#c4b5fd',
-                  border: '1px solid rgba(99, 102, 241, 0.25)',
-                  borderRadius: '1rem',
+                  padding: '0.15rem 0.5rem',
+                  backgroundColor: 'rgba(37, 99, 235, 0.1)',
+                  color: '#93c5fd',
+                  border: '1px solid rgba(37, 99, 235, 0.25)',
+                  borderRadius: 'var(--radius-sm)',
                   fontWeight: '600'
                 }}>
-                  ⚡ En Curso
+                  En Curso
                 </span>
               )}
             </h2>
@@ -325,7 +325,7 @@ const EventDetail = ({ eventId, onBack }) => {
                   type="button"
                   onClick={handleOpenEditModal}
                   className="btn btn-outline"
-                  style={{ padding: '0.15rem 0.5rem', fontSize: '0.75rem', display: 'inline-flex', alignItems: 'center', gap: '0.25rem', borderColor: 'rgba(255,255,255,0.2)' }}
+                  style={{ padding: '0.15rem 0.5rem', fontSize: '0.75rem', display: 'inline-flex', alignItems: 'center', gap: '0.25rem', borderColor: 'var(--border-color)' }}
                   title="Editar fecha y datos del evento"
                 >
                   <Edit size={12} /> Editar Fecha
@@ -347,20 +347,20 @@ const EventDetail = ({ eventId, onBack }) => {
               gap: '0.4rem',
               borderColor: (eventData.isCompleted || eventData.status === 'completed') ? 'var(--success)' : 'rgba(16, 185, 129, 0.5)',
               color: (eventData.isCompleted || eventData.status === 'completed') ? 'var(--success)' : '#6ee7b7',
-              backgroundColor: (eventData.isCompleted || eventData.status === 'completed') ? 'rgba(16, 185, 129, 0.18)' : 'rgba(16, 185, 129, 0.08)',
+              backgroundColor: (eventData.isCompleted || eventData.status === 'completed') ? 'rgba(16, 185, 129, 0.12)' : 'transparent',
               fontWeight: '600'
             }}
             title={(eventData.isCompleted || eventData.status === 'completed') ? "Clic para reabrir el evento" : "Marcar que este evento está terminado y su caja cuadrada"}
           >
             <CheckCircle size={16} />
-            <span>{(eventData.isCompleted || eventData.status === 'completed') ? 'Terminado y Cuadrado ✓' : 'Marcar Terminado y Cuadrado'}</span>
+            <span>{(eventData.isCompleted || eventData.status === 'completed') ? 'Terminado y Cuadrado' : 'Marcar Terminado y Cuadrado'}</span>
           </button>
 
           <button
             type="button"
             onClick={() => setShowReportModal(true)}
             className="btn btn-primary"
-            style={{ fontSize: '0.85rem', padding: '0.45rem 0.95rem', display: 'flex', alignItems: 'center', gap: '0.4rem', backgroundColor: '#6366f1', borderColor: '#6366f1', color: '#fff', fontWeight: 'bold' }}
+            style={{ fontSize: '0.85rem', padding: '0.45rem 0.95rem', display: 'flex', alignItems: 'center', gap: '0.4rem', fontWeight: '600' }}
             title="Generar y descargar informe financiero completo del evento"
           >
             <FileText size={16} /> Informe de Evento
@@ -370,7 +370,7 @@ const EventDetail = ({ eventId, onBack }) => {
             type="button"
             onClick={() => setShowComandasModal(true)}
             className="btn btn-outline"
-            style={{ fontSize: '0.85rem', padding: '0.45rem 0.85rem', display: 'flex', alignItems: 'center', gap: '0.4rem', borderColor: '#f59e0b', color: '#f59e0b' }}
+            style={{ fontSize: '0.85rem', padding: '0.45rem 0.85rem', display: 'flex', alignItems: 'center', gap: '0.4rem', borderColor: 'var(--border-color)', color: 'var(--text-main)' }}
             title="Abrir código QR para pantalla de comandas y cocina"
           >
             <ChefHat size={16} /> Comandas Cocina (QR)
@@ -386,14 +386,28 @@ const EventDetail = ({ eventId, onBack }) => {
           alignItems: 'center',
           flexWrap: 'wrap',
           gap: '1rem',
-          backgroundColor: 'rgba(245, 158, 11, 0.1)',
-          border: '1px solid rgba(245, 158, 11, 0.35)',
+          backgroundColor: 'rgba(245, 158, 11, 0.08)',
+          border: '1px solid rgba(245, 158, 11, 0.25)',
           padding: '0.85rem 1.25rem',
           borderRadius: 'var(--radius-md)',
           marginBottom: '1.5rem'
         }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-            <span style={{ fontSize: '1.5rem' }}>🧪</span>
+            <div style={{
+              width: '32px',
+              height: '32px',
+              borderRadius: 'var(--radius-sm)',
+              backgroundColor: 'rgba(245, 158, 11, 0.15)',
+              border: '1px solid rgba(245, 158, 11, 0.3)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              color: 'var(--warning)',
+              fontSize: '0.75rem',
+              fontWeight: '700'
+            }}>
+              DEMO
+            </div>
             <div>
               <strong style={{ color: 'var(--warning)', display: 'block', fontSize: '0.95rem' }}>
                 Modo Prueba Activo (Simulación de Evento)

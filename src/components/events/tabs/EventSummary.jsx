@@ -178,10 +178,10 @@ const EventSummary = ({ event, onNavigateTab }) => {
       const validation = await checkEventClosureReadiness(event);
       if (!validation.canClose) {
         await showAlert(
-          `⚠️ NO SE PUEDE CERRAR EL EVENTO\n\n` +
+          `AVISO: NO SE PUEDE CERRAR EL EVENTO\n\n` +
           `El evento "${event?.name}" aún no cumple los requisitos para ser marcado como "Terminado y Cuadrado":\n\n` +
           validation.blockingReasons.map((r, i) => `• ${r}`).join('\n\n') +
-          `\n\n💡 Para cerrarlo debes:\n` +
+          `\n\nRequisitos para cerrarlo:\n` +
           `• Recaudar y dejar al día las cuotas obligatorias pendientes.\n` +
           `• Realizar el arqueo de cierre de caja en la pestaña "Arqueo" o "Caja POS" asegurando que la diferencia sea exactamente $0.`
         );
@@ -189,8 +189,8 @@ const EventSummary = ({ event, onNavigateTab }) => {
       }
 
       const confirmMsg = `¿Confirmas marcar el evento "${event?.name}" como TERMINADO Y CUADRADO?\n\n` +
-        `✅ Cuotas obligatorias: 100% al día.\n` +
-        `✅ Caja del evento: Cuadrada ($0 de diferencia).\n\n` +
+        `• Cuotas obligatorias: 100% al día.\n` +
+        `• Caja del evento: Cuadrada ($0 de diferencia).\n\n` +
         `Esto dejará constancia oficial del cierre y cuadratura del evento.`;
 
       if (!(await showConfirm(confirmMsg))) return;
@@ -340,29 +340,28 @@ const EventSummary = ({ event, onNavigateTab }) => {
             }}
             title={isEventCompleted ? "Clic para reabrir el evento" : "Marcar como terminado y cuadrado"}
           >
-            <CheckCircle size={18} /> {isEventCompleted ? 'Terminado y Cuadrado ✓' : 'Marcar Cuadrado'}
+            <CheckCircle size={18} /> {isEventCompleted ? 'Terminado y Cuadrado' : 'Marcar Cuadrado'}
           </button>
         </div>
 
         {/* Banner de Estado del Evento */}
         <div style={{
           padding: '1.25rem 1.5rem',
-          borderRadius: '16px',
+          borderRadius: 'var(--radius-md)',
           marginBottom: '2rem',
           display: 'flex',
           justifyContent: 'space-between',
           alignItems: 'center',
           flexWrap: 'wrap',
           gap: '1rem',
-          backgroundColor: isEventCompleted ? 'rgba(16, 185, 129, 0.12)' : 'rgba(99, 102, 241, 0.08)',
-          border: `1px solid ${isEventCompleted ? 'rgba(16, 185, 129, 0.4)' : 'rgba(99, 102, 241, 0.25)'}`,
-          boxShadow: isEventCompleted ? '0 4px 20px rgba(16, 185, 129, 0.1)' : 'none'
+          backgroundColor: isEventCompleted ? 'rgba(16, 185, 129, 0.08)' : 'rgba(37, 99, 235, 0.08)',
+          border: `1px solid ${isEventCompleted ? 'rgba(16, 185, 129, 0.3)' : 'rgba(37, 99, 235, 0.25)'}`
         }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
             <div style={{
-              backgroundColor: isEventCompleted ? 'rgba(16, 185, 129, 0.2)' : 'rgba(99, 102, 241, 0.15)',
+              backgroundColor: isEventCompleted ? 'rgba(16, 185, 129, 0.15)' : 'rgba(37, 99, 235, 0.15)',
               padding: '0.85rem',
-              borderRadius: '50%',
+              borderRadius: 'var(--radius-sm)',
               color: isEventCompleted ? 'var(--success)' : 'var(--primary)'
             }}>
               <CheckCircle size={24} />
@@ -375,12 +374,12 @@ const EventSummary = ({ event, onNavigateTab }) => {
                 <span style={{
                   fontSize: '0.75rem',
                   padding: '0.15rem 0.6rem',
-                  borderRadius: '12px',
-                  backgroundColor: isEventCompleted ? 'rgba(16, 185, 129, 0.2)' : 'rgba(99, 102, 241, 0.15)',
-                  color: isEventCompleted ? 'var(--success)' : '#c4b5fd',
-                  fontWeight: 'bold'
+                  borderRadius: 'var(--radius-sm)',
+                  backgroundColor: isEventCompleted ? 'rgba(16, 185, 129, 0.15)' : 'rgba(37, 99, 235, 0.15)',
+                  color: isEventCompleted ? 'var(--success)' : '#93c5fd',
+                  fontWeight: '600'
                 }}>
-                  {isEventCompleted ? 'Listo ✓' : 'En Curso'}
+                  {isEventCompleted ? 'Listo' : 'En Curso'}
                 </span>
               </div>
               <p style={{ margin: '0.35rem 0 0 0', fontSize: '0.85rem', color: 'var(--text-muted)' }}>
@@ -415,8 +414,8 @@ const EventSummary = ({ event, onNavigateTab }) => {
         {/* Tarjetas Financieras */}
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1.5rem', marginBottom: '2rem' }}>
           <div className="glass-panel" style={{ padding: '1.5rem', display: 'flex', alignItems: 'center', gap: '1rem' }}>
-            <div style={{ backgroundColor: 'rgba(59,130,246,0.2)', padding: '1rem', borderRadius: '50%', color: '#3b82f6' }}>
-              <FileText size={24} />
+            <div style={{ width: '42px', height: '42px', minWidth: '42px', borderRadius: 'var(--radius-sm)', display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: 'var(--bg-card-hover)', border: '1px solid var(--border-color)', color: 'var(--primary)' }}>
+              <FileText size={20} />
             </div>
             <div>
               <h3 style={{ fontSize: '1.25rem', margin: 0 }}>{formatMoney(stats.paidQuotas)}</h3>
@@ -426,8 +425,8 @@ const EventSummary = ({ event, onNavigateTab }) => {
           </div>
 
           <div className="glass-panel" style={{ padding: '1.5rem', display: 'flex', alignItems: 'center', gap: '1rem' }}>
-            <div style={{ backgroundColor: 'rgba(16,185,129,0.2)', padding: '1rem', borderRadius: '50%', color: 'var(--success)' }}>
-              <Activity size={24} />
+            <div style={{ width: '42px', height: '42px', minWidth: '42px', borderRadius: 'var(--radius-sm)', display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: 'var(--bg-card-hover)', border: '1px solid var(--border-color)', color: 'var(--success)' }}>
+              <Activity size={20} />
             </div>
             <div>
               <h3 style={{ fontSize: '1.25rem', margin: 0 }}>{formatMoney(stats.salesTotal)}</h3>
@@ -436,8 +435,8 @@ const EventSummary = ({ event, onNavigateTab }) => {
           </div>
 
           <div className="glass-panel" style={{ padding: '1.5rem', display: 'flex', alignItems: 'center', gap: '1rem' }}>
-            <div style={{ backgroundColor: 'rgba(239,68,68,0.2)', padding: '1rem', borderRadius: '50%', color: 'var(--danger)' }}>
-              <DollarSign size={24} />
+            <div style={{ width: '42px', height: '42px', minWidth: '42px', borderRadius: 'var(--radius-sm)', display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: 'var(--bg-card-hover)', border: '1px solid var(--border-color)', color: 'var(--danger)' }}>
+              <DollarSign size={20} />
             </div>
             <div>
               <h3 style={{ fontSize: '1.25rem', margin: 0 }}>{formatMoney(stats.expensesTotal)}</h3>
@@ -445,7 +444,7 @@ const EventSummary = ({ event, onNavigateTab }) => {
             </div>
           </div>
 
-          <div className="glass-panel" style={{ padding: '1.5rem', display: 'flex', alignItems: 'center', gap: '1rem', backgroundColor: stats.netProfit >= 0 ? 'rgba(16,185,129,0.05)' : 'rgba(239,68,68,0.05)', border: `1px solid ${stats.netProfit >= 0 ? 'var(--success)' : 'var(--danger)'}` }}>
+          <div className="glass-panel" style={{ padding: '1.5rem', display: 'flex', alignItems: 'center', gap: '1rem', backgroundColor: 'var(--bg-card)', border: stats.netProfit >= 0 ? '1px solid var(--border-color)' : '1px solid var(--danger)' }}>
             <div>
               <h3 style={{ fontSize: '1.5rem', margin: 0, color: stats.netProfit >= 0 ? 'var(--success)' : 'var(--danger)' }}>
                 {formatMoney(stats.netProfit)}
@@ -456,7 +455,7 @@ const EventSummary = ({ event, onNavigateTab }) => {
         </div>
 
         {/* Sección Cuadratura y Arqueo de Efectivo en Caja */}
-        <div className="glass-panel" style={{ padding: '1.5rem', marginBottom: '2rem', border: '1px solid rgba(16, 185, 129, 0.3)', background: 'linear-gradient(135deg, rgba(16,185,129,0.06) 0%, rgba(15,23,42,0.6) 100%)' }}>
+        <div className="glass-panel" style={{ padding: '1.5rem', marginBottom: '2rem', border: '1px solid var(--border-color)', backgroundColor: 'var(--bg-card)' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem', marginBottom: '1.25rem' }}>
             <div>
               <h3 style={{ margin: 0, color: 'var(--success)', display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '1.2rem' }}>
@@ -626,7 +625,7 @@ const EventSummary = ({ event, onNavigateTab }) => {
                     gap: '4px'
                   }}>
                     {stats.pettyCashData.closingAudit.difference === 0
-                      ? '✓ CAJA CUADRADA ($0)'
+                      ? 'CAJA CUADRADA ($0)'
                       : stats.pettyCashData.closingAudit.difference > 0
                         ? `SOBRANTE (+${formatMoney(stats.pettyCashData.closingAudit.difference)})`
                         : `FALTANTE (${formatMoney(stats.pettyCashData.closingAudit.difference)})`}
@@ -827,7 +826,7 @@ const EventSummary = ({ event, onNavigateTab }) => {
                           {!hasPhysical ? (
                             <span style={{ color: 'var(--text-muted)', fontSize: '0.8rem' }}>—</span>
                           ) : diff === 0 ? (
-                            <span style={{ color: 'var(--success)', fontWeight: 'bold' }}>✓ Exacto</span>
+                            <span style={{ color: 'var(--success)', fontWeight: 'bold' }}>Exacto</span>
                           ) : diff < 0 ? (
                             <span style={{ color: 'var(--danger)', fontWeight: 'bold' }}>Merma: {diff} {item.unit}</span>
                           ) : (

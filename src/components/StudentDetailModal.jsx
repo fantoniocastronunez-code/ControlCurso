@@ -621,7 +621,7 @@ const StudentDetailModal = ({ student, usersMap = {}, onClose, isModal = false }
                         {d.title}
                         {d.visibleInPortal === false && (
                           <span style={{ fontSize: '0.7rem', padding: '0.1rem 0.4rem', borderRadius: '4px', backgroundColor: 'rgba(239, 68, 68, 0.15)', color: '#f87171', border: '1px solid rgba(239, 68, 68, 0.3)', fontWeight: '600' }}>
-                            🔒 Oculta en portal
+                            Oculta en portal
                           </span>
                         )}
                       </span>
@@ -734,7 +734,7 @@ const StudentDetailModal = ({ student, usersMap = {}, onClose, isModal = false }
                         {d.title}
                         {d.visibleInPortal === false && (
                           <span style={{ fontSize: '0.7rem', padding: '0.1rem 0.4rem', borderRadius: '4px', backgroundColor: 'rgba(239, 68, 68, 0.15)', color: '#f87171', border: '1px solid rgba(239, 68, 68, 0.3)', fontWeight: '600' }}>
-                            🔒 Oculta en portal
+                            Oculta en portal
                           </span>
                         )}
                       </span>

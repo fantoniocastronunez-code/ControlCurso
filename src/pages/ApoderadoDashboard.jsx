@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { 
   LogOut, CheckCircle, Clock, Search, UserPlus, Upload, AlertCircle, MessageCircle,
-  Receipt, TrendingDown, Eye, X, Sparkles, ExternalLink, DollarSign 
+  Receipt, TrendingDown, Eye, X, ExternalLink, DollarSign, Calendar, CreditCard, User 
 } from 'lucide-react';
 import { db, storage } from '../firebase/config';
 import { collection, query, where, getDocs, getDoc, doc, updateDoc, setDoc, or, addDoc, onSnapshot } from 'firebase/firestore';
@@ -579,8 +579,8 @@ const ApoderadoDashboard = () => {
 
       {!isProfileComplete ? (
         <div className="glass-panel" style={{ padding: '3rem 2rem', textAlign: 'center', maxWidth: '500px', margin: '0 auto' }}>
-          <div style={{ backgroundColor: 'rgba(99,102,241,0.1)', padding: '1.5rem', borderRadius: '50%', display: 'inline-block', marginBottom: '1.5rem', color: 'var(--primary)' }}>
-            <UserPlus size={40} />
+          <div style={{ width: '56px', height: '56px', borderRadius: 'var(--radius-md)', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', backgroundColor: 'var(--bg-card-hover)', border: '1px solid var(--border-color)', color: 'var(--primary)', marginBottom: '1.5rem' }}>
+            <UserPlus size={28} />
           </div>
           <h3 style={{ marginBottom: '1rem' }}>Completa tu Perfil</h3>
           <p style={{ color: 'var(--text-muted)', marginBottom: '2rem' }}>
@@ -647,8 +647,8 @@ const ApoderadoDashboard = () => {
 
       {myStudents.length === 0 ? (
         <div className="glass-panel" style={{ padding: '2rem', marginBottom: '2rem', textAlign: 'center' }}>
-          <div style={{ backgroundColor: 'rgba(99,102,241,0.1)', padding: '1.5rem', borderRadius: '50%', display: 'inline-block', marginBottom: '1rem', color: 'var(--primary)' }}>
-            <Search size={40} />
+          <div style={{ width: '56px', height: '56px', borderRadius: 'var(--radius-md)', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', backgroundColor: 'var(--bg-card-hover)', border: '1px solid var(--border-color)', color: 'var(--primary)', marginBottom: '1rem' }}>
+            <Search size={28} />
           </div>
           <h3 style={{ marginBottom: '0.5rem' }}>No tienes alumnos vinculados</h3>
           <p style={{ color: 'var(--text-muted)', marginBottom: '2rem', maxWidth: '500px', margin: '0 auto 2rem auto' }}>
@@ -848,7 +848,7 @@ const ApoderadoDashboard = () => {
                           marginBottom: '1.5rem' 
                         }}>
                           {/* Total Gastos Curso */}
-                          <div style={{ padding: '1rem', backgroundColor: 'rgba(239, 68, 68, 0.06)', borderRadius: 'var(--radius-md)', border: '1px solid rgba(239, 68, 68, 0.2)' }}>
+                          <div style={{ padding: '1rem', backgroundColor: 'var(--bg-card)', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-color)' }}>
                             <p style={{ margin: '0 0 0.25rem 0', fontSize: '0.75rem', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
                               <TrendingDown size={14} style={{ color: 'var(--danger)' }} /> Total Gastos del Curso
                             </p>
@@ -861,11 +861,11 @@ const ApoderadoDashboard = () => {
                           </div>
 
                           {/* Cuota Alumno */}
-                          <div style={{ padding: '1rem', backgroundColor: 'rgba(99, 102, 241, 0.06)', borderRadius: 'var(--radius-md)', border: '1px solid rgba(99, 102, 241, 0.2)' }}>
+                          <div style={{ padding: '1rem', backgroundColor: 'var(--bg-card)', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-color)' }}>
                             <p style={{ margin: '0 0 0.25rem 0', fontSize: '0.75rem', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
                               <Receipt size={14} style={{ color: 'var(--primary)' }} /> Proporcional a este Alumno
                             </p>
-                            <h3 style={{ margin: 0, color: 'var(--primary)', fontSize: '1.3rem' }}>
+                            <h3 style={{ margin: 0, color: 'var(--text-main)', fontSize: '1.3rem' }}>
                               {formatMoney(totalStudentExpenses)}
                             </h3>
                             <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
@@ -874,7 +874,7 @@ const ApoderadoDashboard = () => {
                           </div>
 
                           {/* Alumnos en Curso */}
-                          <div style={{ padding: '1rem', backgroundColor: 'rgba(255, 255, 255, 0.02)', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-color)' }}>
+                          <div style={{ padding: '1rem', backgroundColor: 'var(--bg-card)', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-color)' }}>
                             <p style={{ margin: '0 0 0.25rem 0', fontSize: '0.75rem', color: 'var(--text-muted)' }}>
                               Alumnos Activos en Curso
                             </p>
@@ -951,9 +951,10 @@ const ApoderadoDashboard = () => {
                                         <span style={{ 
                                           fontSize: '0.7rem', 
                                           padding: '0.15rem 0.5rem', 
-                                          borderRadius: '12px', 
-                                          backgroundColor: 'rgba(99, 102, 241, 0.15)', 
-                                          color: 'var(--primary)',
+                                          borderRadius: 'var(--radius-sm)', 
+                                          backgroundColor: 'var(--bg-card-hover)', 
+                                          color: 'var(--text-main)',
+                                          border: '1px solid var(--border-color)',
                                           fontWeight: '500'
                                         }}>
                                           {fundsMap[outcome.fundId] || outcome.fundId}
@@ -962,9 +963,9 @@ const ApoderadoDashboard = () => {
                                     </div>
 
                                     <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap', fontSize: '0.825rem', color: 'var(--text-muted)' }}>
-                                      <span>📅 {formatExpenseDate(outcome.date)}</span>
-                                      {outcome.paymentMethod && <span>💳 {outcome.paymentMethod === 'transfer' ? 'Transferencia' : outcome.paymentMethod === 'cash' ? 'Efectivo' : outcome.paymentMethod}</span>}
-                                      {outcome.responsable && <span>👤 {outcome.responsable}</span>}
+                                      <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.3rem' }}><Calendar size={13} /> {formatExpenseDate(outcome.date)}</span>
+                                      {outcome.paymentMethod && <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.3rem' }}><CreditCard size={13} /> {outcome.paymentMethod === 'transfer' ? 'Transferencia' : outcome.paymentMethod === 'cash' ? 'Efectivo' : outcome.paymentMethod}</span>}
+                                      {outcome.responsable && <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.3rem' }}><User size={13} /> {outcome.responsable}</span>}
                                     </div>
                                   </div>
 
@@ -986,8 +987,8 @@ const ApoderadoDashboard = () => {
                                       minWidth: '130px',
                                       padding: '0.5rem 0.75rem',
                                       borderRadius: 'var(--radius-sm)',
-                                      backgroundColor: bd.isAssigned ? 'rgba(99, 102, 241, 0.08)' : 'rgba(255, 255, 255, 0.02)',
-                                      border: bd.isAssigned ? '1px solid rgba(99, 102, 241, 0.25)' : '1px solid var(--border-color)'
+                                      backgroundColor: 'var(--bg-card-hover)',
+                                      border: '1px solid var(--border-color)'
                                     }}>
                                       <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', display: 'block', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
                                         Le Corresponde
@@ -1085,7 +1086,7 @@ const ApoderadoDashboard = () => {
             const dataToShow = payingDebt.transferData || transferData;
             if (dataToShow && dataToShow.bank) {
               return (
-                <div style={{ backgroundColor: 'rgba(99,102,241,0.05)', padding: '1rem', borderRadius: 'var(--radius-md)', border: '1px solid rgba(99,102,241,0.2)', marginBottom: '1.5rem', fontSize: '0.9rem' }}>
+                <div style={{ backgroundColor: 'var(--bg-card-hover)', padding: '1rem', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-color)', marginBottom: '1.5rem', fontSize: '0.9rem' }}>
                   <h4 style={{ margin: '0 0 0.5rem 0', color: 'var(--primary)', fontSize: '0.95rem' }}>Datos de Transferencia</h4>
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '0.3rem', color: 'var(--text-main)' }}>
                     {dataToShow.alias && <div><strong>Alias:</strong> {dataToShow.alias}</div>}

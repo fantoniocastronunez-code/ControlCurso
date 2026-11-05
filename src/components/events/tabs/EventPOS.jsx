@@ -818,8 +818,8 @@ const EventPOS = ({ event, onNavigateTab }) => {
         width: '100vw',
         height: '100vh',
         zIndex: 99999,
-        backgroundColor: '#0f172a',
-        backgroundImage: 'radial-gradient(at 0% 0%, rgba(99, 102, 241, 0.15) 0px, transparent 50%), radial-gradient(at 100% 100%, rgba(236, 72, 153, 0.1) 0px, transparent 50%)',
+        backgroundColor: '#0c0d10',
+        backgroundImage: 'none',
         padding: '1.25rem',
         overflowY: 'auto',
         boxSizing: 'border-box'
@@ -897,8 +897,8 @@ const EventPOS = ({ event, onNavigateTab }) => {
 
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
           {event.isTestEvent && (
-            <span style={{ backgroundColor: 'var(--warning)', color: '#000', padding: '0.25rem 0.65rem', borderRadius: '12px', fontSize: '0.75rem', fontWeight: 'bold' }}>
-              🧪 MODO PRUEBA
+            <span style={{ backgroundColor: 'var(--warning)', color: '#000', padding: '0.2rem 0.6rem', borderRadius: 'var(--radius-sm)', fontSize: '0.75rem', fontWeight: 'bold' }}>
+              MODO PRUEBA
             </span>
           )}
 
@@ -1551,7 +1551,7 @@ const EventPOS = ({ event, onNavigateTab }) => {
                               fontSize: '0.7rem',
                               fontWeight: 'bold'
                             }}>
-                              {stockInfo.availableUnits} disp. {isLowStock && '⚠️'}
+                              {stockInfo.availableUnits} disp. {isLowStock && '(Bajo)'}
                             </span>
                           )}
                         </div>
@@ -1748,7 +1748,7 @@ const EventPOS = ({ event, onNavigateTab }) => {
                                   textOverflow: 'ellipsis',
                                   whiteSpace: 'nowrap'
                                 }} title={sale.saleNote}>
-                                  📝 {sale.saleNote}
+                                  Nota: {sale.saleNote}
                                 </span>
                               )}
                               {isCancelled && <span style={{ marginTop: '2px', fontSize: '0.65rem', backgroundColor: 'var(--danger)', color: 'white', padding: '1px 4px', borderRadius: '4px', width: 'fit-content' }}>ANULADA</span>}
@@ -1760,12 +1760,12 @@ const EventPOS = ({ event, onNavigateTab }) => {
                               onClick={() => handleChangePaymentMethod(sale)}
                               style={{
                                 padding: '2px 7px',
-                                borderRadius: '10px',
+                                borderRadius: 'var(--radius-sm)',
                                 fontSize: '0.72rem',
-                                fontWeight: 'bold',
-                                border: `1px solid ${sale.paymentMethod === 'cash' ? '#10b981' : '#6366f1'}`,
-                                backgroundColor: sale.paymentMethod === 'cash' ? 'rgba(16, 185, 129, 0.15)' : 'rgba(99, 102, 241, 0.15)',
-                                color: sale.paymentMethod === 'cash' ? '#6ee7b7' : '#a5b4fc',
+                                fontWeight: '600',
+                                border: `1px solid ${sale.paymentMethod === 'cash' ? 'rgba(16, 185, 129, 0.4)' : 'rgba(37, 99, 235, 0.4)'}`,
+                                backgroundColor: sale.paymentMethod === 'cash' ? 'rgba(16, 185, 129, 0.12)' : 'rgba(37, 99, 235, 0.12)',
+                                color: sale.paymentMethod === 'cash' ? '#6ee7b7' : '#93c5fd',
                                 cursor: !isCancelled ? 'pointer' : 'default',
                                 display: 'inline-flex',
                                 alignItems: 'center',
@@ -1774,10 +1774,10 @@ const EventPOS = ({ event, onNavigateTab }) => {
                               title="Haz clic para cambiar método de pago (Efectivo / Transferencia)"
                             >
                               {sale.paymentMethod === 'cash'
-                                ? '💵 Efectivo'
+                                ? 'Efectivo'
                                 : sale.transferVerified
-                                  ? '🏦 Transf ✓'
-                                  : '🏦 Transf ⏳'}
+                                  ? 'Transf (Verificada)'
+                                  : 'Transf (Pendiente)'}
                             </button>
                           </td>
                           <td
@@ -1795,20 +1795,20 @@ const EventPOS = ({ event, onNavigateTab }) => {
                           </td>
                           <td style={{ padding: '0.4rem', textAlign: 'center', whiteSpace: 'nowrap' }}>
                             {isCancelled ? (
-                              <span style={{ fontSize: '0.72rem', backgroundColor: 'rgba(239, 68, 68, 0.15)', color: 'var(--danger)', padding: '2px 6px', borderRadius: '10px' }}>
+                              <span style={{ fontSize: '0.72rem', backgroundColor: 'rgba(239, 68, 68, 0.15)', color: 'var(--danger)', padding: '2px 6px', borderRadius: 'var(--radius-sm)' }}>
                                 Anulada
                               </span>
                             ) : (sale.orderStatus || sale.kitchenStatus) === 'delivered' ? (
-                              <span style={{ fontSize: '0.72rem', backgroundColor: 'rgba(16, 185, 129, 0.15)', color: '#10b981', border: '1px solid rgba(16, 185, 129, 0.3)', padding: '2px 6px', borderRadius: '10px', fontWeight: 'bold' }}>
-                                ✓ Entregado
+                              <span style={{ fontSize: '0.72rem', backgroundColor: 'rgba(16, 185, 129, 0.12)', color: '#10b981', border: '1px solid rgba(16, 185, 129, 0.3)', padding: '2px 6px', borderRadius: 'var(--radius-sm)', fontWeight: '600' }}>
+                                Entregado
                               </span>
                             ) : (sale.orderStatus || sale.kitchenStatus) === 'preparing' ? (
-                              <span style={{ fontSize: '0.72rem', backgroundColor: 'rgba(245, 158, 11, 0.15)', color: '#f59e0b', border: '1px solid rgba(245, 158, 11, 0.3)', padding: '2px 6px', borderRadius: '10px', fontWeight: 'bold' }}>
-                                🔥 Preparando
+                              <span style={{ fontSize: '0.72rem', backgroundColor: 'rgba(245, 158, 11, 0.12)', color: '#f59e0b', border: '1px solid rgba(245, 158, 11, 0.3)', padding: '2px 6px', borderRadius: 'var(--radius-sm)', fontWeight: '600' }}>
+                                Preparando
                               </span>
                             ) : (
-                              <span style={{ fontSize: '0.72rem', backgroundColor: 'rgba(148, 163, 184, 0.15)', color: '#94a3b8', border: '1px solid rgba(148, 163, 184, 0.3)', padding: '2px 6px', borderRadius: '10px' }}>
-                                ⏳ Pendiente
+                              <span style={{ fontSize: '0.72rem', backgroundColor: 'rgba(148, 163, 184, 0.12)', color: '#94a3b8', border: '1px solid rgba(148, 163, 184, 0.25)', padding: '2px 6px', borderRadius: 'var(--radius-sm)' }}>
+                                Pendiente
                               </span>
                             )}
                           </td>
@@ -2153,7 +2153,7 @@ const EventPOS = ({ event, onNavigateTab }) => {
                       checked={quickExpenseMethod === 'cash'}
                       onChange={(e) => setQuickExpenseMethod(e.target.value)}
                       style={{ accentColor: 'var(--primary)' }}
-                    /> 💵 Efectivo (Caja)
+                    /> Efectivo (Caja)
                   </label>
                   <label style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', cursor: 'pointer', fontSize: '0.9rem' }}>
                     <input
@@ -2163,7 +2163,7 @@ const EventPOS = ({ event, onNavigateTab }) => {
                       checked={quickExpenseMethod === 'transfer'}
                       onChange={(e) => setQuickExpenseMethod(e.target.value)}
                       style={{ accentColor: 'var(--primary)' }}
-                    /> 🏦 Transferencia
+                    /> Transferencia
                   </label>
                 </div>
               </div>

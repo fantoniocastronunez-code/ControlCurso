@@ -804,16 +804,17 @@ const MeetingReport = ({ onBack }) => {
       <div ref={reportRef}>
 
         {/* Meeting Header Banner */}
-        <div className="glass-panel" style={{ padding: '2rem', marginBottom: '2rem', border: '1px solid rgba(99, 102, 241, 0.4)', background: 'linear-gradient(135deg, rgba(30, 41, 59, 0.8) 0%, rgba(15, 23, 42, 0.9) 100%)' }}>
+        <div className="glass-panel" style={{ padding: '2rem', marginBottom: '2rem', border: '1px solid var(--border-color)', backgroundColor: 'var(--bg-card)' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '1.5rem' }}>
             <div style={{ flex: '1 1 350px' }}>
               <span style={{ 
                 fontSize: '0.75rem', 
-                fontWeight: '700', 
-                padding: '0.25rem 0.75rem', 
-                borderRadius: '20px', 
-                backgroundColor: 'rgba(99, 102, 241, 0.2)', 
-                color: 'var(--primary)',
+                fontWeight: '600', 
+                padding: '0.25rem 0.65rem', 
+                borderRadius: 'var(--radius-sm)', 
+                backgroundColor: 'rgba(37, 99, 235, 0.1)', 
+                color: '#93c5fd',
+                border: '1px solid rgba(37, 99, 235, 0.25)',
                 textTransform: 'uppercase',
                 letterSpacing: '0.05em'
               }}>
@@ -849,8 +850,8 @@ const MeetingReport = ({ onBack }) => {
           <div className="glass-panel" style={{ padding: '1.5rem', borderLeft: '4px solid var(--success)' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
               <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>Fondo Total Disponible</span>
-              <div style={{ backgroundColor: 'rgba(16, 185, 129, 0.2)', padding: '0.5rem', borderRadius: '50%', color: 'var(--success)' }}>
-                <DollarSign size={20} />
+              <div style={{ width: '36px', height: '36px', minWidth: '36px', borderRadius: 'var(--radius-sm)', display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: 'var(--bg-card-hover)', border: '1px solid var(--border-color)', color: 'var(--success)' }}>
+                <DollarSign size={18} />
               </div>
             </div>
             <h2 style={{ margin: 0, fontSize: '1.8rem', color: 'var(--success)' }}>{formatMoney(totalAvailable)}</h2>
@@ -863,8 +864,8 @@ const MeetingReport = ({ onBack }) => {
           <div className="glass-panel" style={{ padding: '1.5rem', borderLeft: '4px solid var(--primary)' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
               <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>Total Recaudado (Ingresos)</span>
-              <div style={{ backgroundColor: 'rgba(99, 102, 241, 0.2)', padding: '0.5rem', borderRadius: '50%', color: 'var(--primary)' }}>
-                <TrendingUp size={20} />
+              <div style={{ width: '36px', height: '36px', minWidth: '36px', borderRadius: 'var(--radius-sm)', display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: 'var(--bg-card-hover)', border: '1px solid var(--border-color)', color: 'var(--primary)' }}>
+                <TrendingUp size={18} />
               </div>
             </div>
             <h2 style={{ margin: 0, fontSize: '1.8rem', color: 'var(--primary)' }}>{formatMoney(totalCollected + totalIncomes)}</h2>
@@ -877,8 +878,8 @@ const MeetingReport = ({ onBack }) => {
           <div className="glass-panel" style={{ padding: '1.5rem', borderLeft: '4px solid var(--danger)' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
               <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>Total Gastos Realizados</span>
-              <div style={{ backgroundColor: 'rgba(239, 68, 68, 0.2)', padding: '0.5rem', borderRadius: '50%', color: 'var(--danger)' }}>
-                <TrendingDown size={20} />
+              <div style={{ width: '36px', height: '36px', minWidth: '36px', borderRadius: 'var(--radius-sm)', display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: 'var(--bg-card-hover)', border: '1px solid var(--border-color)', color: 'var(--danger)' }}>
+                <TrendingDown size={18} />
               </div>
             </div>
             <h2 style={{ margin: 0, fontSize: '1.8rem', color: 'var(--danger)' }}>{formatMoney(totalOutcomes)}</h2>
@@ -888,14 +889,14 @@ const MeetingReport = ({ onBack }) => {
           </div>
 
           {/* % Cumplimiento de Apoderados */}
-          <div className="glass-panel" style={{ padding: '1.5rem', borderLeft: '4px solid #8b5cf6' }}>
+          <div className="glass-panel" style={{ padding: '1.5rem', borderLeft: '4px solid var(--primary)' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
               <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>Cumplimiento de Pagos</span>
-              <div style={{ backgroundColor: 'rgba(139, 92, 246, 0.2)', padding: '0.5rem', borderRadius: '50%', color: '#8b5cf6' }}>
-                <Users size={20} />
+              <div style={{ width: '36px', height: '36px', minWidth: '36px', borderRadius: 'var(--radius-sm)', display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: 'var(--bg-card-hover)', border: '1px solid var(--border-color)', color: 'var(--primary)' }}>
+                <Users size={18} />
               </div>
             </div>
-            <h2 style={{ margin: 0, fontSize: '1.8rem', color: '#8b5cf6' }}>{studentDebtStats.paidPercentage}%</h2>
+            <h2 style={{ margin: 0, fontSize: '1.8rem', color: 'var(--text-main)' }}>{studentDebtStats.paidPercentage}%</h2>
             <p style={{ margin: '0.35rem 0 0 0', fontSize: '0.8rem', color: 'var(--text-muted)' }}>
               {studentDebtStats.countPaid} de {students.length} alumnos al día
             </p>
@@ -1007,7 +1008,7 @@ const MeetingReport = ({ onBack }) => {
               fontSize: '0.9rem'
             }}
           >
-            📊 Fondos de Curso ({Object.keys(finalFundsMap).length})
+            Fondos de Curso ({Object.keys(finalFundsMap).length})
           </button>
           <button 
             onClick={() => setActiveTab('gastos')}
@@ -1019,7 +1020,7 @@ const MeetingReport = ({ onBack }) => {
               fontSize: '0.9rem'
             }}
           >
-            💸 Lista de Gastos ({outcomes.length})
+            Lista de Gastos ({outcomes.length})
           </button>
           <button 
             onClick={() => setActiveTab('cuotas')}
@@ -1031,7 +1032,7 @@ const MeetingReport = ({ onBack }) => {
               fontSize: '0.9rem'
             }}
           >
-            📋 Cuotas Emitidas ({expenses.length})
+            Cuotas Emitidas ({expenses.length})
           </button>
           <button 
             onClick={() => setActiveTab('morosos')}
@@ -1043,15 +1044,15 @@ const MeetingReport = ({ onBack }) => {
               fontSize: '0.9rem'
             }}
           >
-            👥 Estado de Apoderados ({students.length})
+            Estado de Apoderados ({students.length})
           </button>
         </div>
 
         {/* Tab 1: Fondos de Curso */}
         {activeTab === 'resumen' && (
           <div className="glass-panel" style={{ padding: '1.75rem' }}>
-            <h3 style={{ fontSize: '1.25rem', marginBottom: '1rem', color: '#c4b5fd' }}>
-              📊 Fondos de Curso ({Object.keys(finalFundsMap).length})
+            <h3 style={{ fontSize: '1.25rem', marginBottom: '1rem', color: 'var(--text-main)' }}>
+              Fondos de Curso ({Object.keys(finalFundsMap).length})
             </h3>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: '1rem' }}>
               {Object.values(finalFundsMap).map(f => (
@@ -1181,12 +1182,13 @@ const MeetingReport = ({ onBack }) => {
                             <span style={{ 
                               fontSize: '0.75rem', 
                               padding: '0.15rem 0.5rem', 
-                              borderRadius: '10px', 
-                              backgroundColor: 'rgba(234, 88, 12, 0.15)', 
-                              color: '#fb923c',
+                              borderRadius: 'var(--radius-sm)', 
+                              backgroundColor: 'var(--bg-main)', 
+                              color: 'var(--text-muted)',
+                              border: '1px solid var(--border-color)',
                               fontWeight: '600'
                             }}>
-                              🎉 {o.eventName || 'Evento'}
+                              {o.eventName || 'Evento'}
                             </span>
                           )}
                           <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>• {methodLabel}</span>
@@ -1287,9 +1289,9 @@ const MeetingReport = ({ onBack }) => {
                       </div>
 
                       <div style={{ display: 'flex', gap: '1rem', fontSize: '0.85rem', color: 'var(--text-muted)', flexWrap: 'wrap' }}>
-                        <span style={{ color: 'var(--success)' }}>✔ {paidCount} Pagadas</span>
-                        {partialCount > 0 && <span style={{ color: '#f59e0b' }}>⚡ {partialCount} Parciales</span>}
-                        {pendingCount > 0 && <span style={{ color: 'var(--danger)' }}>✖ {pendingCount} Pendientes</span>}
+                        <span style={{ color: 'var(--success)' }}>{paidCount} Pagadas</span>
+                        {partialCount > 0 && <span style={{ color: '#f59e0b' }}>{partialCount} Parciales</span>}
+                        {pendingCount > 0 && <span style={{ color: 'var(--danger)' }}>{pendingCount} Pendientes</span>}
                       </div>
                     </div>
                   );
@@ -1306,7 +1308,7 @@ const MeetingReport = ({ onBack }) => {
               <div>
                 <h3 style={{ margin: 0 }}>Estado de Apoderados y Cumplimiento</h3>
                 <p style={{ margin: '0.25rem 0 0 0', color: 'var(--text-muted)', fontSize: '0.85rem' }}>
-                  {hideSensitiveNames ? '🔒 Modo Proyector activo (nombres protegidos)' : 'Haz clic en un alumno para ver su detalle de pagos'}
+                  {hideSensitiveNames ? 'Modo Proyector activo (nombres protegidos)' : 'Haz clic en un alumno para ver su detalle de pagos'}
                 </p>
               </div>
 

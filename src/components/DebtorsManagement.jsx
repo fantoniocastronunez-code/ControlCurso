@@ -361,17 +361,17 @@ const DebtorsManagement = ({ onBack }) => {
       </div>
 
       {message && (
-        <div style={{ backgroundColor: 'rgba(16,185,129,0.2)', color: 'var(--success)', padding: '1rem', borderRadius: 'var(--radius-md)', marginBottom: '1.5rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+        <div style={{ backgroundColor: 'var(--bg-card)', border: '1px solid var(--success)', color: 'var(--success)', padding: '1rem', borderRadius: 'var(--radius-md)', marginBottom: '1.5rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
           <CheckCircle size={18} /> {message}
         </div>
       )}
 
       {debtorsList.length === 0 ? (
         <div className="glass-panel" style={{ padding: '3rem', textAlign: 'center' }}>
-          <div style={{ backgroundColor: 'rgba(16,185,129,0.1)', padding: '1.5rem', borderRadius: '50%', display: 'inline-block', marginBottom: '1rem', color: 'var(--success)' }}>
-            <CheckCircle size={40} />
+          <div style={{ width: '56px', height: '56px', borderRadius: 'var(--radius-md)', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', backgroundColor: 'var(--bg-card-hover)', border: '1px solid var(--border-color)', marginBottom: '1rem', color: 'var(--success)' }}>
+            <CheckCircle size={28} />
           </div>
-          <h3>¡Todo al día!</h3>
+          <h3>Todo al día</h3>
           <p style={{ color: 'var(--text-muted)' }}>No hay apoderados con cuotas pendientes en este momento.</p>
         </div>
       ) : (

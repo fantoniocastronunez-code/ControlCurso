@@ -443,7 +443,7 @@ const OutcomeManagement = ({ onBack }) => {
       return;
     }
 
-    if (!(await showConfirm(`¿Estás seguro de reemplazar TODOS los montos en sistema por las sumas manuales auditadas?\n\n⚠️ ATENCIÓN: Cualquier gasto que NO tenga un monto manual ingresado quedará en $0.`))) return;
+    if (!(await showConfirm(`¿Estás seguro de reemplazar TODOS los montos en sistema por las sumas manuales auditadas?\n\nATENCIÓN: Cualquier gasto que NO tenga un monto manual ingresado quedará en $0.`))) return;
 
     setLoading(true);
     try {
@@ -528,27 +528,27 @@ const OutcomeManagement = ({ onBack }) => {
           </div>
         </div>
 
-        <div className="glass-panel" style={{ padding: '1rem 1.25rem', borderRadius: '12px', borderLeft: '4px solid #8b5cf6', background: 'linear-gradient(135deg, rgba(30, 41, 59, 0.6) 0%, rgba(139, 92, 246, 0.1) 100%)' }}>
-          <div style={{ fontSize: '0.8rem', color: '#c4b5fd', marginBottom: '0.25rem', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
-            <span>🎉 Gastos Imputados a Eventos</span>
+        <div className="glass-panel" style={{ padding: '1rem 1.25rem', borderRadius: 'var(--radius-md)', borderLeft: '4px solid var(--primary)', backgroundColor: 'var(--bg-card)' }}>
+          <div style={{ fontSize: '0.8rem', color: 'var(--text-main)', marginBottom: '0.25rem', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+            <span>Gastos Imputados a Eventos</span>
           </div>
-          <div style={{ fontSize: '1.45rem', fontWeight: 'bold', color: '#c4b5fd' }}>{formatMoney(totalEventsAmount)}</div>
+          <div style={{ fontSize: '1.45rem', fontWeight: 'bold', color: 'var(--text-main)' }}>{formatMoney(totalEventsAmount)}</div>
           <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.2rem' }}>
-            {outcomes.filter(o => !!o.eventId || !!o.isEventExpense).length} compras registradas en eventos
+            {outcomes.filter(o => !(!o.eventId && !o.isEventExpense)).length} compras registradas en eventos
           </div>
         </div>
       </div>
 
       {/* Modo Auditoría Panel */}
       {isAuditMode && (
-        <div className="glass-panel animate-fade-in" style={{ padding: '1.5rem', marginBottom: '2rem', border: '1px solid rgba(139, 92, 246, 0.4)', background: 'linear-gradient(135deg, rgba(30, 41, 59, 0.9) 0%, rgba(88, 28, 135, 0.2) 100%)' }}>
+        <div className="glass-panel animate-fade-in" style={{ padding: '1.5rem', marginBottom: '2rem', border: '1px solid var(--border-color)', backgroundColor: 'var(--bg-card)' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem', flexWrap: 'wrap', gap: '1rem' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-              <div style={{ backgroundColor: 'rgba(139, 92, 246, 0.25)', padding: '0.6rem', borderRadius: '10px', color: '#a78bfa' }}>
+              <div style={{ backgroundColor: 'rgba(37, 99, 235, 0.12)', padding: '0.6rem', borderRadius: 'var(--radius-sm)', color: 'var(--primary)' }}>
                 <Calculator size={22} />
               </div>
               <div>
-                <h3 style={{ margin: 0, fontSize: '1.2rem', color: '#c4b5fd' }}>Panel de Auditoría de Gastos</h3>
+                <h3 style={{ margin: 0, fontSize: '1.2rem', color: 'var(--text-main)' }}>Panel de Auditoría de Gastos</h3>
                 <p style={{ margin: 0, fontSize: '0.85rem', color: 'var(--text-muted)' }}>
                   Verifica que cada gasto registrado concuerde con las boletas/facturas físicas o digitales.
                 </p>
@@ -678,8 +678,8 @@ const OutcomeManagement = ({ onBack }) => {
               value={newMethod}
               onChange={(e) => setNewMethod(e.target.value)}
             >
-              <option value="cash">💵 Efectivo (Caja Chica)</option>
-              <option value="transfer">🏦 Transferencia (Cuenta)</option>
+              <option value="cash">Efectivo (Caja Chica)</option>
+              <option value="transfer">Transferencia (Cuenta)</option>
             </select>
           </div>
 
@@ -687,20 +687,20 @@ const OutcomeManagement = ({ onBack }) => {
           <div className="input-group" style={{ flex: '1.5', minWidth: '180px', marginBottom: 0 }}>
             <label className="input-label" style={{ display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
               <span>¿Asociar a un Evento?</span>
-              <span style={{ fontSize: '0.75rem', color: '#c4b5fd' }}>(Opcional)</span>
+              <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>(Opcional)</span>
             </label>
             <select
               className="input-field"
               value={selectedEventId}
               onChange={(e) => handleEventSelectChange(e.target.value)}
               style={{
-                borderColor: selectedEventId ? '#8b5cf6' : 'var(--border-color)',
-                backgroundColor: selectedEventId ? 'rgba(139, 92, 246, 0.08)' : 'transparent'
+                borderColor: selectedEventId ? 'var(--primary)' : 'var(--border-color)',
+                backgroundColor: selectedEventId ? 'rgba(37, 99, 235, 0.08)' : 'transparent'
               }}
             >
               <option value="">Ninguno (Gasto Ordinario del Curso)</option>
               {events.map(ev => (
-                <option key={ev.id} value={ev.id}>🎉 Evento: {ev.name}</option>
+                <option key={ev.id} value={ev.id}>Evento: {ev.name}</option>
               ))}
             </select>
           </div>
@@ -782,7 +782,7 @@ const OutcomeManagement = ({ onBack }) => {
                   const evCount = outcomes.filter(o => o.eventId === ev.id).length;
                   return (
                     <option key={ev.id} value={ev.id}>
-                      🎉 {ev.name} ({evCount})
+                      {ev.name} ({evCount})
                     </option>
                   );
                 })}
@@ -856,7 +856,7 @@ const OutcomeManagement = ({ onBack }) => {
                           >
                             <option value="">Gasto General (Sin evento)</option>
                             {events.map(ev => (
-                              <option key={ev.id} value={ev.id}>🎉 {ev.name}</option>
+                              <option key={ev.id} value={ev.id}>{ev.name}</option>
                             ))}
                           </select>
                           <input
@@ -995,12 +995,12 @@ const OutcomeManagement = ({ onBack }) => {
                               fontSize: '0.72rem',
                               padding: '0.15rem 0.5rem',
                               borderRadius: '12px',
-                              backgroundColor: 'rgba(139, 92, 246, 0.15)',
-                              color: '#c4b5fd',
-                              border: '1px solid rgba(139, 92, 246, 0.3)',
+                              backgroundColor: 'rgba(37, 99, 235, 0.1)',
+                              color: '#93c5fd',
+                              border: '1px solid rgba(37, 99, 235, 0.25)',
                               fontWeight: '600'
                             }}>
-                              🎉 Evento: {eventNameDisplay}
+                              Evento: {eventNameDisplay}
                             </span>
                           )}
                           {o.responsable && (
@@ -1072,7 +1072,7 @@ const OutcomeManagement = ({ onBack }) => {
                       </td>
 
                       <td style={{ padding: '1rem' }}>
-                        <div style={{ fontSize: '0.9rem' }}>{o.paymentMethod === 'cash' ? '💵 Efectivo' : '🏦 Transferencia'}</div>
+                        <div style={{ fontSize: '0.9rem' }}>{o.paymentMethod === 'cash' ? 'Efectivo' : 'Transferencia'}</div>
                         <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
                           {f ? f.name : (isEvent ? `Evento: ${eventNameDisplay}` : 'Fondo General')}
                         </div>
@@ -1133,7 +1133,7 @@ const OutcomeManagement = ({ onBack }) => {
                           className="btn btn-outline"
                           style={{ padding: '0.3rem 0.6rem', fontSize: '0.8rem', borderColor: auditChecks[o.id] ? 'var(--success)' : '#8b5cf6', color: auditChecks[o.id] ? 'var(--success)' : '#c4b5fd' }}
                         >
-                          {auditChecks[o.id] ? '✔ Listo' : 'Verificar'}
+                          {auditChecks[o.id] ? 'Listo' : 'Verificar'}
                         </button>
                       </td>
                     </>
@@ -1148,12 +1148,12 @@ const OutcomeManagement = ({ onBack }) => {
                               fontSize: '0.72rem',
                               padding: '0.15rem 0.55rem',
                               borderRadius: '12px',
-                              backgroundColor: 'rgba(139, 92, 246, 0.15)',
-                              color: '#c4b5fd',
-                              border: '1px solid rgba(139, 92, 246, 0.3)',
+                              backgroundColor: 'rgba(37, 99, 235, 0.1)',
+                              color: '#93c5fd',
+                              border: '1px solid rgba(37, 99, 235, 0.25)',
                               fontWeight: '600'
                             }}>
-                              🎉 Evento: {eventNameDisplay}
+                              Evento: {eventNameDisplay}
                             </span>
                           )}
                           {o.responsable && (
@@ -1187,7 +1187,7 @@ const OutcomeManagement = ({ onBack }) => {
                         -{formatMoney(o.amount)}
                       </td>
                       <td style={{ padding: '0.85rem 1rem' }}>
-                        <div style={{ fontSize: '0.9rem' }}>{o.paymentMethod === 'cash' ? '💵 Efectivo' : '🏦 Transferencia'}</div>
+                        <div style={{ fontSize: '0.9rem' }}>{o.paymentMethod === 'cash' ? 'Efectivo' : 'Transferencia'}</div>
                         <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
                           {f ? f.name : (isEvent ? `Evento: ${eventNameDisplay}` : 'Fondo General')}
                         </div>

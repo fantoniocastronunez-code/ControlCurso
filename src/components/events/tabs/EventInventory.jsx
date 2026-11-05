@@ -328,8 +328,8 @@ const EventInventory = ({ event }) => {
           {/* Tarjetas de Estadísticas de Inventario */}
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1rem' }}>
             <div className="glass-panel" style={{ padding: '1.25rem', display: 'flex', alignItems: 'center', gap: '1rem' }}>
-              <div style={{ backgroundColor: 'rgba(99,102,241,0.15)', padding: '0.75rem', borderRadius: '50%', color: 'var(--primary)' }}>
-                <Package size={22} />
+              <div style={{ width: '40px', height: '40px', minWidth: '40px', borderRadius: 'var(--radius-sm)', display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: 'var(--bg-card-hover)', border: '1px solid var(--border-color)', color: 'var(--primary)' }}>
+                <Package size={20} />
               </div>
               <div>
                 <h3 style={{ margin: 0, fontSize: '1.3rem' }}>{inventory.length}</h3>
@@ -338,8 +338,8 @@ const EventInventory = ({ event }) => {
             </div>
 
             <div className="glass-panel" style={{ padding: '1.25rem', display: 'flex', alignItems: 'center', gap: '1rem' }}>
-              <div style={{ backgroundColor: 'rgba(16,185,129,0.15)', padding: '0.75rem', borderRadius: '50%', color: 'var(--success)' }}>
-                <DollarSign size={22} />
+              <div style={{ width: '40px', height: '40px', minWidth: '40px', borderRadius: 'var(--radius-sm)', display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: 'var(--bg-card-hover)', border: '1px solid var(--border-color)', color: 'var(--text-main)' }}>
+                <DollarSign size={20} />
               </div>
               <div>
                 <h3 style={{ margin: 0, fontSize: '1.3rem' }}>{formatMoney(totalCost)}</h3>
@@ -348,8 +348,8 @@ const EventInventory = ({ event }) => {
             </div>
 
             <div className="glass-panel" style={{ padding: '1.25rem', display: 'flex', alignItems: 'center', gap: '1rem' }}>
-              <div style={{ backgroundColor: 'rgba(245,158,11,0.15)', padding: '0.75rem', borderRadius: '50%', color: 'var(--warning)' }}>
-                <AlertTriangle size={22} />
+              <div style={{ width: '40px', height: '40px', minWidth: '40px', borderRadius: 'var(--radius-sm)', display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: 'var(--bg-card-hover)', border: '1px solid var(--border-color)', color: 'var(--warning)' }}>
+                <AlertTriangle size={20} />
               </div>
               <div>
                 <h3 style={{ margin: 0, fontSize: '1.3rem', color: lowStockCount > 0 ? 'var(--warning)' : 'inherit' }}>{lowStockCount}</h3>
@@ -358,8 +358,8 @@ const EventInventory = ({ event }) => {
             </div>
 
             <div className="glass-panel" style={{ padding: '1.25rem', display: 'flex', alignItems: 'center', gap: '1rem' }}>
-              <div style={{ backgroundColor: 'rgba(239,68,68,0.15)', padding: '0.75rem', borderRadius: '50%', color: 'var(--danger)' }}>
-                <AlertTriangle size={22} />
+              <div style={{ width: '40px', height: '40px', minWidth: '40px', borderRadius: 'var(--radius-sm)', display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: 'var(--bg-card-hover)', border: '1px solid var(--border-color)', color: 'var(--danger)' }}>
+                <AlertTriangle size={20} />
               </div>
               <div>
                 <h3 style={{ margin: 0, fontSize: '1.3rem', color: outOfStockCount > 0 ? 'var(--danger)' : 'inherit' }}>{outOfStockCount}</h3>
@@ -797,8 +797,8 @@ const EventInventory = ({ event }) => {
                             {!hasPhysical ? (
                               <span style={{ color: 'var(--text-muted)', fontSize: '0.8rem', fontStyle: 'italic' }}>Sin registrar</span>
                             ) : diff === 0 ? (
-                              <span style={{ color: 'var(--success)', fontWeight: 'bold', fontSize: '0.85rem' }}>
-                                ✓ Exacto (0 mermas)
+                              <span style={{ color: 'var(--success)', fontWeight: '600', fontSize: '0.85rem' }}>
+                                Exacto (0 mermas)
                               </span>
                             ) : diff < 0 ? (
                               <span style={{ color: 'var(--danger)', fontWeight: 'bold', fontSize: '0.85rem' }}>

@@ -114,8 +114,8 @@ const InstallAppGuide = () => {
             </button>
             
             <div style={{ textAlign: 'center', marginBottom: '1.5rem' }}>
-              <div style={{ backgroundColor: 'rgba(16, 185, 129, 0.1)', padding: '1rem', borderRadius: '50%', display: 'inline-block', marginBottom: '1rem' }}>
-                <Smartphone size={40} color="var(--primary)" />
+              <div style={{ width: '56px', height: '56px', borderRadius: 'var(--radius-md)', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', backgroundColor: 'var(--bg-card-hover)', border: '1px solid var(--border-color)', marginBottom: '1rem' }}>
+                <Smartphone size={28} color="var(--primary)" />
               </div>
               <h2 style={{ margin: '0 0 0.5rem 0' }}>Instalar Aplicación</h2>
               <p style={{ color: 'var(--text-muted)', margin: 0 }}>Para un acceso más rápido, instala la app en tu pantalla de inicio.</p>
