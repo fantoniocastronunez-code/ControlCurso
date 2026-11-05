@@ -706,7 +706,7 @@ const MeetingReport = ({ onBack }) => {
       if (actionsBar) actionsBar.style.display = 'none';
 
       const canvas = await html2canvas(reportRef.current, {
-        backgroundColor: '#0f172a',
+        backgroundColor: '#0c0d10',
         scale: 2
       });
 

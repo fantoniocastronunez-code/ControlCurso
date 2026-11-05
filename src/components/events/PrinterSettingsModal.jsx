@@ -115,15 +115,15 @@ const PrinterSettingsModal = ({ isOpen, onClose, eventName }) => {
       }}
     >
       <div style={{
-        backgroundColor: '#1e293b',
-        color: '#f8fafc',
+        backgroundColor: 'var(--bg-card)',
+        color: 'var(--text-main)',
         borderRadius: 'var(--radius-lg, 12px)',
         width: '100%',
         maxWidth: '560px',
         maxHeight: '90vh',
         overflowY: 'auto',
-        boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.5)',
-        border: '1px solid rgba(255, 255, 255, 0.1)',
+        boxShadow: '0 12px 32px rgba(0, 0, 0, 0.5)',
+        border: '1px solid var(--border-color)',
         marginTop: '0.25rem'
       }}>
         {/* Header */}

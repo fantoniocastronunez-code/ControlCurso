@@ -55,9 +55,9 @@ const ComandasQRModal = ({ isOpen, onClose, eventId, eventName }) => {
         style={{
           width: '100%',
           maxWidth: '460px',
-          backgroundColor: '#0f172a',
-          border: '1px solid rgba(255, 255, 255, 0.15)',
-          borderRadius: '16px',
+          backgroundColor: 'var(--bg-card)',
+          border: '1px solid var(--border-color)',
+          borderRadius: 'var(--radius-lg)',
           padding: '1.75rem',
           boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.5), 0 10px 10px -5px rgba(0, 0, 0, 0.3)',
           position: 'relative'

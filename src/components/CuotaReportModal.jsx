@@ -545,13 +545,13 @@ const CuotaReportModal = ({
         width: '100%',
         maxWidth: '560px',
         maxHeight: '92vh',
-        backgroundColor: '#0f172a',
-        border: '1px solid rgba(16, 124, 65, 0.35)',
+        backgroundColor: 'var(--bg-card)',
+        border: '1px solid var(--border-color)',
         display: 'flex',
         marginTop: '0.25rem',
         flexDirection: 'column',
         borderRadius: 'var(--radius-lg)',
-        boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.5), 0 0 25px rgba(16, 124, 65, 0.15)',
+        boxShadow: '0 12px 32px rgba(0, 0, 0, 0.5)',
         overflow: 'hidden'
       }}>
         {/* Cabecera del Modal */}
@@ -631,11 +631,11 @@ const CuotaReportModal = ({
                       borderRadius: 'var(--radius-md)'
                     }}
                   >
-                    <option value="all" style={{ backgroundColor: '#1e293b', color: '#fff' }}>
+                    <option value="all" style={{ backgroundColor: 'var(--bg-card)', color: 'var(--text-main)' }}>
                       Todas las Cuotas (Consolidado de Cuotas Totales)
                     </option>
                     {expenses.map(exp => (
-                      <option key={exp.id} value={exp.id} style={{ backgroundColor: '#1e293b', color: '#fff' }}>
+                      <option key={exp.id} value={exp.id} style={{ backgroundColor: 'var(--bg-card)', color: 'var(--text-main)' }}>
                         {exp.title} ({exp.date ? `Emitido: ${exp.date}` : 'Sin fecha'})
                       </option>
                     ))}

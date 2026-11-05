@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { db } from '../firebase/config';
 import { collection, getDocs } from 'firebase/firestore';
-import { Search, X, User, UserCheck, AlertCircle, CheckCircle, DollarSign, ArrowRight, ShieldAlert, Sparkles } from 'lucide-react';
+import { Search, X, User, UserCheck, AlertCircle, CheckCircle, DollarSign, ArrowRight, ShieldAlert } from 'lucide-react';
 import { formatStudentName } from '../utils/nameUtils';
 import StudentDetailModal from './StudentDetailModal';
 
@@ -158,9 +158,7 @@ const StudentSearchModal = ({ isOpen, onClose, onSelectStudent }) => {
           left: 0,
           right: 0,
           bottom: 0,
-          backgroundColor: 'rgba(15, 23, 42, 0.85)',
-          backdropFilter: 'blur(8px)',
-          WebkitBackdropFilter: 'blur(8px)',
+          backgroundColor: 'rgba(0, 0, 0, 0.75)',
           zIndex: 999,
           display: 'flex',
           justifyContent: 'center',
@@ -177,24 +175,25 @@ const StudentSearchModal = ({ isOpen, onClose, onSelectStudent }) => {
           style={{
             width: '100%',
             maxWidth: '750px',
-            marginTop: '2rem',
+            marginTop: '1.5rem',
             marginBottom: '2rem',
             padding: '1.5rem',
-            backgroundColor: 'var(--bg-main)',
-            border: '1px solid rgba(99, 102, 241, 0.3)',
-            boxShadow: '0 20px 40px rgba(0, 0, 0, 0.5)',
+            backgroundColor: 'var(--bg-card)',
+            border: '1px solid var(--border-color)',
+            borderRadius: 'var(--radius-lg)',
+            boxShadow: '0 12px 32px rgba(0, 0, 0, 0.5)',
             position: 'relative'
           }}
         >
           {/* Header */}
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-              <div style={{ backgroundColor: 'rgba(99, 102, 241, 0.2)', padding: '0.6rem', borderRadius: '10px', color: 'var(--primary)' }}>
-                <Search size={22} />
+              <div style={{ width: '38px', height: '38px', minWidth: '38px', borderRadius: 'var(--radius-sm)', backgroundColor: 'var(--bg-card-hover)', border: '1px solid var(--border-color)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-main)' }}>
+                <Search size={18} />
               </div>
               <div>
-                <h3 style={{ margin: 0, fontSize: '1.25rem' }}>Buscador de Alumnos y Apoderados</h3>
-                <p style={{ margin: 0, fontSize: '0.85rem', color: 'var(--text-muted)' }}>
+                <h3 style={{ margin: 0, fontSize: '1.15rem', color: 'var(--text-main)', fontWeight: '600' }}>Buscador de Alumnos y Apoderados</h3>
+                <p style={{ margin: 0, fontSize: '0.8rem', color: 'var(--text-muted)' }}>
                   Escribe el nombre del alumno, apoderado o RUT para ver su detalle completo de pagos
                 </p>
               </div>
@@ -202,7 +201,7 @@ const StudentSearchModal = ({ isOpen, onClose, onSelectStudent }) => {
             <button 
               onClick={onClose} 
               className="btn btn-outline" 
-              style={{ padding: '0.5rem', borderRadius: '50%', minWidth: '36px', height: '36px' }}
+              style={{ padding: '0.35rem 0.5rem', color: 'var(--text-muted)', borderColor: 'var(--border-color)' }}
               title="Cerrar buscador"
             >
               <X size={18} />
@@ -221,10 +220,10 @@ const StudentSearchModal = ({ isOpen, onClose, onSelectStudent }) => {
               style={{
                 width: '100%',
                 padding: '0.85rem 2.8rem 0.85rem 2.8rem',
-                fontSize: '1rem',
-                borderRadius: 'var(--radius-md)',
-                backgroundColor: 'rgba(255, 255, 255, 0.05)',
-                border: '1px solid rgba(99, 102, 241, 0.4)'
+                fontSize: '0.95rem',
+                borderRadius: 'var(--radius-sm)',
+                backgroundColor: 'var(--bg-card-hover)',
+                border: '1px solid var(--border-color)'
               }}
             />
             <Search 
@@ -283,25 +282,21 @@ const StudentSearchModal = ({ isOpen, onClose, onSelectStudent }) => {
                     key={student.id}
                     onClick={() => setSelectedStudentForDetail(student)}
                     style={{
-                      padding: '1rem 1.25rem',
-                      backgroundColor: 'rgba(255, 255, 255, 0.03)',
-                      borderRadius: 'var(--radius-md)',
+                      padding: '0.85rem 1rem',
+                      backgroundColor: 'var(--bg-card-hover)',
+                      borderRadius: 'var(--radius-sm)',
                       border: '1px solid var(--border-color)',
                       cursor: 'pointer',
-                      transition: 'all 0.2s ease',
+                      transition: 'all 0.15s ease',
                       display: 'flex',
                       flexDirection: 'column',
-                      gap: '0.6rem'
+                      gap: '0.5rem'
                     }}
                     onMouseOver={(e) => {
-                      e.currentTarget.style.backgroundColor = 'rgba(99, 102, 241, 0.08)';
-                      e.currentTarget.style.borderColor = 'rgba(99, 102, 241, 0.4)';
-                      e.currentTarget.style.transform = 'translateY(-1px)';
+                      e.currentTarget.style.borderColor = 'var(--border-color-focus)';
                     }}
                     onMouseOut={(e) => {
-                      e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.03)';
                       e.currentTarget.style.borderColor = 'var(--border-color)';
-                      e.currentTarget.style.transform = 'translateY(0)';
                     }}
                   >
                     {/* Top row: Name, List Num, and Action */}
@@ -310,14 +305,15 @@ const StudentSearchModal = ({ isOpen, onClose, onSelectStudent }) => {
                         <span style={{ 
                           fontSize: '0.75rem', 
                           fontWeight: '600', 
-                          padding: '0.2rem 0.5rem', 
-                          borderRadius: '4px', 
-                          backgroundColor: 'rgba(255,255,255,0.08)',
+                          padding: '0.15rem 0.45rem', 
+                          borderRadius: 'var(--radius-sm)', 
+                          backgroundColor: 'var(--bg-card)',
+                          border: '1px solid var(--border-color)',
                           color: 'var(--text-muted)'
                         }}>
                           N° {student.listNumber || '-'}
                         </span>
-                        <h4 style={{ margin: 0, color: 'var(--text-main)', fontSize: '1.05rem' }}>
+                        <h4 style={{ margin: 0, color: 'var(--text-main)', fontSize: '0.95rem', fontWeight: '600' }}>
                           {formatStudentName(student)}
                         </h4>
                         {student.rut && (
@@ -327,14 +323,14 @@ const StudentSearchModal = ({ isOpen, onClose, onSelectStudent }) => {
                         )}
                       </div>
 
-                      <span style={{ color: 'var(--primary)', display: 'flex', alignItems: 'center', gap: '0.25rem', fontSize: '0.85rem', fontWeight: '500', flexShrink: 0 }}>
-                        Ver Pagos <ArrowRight size={15} />
+                      <span style={{ color: 'var(--primary)', display: 'flex', alignItems: 'center', gap: '0.25rem', fontSize: '0.8rem', fontWeight: '500', flexShrink: 0 }}>
+                        Ver Pagos <ArrowRight size={14} />
                       </span>
                     </div>
 
                     {/* Middle row: Linked Apoderados */}
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap', fontSize: '0.85rem', color: 'var(--text-muted)' }}>
-                      <User size={14} style={{ flexShrink: 0 }} />
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap', fontSize: '0.825rem', color: 'var(--text-muted)' }}>
+                      <User size={13} style={{ flexShrink: 0 }} />
                       <span>
                         {emails.length === 0 ? (
                           <span style={{ fontStyle: 'italic', opacity: 0.7 }}>Sin apoderado asignado</span>
@@ -364,15 +360,15 @@ const StudentSearchModal = ({ isOpen, onClose, onSelectStudent }) => {
                           display: 'inline-flex',
                           alignItems: 'center',
                           gap: '0.3rem',
-                          padding: '0.25rem 0.6rem',
-                          borderRadius: '20px',
-                          fontSize: '0.75rem',
+                          padding: '0.15rem 0.5rem',
+                          borderRadius: 'var(--radius-sm)',
+                          fontSize: '0.725rem',
                           fontWeight: '600',
-                          backgroundColor: 'rgba(239, 68, 68, 0.15)',
+                          backgroundColor: 'var(--bg-card)',
                           color: 'var(--danger)',
-                          border: '1px solid rgba(239, 68, 68, 0.3)'
+                          border: '1px solid var(--danger)'
                         }}>
-                          <AlertCircle size={13} />
+                          <AlertCircle size={12} />
                           Deuda: {formatMoney(debtInfo.totalPending)} ({debtInfo.pendingCount + debtInfo.partialCount} {debtInfo.pendingCount + debtInfo.partialCount === 1 ? 'cuota' : 'cuotas'})
                         </span>
                       ) : (
@@ -380,15 +376,15 @@ const StudentSearchModal = ({ isOpen, onClose, onSelectStudent }) => {
                           display: 'inline-flex',
                           alignItems: 'center',
                           gap: '0.3rem',
-                          padding: '0.25rem 0.6rem',
-                          borderRadius: '20px',
-                          fontSize: '0.75rem',
+                          padding: '0.15rem 0.5rem',
+                          borderRadius: 'var(--radius-sm)',
+                          fontSize: '0.725rem',
                           fontWeight: '600',
-                          backgroundColor: 'rgba(16, 185, 129, 0.15)',
+                          backgroundColor: 'var(--bg-card)',
                           color: 'var(--success)',
-                          border: '1px solid rgba(16, 185, 129, 0.3)'
+                          border: '1px solid var(--success)'
                         }}>
-                          <CheckCircle size={13} />
+                          <CheckCircle size={12} />
                           Al día
                         </span>
                       )}
@@ -398,13 +394,13 @@ const StudentSearchModal = ({ isOpen, onClose, onSelectStudent }) => {
                           display: 'inline-flex',
                           alignItems: 'center',
                           gap: '0.3rem',
-                          padding: '0.25rem 0.6rem',
-                          borderRadius: '20px',
-                          fontSize: '0.75rem',
+                          padding: '0.15rem 0.5rem',
+                          borderRadius: 'var(--radius-sm)',
+                          fontSize: '0.725rem',
                           fontWeight: '500',
-                          backgroundColor: 'rgba(99, 102, 241, 0.1)',
-                          color: '#818cf8',
-                          border: '1px solid rgba(99, 102, 241, 0.2)'
+                          backgroundColor: 'var(--bg-card)',
+                          color: 'var(--text-muted)',
+                          border: '1px solid var(--border-color)'
                         }}>
                           Pagado: {formatMoney(debtInfo.totalPaid)}
                         </span>

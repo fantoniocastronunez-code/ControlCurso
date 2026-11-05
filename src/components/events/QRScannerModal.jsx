@@ -181,9 +181,9 @@ const QRScannerModal = ({ isOpen, onClose, onScanSuccess }) => {
       <div className="glass-panel" style={{
         width: '100%',
         maxWidth: '440px',
-        borderRadius: '16px',
-        border: '1px solid rgba(255, 255, 255, 0.15)',
-        backgroundColor: '#0f172a',
+        borderRadius: 'var(--radius-lg)',
+        border: '1px solid var(--border-color)',
+        backgroundColor: 'var(--bg-card)',
         overflow: 'hidden',
         display: 'flex',
         flexDirection: 'column'

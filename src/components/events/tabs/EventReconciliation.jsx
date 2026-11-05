@@ -1722,8 +1722,9 @@ const EventReconciliation = ({ event, onNavigateTab }) => {
             maxWidth: '480px',
             width: '100%',
             padding: '1.5rem',
-            backgroundColor: '#1e293b',
-            border: '1px solid rgba(255,255,255,0.15)',
+            backgroundColor: 'var(--bg-card)',
+            border: '1px solid var(--border-color)',
+            boxShadow: '0 12px 32px rgba(0,0,0,0.5)',
             borderRadius: 'var(--radius-lg)'
           }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' }}>

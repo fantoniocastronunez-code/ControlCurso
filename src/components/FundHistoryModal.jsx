@@ -74,34 +74,34 @@ const FundHistoryModal = ({ fund, transactions, onClose, onRefresh }) => {
   };
 
   return (
-    <div className="modal-overlay" onClick={onClose} style={{ zIndex: 1000, display: 'flex', alignItems: 'flex-start', justifyContent: 'center', position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(5px)', padding: '1rem 0.5rem 2rem', overflowY: 'auto', WebkitOverflowScrolling: 'touch' }}>
-      <div className="modal-content animate-fade-in" onClick={e => e.stopPropagation()} style={{ width: '90%', maxWidth: '600px', maxHeight: '85vh', marginTop: '0.25rem', display: 'flex', flexDirection: 'column', backgroundColor: 'var(--bg-card)', borderRadius: 'var(--radius-lg)', border: '1px solid var(--border-color)', overflow: 'hidden' }}>
+    <div className="modal-overlay" onClick={onClose} style={{ zIndex: 1000, display: 'flex', alignItems: 'flex-start', justifyContent: 'center', position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.75)', padding: '1rem 0.5rem 2rem', overflowY: 'auto', WebkitOverflowScrolling: 'touch' }}>
+      <div className="modal-content animate-fade-in" onClick={e => e.stopPropagation()} style={{ width: '90%', maxWidth: '600px', maxHeight: '85vh', marginTop: '1rem', display: 'flex', flexDirection: 'column', backgroundColor: 'var(--bg-card)', borderRadius: 'var(--radius-lg)', border: '1px solid var(--border-color)', boxShadow: '0 12px 32px rgba(0,0,0,0.5)', overflow: 'hidden' }}>
         
         {/* Header */}
-        <div style={{ padding: '1.5rem', borderBottom: '1px solid var(--border-color)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', backgroundColor: 'rgba(255,255,255,0.02)' }}>
+        <div style={{ padding: '1.25rem 1.5rem', borderBottom: '1px solid var(--border-color)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', backgroundColor: 'var(--bg-card)' }}>
           <div>
-            <h3 style={{ margin: 0, color: 'var(--text-primary)' }}>Historial: {fund.name}</h3>
-            <p style={{ margin: '0.25rem 0 0 0', color: 'var(--text-muted)', fontSize: '0.875rem' }}>
+            <h3 style={{ margin: 0, color: 'var(--text-main)', fontSize: '1.15rem', fontWeight: '600' }}>Historial: {fund.name}</h3>
+            <p style={{ margin: '0.25rem 0 0 0', color: 'var(--text-muted)', fontSize: '0.85rem' }}>
               Saldo actual: <strong style={{ color: fund.balance >= 0 ? 'var(--success)' : 'var(--danger)' }}>{formatMoney(fund.balance)}</strong>
             </p>
           </div>
           <div style={{ display: 'flex', gap: '0.5rem' }}>
-            <button onClick={handleDownloadExcel} className="btn btn-outline" style={{ border: '1px solid var(--primary)', color: 'var(--primary)', padding: '0.5rem 1rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }} title="Descargar ordenado por alumno a Excel">
-              <Download size={16} />
-              <span style={{ fontSize: '0.875rem', fontWeight: '500' }}>Descargar Excel</span>
+            <button onClick={handleDownloadExcel} className="btn btn-outline" style={{ padding: '0.4rem 0.8rem', display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.825rem' }} title="Descargar ordenado por alumno a Excel">
+              <Download size={15} />
+              <span>Descargar Excel</span>
             </button>
-            <button onClick={onClose} className="btn btn-outline" style={{ border: 'none', padding: '0.5rem' }}>
-              <X size={20} />
+            <button onClick={onClose} className="btn btn-outline" style={{ padding: '0.4rem 0.5rem', color: 'var(--text-muted)' }}>
+              <X size={18} />
             </button>
           </div>
         </div>
 
         {/* Body */}
-        <div style={{ padding: '1.5rem', overflowY: 'auto', flex: 1 }}>
+        <div style={{ padding: '1.25rem 1.5rem', overflowY: 'auto', flex: 1 }}>
           {fund.id === 'favor_balance' ? (
             fund.studentsWithBalance && fund.studentsWithBalance.length > 0 ? (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-                <p style={{ color: 'var(--text-muted)', marginBottom: '0.5rem', fontSize: '0.875rem' }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
+                <p style={{ color: 'var(--text-muted)', marginBottom: '0.25rem', fontSize: '0.85rem' }}>
                   Alumnos con saldo a favor disponible:
                 </p>
                 {fund.studentsWithBalance.map((student, idx) => (
@@ -109,23 +109,24 @@ const FundHistoryModal = ({ fund, transactions, onClose, onRefresh }) => {
                     display: 'flex', 
                     alignItems: 'center', 
                     justifyContent: 'space-between', 
-                    padding: '1rem', 
-                    backgroundColor: 'rgba(255,255,255,0.03)', 
-                    borderRadius: 'var(--radius-md)',
+                    padding: '0.85rem 1rem', 
+                    backgroundColor: 'var(--bg-card-hover)', 
+                    borderRadius: 'var(--radius-sm)',
                     border: '1px solid var(--border-color)'
                   }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.85rem' }}>
                       <div style={{ 
-                        width: '40px', height: '40px', 
-                        borderRadius: '50%', 
+                        width: '36px', height: '36px', minWidth: '36px',
+                        borderRadius: 'var(--radius-sm)', 
                         display: 'flex', alignItems: 'center', justifyContent: 'center',
-                        backgroundColor: 'rgba(16, 185, 129, 0.15)',
+                        backgroundColor: 'var(--bg-card)',
+                        border: '1px solid var(--border-color)',
                         color: 'var(--success)'
                       }}>
-                        <DollarSign size={20} />
+                        <DollarSign size={18} />
                       </div>
                       <div>
-                        <p style={{ margin: 0, fontWeight: '500', color: 'var(--text-primary)' }}>{student.name}</p>
+                        <p style={{ margin: 0, fontWeight: '500', color: 'var(--text-main)', fontSize: '0.9rem' }}>{student.name}</p>
                       </div>
                     </div>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
@@ -176,25 +177,26 @@ const FundHistoryModal = ({ fund, transactions, onClose, onRefresh }) => {
                     display: 'flex', 
                     alignItems: 'center', 
                     justifyContent: 'space-between', 
-                    padding: '1rem', 
-                    backgroundColor: 'rgba(255,255,255,0.03)', 
-                    borderRadius: 'var(--radius-md)',
+                    padding: '0.85rem 1rem', 
+                    backgroundColor: 'var(--bg-card-hover)', 
+                    borderRadius: 'var(--radius-sm)',
                     border: '1px solid var(--border-color)'
                   }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.85rem' }}>
                       <div style={{ 
-                        width: '40px', height: '40px', 
-                        borderRadius: '50%', 
+                        width: '36px', height: '36px', minWidth: '36px',
+                        borderRadius: 'var(--radius-sm)', 
                         display: 'flex', alignItems: 'center', justifyContent: 'center',
-                        backgroundColor: isPositive ? 'rgba(16, 185, 129, 0.15)' : 'rgba(239, 68, 68, 0.15)',
+                        backgroundColor: 'var(--bg-card)',
+                        border: '1px solid var(--border-color)',
                         color: isPositive ? 'var(--success)' : 'var(--danger)'
                       }}>
-                        {isPositive ? <ArrowDownRight size={20} /> : <ArrowUpRight size={20} />}
+                        {isPositive ? <ArrowDownRight size={18} /> : <ArrowUpRight size={18} />}
                       </div>
                       
                       <div>
-                        <p style={{ margin: 0, fontWeight: '500', color: 'var(--text-primary)' }}>{tx.description}</p>
-                        <p style={{ margin: '0.25rem 0 0 0', fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                        <p style={{ margin: 0, fontWeight: '500', color: 'var(--text-main)', fontSize: '0.9rem' }}>{tx.description}</p>
+                        <p style={{ margin: '0.2rem 0 0 0', fontSize: '0.75rem', color: 'var(--text-muted)' }}>
                           {new Date(tx.date).toLocaleDateString('es-CL', { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
                         </p>
                       </div>

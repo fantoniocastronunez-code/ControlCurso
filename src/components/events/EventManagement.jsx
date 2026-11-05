@@ -825,8 +825,8 @@ const EventManagement = ({ onBack }) => {
             maxWidth: '560px',
             maxHeight: 'min(92vh, 750px)',
             margin: '0.25rem auto',
-            backgroundColor: '#0f172a',
-            border: '1px solid rgba(99, 102, 241, 0.35)',
+            backgroundColor: 'var(--bg-card)',
+            border: '1px solid var(--border-color)',
             borderRadius: 'var(--radius-lg)',
             display: 'flex',
             flexDirection: 'column',
@@ -1139,7 +1139,7 @@ const EventManagement = ({ onBack }) => {
                 gap: '0.75rem',
                 padding: '1rem 1.5rem',
                 borderTop: '1px solid rgba(255,255,255,0.08)',
-                backgroundColor: '#0f172a',
+                backgroundColor: 'var(--bg-card)',
                 flexShrink: 0
               }}>
                 <button type="button" onClick={() => setShowCreateModal(false)} className="btn btn-outline" style={{ padding: '0.55rem 1.25rem' }}>

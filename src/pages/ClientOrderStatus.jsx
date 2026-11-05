@@ -279,17 +279,17 @@ const ClientOrderStatus = () => {
                     width: '32px',
                     height: '32px',
                     borderRadius: '50%',
-                    backgroundColor: '#1e293b',
-                    border: '2px solid #6366f1',
+                    backgroundColor: 'var(--bg-card)',
+                    border: '2px solid var(--primary)',
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
-                    color: '#6366f1',
+                    color: 'var(--primary)',
                     fontSize: '0.85rem'
                   }}>
                     <Clock size={16} />
                   </div>
-                  <span style={{ fontSize: '0.72rem', marginTop: '0.35rem', color: '#a5b4fc', fontWeight: 'bold' }}>
+                  <span style={{ fontSize: '0.72rem', marginTop: '0.35rem', color: 'var(--text-main)', fontWeight: 'bold' }}>
                     Recibido
                   </span>
                 </div>
@@ -300,8 +300,8 @@ const ClientOrderStatus = () => {
                     width: '32px',
                     height: '32px',
                     borderRadius: '50%',
-                    backgroundColor: '#1e293b',
-                    border: isPreparing || isDelivered ? '2px solid #f59e0b' : '2px solid rgba(255,255,255,0.2)',
+                    backgroundColor: 'var(--bg-card)',
+                    border: isPreparing || isDelivered ? '2px solid #f59e0b' : '2px solid var(--border-color)',
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
@@ -326,8 +326,8 @@ const ClientOrderStatus = () => {
                     width: '32px',
                     height: '32px',
                     borderRadius: '50%',
-                    backgroundColor: '#1e293b',
-                    border: isDelivered ? '2px solid #10b981' : '2px solid rgba(255,255,255,0.2)',
+                    backgroundColor: 'var(--bg-card)',
+                    border: isDelivered ? '2px solid #10b981' : '2px solid var(--border-color)',
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
