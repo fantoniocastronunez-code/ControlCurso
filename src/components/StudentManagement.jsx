@@ -359,10 +359,13 @@ const StudentManagement = ({ onBack }) => {
       const map = {};
       usersSnap.forEach(doc => {
         const data = doc.data();
-        if (data.formalName) {
-          map[doc.id] = data.formalName;
-        } else if (data.displayName) {
-          map[doc.id] = data.displayName;
+        const name = data.formalName || data.displayName || '';
+        if (name) {
+          map[doc.id] = name;
+          if (data.email) {
+            map[data.email] = name;
+            map[data.email.toLowerCase().trim()] = name;
+          }
         }
       });
       setUsersMap(map);

@@ -85,6 +85,9 @@ const Login = () => {
       newRoles[courseId] = 'apoderado';
       
       await setDoc(doc(db, 'users', user.uid), {
+        email: user.email ? user.email.toLowerCase().trim() : '',
+        uid: user.uid,
+        displayName: user.displayName || userData?.displayName || '',
         roles: newRoles,
         role: 'apoderado', // keep for backwards compatibility if needed
         defaultCourseId: courseId

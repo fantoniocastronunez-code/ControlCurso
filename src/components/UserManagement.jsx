@@ -17,6 +17,16 @@ const getStudentEmails = (student) => {
   return raw.map(e => (e || '').toLowerCase().trim()).filter(Boolean);
 };
 
+const getUserEmail = (u) => {
+  if (u?.email && typeof u.email === 'string' && u.email.trim()) {
+    return u.email.toLowerCase().trim();
+  }
+  if (u?.id && typeof u.id === 'string' && u.id.includes('@')) {
+    return u.id.toLowerCase().trim();
+  }
+  return '';
+};
+
 const UserManagement = ({ onBack, viewMode = 'users' }) => {
   const { showConfirm, showAlert } = useModal();
   const { role } = useAuth();
@@ -87,7 +97,7 @@ const UserManagement = ({ onBack, viewMode = 'users' }) => {
   const duplicateEmailsMap = useMemo(() => {
     const map = new Map();
     users.forEach(u => {
-      const email = (u.email || '').toLowerCase().trim();
+      const email = getUserEmail(u);
       if (!email) return;
       if (!map.has(email)) map.set(email, []);
       map.get(email).push(u);
@@ -119,6 +129,20 @@ const UserManagement = ({ onBack, viewMode = 'users' }) => {
     return map;
   }, [allStudents]);
 
+  // Obtiene los alumnos vinculados a un usuario tanto por email como por linkedStudentIds
+  const getLinkedStudentsForUser = (u) => {
+    if (!u) return [];
+    const emailLower = getUserEmail(u);
+    const byEmail = emailLower ? (studentsByEmailMap.get(emailLower) || []) : [];
+    const byIds = Array.isArray(u.linkedStudentIds)
+      ? u.linkedStudentIds.map(id => allStudents.find(s => s.id === id)).filter(Boolean)
+      : [];
+    const mergedMap = new Map();
+    byEmail.forEach(s => mergedMap.set(s.id, s));
+    byIds.forEach(s => mergedMap.set(s.id, s));
+    return Array.from(mergedMap.values());
+  };
+
   // Alumnos ordenados y filtrados según el curso seleccionado en el filtro (o curso actual primero)
   const sortedStudentsForSelect = useMemo(() => {
     const targetCourseId = filterCourse !== 'all' ? filterCourse : selectedCourse?.id;
@@ -145,8 +169,8 @@ const UserManagement = ({ onBack, viewMode = 'users' }) => {
     return users.filter(u => {
       const isSuperadmin = (u.roles && u.roles['global'] === 'superadmin') || u.role === 'superadmin';
       const rolesKeys = u.roles ? Object.keys(u.roles) : [];
-      const emailLower = (u.email || '').toLowerCase().trim();
-      const linkedStudents = studentsByEmailMap.get(emailLower) || [];
+      const emailLower = getUserEmail(u);
+      const linkedStudents = getLinkedStudentsForUser(u);
 
       // 1. Filter by viewMode
       let matchesMode = false;
@@ -185,7 +209,7 @@ const UserManagement = ({ onBack, viewMode = 'users' }) => {
 
       return matchesMode && matchesCourse && matchesSearch && matchesDuplicates;
     });
-  }, [users, viewMode, filterCourse, searchTerm, showOnlyDuplicates, duplicateEmailsMap, studentsByEmailMap]);
+  }, [users, viewMode, filterCourse, searchTerm, showOnlyDuplicates, duplicateEmailsMap, studentsByEmailMap, allStudents]);
 
   // Limpieza y unificación automática de duplicados
   const handleCleanDuplicates = async () => {
@@ -406,8 +430,7 @@ const UserManagement = ({ onBack, viewMode = 'users' }) => {
   };
 
   const startEditing = (user) => {
-    const emailLower = (user.email || '').toLowerCase().trim();
-    const linked = studentsByEmailMap.get(emailLower) || [];
+    const linked = getLinkedStudentsForUser(user);
     setEditingId(user.id);
     setEditName(user.displayName || user.formalName || '');
     setEditCanAccessEvents(user.canAccessEvents || false);
@@ -421,23 +444,180 @@ const UserManagement = ({ onBack, viewMode = 'users' }) => {
     setEditStudentIds([]);
   };
 
-  const handleChangeEditStudent = (index, newStdId) => {
-    if (!newStdId) return;
-    setEditStudentIds(prev => {
-      if (prev.includes(newStdId) && prev[index] !== newStdId) return prev;
-      const copy = [...prev];
-      copy[index] = newStdId;
-      return copy;
+  // Persiste inmediatamente los vínculos entre un usuario y la lista de IDs de alumnos en Firestore
+  const persistUserStudentLinks = async (userToEdit, nextStudentIds, feedbackMsg = null) => {
+    if (!userToEdit) return;
+    const userEmail = getUserEmail(userToEdit);
+    const currentlyLinked = getLinkedStudentsForUser(userToEdit);
+    const originalStudentIds = currentlyLinked.map(s => s.id);
+
+    const removedStudentIds = originalStudentIds.filter(id => !nextStudentIds.includes(id));
+    const addedStudentIds = nextStudentIds.filter(id => !originalStudentIds.includes(id));
+
+    const updatedStudentsMap = new Map();
+
+    // 1. Desvincular alumnos quitados o reemplazados en colección 'students'
+    for (const stdId of removedStudentIds) {
+      const st = allStudents.find(s => s.id === stdId);
+      if (!st) continue;
+      const nextEmails = userEmail
+        ? getStudentEmails(st).filter(e => e !== userEmail)
+        : getStudentEmails(st);
+      const studentUpdates = {
+        apoderadoEmails: nextEmails,
+        apoderadoEmail: nextEmails[0] || ''
+      };
+      await updateDoc(doc(db, 'students', stdId), studentUpdates);
+      updatedStudentsMap.set(stdId, studentUpdates);
+    }
+
+    // 2. Vincular alumnos agregados o modificados en colección 'students'
+    for (const stdId of nextStudentIds) {
+      const st = allStudents.find(s => s.id === stdId);
+      if (!st) continue;
+      const currentEmails = getStudentEmails(st);
+      if (userEmail && !currentEmails.includes(userEmail)) {
+        const nextEmails = [...currentEmails, userEmail];
+        const studentUpdates = {
+          apoderadoEmails: nextEmails,
+          apoderadoEmail: nextEmails[0] || ''
+        };
+        await updateDoc(doc(db, 'students', stdId), studentUpdates);
+        updatedStudentsMap.set(stdId, studentUpdates);
+      } else if (addedStudentIds.includes(stdId)) {
+        updatedStudentsMap.set(stdId, {
+          apoderadoEmails: currentEmails,
+          apoderadoEmail: currentEmails[0] || ''
+        });
+      }
+    }
+
+    // Actualizar estado local de alumnos inmediatamente después de guardar en 'students'
+    if (updatedStudentsMap.size > 0) {
+      setAllStudents(prev => prev.map(s =>
+        updatedStudentsMap.has(s.id) ? { ...s, ...updatedStudentsMap.get(s.id) } : s
+      ));
+    }
+
+    // 3. Asegurar que el usuario tenga rol en el curso de los alumnos vinculados y guardar linkedStudentIds
+    const updatedRoles = { ...(userToEdit.roles || {}) };
+    let updatedDefaultCourseId = userToEdit.defaultCourseId || '';
+    const fallbackCourseId = filterCourse !== 'all' ? filterCourse : (selectedCourse?.id || '');
+
+    nextStudentIds.forEach(stdId => {
+      const st = allStudents.find(s => s.id === stdId);
+      const targetCourseId = st?.courseId || fallbackCourseId;
+      if (targetCourseId) {
+        if (!updatedRoles[targetCourseId]) {
+          updatedRoles[targetCourseId] = 'apoderado';
+        }
+        if (!updatedDefaultCourseId) {
+          updatedDefaultCourseId = targetCourseId;
+        }
+      }
     });
+
+    const userSyncPayload = {
+      roles: updatedRoles,
+      linkedStudentIds: nextStudentIds,
+      updatedAt: new Date().toISOString()
+    };
+    if (userEmail && !userToEdit.email) {
+      userSyncPayload.email = userEmail;
+    }
+    if (updatedDefaultCourseId) {
+      userSyncPayload.defaultCourseId = updatedDefaultCourseId;
+    }
+
+    // Sincronizar documento(s) del usuario en 'users' (sin bloquear si el usuario tiene permisos parciales)
+    const matchingUserDocs = userEmail
+      ? users.filter(u => u.id === userToEdit.id || getUserEmail(u) === userEmail)
+      : [userToEdit];
+
+    for (const uDoc of matchingUserDocs) {
+      try {
+        await setDoc(doc(db, 'users', uDoc.id), {
+          ...userSyncPayload,
+          roles: { ...(uDoc.roles || {}), ...updatedRoles }
+        }, { merge: true });
+      } catch (userErr) {
+        console.warn("Aviso al sincronizar documento de usuario:", userErr);
+      }
+    }
+
+    setUsers(prev => prev.map(u => {
+      if (u.id === userToEdit.id || (userEmail && getUserEmail(u) === userEmail)) {
+        return {
+          ...u,
+          ...userSyncPayload,
+          roles: { ...(u.roles || {}), ...updatedRoles }
+        };
+      }
+      return u;
+    }));
+
+    if (feedbackMsg) {
+      setMessage(feedbackMsg);
+      setTimeout(() => setMessage(''), 3500);
+    }
   };
 
-  const handleRemoveEditStudent = (stdId) => {
-    setEditStudentIds(prev => prev.filter(id => id !== stdId));
+  const handleChangeEditStudent = async (index, newStdId) => {
+    const userToEdit = users.find(u => u.id === editingId);
+    let nextIds;
+    if (!newStdId) {
+      // Si selecciona "-- Desvincular alumno --", se quita de la lista
+      nextIds = editStudentIds.filter((_, idx) => idx !== index);
+    } else {
+      if (editStudentIds.includes(newStdId) && editStudentIds[index] !== newStdId) return;
+      nextIds = [...editStudentIds];
+      nextIds[index] = newStdId;
+    }
+    setEditStudentIds(nextIds);
+    try {
+      await persistUserStudentLinks(
+        userToEdit,
+        nextIds,
+        newStdId ? 'Alumno modificado y guardado automáticamente' : 'Alumno desvinculado correctamente'
+      );
+    } catch (error) {
+      console.error("Error guardando cambio de alumno:", error);
+      setMessage('Error al guardar cambio de alumno');
+      setTimeout(() => setMessage(''), 3000);
+    }
   };
 
-  const handleAddEditStudent = (stdId) => {
+  const handleRemoveEditStudent = async (stdId) => {
+    const userToEdit = users.find(u => u.id === editingId);
+    const nextIds = editStudentIds.filter(id => id !== stdId);
+    setEditStudentIds(nextIds);
+    try {
+      await persistUserStudentLinks(userToEdit, nextIds, 'Alumno desvinculado correctamente');
+    } catch (error) {
+      console.error("Error desvinculando alumno:", error);
+      setMessage('Error al desvincular alumno');
+      setTimeout(() => setMessage(''), 3000);
+    }
+  };
+
+  const handleAddEditStudent = async (stdId) => {
     if (!stdId) return;
-    setEditStudentIds(prev => (prev.includes(stdId) ? prev : [...prev, stdId]));
+    const userToEdit = users.find(u => u.id === editingId);
+    if (editStudentIds.includes(stdId)) return;
+    const nextIds = [...editStudentIds, stdId];
+    setEditStudentIds(nextIds);
+    try {
+      const st = allStudents.find(s => s.id === stdId);
+      await persistUserStudentLinks(
+        userToEdit,
+        nextIds,
+        `Alumno ${st ? formatStudentName(st) : ''} vinculado y guardado correctamente`
+      );
+    } catch (error) {
+      console.error("Error vinculando alumno:", error);
+      setMessage('Error al vincular alumno');
+      setTimeout(() => setMessage(''), 3000);
+    }
   };
 
   const handleSaveEdit = async () => {
@@ -445,81 +625,33 @@ const UserManagement = ({ onBack, viewMode = 'users' }) => {
       const userToEdit = users.find(u => u.id === editingId);
       if (!userToEdit) return;
 
-      const userEmail = (userToEdit.email || '').toLowerCase().trim();
-      const currentlyLinked = userEmail ? (studentsByEmailMap.get(userEmail) || []) : [];
-      const originalStudentIds = currentlyLinked.map(s => s.id);
+      await persistUserStudentLinks(userToEdit, editStudentIds);
 
-      const removedStudentIds = originalStudentIds.filter(id => !editStudentIds.includes(id));
-      const addedStudentIds = editStudentIds.filter(id => !originalStudentIds.includes(id));
-
-      const updatedStudentsMap = new Map();
-
-      // 1. Desvincular alumnos quitados o reemplazados
-      if (userEmail) {
-        for (const stdId of removedStudentIds) {
-          const st = allStudents.find(s => s.id === stdId);
-          if (!st) continue;
-          const nextEmails = getStudentEmails(st).filter(e => e !== userEmail);
-          const studentUpdates = { apoderadoEmails: nextEmails };
-          if (st.apoderadoEmail && st.apoderadoEmail.toLowerCase().trim() === userEmail) {
-            studentUpdates.apoderadoEmail = nextEmails[0] || '';
-          }
-          await updateDoc(doc(db, 'students', stdId), studentUpdates);
-          updatedStudentsMap.set(stdId, studentUpdates);
-        }
-
-        // 2. Vincular alumnos agregados o modificados
-        for (const stdId of addedStudentIds) {
-          const st = allStudents.find(s => s.id === stdId);
-          if (!st) continue;
-          const currentEmails = getStudentEmails(st);
-          if (!currentEmails.includes(userEmail)) {
-            const nextEmails = [...currentEmails, userEmail];
-            const studentUpdates = { apoderadoEmails: nextEmails };
-            await updateDoc(doc(db, 'students', stdId), studentUpdates);
-            updatedStudentsMap.set(stdId, studentUpdates);
-          }
-        }
-      }
-
-      // 3. Asegurar que el usuario tenga rol en el curso de los alumnos vinculados
-      const updatedRoles = { ...(userToEdit.roles || {}) };
-      let updatedDefaultCourseId = userToEdit.defaultCourseId || '';
-      editStudentIds.forEach(stdId => {
-        const st = allStudents.find(s => s.id === stdId);
-        if (st?.courseId) {
-          if (!updatedRoles[st.courseId]) {
-            updatedRoles[st.courseId] = 'apoderado';
-          }
-          if (!updatedDefaultCourseId) {
-            updatedDefaultCourseId = st.courseId;
-          }
-        }
-      });
-
-      const userRef = doc(db, 'users', editingId);
+      const userEmail = getUserEmail(userToEdit);
+      const trimmedName = (editName || '').trim();
       const userUpdatePayload = {
-        displayName: editName,
+        displayName: trimmedName,
         canAccessEvents: editCanAccessEvents,
-        roles: updatedRoles
+        updatedAt: new Date().toISOString()
       };
-      if (updatedDefaultCourseId) {
-        userUpdatePayload.defaultCourseId = updatedDefaultCourseId;
+      if (trimmedName) {
+        userUpdatePayload.formalName = trimmedName;
+      }
+      if (userEmail && !userToEdit.email) {
+        userUpdatePayload.email = userEmail;
       }
 
-      await updateDoc(userRef, userUpdatePayload);
-
-      if (updatedStudentsMap.size > 0) {
-        setAllStudents(prev => prev.map(s =>
-          updatedStudentsMap.has(s.id) ? { ...s, ...updatedStudentsMap.get(s.id) } : s
-        ));
+      try {
+        await setDoc(doc(db, 'users', editingId), userUpdatePayload, { merge: true });
+      } catch (userErr) {
+        console.warn("Aviso al actualizar perfil de usuario:", userErr);
       }
 
-      setUsers(users.map(u =>
+      setUsers(prev => prev.map(u =>
         u.id === editingId ? { ...u, ...userUpdatePayload } : u
       ));
 
-      setMessage('Usuario y vínculo de alumno(s) actualizados correctamente');
+      setMessage('Usuario y vínculo de alumno(s) guardados correctamente');
       setTimeout(() => setMessage(''), 3500);
       cancelEditing();
     } catch (error) {
@@ -779,10 +911,10 @@ const UserManagement = ({ onBack, viewMode = 'users' }) => {
           </thead>
           <tbody>
             {filteredUsers.map(u => {
-              const emailLower = (u.email || '').toLowerCase().trim();
+              const emailLower = getUserEmail(u);
               const duplicateDocs = duplicateEmailsMap.get(emailLower) || [];
               const isDuplicate = duplicateDocs.length > 1;
-              const linkedStudents = studentsByEmailMap.get(emailLower) || [];
+              const linkedStudents = getLinkedStudentsForUser(u);
               const canEditUser = role === 'superadmin' || role === 'admin';
 
               return (
@@ -814,7 +946,7 @@ const UserManagement = ({ onBack, viewMode = 'users' }) => {
                           </label>
                         </div>
                       </td>
-                      <td style={{ padding: '1rem', color: 'var(--text-muted)' }}>{u.email}</td>
+                      <td style={{ padding: '1rem', color: 'var(--text-muted)' }}>{u.email || emailLower}</td>
                       <td style={{ padding: '1rem', minWidth: '250px' }}>
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '0.45rem' }}>
                           {editStudentIds.map((stdId, idx) => (
@@ -862,6 +994,24 @@ const UserManagement = ({ onBack, viewMode = 'users' }) => {
                                 </option>
                               ))}
                           </select>
+                          <div style={{ display: 'flex', gap: '0.4rem', marginTop: '0.2rem' }}>
+                            <button
+                              type="button"
+                              onClick={handleSaveEdit}
+                              className="btn btn-primary"
+                              style={{ padding: '0.28rem 0.65rem', fontSize: '0.75rem', display: 'inline-flex', alignItems: 'center', gap: '0.3rem' }}
+                            >
+                              <Save size={13} /> Guardar
+                            </button>
+                            <button
+                              type="button"
+                              onClick={cancelEditing}
+                              className="btn btn-outline"
+                              style={{ padding: '0.28rem 0.55rem', fontSize: '0.75rem', display: 'inline-flex', alignItems: 'center', gap: '0.25rem' }}
+                            >
+                              <X size={13} /> Cerrar
+                            </button>
+                          </div>
                         </div>
                       </td>
                       <td style={{ padding: '1rem' }}>
