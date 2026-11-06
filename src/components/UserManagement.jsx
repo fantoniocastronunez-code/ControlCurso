@@ -5,15 +5,24 @@ import { useAuth } from '../context/AuthContext';
 import { useCourse } from '../context/CourseContext';
 import {
   ArrowLeft, UserCheck, UserPlus, Trash2, Edit2, Save, X,
-  AlertTriangle, Layers, Search, RefreshCw, CheckCircle2
+  AlertTriangle, Layers, Search, RefreshCw, CheckCircle2, Users, Plus
 } from 'lucide-react';
 import { useModal } from '../context/ModalContext';
+import { formatStudentName } from '../utils/nameUtils';
+
+const getStudentEmails = (student) => {
+  const raw = Array.isArray(student?.apoderadoEmails) && student.apoderadoEmails.length > 0
+    ? student.apoderadoEmails
+    : (student?.apoderadoEmail ? [student.apoderadoEmail] : []);
+  return raw.map(e => (e || '').toLowerCase().trim()).filter(Boolean);
+};
 
 const UserManagement = ({ onBack, viewMode = 'users' }) => {
   const { showConfirm, showAlert } = useModal();
   const { role } = useAuth();
   const { selectedCourse } = useCourse();
   const [users, setUsers] = useState([]);
+  const [allStudents, setAllStudents] = useState([]);
   const [allCourses, setAllCourses] = useState([]);
   const [filterCourse, setFilterCourse] = useState('all');
   const [searchTerm, setSearchTerm] = useState('');
@@ -25,11 +34,13 @@ const UserManagement = ({ onBack, viewMode = 'users' }) => {
   const [newEmail, setNewEmail] = useState('');
   const [newName, setNewName] = useState('');
   const [newRole, setNewRole] = useState('apoderado');
+  const [newStudentId, setNewStudentId] = useState('');
 
   // Estados para edición
   const [editingId, setEditingId] = useState(null);
   const [editName, setEditName] = useState('');
   const [editCanAccessEvents, setEditCanAccessEvents] = useState(false);
+  const [editStudentIds, setEditStudentIds] = useState([]);
   const [selectedImage, setSelectedImage] = useState(null);
 
   useEffect(() => {
@@ -39,18 +50,32 @@ const UserManagement = ({ onBack, viewMode = 'users' }) => {
   const fetchData = async () => {
     setLoading(true);
     try {
-      const coursesSnap = await getDocs(collection(db, 'courses'));
+      const [coursesSnap, userSnapshot, studentsSnapshot] = await Promise.all([
+        getDocs(collection(db, 'courses')),
+        getDocs(collection(db, 'users')),
+        getDocs(collection(db, 'students'))
+      ]);
+
       const coursesData = coursesSnap.docs.map(d => ({ id: d.id, ...d.data() }));
       setAllCourses(coursesData);
 
-      const usersCollection = collection(db, 'users');
-      const userSnapshot = await getDocs(usersCollection);
-
-      let userList = userSnapshot.docs.map(doc => ({
+      const userList = userSnapshot.docs.map(doc => ({
         id: doc.id,
         ...doc.data()
       }));
       setUsers(userList);
+
+      const studentsList = studentsSnapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      }));
+      studentsList.sort((a, b) => {
+        const aNum = parseInt(a.listNumber) || 999;
+        const bNum = parseInt(b.listNumber) || 999;
+        if (aNum !== bNum) return aNum - bNum;
+        return formatStudentName(a).localeCompare(formatStudentName(b));
+      });
+      setAllStudents(studentsList);
     } catch (error) {
       console.error("Error al obtener datos:", error);
     } finally {
@@ -81,11 +106,47 @@ const UserManagement = ({ onBack, viewMode = 'users' }) => {
     return groups;
   }, [duplicateEmailsMap]);
 
+  // Mapeo de alumnos vinculados por correo normalizado
+  const studentsByEmailMap = useMemo(() => {
+    const map = new Map();
+    allStudents.forEach(s => {
+      const emails = getStudentEmails(s);
+      emails.forEach(email => {
+        if (!map.has(email)) map.set(email, []);
+        map.get(email).push(s);
+      });
+    });
+    return map;
+  }, [allStudents]);
+
+  // Alumnos ordenados y filtrados según el curso seleccionado en el filtro (o curso actual primero)
+  const sortedStudentsForSelect = useMemo(() => {
+    const targetCourseId = filterCourse !== 'all' ? filterCourse : selectedCourse?.id;
+    return [...allStudents].sort((a, b) => {
+      const aInTarget = a.courseId === targetCourseId ? 0 : 1;
+      const bInTarget = b.courseId === targetCourseId ? 0 : 1;
+      if (aInTarget !== bInTarget) return aInTarget - bInTarget;
+      const aNum = parseInt(a.listNumber) || 999;
+      const bNum = parseInt(b.listNumber) || 999;
+      if (aNum !== bNum) return aNum - bNum;
+      return formatStudentName(a).localeCompare(formatStudentName(b));
+    });
+  }, [allStudents, filterCourse, selectedCourse]);
+
+  const formatStudentOptionLabel = (s) => {
+    const courseName = allCourses.find(c => c.id === s.courseId)?.name;
+    const numPrefix = s.listNumber ? `#${s.listNumber} ` : '';
+    const courseSuffix = courseName && allCourses.length > 1 ? ` (${courseName})` : '';
+    const statusSuffix = s.status === 'retirado' ? ' [Retirado]' : '';
+    return `${numPrefix}${formatStudentName(s)}${courseSuffix}${statusSuffix}`;
+  };
+
   const filteredUsers = useMemo(() => {
     return users.filter(u => {
       const isSuperadmin = (u.roles && u.roles['global'] === 'superadmin') || u.role === 'superadmin';
       const rolesKeys = u.roles ? Object.keys(u.roles) : [];
       const emailLower = (u.email || '').toLowerCase().trim();
+      const linkedStudents = studentsByEmailMap.get(emailLower) || [];
 
       // 1. Filter by viewMode
       let matchesMode = false;
@@ -98,15 +159,22 @@ const UserManagement = ({ onBack, viewMode = 'users' }) => {
       // 2. Filter by course
       let matchesCourse = true;
       if (filterCourse !== 'all') {
-        matchesCourse = (u.roles && !!u.roles[filterCourse]) || isSuperadmin;
+        matchesCourse = (u.roles && !!u.roles[filterCourse]) ||
+          linkedStudents.some(s => s.courseId === filterCourse) ||
+          isSuperadmin;
       }
 
-      // 3. Filter by search
+      // 3. Filter by search (incluye búsqueda por nombre/RUT de alumno vinculado)
       let matchesSearch = true;
       if (searchTerm.trim()) {
         const term = searchTerm.toLowerCase().trim();
         const name = (u.displayName || u.formalName || '').toLowerCase();
-        matchesSearch = name.includes(term) || emailLower.includes(term) || u.id.toLowerCase().includes(term);
+        const studentMatch = linkedStudents.some(s =>
+          formatStudentName(s).toLowerCase().includes(term) ||
+          (s.name || '').toLowerCase().includes(term) ||
+          (s.rut || '').toLowerCase().includes(term)
+        );
+        matchesSearch = name.includes(term) || emailLower.includes(term) || u.id.toLowerCase().includes(term) || studentMatch;
       }
 
       // 4. Filter by duplicates only
@@ -117,7 +185,7 @@ const UserManagement = ({ onBack, viewMode = 'users' }) => {
 
       return matchesMode && matchesCourse && matchesSearch && matchesDuplicates;
     });
-  }, [users, viewMode, filterCourse, searchTerm, showOnlyDuplicates, duplicateEmailsMap]);
+  }, [users, viewMode, filterCourse, searchTerm, showOnlyDuplicates, duplicateEmailsMap, studentsByEmailMap]);
 
   // Limpieza y unificación automática de duplicados
   const handleCleanDuplicates = async () => {
@@ -244,18 +312,23 @@ const UserManagement = ({ onBack, viewMode = 'users' }) => {
 
     try {
       const emailLower = newEmail.toLowerCase().trim();
+      const chosenStudent = newStudentId ? allStudents.find(s => s.id === newStudentId) : null;
+      const targetCourseId = chosenStudent?.courseId || selectedCourse.id;
 
       // Chequeo previo para evitar duplicados: si ya existe, actualizamos su doc existente
       const existingUser = users.find(u => (u.email || '').toLowerCase().trim() === emailLower);
 
       if (existingUser) {
         const updatedRoles = { ...(existingUser.roles || {}) };
-        updatedRoles[selectedCourse.id] = newRole;
+        updatedRoles[targetCourseId] = newRole;
+        if (selectedCourse?.id && !updatedRoles[selectedCourse.id]) {
+          updatedRoles[selectedCourse.id] = newRole;
+        }
 
         const updateData = {
           roles: updatedRoles,
           role: newRole,
-          defaultCourseId: existingUser.defaultCourseId || selectedCourse.id,
+          defaultCourseId: existingUser.defaultCourseId || targetCourseId,
           updatedAt: new Date().toISOString()
         };
         if (newName && !existingUser.displayName) {
@@ -265,30 +338,49 @@ const UserManagement = ({ onBack, viewMode = 'users' }) => {
         await setDoc(doc(db, 'users', existingUser.id), updateData, { merge: true });
 
         setUsers(users.map(u => u.id === existingUser.id ? { ...u, ...updateData } : u));
-        setMessage('Usuario existente actualizado con el nuevo rol en este curso');
       } else {
         const userRef = doc(db, 'users', emailLower);
         const newUser = {
           email: emailLower,
           displayName: newName,
           roles: {
-            [selectedCourse.id]: newRole
+            [targetCourseId]: newRole
           },
           role: newRole,
-          defaultCourseId: selectedCourse.id,
+          defaultCourseId: targetCourseId,
           createdAt: new Date().toISOString(),
           preRegistered: true
         };
 
         await setDoc(userRef, newUser);
         setUsers([...users, { id: emailLower, ...newUser }]);
-        setMessage('Usuario pre-registrado correctamente');
       }
+
+      // Si se seleccionó un alumno al pre-registrar, vincular correo al alumno
+      if (chosenStudent) {
+        const currentEmails = getStudentEmails(chosenStudent);
+        if (!currentEmails.includes(emailLower)) {
+          const updatedEmails = [...currentEmails, emailLower];
+          await updateDoc(doc(db, 'students', chosenStudent.id), {
+            apoderadoEmails: updatedEmails
+          });
+          setAllStudents(prev => prev.map(s =>
+            s.id === chosenStudent.id ? { ...s, apoderadoEmails: updatedEmails } : s
+          ));
+        }
+      }
+
+      setMessage(
+        chosenStudent
+          ? `Usuario registrado y vinculado al alumno ${formatStudentName(chosenStudent)}`
+          : (existingUser ? 'Usuario existente actualizado con el nuevo rol en este curso' : 'Usuario pre-registrado correctamente')
+      );
 
       setNewEmail('');
       setNewName('');
       setNewRole('apoderado');
-      setTimeout(() => setMessage(''), 3000);
+      setNewStudentId('');
+      setTimeout(() => setMessage(''), 3500);
     } catch (error) {
       console.error("Error agregando usuario:", error);
       setMessage('Error al agregar usuario');
@@ -314,31 +406,121 @@ const UserManagement = ({ onBack, viewMode = 'users' }) => {
   };
 
   const startEditing = (user) => {
+    const emailLower = (user.email || '').toLowerCase().trim();
+    const linked = studentsByEmailMap.get(emailLower) || [];
     setEditingId(user.id);
     setEditName(user.displayName || user.formalName || '');
     setEditCanAccessEvents(user.canAccessEvents || false);
+    setEditStudentIds(linked.map(s => s.id));
   };
 
   const cancelEditing = () => {
     setEditingId(null);
     setEditName('');
     setEditCanAccessEvents(false);
+    setEditStudentIds([]);
+  };
+
+  const handleChangeEditStudent = (index, newStdId) => {
+    if (!newStdId) return;
+    setEditStudentIds(prev => {
+      if (prev.includes(newStdId) && prev[index] !== newStdId) return prev;
+      const copy = [...prev];
+      copy[index] = newStdId;
+      return copy;
+    });
+  };
+
+  const handleRemoveEditStudent = (stdId) => {
+    setEditStudentIds(prev => prev.filter(id => id !== stdId));
+  };
+
+  const handleAddEditStudent = (stdId) => {
+    if (!stdId) return;
+    setEditStudentIds(prev => (prev.includes(stdId) ? prev : [...prev, stdId]));
   };
 
   const handleSaveEdit = async () => {
     try {
-      const userRef = doc(db, 'users', editingId);
-      await updateDoc(userRef, {
-        displayName: editName,
-        canAccessEvents: editCanAccessEvents
+      const userToEdit = users.find(u => u.id === editingId);
+      if (!userToEdit) return;
+
+      const userEmail = (userToEdit.email || '').toLowerCase().trim();
+      const currentlyLinked = userEmail ? (studentsByEmailMap.get(userEmail) || []) : [];
+      const originalStudentIds = currentlyLinked.map(s => s.id);
+
+      const removedStudentIds = originalStudentIds.filter(id => !editStudentIds.includes(id));
+      const addedStudentIds = editStudentIds.filter(id => !originalStudentIds.includes(id));
+
+      const updatedStudentsMap = new Map();
+
+      // 1. Desvincular alumnos quitados o reemplazados
+      if (userEmail) {
+        for (const stdId of removedStudentIds) {
+          const st = allStudents.find(s => s.id === stdId);
+          if (!st) continue;
+          const nextEmails = getStudentEmails(st).filter(e => e !== userEmail);
+          const studentUpdates = { apoderadoEmails: nextEmails };
+          if (st.apoderadoEmail && st.apoderadoEmail.toLowerCase().trim() === userEmail) {
+            studentUpdates.apoderadoEmail = nextEmails[0] || '';
+          }
+          await updateDoc(doc(db, 'students', stdId), studentUpdates);
+          updatedStudentsMap.set(stdId, studentUpdates);
+        }
+
+        // 2. Vincular alumnos agregados o modificados
+        for (const stdId of addedStudentIds) {
+          const st = allStudents.find(s => s.id === stdId);
+          if (!st) continue;
+          const currentEmails = getStudentEmails(st);
+          if (!currentEmails.includes(userEmail)) {
+            const nextEmails = [...currentEmails, userEmail];
+            const studentUpdates = { apoderadoEmails: nextEmails };
+            await updateDoc(doc(db, 'students', stdId), studentUpdates);
+            updatedStudentsMap.set(stdId, studentUpdates);
+          }
+        }
+      }
+
+      // 3. Asegurar que el usuario tenga rol en el curso de los alumnos vinculados
+      const updatedRoles = { ...(userToEdit.roles || {}) };
+      let updatedDefaultCourseId = userToEdit.defaultCourseId || '';
+      editStudentIds.forEach(stdId => {
+        const st = allStudents.find(s => s.id === stdId);
+        if (st?.courseId) {
+          if (!updatedRoles[st.courseId]) {
+            updatedRoles[st.courseId] = 'apoderado';
+          }
+          if (!updatedDefaultCourseId) {
+            updatedDefaultCourseId = st.courseId;
+          }
+        }
       });
 
+      const userRef = doc(db, 'users', editingId);
+      const userUpdatePayload = {
+        displayName: editName,
+        canAccessEvents: editCanAccessEvents,
+        roles: updatedRoles
+      };
+      if (updatedDefaultCourseId) {
+        userUpdatePayload.defaultCourseId = updatedDefaultCourseId;
+      }
+
+      await updateDoc(userRef, userUpdatePayload);
+
+      if (updatedStudentsMap.size > 0) {
+        setAllStudents(prev => prev.map(s =>
+          updatedStudentsMap.has(s.id) ? { ...s, ...updatedStudentsMap.get(s.id) } : s
+        ));
+      }
+
       setUsers(users.map(u =>
-        u.id === editingId ? { ...u, displayName: editName, canAccessEvents: editCanAccessEvents } : u
+        u.id === editingId ? { ...u, ...userUpdatePayload } : u
       ));
 
-      setMessage('Usuario modificado correctamente');
-      setTimeout(() => setMessage(''), 3000);
+      setMessage('Usuario y vínculo de alumno(s) actualizados correctamente');
+      setTimeout(() => setMessage(''), 3500);
       cancelEditing();
     } catch (error) {
       console.error("Error modificando usuario:", error);
@@ -463,7 +645,7 @@ const UserManagement = ({ onBack, viewMode = 'users' }) => {
           <Search size={16} style={{ color: 'var(--text-muted)' }} />
           <input
             type="text"
-            placeholder="Buscar por nombre, email o Doc ID..."
+            placeholder="Buscar por nombre, email, alumno o Doc ID..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             style={{
@@ -550,6 +732,22 @@ const UserManagement = ({ onBack, viewMode = 'users' }) => {
               style={{ fontSize: '0.85rem' }}
             />
           </div>
+          <div className="input-group" style={{ flex: '1', minWidth: '210px', marginBottom: 0 }}>
+            <label className="input-label" style={{ fontSize: '0.8rem' }}>Alumno a Vincular (Opcional)</label>
+            <select
+              className="input-field"
+              value={newStudentId}
+              onChange={(e) => setNewStudentId(e.target.value)}
+              style={{ fontSize: '0.85rem' }}
+            >
+              <option value="">-- Sin alumno vinculado --</option>
+              {sortedStudentsForSelect.map(s => (
+                <option key={s.id} value={s.id}>
+                  {formatStudentOptionLabel(s)}
+                </option>
+              ))}
+            </select>
+          </div>
           <div className="input-group" style={{ width: '150px', marginBottom: 0 }}>
             <label className="input-label" style={{ fontSize: '0.8rem' }}>Rol</label>
             <select className="input-field" value={newRole} onChange={(e) => setNewRole(e.target.value)} style={{ fontSize: '0.85rem' }}>
@@ -568,11 +766,12 @@ const UserManagement = ({ onBack, viewMode = 'users' }) => {
 
       {/* Tabla de Usuarios */}
       <div className="table-responsive glass-panel" style={{ overflowX: 'auto', borderRadius: 'var(--radius-lg)' }}>
-        <table style={{ width: '100%', minWidth: '700px', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.875rem' }}>
+        <table style={{ width: '100%', minWidth: '820px', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.875rem' }}>
           <thead>
             <tr style={{ borderBottom: '1px solid var(--border-color)', backgroundColor: 'var(--bg-card-hover)' }}>
               <th style={{ padding: '0.9rem 1rem', color: 'var(--text-muted)', fontWeight: '600' }}>Usuario</th>
               <th style={{ padding: '0.9rem 1rem', color: 'var(--text-muted)', fontWeight: '600' }}>Email</th>
+              <th style={{ padding: '0.9rem 1rem', color: 'var(--text-muted)', fontWeight: '600' }}>Alumno(s) Vinculado(s)</th>
               <th style={{ padding: '0.9rem 1rem', color: 'var(--text-muted)', fontWeight: '600' }}>Rol / Curso</th>
               <th style={{ padding: '0.9rem 1rem', color: 'var(--text-muted)', fontWeight: '600' }}>Estado</th>
               <th style={{ padding: '0.9rem 1rem', color: 'var(--text-muted)', fontWeight: '600' }}>Acciones</th>
@@ -583,6 +782,8 @@ const UserManagement = ({ onBack, viewMode = 'users' }) => {
               const emailLower = (u.email || '').toLowerCase().trim();
               const duplicateDocs = duplicateEmailsMap.get(emailLower) || [];
               const isDuplicate = duplicateDocs.length > 1;
+              const linkedStudents = studentsByEmailMap.get(emailLower) || [];
+              const canEditUser = role === 'superadmin' || role === 'admin';
 
               return (
                 <tr
@@ -614,6 +815,55 @@ const UserManagement = ({ onBack, viewMode = 'users' }) => {
                         </div>
                       </td>
                       <td style={{ padding: '1rem', color: 'var(--text-muted)' }}>{u.email}</td>
+                      <td style={{ padding: '1rem', minWidth: '250px' }}>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.45rem' }}>
+                          {editStudentIds.map((stdId, idx) => (
+                            <div key={`${stdId}-${idx}`} style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                              <select
+                                className="input-field"
+                                style={{ padding: '0.3rem 0.5rem', fontSize: '0.78rem', flex: 1 }}
+                                value={stdId}
+                                onChange={(e) => handleChangeEditStudent(idx, e.target.value)}
+                              >
+                                <option value="">-- Desvincular alumno --</option>
+                                {sortedStudentsForSelect.map(s => (
+                                  <option key={s.id} value={s.id}>
+                                    {formatStudentOptionLabel(s)}
+                                  </option>
+                                ))}
+                              </select>
+                              <button
+                                type="button"
+                                onClick={() => handleRemoveEditStudent(stdId)}
+                                className="btn btn-outline"
+                                style={{ padding: '0.25rem 0.4rem', color: 'var(--danger)', borderColor: 'var(--border-color)' }}
+                                title="Quitar alumno"
+                              >
+                                <X size={14} />
+                              </button>
+                            </div>
+                          ))}
+                          <select
+                            className="input-field"
+                            style={{ padding: '0.3rem 0.5rem', fontSize: '0.78rem', borderStyle: 'dashed', borderColor: 'var(--primary)' }}
+                            value=""
+                            onChange={(e) => {
+                              if (e.target.value) {
+                                handleAddEditStudent(e.target.value);
+                              }
+                            }}
+                          >
+                            <option value="">+ Agregar alumno...</option>
+                            {sortedStudentsForSelect
+                              .filter(s => !editStudentIds.includes(s.id))
+                              .map(s => (
+                                <option key={s.id} value={s.id}>
+                                  {formatStudentOptionLabel(s)}
+                                </option>
+                              ))}
+                          </select>
+                        </div>
+                      </td>
                       <td style={{ padding: '1rem' }}>
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
                           {((u.roles && u.roles['global'] === 'superadmin') || u.role === 'superadmin') ? (
@@ -693,6 +943,64 @@ const UserManagement = ({ onBack, viewMode = 'users' }) => {
                       </td>
                       <td style={{ padding: '0.9rem 1rem', color: 'var(--text-muted)' }}>{u.email}</td>
                       <td style={{ padding: '0.9rem 1rem' }}>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem', alignItems: 'flex-start' }}>
+                          {linkedStudents.length > 0 ? (
+                            linkedStudents.map(std => {
+                              const cObj = allCourses.find(c => c.id === std.courseId);
+                              return (
+                                <span
+                                  key={std.id}
+                                  style={{
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    gap: '0.35rem',
+                                    padding: '0.2rem 0.5rem',
+                                    borderRadius: 'var(--radius-sm)',
+                                    fontSize: '0.75rem',
+                                    backgroundColor: 'rgba(59, 130, 246, 0.1)',
+                                    border: '1px solid rgba(59, 130, 246, 0.3)',
+                                    color: 'var(--text-main)',
+                                    fontWeight: '500'
+                                  }}
+                                >
+                                  {formatStudentName(std)}
+                                  {cObj && (
+                                    <span style={{ fontSize: '0.68rem', color: 'var(--text-muted)' }}>
+                                      ({cObj.name})
+                                    </span>
+                                  )}
+                                </span>
+                              );
+                            })
+                          ) : (
+                            <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontStyle: 'italic' }}>
+                              Sin alumno vinculado
+                            </span>
+                          )}
+                          {canEditUser && (
+                            <button
+                              type="button"
+                              onClick={() => startEditing(u)}
+                              style={{
+                                background: 'none',
+                                border: 'none',
+                                padding: 0,
+                                color: 'var(--primary)',
+                                fontSize: '0.75rem',
+                                cursor: 'pointer',
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '0.2rem',
+                                fontWeight: '500'
+                              }}
+                            >
+                              <Plus size={12} />
+                              {linkedStudents.length > 0 ? 'Modificar / Agregar alumno' : 'Agregar alumno'}
+                            </button>
+                          )}
+                        </div>
+                      </td>
+                      <td style={{ padding: '0.9rem 1rem' }}>
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
                           {((u.roles && u.roles['global'] === 'superadmin') || u.role === 'superadmin') ? (
                             <span style={{ padding: '0.15rem 0.45rem', borderRadius: 'var(--radius-sm)', fontSize: '0.75rem', backgroundColor: 'var(--bg-card-hover)', border: '1px solid var(--warning)', color: 'var(--warning)', width: 'max-content' }}>
@@ -730,31 +1038,35 @@ const UserManagement = ({ onBack, viewMode = 'users' }) => {
                         )}
                       </td>
                       <td style={{ padding: '0.9rem 1rem' }}>
-                        {role === 'superadmin' && u.role !== 'superadmin' ? (
+                        {canEditUser ? (
                           <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
                             <button onClick={() => startEditing(u)} className="btn btn-outline" style={{ padding: '0.35rem 0.65rem', color: 'var(--text-main)', gap: '0.35rem', display: 'flex', alignItems: 'center', fontSize: '0.8rem' }}>
                               <Edit2 size={14} /> Editar
                             </button>
-                            <select
-                              className="input-field"
-                              style={{ padding: '0.25rem 0.5rem', fontSize: '0.8rem' }}
-                              value={u.roles && selectedCourse && u.roles[selectedCourse.id] ? u.roles[selectedCourse.id] : ''}
-                              onChange={(e) => handleRoleChange(u.id, e.target.value)}
-                            >
-                              <option value="" disabled>Asignar Rol...</option>
-                              <option value="apoderado">Apoderado</option>
-                              <option value="tesorero">Tesorero</option>
-                              <option value="presidente">Presidente</option>
-                              {role === 'superadmin' && <option value="admin">Admin</option>}
-                            </select>
-                            <button
-                              onClick={() => handleDeleteUser(u.id, u.email)}
-                              className="btn btn-outline"
-                              style={{ padding: '0.35rem 0.5rem', color: 'var(--danger)', borderColor: 'var(--border-color)' }}
-                              title={isDuplicate ? "Eliminar este registro duplicado" : "Eliminar usuario"}
-                            >
-                              <Trash2 size={15} />
-                            </button>
+                            {role === 'superadmin' && u.role !== 'superadmin' && (
+                              <>
+                                <select
+                                  className="input-field"
+                                  style={{ padding: '0.25rem 0.5rem', fontSize: '0.8rem' }}
+                                  value={u.roles && selectedCourse && u.roles[selectedCourse.id] ? u.roles[selectedCourse.id] : ''}
+                                  onChange={(e) => handleRoleChange(u.id, e.target.value)}
+                                >
+                                  <option value="" disabled>Asignar Rol...</option>
+                                  <option value="apoderado">Apoderado</option>
+                                  <option value="tesorero">Tesorero</option>
+                                  <option value="presidente">Presidente</option>
+                                  {role === 'superadmin' && <option value="admin">Admin</option>}
+                                </select>
+                                <button
+                                  onClick={() => handleDeleteUser(u.id, u.email)}
+                                  className="btn btn-outline"
+                                  style={{ padding: '0.35rem 0.5rem', color: 'var(--danger)', borderColor: 'var(--border-color)' }}
+                                  title={isDuplicate ? "Eliminar este registro duplicado" : "Eliminar usuario"}
+                                >
+                                  <Trash2 size={15} />
+                                </button>
+                              </>
+                            )}
                           </div>
                         ) : (
                           <span style={{ color: 'var(--text-muted)', fontSize: '0.8rem' }}>No modificable</span>
