@@ -3,9 +3,9 @@ import { db } from '../firebase/config';
 import { collection, getDocs, doc, updateDoc, setDoc, deleteDoc } from 'firebase/firestore';
 import { useAuth } from '../context/AuthContext';
 import { useCourse } from '../context/CourseContext';
-import { 
-  ArrowLeft, UserCheck, UserPlus, Trash2, Edit2, Save, X, 
-  AlertTriangle, Layers, Search, RefreshCw, CheckCircle2 
+import {
+  ArrowLeft, UserCheck, UserPlus, Trash2, Edit2, Save, X,
+  AlertTriangle, Layers, Search, RefreshCw, CheckCircle2
 } from 'lucide-react';
 import { useModal } from '../context/ModalContext';
 
@@ -21,7 +21,7 @@ const UserManagement = ({ onBack, viewMode = 'users' }) => {
   const [loading, setLoading] = useState(true);
   const [cleaning, setCleaning] = useState(false);
   const [message, setMessage] = useState('');
-  
+
   const [newEmail, setNewEmail] = useState('');
   const [newName, setNewName] = useState('');
   const [newRole, setNewRole] = useState('apoderado');
@@ -45,7 +45,7 @@ const UserManagement = ({ onBack, viewMode = 'users' }) => {
 
       const usersCollection = collection(db, 'users');
       const userSnapshot = await getDocs(usersCollection);
-      
+
       let userList = userSnapshot.docs.map(doc => ({
         id: doc.id,
         ...doc.data()
@@ -86,15 +86,15 @@ const UserManagement = ({ onBack, viewMode = 'users' }) => {
       const isSuperadmin = (u.roles && u.roles['global'] === 'superadmin') || u.role === 'superadmin';
       const rolesKeys = u.roles ? Object.keys(u.roles) : [];
       const emailLower = (u.email || '').toLowerCase().trim();
-      
+
       // 1. Filter by viewMode
       let matchesMode = false;
       if (viewMode === 'admins') {
-         matchesMode = isSuperadmin || rolesKeys.some(k => ['admin', 'presidente', 'tesorero', 'secretario'].includes(u.roles[k]));
+        matchesMode = isSuperadmin || rolesKeys.some(k => ['admin', 'presidente', 'tesorero', 'secretario'].includes(u.roles[k]));
       } else {
-         matchesMode = !isSuperadmin && (!u.roles || Object.keys(u.roles).length === 0 || rolesKeys.some(k => u.roles[k] === 'apoderado'));
+        matchesMode = !isSuperadmin && (!u.roles || Object.keys(u.roles).length === 0 || rolesKeys.some(k => u.roles[k] === 'apoderado'));
       }
-      
+
       // 2. Filter by course
       let matchesCourse = true;
       if (filterCourse !== 'all') {
@@ -114,7 +114,7 @@ const UserManagement = ({ onBack, viewMode = 'users' }) => {
       if (showOnlyDuplicates) {
         matchesDuplicates = duplicateEmailsMap.has(emailLower) && duplicateEmailsMap.get(emailLower).length > 1;
       }
-      
+
       return matchesMode && matchesCourse && matchesSearch && matchesDuplicates;
     });
   }, [users, viewMode, filterCourse, searchTerm, showOnlyDuplicates, duplicateEmailsMap]);
@@ -218,17 +218,17 @@ const UserManagement = ({ onBack, viewMode = 'users' }) => {
     try {
       const userRef = doc(db, 'users', userId);
       const userToUpdate = users.find(u => u.id === userId);
-      
+
       const updatedRoles = { ...(userToUpdate.roles || {}) };
       updatedRoles[selectedCourse.id] = changedRole;
 
-      await updateDoc(userRef, { 
+      await updateDoc(userRef, {
         roles: updatedRoles,
         role: changedRole // backward compatibility
       });
-      
+
       setUsers(users.map(u => u.id === userId ? { ...u, roles: updatedRoles, role: changedRole } : u));
-      
+
       setMessage('Rol actualizado correctamente');
       setTimeout(() => setMessage(''), 3000);
     } catch (error) {
@@ -244,7 +244,7 @@ const UserManagement = ({ onBack, viewMode = 'users' }) => {
 
     try {
       const emailLower = newEmail.toLowerCase().trim();
-      
+
       // Chequeo previo para evitar duplicados: si ya existe, actualizamos su doc existente
       const existingUser = users.find(u => (u.email || '').toLowerCase().trim() === emailLower);
 
@@ -263,7 +263,7 @@ const UserManagement = ({ onBack, viewMode = 'users' }) => {
         }
 
         await setDoc(doc(db, 'users', existingUser.id), updateData, { merge: true });
-        
+
         setUsers(users.map(u => u.id === existingUser.id ? { ...u, ...updateData } : u));
         setMessage('Usuario existente actualizado con el nuevo rol en este curso');
       } else {
@@ -279,7 +279,7 @@ const UserManagement = ({ onBack, viewMode = 'users' }) => {
           createdAt: new Date().toISOString(),
           preRegistered: true
         };
-        
+
         await setDoc(userRef, newUser);
         setUsers([...users, { id: emailLower, ...newUser }]);
         setMessage('Usuario pre-registrado correctamente');
@@ -332,11 +332,11 @@ const UserManagement = ({ onBack, viewMode = 'users' }) => {
         displayName: editName,
         canAccessEvents: editCanAccessEvents
       });
-      
-      setUsers(users.map(u => 
+
+      setUsers(users.map(u =>
         u.id === editingId ? { ...u, displayName: editName, canAccessEvents: editCanAccessEvents } : u
       ));
-      
+
       setMessage('Usuario modificado correctamente');
       setTimeout(() => setMessage(''), 3000);
       cancelEditing();
@@ -369,8 +369,8 @@ const UserManagement = ({ onBack, viewMode = 'users' }) => {
           </div>
         </div>
 
-        <button 
-          onClick={fetchData} 
+        <button
+          onClick={fetchData}
           className="btn btn-outline"
           style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.85rem' }}
           title="Recargar usuarios desde la base de datos"
@@ -381,12 +381,12 @@ const UserManagement = ({ onBack, viewMode = 'users' }) => {
 
       {/* Banner de Duplicados Detectados */}
       {duplicateGroups.length > 0 && (
-        <div 
-          className="glass-panel" 
-          style={{ 
-            padding: '1.25rem 1.5rem', 
-            marginBottom: '1.5rem', 
-            backgroundColor: 'var(--bg-card)', 
+        <div
+          className="glass-panel"
+          style={{
+            padding: '1.25rem 1.5rem',
+            marginBottom: '1.5rem',
+            backgroundColor: 'var(--bg-card)',
             border: '1px solid var(--warning)',
             display: 'flex',
             alignItems: 'center',
@@ -396,7 +396,7 @@ const UserManagement = ({ onBack, viewMode = 'users' }) => {
           }}
         >
           <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', flex: '1 1 300px' }}>
-            <div style={{ 
+            <div style={{
               width: '42px', height: '42px', minWidth: '42px',
               borderRadius: 'var(--radius-sm)',
               backgroundColor: 'var(--bg-card-hover)',
@@ -438,11 +438,11 @@ const UserManagement = ({ onBack, viewMode = 'users' }) => {
       )}
 
       {/* Filtros y Buscador */}
-      <div style={{ 
-        display: 'flex', 
-        gap: '1rem', 
-        alignItems: 'center', 
-        flexWrap: 'wrap', 
+      <div style={{
+        display: 'flex',
+        gap: '1rem',
+        alignItems: 'center',
+        flexWrap: 'wrap',
         marginBottom: '1.5rem',
         padding: '1rem',
         backgroundColor: 'var(--bg-card)',
@@ -450,10 +450,10 @@ const UserManagement = ({ onBack, viewMode = 'users' }) => {
         borderRadius: 'var(--radius-md)'
       }}>
         {/* Buscador */}
-        <div style={{ 
-          display: 'flex', 
-          alignItems: 'center', 
-          gap: '0.5rem', 
+        <div style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: '0.5rem',
           flex: '1 1 240px',
           backgroundColor: 'var(--bg-card-hover)',
           border: '1px solid var(--border-color)',
@@ -461,7 +461,7 @@ const UserManagement = ({ onBack, viewMode = 'users' }) => {
           padding: '0.45rem 0.75rem'
         }}>
           <Search size={16} style={{ color: 'var(--text-muted)' }} />
-          <input 
+          <input
             type="text"
             placeholder="Buscar por nombre, email o Doc ID..."
             value={searchTerm}
@@ -485,8 +485,8 @@ const UserManagement = ({ onBack, viewMode = 'users' }) => {
         {/* Selector de Curso */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
           <label style={{ fontSize: '0.85rem', color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>Curso:</label>
-          <select 
-            className="input-field" 
+          <select
+            className="input-field"
             style={{ width: 'auto', padding: '0.45rem 0.75rem', fontSize: '0.85rem' }}
             value={filterCourse}
             onChange={(e) => setFilterCourse(e.target.value)}
@@ -503,8 +503,8 @@ const UserManagement = ({ onBack, viewMode = 'users' }) => {
           <button
             onClick={() => setShowOnlyDuplicates(!showOnlyDuplicates)}
             className="btn btn-outline"
-            style={{ 
-              fontSize: '0.825rem', 
+            style={{
+              fontSize: '0.825rem',
               padding: '0.45rem 0.85rem',
               borderColor: showOnlyDuplicates ? 'var(--warning)' : 'var(--border-color)',
               color: showOnlyDuplicates ? 'var(--warning)' : 'var(--text-muted)'
@@ -529,10 +529,10 @@ const UserManagement = ({ onBack, viewMode = 'users' }) => {
         <form onSubmit={handleAddUser} style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap', alignItems: 'flex-end' }}>
           <div className="input-group" style={{ flex: '1', minWidth: '200px', marginBottom: 0 }}>
             <label className="input-label" style={{ fontSize: '0.8rem' }}>Email</label>
-            <input 
-              type="email" 
+            <input
+              type="email"
               required
-              className="input-field" 
+              className="input-field"
               placeholder="correo@ejemplo.com"
               value={newEmail}
               onChange={(e) => setNewEmail(e.target.value)}
@@ -541,9 +541,9 @@ const UserManagement = ({ onBack, viewMode = 'users' }) => {
           </div>
           <div className="input-group" style={{ flex: '1', minWidth: '150px', marginBottom: 0 }}>
             <label className="input-label" style={{ fontSize: '0.8rem' }}>Nombre (Opcional)</label>
-            <input 
-              type="text" 
-              className="input-field" 
+            <input
+              type="text"
+              className="input-field"
               placeholder="Juan Pérez"
               value={newName}
               onChange={(e) => setNewName(e.target.value)}
@@ -585,9 +585,9 @@ const UserManagement = ({ onBack, viewMode = 'users' }) => {
               const isDuplicate = duplicateDocs.length > 1;
 
               return (
-                <tr 
-                  key={u.id} 
-                  style={{ 
+                <tr
+                  key={u.id}
+                  style={{
                     borderBottom: '1px solid var(--border-color)',
                     backgroundColor: isDuplicate ? 'rgba(245, 158, 11, 0.03)' : 'transparent'
                   }}
@@ -596,18 +596,18 @@ const UserManagement = ({ onBack, viewMode = 'users' }) => {
                     <>
                       <td style={{ padding: '1rem' }}>
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                          <input 
-                            type="text" 
-                            className="input-field" 
-                            value={editName} 
+                          <input
+                            type="text"
+                            className="input-field"
+                            value={editName}
                             onChange={(e) => setEditName(e.target.value)}
                             style={{ padding: '0.4rem' }}
                           />
                           <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.8rem' }}>
-                            <input 
-                              type="checkbox" 
-                              checked={editCanAccessEvents} 
-                              onChange={(e) => setEditCanAccessEvents(e.target.checked)} 
+                            <input
+                              type="checkbox"
+                              checked={editCanAccessEvents}
+                              onChange={(e) => setEditCanAccessEvents(e.target.checked)}
                             />
                             Habilitar Eventos y POS
                           </label>
@@ -621,21 +621,21 @@ const UserManagement = ({ onBack, viewMode = 'users' }) => {
                               Superadmin (Global)
                             </span>
                           ) : (!u.roles || Object.keys(u.roles).filter(k => k !== 'global').length === 0) ? (
-                              <span style={{ padding: '0.15rem 0.45rem', borderRadius: 'var(--radius-sm)', fontSize: '0.75rem', backgroundColor: 'var(--bg-card-hover)', border: '1px solid var(--danger)', color: 'var(--danger)', width: 'max-content' }}>
-                                Sin Curso
-                              </span>
-                            ) : (
-                              Object.entries(u.roles || {}).map(([cId, r]) => {
-                                if (cId === 'global') return null;
-                                const cName = allCourses.find(c => c.id === cId)?.name || 'Curso Desconocido';
-                                if (viewMode === 'admins' && !['admin', 'presidente', 'tesorero', 'secretario'].includes(r)) return null;
-                                if (viewMode === 'users' && r !== 'apoderado') return null;
-                                return (
-                                  <span key={cId} style={{ padding: '0.15rem 0.45rem', borderRadius: 'var(--radius-sm)', fontSize: '0.75rem', backgroundColor: 'var(--bg-card-hover)', border: '1px solid var(--border-color)', color: 'var(--text-main)', width: 'max-content' }}>
-                                    {r.charAt(0).toUpperCase() + r.slice(1)} - {cName}
-                                  </span>
-                                );
-                              })
+                            <span style={{ padding: '0.15rem 0.45rem', borderRadius: 'var(--radius-sm)', fontSize: '0.75rem', backgroundColor: 'var(--bg-card-hover)', border: '1px solid var(--danger)', color: 'var(--danger)', width: 'max-content' }}>
+                              Sin Curso
+                            </span>
+                          ) : (
+                            Object.entries(u.roles || {}).map(([cId, r]) => {
+                              if (cId === 'global') return null;
+                              const cName = allCourses.find(c => c.id === cId)?.name || 'Curso Desconocido';
+                              if (viewMode === 'admins' && !['admin', 'presidente', 'tesorero', 'secretario'].includes(r)) return null;
+                              if (viewMode === 'users' && r !== 'apoderado') return null;
+                              return (
+                                <span key={cId} style={{ padding: '0.15rem 0.45rem', borderRadius: 'var(--radius-sm)', fontSize: '0.75rem', backgroundColor: 'var(--bg-card-hover)', border: '1px solid var(--border-color)', color: 'var(--text-main)', width: 'max-content' }}>
+                                  {r.charAt(0).toUpperCase() + r.slice(1)} - {cName}
+                                </span>
+                              );
+                            })
                           )}
                         </div>
                       </td>
@@ -662,10 +662,10 @@ const UserManagement = ({ onBack, viewMode = 'users' }) => {
                       <td style={{ padding: '0.9rem 1rem' }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
                           {u.photoURL ? (
-                            <img 
-                              src={u.photoURL} 
-                              alt={u.displayName} 
-                              style={{ width: '32px', height: '32px', borderRadius: 'var(--radius-sm)', cursor: 'pointer', border: '1px solid var(--border-color)', objectFit: 'cover' }} 
+                            <img
+                              src={u.photoURL}
+                              alt={u.displayName}
+                              style={{ width: '32px', height: '32px', borderRadius: 'var(--radius-sm)', cursor: 'pointer', border: '1px solid var(--border-color)', objectFit: 'cover' }}
                               onClick={(e) => { e.stopPropagation(); setSelectedImage(u.photoURL); }}
                               title="Ver en pantalla completa"
                             />
@@ -699,21 +699,21 @@ const UserManagement = ({ onBack, viewMode = 'users' }) => {
                               Superadmin (Global)
                             </span>
                           ) : (!u.roles || Object.keys(u.roles).filter(k => k !== 'global').length === 0) ? (
-                              <span style={{ padding: '0.15rem 0.45rem', borderRadius: 'var(--radius-sm)', fontSize: '0.75rem', backgroundColor: 'var(--bg-card-hover)', border: '1px solid var(--danger)', color: 'var(--danger)', width: 'max-content' }}>
-                                Sin Curso
-                              </span>
-                            ) : (
-                              Object.entries(u.roles || {}).map(([cId, r]) => {
-                                if (cId === 'global') return null;
-                                const cName = allCourses.find(c => c.id === cId)?.name || 'Curso Desconocido';
-                                if (viewMode === 'admins' && !['admin', 'presidente', 'tesorero', 'secretario'].includes(r)) return null;
-                                if (viewMode === 'users' && r !== 'apoderado') return null;
-                                return (
-                                  <span key={cId} style={{ padding: '0.15rem 0.45rem', borderRadius: 'var(--radius-sm)', fontSize: '0.75rem', backgroundColor: 'var(--bg-card-hover)', border: '1px solid var(--border-color)', color: 'var(--text-main)', width: 'max-content' }}>
-                                    {r.charAt(0).toUpperCase() + r.slice(1)} - {cName}
-                                  </span>
-                                );
-                              })
+                            <span style={{ padding: '0.15rem 0.45rem', borderRadius: 'var(--radius-sm)', fontSize: '0.75rem', backgroundColor: 'var(--bg-card-hover)', border: '1px solid var(--danger)', color: 'var(--danger)', width: 'max-content' }}>
+                              Sin Curso
+                            </span>
+                          ) : (
+                            Object.entries(u.roles || {}).map(([cId, r]) => {
+                              if (cId === 'global') return null;
+                              const cName = allCourses.find(c => c.id === cId)?.name || 'Curso Desconocido';
+                              if (viewMode === 'admins' && !['admin', 'presidente', 'tesorero', 'secretario'].includes(r)) return null;
+                              if (viewMode === 'users' && r !== 'apoderado') return null;
+                              return (
+                                <span key={cId} style={{ padding: '0.15rem 0.45rem', borderRadius: 'var(--radius-sm)', fontSize: '0.75rem', backgroundColor: 'var(--bg-card-hover)', border: '1px solid var(--border-color)', color: 'var(--text-main)', width: 'max-content' }}>
+                                  {r.charAt(0).toUpperCase() + r.slice(1)} - {cName}
+                                </span>
+                              );
+                            })
                           )}
                           {u.canAccessEvents && (
                             <span style={{ padding: '0.15rem 0.45rem', borderRadius: 'var(--radius-sm)', fontSize: '0.75rem', backgroundColor: 'var(--bg-card-hover)', border: '1px solid var(--success)', color: 'var(--success)', width: 'max-content' }}>
@@ -735,8 +735,8 @@ const UserManagement = ({ onBack, viewMode = 'users' }) => {
                             <button onClick={() => startEditing(u)} className="btn btn-outline" style={{ padding: '0.35rem 0.65rem', color: 'var(--text-main)', gap: '0.35rem', display: 'flex', alignItems: 'center', fontSize: '0.8rem' }}>
                               <Edit2 size={14} /> Editar
                             </button>
-                            <select 
-                              className="input-field" 
+                            <select
+                              className="input-field"
                               style={{ padding: '0.25rem 0.5rem', fontSize: '0.8rem' }}
                               value={u.roles && selectedCourse && u.roles[selectedCourse.id] ? u.roles[selectedCourse.id] : ''}
                               onChange={(e) => handleRoleChange(u.id, e.target.value)}
@@ -747,9 +747,9 @@ const UserManagement = ({ onBack, viewMode = 'users' }) => {
                               <option value="presidente">Presidente</option>
                               {role === 'superadmin' && <option value="admin">Admin</option>}
                             </select>
-                            <button 
-                              onClick={() => handleDeleteUser(u.id, u.email)} 
-                              className="btn btn-outline" 
+                            <button
+                              onClick={() => handleDeleteUser(u.id, u.email)}
+                              className="btn btn-outline"
                               style={{ padding: '0.35rem 0.5rem', color: 'var(--danger)', borderColor: 'var(--border-color)' }}
                               title={isDuplicate ? "Eliminar este registro duplicado" : "Eliminar usuario"}
                             >
@@ -781,14 +781,14 @@ const UserManagement = ({ onBack, viewMode = 'users' }) => {
           display: 'flex', justifyContent: 'center', alignItems: 'center',
           zIndex: 10000, padding: '1rem', cursor: 'zoom-out'
         }} onClick={() => setSelectedImage(null)}>
-          <img 
-            src={selectedImage} 
-            alt="Usuario" 
-            style={{ 
-              maxWidth: '90%', maxHeight: '90vh', 
+          <img
+            src={selectedImage}
+            alt="Usuario"
+            style={{
+              maxWidth: '90%', maxHeight: '90vh',
               borderRadius: 'var(--radius-md)', boxShadow: '0 25px 50px -12px rgba(0,0,0,0.5)',
               objectFit: 'contain'
-            }} 
+            }}
           />
           <button onClick={() => setSelectedImage(null)} style={{
             position: 'absolute', top: '1.5rem', right: '1.5rem',

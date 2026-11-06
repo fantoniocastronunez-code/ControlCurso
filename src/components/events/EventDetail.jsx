@@ -315,22 +315,22 @@ const EventDetail = ({ eventId, onBack }) => {
                 </span>
               )}
             </h2>
-              <p style={{ margin: 0, color: 'var(--text-muted)', fontSize: '0.9rem', display: 'flex', alignItems: 'center', gap: '0.4rem', flexWrap: 'wrap' }}>
-                <span style={{ fontWeight: '500', color: 'var(--text)' }}>{formatEventDate(eventData.date)}</span>
-                <span>•</span>
-                <span>Cuota: ${eventData.mandatoryAmount}</span>
-                <span>•</span>
-                <span>Multa: ${eventData.noShowAmount}</span>
-                <button
-                  type="button"
-                  onClick={handleOpenEditModal}
-                  className="btn btn-outline"
-                  style={{ padding: '0.15rem 0.5rem', fontSize: '0.75rem', display: 'inline-flex', alignItems: 'center', gap: '0.25rem', borderColor: 'var(--border-color)' }}
-                  title="Editar fecha y datos del evento"
-                >
-                  <Edit size={12} /> Editar Fecha
-                </button>
-              </p>
+            <p style={{ margin: 0, color: 'var(--text-muted)', fontSize: '0.9rem', display: 'flex', alignItems: 'center', gap: '0.4rem', flexWrap: 'wrap' }}>
+              <span style={{ fontWeight: '500', color: 'var(--text)' }}>{formatEventDate(eventData.date)}</span>
+              <span>•</span>
+              <span>Cuota: ${eventData.mandatoryAmount}</span>
+              <span>•</span>
+              <span>Multa: ${eventData.noShowAmount}</span>
+              <button
+                type="button"
+                onClick={handleOpenEditModal}
+                className="btn btn-outline"
+                style={{ padding: '0.15rem 0.5rem', fontSize: '0.75rem', display: 'inline-flex', alignItems: 'center', gap: '0.25rem', borderColor: 'var(--border-color)' }}
+                title="Editar fecha y datos del evento"
+              >
+                <Edit size={12} /> Editar Fecha
+              </button>
+            </p>
           </div>
         </div>
 

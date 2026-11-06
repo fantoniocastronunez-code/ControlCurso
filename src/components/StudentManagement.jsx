@@ -18,20 +18,20 @@ const formatMoney = (amount) => {
   return new Intl.NumberFormat('es-CL', { style: 'currency', currency: 'CLP' }).format(amount);
 };
 
-const StudentRow = React.memo(({ 
-  student: s, 
-  editingId, 
-  editData, 
-  setEditData, 
-  handleSaveEdit, 
-  cancelEditing, 
-  selectedStudent, 
-  setSelectedStudent, 
-  formatStudentName, 
-  usersMap, 
-  role, 
-  navigate, 
-  startEditing, 
+const StudentRow = React.memo(({
+  student: s,
+  editingId,
+  editData,
+  setEditData,
+  handleSaveEdit,
+  cancelEditing,
+  selectedStudent,
+  setSelectedStudent,
+  formatStudentName,
+  usersMap,
+  role,
+  navigate,
+  startEditing,
   handleDelete,
   isExpanded,
   toggleExpand,
@@ -40,174 +40,174 @@ const StudentRow = React.memo(({
 }) => {
   return (
     <React.Fragment key={s.id}>
-      <tr 
+      <tr
         className={isExpanded || editingId === s.id ? 'expanded' : ''}
         onClick={(e) => toggleExpand && toggleExpand(s.id, e)}
-        style={{ 
-          borderBottom: '1px solid var(--border-color)', 
+        style={{
+          borderBottom: '1px solid var(--border-color)',
           backgroundColor: selectedStudent?.id === s.id ? 'rgba(99, 102, 241, 0.05)' : 'transparent',
           cursor: toggleExpand ? 'pointer' : 'default'
         }}
       >
         {editingId === s.id ? (
-        <>
-          <td style={{ padding: '1rem', verticalAlign: 'top' }}>
-            <label style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>N° Lista</label>
-            <input 
-              type="number" 
-              className="input-field" 
-              value={editData.listNumber} 
-              onChange={(e) => setEditData({...editData, listNumber: e.target.value})}
-              style={{ padding: '0.4rem', width: '60px', marginTop: '0.2rem' }}
-            />
-          </td>
-          <td style={{ padding: '1rem', display: 'flex', flexDirection: 'column', gap: '0.5rem', verticalAlign: 'top' }}>
-            <div>
-              <label style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Nombres</label>
-              <input 
-                type="text" 
-                className="input-field" 
-                placeholder="Nombres"
-                value={editData.firstName} 
-                onChange={(e) => setEditData({...editData, firstName: e.target.value})}
-                style={{ padding: '0.4rem', marginTop: '0.2rem', width: '100%' }}
+          <>
+            <td style={{ padding: '1rem', verticalAlign: 'top' }}>
+              <label style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>N° Lista</label>
+              <input
+                type="number"
+                className="input-field"
+                value={editData.listNumber}
+                onChange={(e) => setEditData({ ...editData, listNumber: e.target.value })}
+                style={{ padding: '0.4rem', width: '60px', marginTop: '0.2rem' }}
               />
-            </div>
-            <div>
-              <label style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>A. Paterno</label>
-              <input 
-                type="text" 
-                className="input-field" 
-                placeholder="A. Paterno"
-                value={editData.lastNamePaternal} 
-                onChange={(e) => setEditData({...editData, lastNamePaternal: e.target.value})}
-                style={{ padding: '0.4rem', marginTop: '0.2rem', width: '100%' }}
-              />
-            </div>
-            <div>
-              <label style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>A. Materno</label>
-              <input 
-                type="text" 
-                className="input-field" 
-                placeholder="A. Materno"
-                value={editData.lastNameMaternal} 
-                onChange={(e) => setEditData({...editData, lastNameMaternal: e.target.value})}
-                style={{ padding: '0.4rem', marginTop: '0.2rem', width: '100%' }}
-              />
-            </div>
-          </td>
-          <td style={{ padding: '1rem', verticalAlign: 'top' }}>
-            <label style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>RUT</label>
-            <input 
-              type="text" 
-              className="input-field" 
-              value={editData.rut} 
-              onChange={(e) => setEditData({...editData, rut: formatRut(e.target.value)})}
-              style={{ padding: '0.4rem', marginTop: '0.2rem', width: '100%' }}
-            />
-          </td>
-          <td style={{ padding: '1rem', verticalAlign: 'top' }}>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+            </td>
+            <td style={{ padding: '1rem', display: 'flex', flexDirection: 'column', gap: '0.5rem', verticalAlign: 'top' }}>
               <div>
-                <label style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Email Apdo. 1</label>
-                <input 
-                  type="email" 
-                  className="input-field" 
-                  placeholder="Email 1"
-                  value={editData.apoderadoEmail1} 
-                  onChange={(e) => setEditData({...editData, apoderadoEmail1: e.target.value})}
-                  style={{ padding: '0.4rem', marginTop: '0.2rem', width: '100%' }}
-                />
-                <input 
-                  type="text" 
-                  className="input-field" 
-                  placeholder="Nombre Apdo. 1"
-                  value={editData.apoderadoName1} 
-                  onChange={(e) => setEditData({...editData, apoderadoName1: e.target.value})}
+                <label style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Nombres</label>
+                <input
+                  type="text"
+                  className="input-field"
+                  placeholder="Nombres"
+                  value={editData.firstName}
+                  onChange={(e) => setEditData({ ...editData, firstName: e.target.value })}
                   style={{ padding: '0.4rem', marginTop: '0.2rem', width: '100%' }}
                 />
               </div>
               <div>
-                <label style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Email Apdo. 2</label>
-                <input 
-                  type="email" 
-                  className="input-field" 
-                  placeholder="Email 2"
-                  value={editData.apoderadoEmail2} 
-                  onChange={(e) => setEditData({...editData, apoderadoEmail2: e.target.value})}
-                  style={{ padding: '0.4rem', marginTop: '0.2rem', width: '100%' }}
-                />
-                <input 
-                  type="text" 
-                  className="input-field" 
-                  placeholder="Nombre Apdo. 2"
-                  value={editData.apoderadoName2} 
-                  onChange={(e) => setEditData({...editData, apoderadoName2: e.target.value})}
+                <label style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>A. Paterno</label>
+                <input
+                  type="text"
+                  className="input-field"
+                  placeholder="A. Paterno"
+                  value={editData.lastNamePaternal}
+                  onChange={(e) => setEditData({ ...editData, lastNamePaternal: e.target.value })}
                   style={{ padding: '0.4rem', marginTop: '0.2rem', width: '100%' }}
                 />
               </div>
-            </div>
-          </td>
-          <td style={{ padding: '1rem', verticalAlign: 'top' }}>
-            <label style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Saldo a Favor ($)</label>
-            <input 
-              type="number" 
-              className="input-field" 
-              value={editData.balance} 
-              onChange={(e) => setEditData({...editData, balance: e.target.value})}
-              style={{ padding: '0.4rem', width: '100px', marginTop: '0.2rem' }}
-            />
-          </td>
-          <td style={{ padding: '1rem', verticalAlign: 'top' }}>
-            <div style={{ display: 'flex', gap: '0.5rem', marginTop: '1.2rem', flexDirection: 'column' }}>
-              <label style={{ fontSize: '0.8rem', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                <input 
-                  type="checkbox"
-                  checked={editData.status === 'retirado'}
-                  onChange={(e) => setEditData({...editData, status: e.target.checked ? 'retirado' : 'activo'})}
+              <div>
+                <label style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>A. Materno</label>
+                <input
+                  type="text"
+                  className="input-field"
+                  placeholder="A. Materno"
+                  value={editData.lastNameMaternal}
+                  onChange={(e) => setEditData({ ...editData, lastNameMaternal: e.target.value })}
+                  style={{ padding: '0.4rem', marginTop: '0.2rem', width: '100%' }}
                 />
-                Retirado
-              </label>
-              {role === 'superadmin' && (
-                <label style={{ fontSize: '0.8rem', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '0.5rem' }} title="Habilita el recuadro de gastos en el portal del apoderado">
-                  <input 
-                    type="checkbox"
-                    checked={Boolean(editData.showExpensesInPortal)}
-                    onChange={(e) => setEditData({...editData, showExpensesInPortal: e.target.checked})}
+              </div>
+            </td>
+            <td style={{ padding: '1rem', verticalAlign: 'top' }}>
+              <label style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>RUT</label>
+              <input
+                type="text"
+                className="input-field"
+                value={editData.rut}
+                onChange={(e) => setEditData({ ...editData, rut: formatRut(e.target.value) })}
+                style={{ padding: '0.4rem', marginTop: '0.2rem', width: '100%' }}
+              />
+            </td>
+            <td style={{ padding: '1rem', verticalAlign: 'top' }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                <div>
+                  <label style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Email Apdo. 1</label>
+                  <input
+                    type="email"
+                    className="input-field"
+                    placeholder="Email 1"
+                    value={editData.apoderadoEmail1}
+                    onChange={(e) => setEditData({ ...editData, apoderadoEmail1: e.target.value })}
+                    style={{ padding: '0.4rem', marginTop: '0.2rem', width: '100%' }}
                   />
-                  Ver Gastos Portal
-                </label>
-              )}
-              <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.5rem' }}>
-                <button onClick={handleSaveEdit} className="btn btn-primary" style={{ padding: '0.4rem 0.75rem', gap: '0.5rem', display: 'flex', alignItems: 'center' }}>
-                  <Save size={16} /> Guardar
-                </button>
-                <button onClick={cancelEditing} className="btn btn-outline" style={{ padding: '0.4rem 0.75rem', gap: '0.5rem', display: 'flex', alignItems: 'center' }}>
-                  <X size={16} />
-                </button>
+                  <input
+                    type="text"
+                    className="input-field"
+                    placeholder="Nombre Apdo. 1"
+                    value={editData.apoderadoName1}
+                    onChange={(e) => setEditData({ ...editData, apoderadoName1: e.target.value })}
+                    style={{ padding: '0.4rem', marginTop: '0.2rem', width: '100%' }}
+                  />
+                </div>
+                <div>
+                  <label style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Email Apdo. 2</label>
+                  <input
+                    type="email"
+                    className="input-field"
+                    placeholder="Email 2"
+                    value={editData.apoderadoEmail2}
+                    onChange={(e) => setEditData({ ...editData, apoderadoEmail2: e.target.value })}
+                    style={{ padding: '0.4rem', marginTop: '0.2rem', width: '100%' }}
+                  />
+                  <input
+                    type="text"
+                    className="input-field"
+                    placeholder="Nombre Apdo. 2"
+                    value={editData.apoderadoName2}
+                    onChange={(e) => setEditData({ ...editData, apoderadoName2: e.target.value })}
+                    style={{ padding: '0.4rem', marginTop: '0.2rem', width: '100%' }}
+                  />
+                </div>
               </div>
-            </div>
-          </td>
-        </>
-      ) : (
-        <>
-          <td data-label="N° Lista" style={{ padding: '0.5rem 1rem', color: 'var(--text-muted)' }}>{s.listNumber || '-'}</td>
-          <td data-label="Nombre Alumno" style={{ padding: '0.5rem 1rem', fontWeight: '500', display: 'flex', alignItems: 'center', justifyContent: 'space-between', whiteSpace: 'nowrap' }}>
-            <button 
-              onClick={(e) => {
-                e.stopPropagation();
-                setSelectedStudent(selectedStudent?.id === s.id ? null : s);
-              }}
-              style={{ background: 'none', border: 'none', color: 'var(--primary)', cursor: 'pointer', fontWeight: '500', padding: 0, fontSize: 'inherit', textAlign: 'left', textDecoration: s.status === 'retirado' ? 'line-through' : 'underline', opacity: s.status === 'retirado' ? 0.6 : 1 }}
-            >
-              {formatStudentName(s)} {s.status === 'retirado' && <span style={{fontSize: '0.7rem', color: 'var(--text-muted)', marginLeft: '0.5rem', textDecoration: 'none'}}>(Retirado)</span>}
-            </button>
-          </td>
-          <td data-label="RUT" style={{ padding: '0.5rem 1rem', color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>{s.rut || '-'}</td>
-          <td data-label="Apoderado" style={{ padding: '0.5rem 1rem', color: 'var(--text-muted)' }}>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
-              {(s.apoderadoEmails?.length > 0 ? s.apoderadoEmails : (s.apoderadoEmail ? [s.apoderadoEmail] : [])).length > 0 
-                ? (s.apoderadoEmails?.length > 0 ? s.apoderadoEmails : [s.apoderadoEmail]).map((email, idx) => (
+            </td>
+            <td style={{ padding: '1rem', verticalAlign: 'top' }}>
+              <label style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Saldo a Favor ($)</label>
+              <input
+                type="number"
+                className="input-field"
+                value={editData.balance}
+                onChange={(e) => setEditData({ ...editData, balance: e.target.value })}
+                style={{ padding: '0.4rem', width: '100px', marginTop: '0.2rem' }}
+              />
+            </td>
+            <td style={{ padding: '1rem', verticalAlign: 'top' }}>
+              <div style={{ display: 'flex', gap: '0.5rem', marginTop: '1.2rem', flexDirection: 'column' }}>
+                <label style={{ fontSize: '0.8rem', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                  <input
+                    type="checkbox"
+                    checked={editData.status === 'retirado'}
+                    onChange={(e) => setEditData({ ...editData, status: e.target.checked ? 'retirado' : 'activo' })}
+                  />
+                  Retirado
+                </label>
+                {role === 'superadmin' && (
+                  <label style={{ fontSize: '0.8rem', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '0.5rem' }} title="Habilita el recuadro de gastos en el portal del apoderado">
+                    <input
+                      type="checkbox"
+                      checked={Boolean(editData.showExpensesInPortal)}
+                      onChange={(e) => setEditData({ ...editData, showExpensesInPortal: e.target.checked })}
+                    />
+                    Ver Gastos Portal
+                  </label>
+                )}
+                <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.5rem' }}>
+                  <button onClick={handleSaveEdit} className="btn btn-primary" style={{ padding: '0.4rem 0.75rem', gap: '0.5rem', display: 'flex', alignItems: 'center' }}>
+                    <Save size={16} /> Guardar
+                  </button>
+                  <button onClick={cancelEditing} className="btn btn-outline" style={{ padding: '0.4rem 0.75rem', gap: '0.5rem', display: 'flex', alignItems: 'center' }}>
+                    <X size={16} />
+                  </button>
+                </div>
+              </div>
+            </td>
+          </>
+        ) : (
+          <>
+            <td data-label="N° Lista" style={{ padding: '0.5rem 1rem', color: 'var(--text-muted)' }}>{s.listNumber || '-'}</td>
+            <td data-label="Nombre Alumno" style={{ padding: '0.5rem 1rem', fontWeight: '500', display: 'flex', alignItems: 'center', justifyContent: 'space-between', whiteSpace: 'nowrap' }}>
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setSelectedStudent(selectedStudent?.id === s.id ? null : s);
+                }}
+                style={{ background: 'none', border: 'none', color: 'var(--primary)', cursor: 'pointer', fontWeight: '500', padding: 0, fontSize: 'inherit', textAlign: 'left', textDecoration: s.status === 'retirado' ? 'line-through' : 'underline', opacity: s.status === 'retirado' ? 0.6 : 1 }}
+              >
+                {formatStudentName(s)} {s.status === 'retirado' && <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginLeft: '0.5rem', textDecoration: 'none' }}>(Retirado)</span>}
+              </button>
+            </td>
+            <td data-label="RUT" style={{ padding: '0.5rem 1rem', color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>{s.rut || '-'}</td>
+            <td data-label="Apoderado" style={{ padding: '0.5rem 1rem', color: 'var(--text-muted)' }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
+                {(s.apoderadoEmails?.length > 0 ? s.apoderadoEmails : (s.apoderadoEmail ? [s.apoderadoEmail] : [])).length > 0
+                  ? (s.apoderadoEmails?.length > 0 ? s.apoderadoEmails : [s.apoderadoEmail]).map((email, idx) => (
                     <div key={idx} style={{ lineHeight: '1.2' }}>
                       <span style={{ color: 'var(--text-main)', fontWeight: '500' }}>
                         {usersMap[email] || 'Apoderado sin nombre'}
@@ -218,80 +218,80 @@ const StudentRow = React.memo(({
                       </span>
                     </div>
                   ))
-                : 'Sin apoderado'
-              }
-            </div>
-          </td>
-          <td data-label="Saldo a Favor" style={{ padding: '0.5rem 1rem' }}>
-            {s.balance > 0 ? (
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
-                <span style={{ color: 'var(--success)', fontWeight: 'bold' }}>{formatMoney(s.balance)}</span>
-                <button
-                  type="button"
-                  onClick={(e) => { e.stopPropagation(); onDiscountBalance && onDiscountBalance(s); }}
-                  className="btn btn-outline"
-                  style={{
-                    padding: '0.2rem 0.5rem',
-                    fontSize: '0.75rem',
-                    color: '#f59e0b',
-                    borderColor: 'rgba(245, 158, 11, 0.4)',
-                    backgroundColor: 'rgba(245, 158, 11, 0.08)',
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    gap: '0.25rem',
-                    borderRadius: 'var(--radius-sm)'
-                  }}
-                  title="Descontar una parte o la totalidad de este saldo a favor"
-                >
-                  <MinusCircle size={12} /> Descontar
+                  : 'Sin apoderado'
+                }
+              </div>
+            </td>
+            <td data-label="Saldo a Favor" style={{ padding: '0.5rem 1rem' }}>
+              {s.balance > 0 ? (
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+                  <span style={{ color: 'var(--success)', fontWeight: 'bold' }}>{formatMoney(s.balance)}</span>
+                  <button
+                    type="button"
+                    onClick={(e) => { e.stopPropagation(); onDiscountBalance && onDiscountBalance(s); }}
+                    className="btn btn-outline"
+                    style={{
+                      padding: '0.2rem 0.5rem',
+                      fontSize: '0.75rem',
+                      color: '#f59e0b',
+                      borderColor: 'rgba(245, 158, 11, 0.4)',
+                      backgroundColor: 'rgba(245, 158, 11, 0.08)',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '0.25rem',
+                      borderRadius: 'var(--radius-sm)'
+                    }}
+                    title="Descontar una parte o la totalidad de este saldo a favor"
+                  >
+                    <MinusCircle size={12} /> Descontar
+                  </button>
+                </div>
+              ) : (
+                <span style={{ color: 'var(--text-muted)' }}>-</span>
+              )}
+            </td>
+            <td data-label="Acciones" style={{ padding: '0.5rem 1rem' }}>
+              <div style={{ display: 'flex', gap: '0.5rem' }}>
+                {role === 'superadmin' && (
+                  <>
+                    <button
+                      onClick={(e) => { e.stopPropagation(); navigate('/apoderado', { state: { impersonateStudentId: s.id } }); }}
+                      className="btn btn-outline"
+                      style={{ padding: '0.5rem', color: 'var(--success)', borderColor: 'rgba(16, 185, 129, 0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                      title="Ver portal como apoderado"
+                    >
+                      <Eye size={18} />
+                    </button>
+                    <button
+                      onClick={(e) => { e.stopPropagation(); handleToggleExpenseView && handleToggleExpenseView(s); }}
+                      className="btn btn-outline"
+                      style={{
+                        padding: '0.5rem',
+                        color: s.showExpensesInPortal ? '#10b981' : 'var(--text-muted)',
+                        borderColor: s.showExpensesInPortal ? 'rgba(16, 185, 129, 0.5)' : 'var(--border-color)',
+                        backgroundColor: s.showExpensesInPortal ? 'rgba(16, 185, 129, 0.12)' : 'transparent',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center'
+                      }}
+                      title={s.showExpensesInPortal ? "Vista de gastos activada en portal (Click para desactivar)" : "Habilitar vista de gastos en portal para este alumno"}
+                    >
+                      <Receipt size={18} />
+                    </button>
+                  </>
+                )}
+                <button onClick={(e) => { e.stopPropagation(); startEditing(s); }} className="btn btn-outline" style={{ padding: '0.5rem', color: 'var(--primary)', borderColor: 'rgba(99, 102, 241, 0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center' }} title="Editar">
+                  <Edit2 size={18} />
+                </button>
+                <button onClick={(e) => { e.stopPropagation(); handleDelete(s.id); }} className="btn btn-outline" style={{ padding: '0.5rem', color: 'var(--danger)', borderColor: 'rgba(239, 68, 68, 0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center' }} title="Eliminar">
+                  <Trash2 size={18} />
                 </button>
               </div>
-            ) : (
-              <span style={{ color: 'var(--text-muted)' }}>-</span>
-            )}
-          </td>
-          <td data-label="Acciones" style={{ padding: '0.5rem 1rem' }}>
-            <div style={{ display: 'flex', gap: '0.5rem' }}>
-              {role === 'superadmin' && (
-                <>
-                  <button 
-                    onClick={(e) => { e.stopPropagation(); navigate('/apoderado', { state: { impersonateStudentId: s.id } }); }}
-                    className="btn btn-outline" 
-                    style={{ padding: '0.5rem', color: 'var(--success)', borderColor: 'rgba(16, 185, 129, 0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-                    title="Ver portal como apoderado"
-                  >
-                    <Eye size={18} />
-                  </button>
-                  <button 
-                    onClick={(e) => { e.stopPropagation(); handleToggleExpenseView && handleToggleExpenseView(s); }}
-                    className="btn btn-outline" 
-                    style={{ 
-                      padding: '0.5rem', 
-                      color: s.showExpensesInPortal ? '#10b981' : 'var(--text-muted)', 
-                      borderColor: s.showExpensesInPortal ? 'rgba(16, 185, 129, 0.5)' : 'var(--border-color)', 
-                      backgroundColor: s.showExpensesInPortal ? 'rgba(16, 185, 129, 0.12)' : 'transparent',
-                      display: 'flex', 
-                      alignItems: 'center', 
-                      justifyContent: 'center' 
-                    }}
-                    title={s.showExpensesInPortal ? "Vista de gastos activada en portal (Click para desactivar)" : "Habilitar vista de gastos en portal para este alumno"}
-                  >
-                    <Receipt size={18} />
-                  </button>
-                </>
-              )}
-              <button onClick={(e) => { e.stopPropagation(); startEditing(s); }} className="btn btn-outline" style={{ padding: '0.5rem', color: 'var(--primary)', borderColor: 'rgba(99, 102, 241, 0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center' }} title="Editar">
-                <Edit2 size={18} />
-              </button>
-              <button onClick={(e) => { e.stopPropagation(); handleDelete(s.id); }} className="btn btn-outline" style={{ padding: '0.5rem', color: 'var(--danger)', borderColor: 'rgba(239, 68, 68, 0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center' }} title="Eliminar">
-                <Trash2 size={18} />
-              </button>
-            </div>
-          </td>
-        </>
-      )}
+            </td>
+          </>
+        )}
       </tr>
-      
+
     </React.Fragment>
   );
 });
@@ -307,7 +307,7 @@ const StudentManagement = ({ onBack }) => {
   const [message, setMessage] = useState('');
   const [tableSearch, setTableSearch] = useState('');
   const [showWithdrawn, setShowWithdrawn] = useState(false);
-  
+
   const [newFirstName, setNewFirstName] = useState('');
   const [newLastNamePaternal, setNewLastNamePaternal] = useState('');
   const [newLastNameMaternal, setNewLastNameMaternal] = useState('');
@@ -316,7 +316,7 @@ const StudentManagement = ({ onBack }) => {
   const [newListNumber, setNewListNumber] = useState('');
   const [newBalance, setNewBalance] = useState('');
   const [newRut, setNewRut] = useState('');
-  
+
   const [showBulkImport, setShowBulkImport] = useState(false);
   const [selectedStudent, setSelectedStudent] = useState(null);
   const [discountStudent, setDiscountStudent] = useState(null);
@@ -407,9 +407,9 @@ const StudentManagement = ({ onBack }) => {
     try {
       const studentId = 'std_' + Date.now().toString();
       const studentRef = doc(db, 'students', studentId);
-      
+
       const emails = [newApoderadoEmail1.toLowerCase().trim(), newApoderadoEmail2.toLowerCase().trim()].filter(e => e);
-      
+
       const fullName = `${newFirstName} ${newLastNamePaternal} ${newLastNameMaternal}`.trim();
 
       const newStudent = {
@@ -425,9 +425,9 @@ const StudentManagement = ({ onBack }) => {
         courseId: selectedCourse.id,
         createdAt: new Date().toISOString(),
       };
-      
+
       await setDoc(studentRef, newStudent);
-      
+
       setStudents([...students, { id: studentId, ...newStudent }].sort((a, b) => {
         const aNum = parseInt(a.listNumber) || 999;
         const bNum = parseInt(b.listNumber) || 999;
@@ -441,7 +441,7 @@ const StudentManagement = ({ onBack }) => {
       setNewListNumber('');
       setNewBalance('');
       setNewRut('');
-      
+
       setMessage('Alumno agregado correctamente');
       setTimeout(() => setMessage(''), 3000);
     } catch (error) {
@@ -553,11 +553,11 @@ const StudentManagement = ({ onBack }) => {
       const studentRef = doc(db, 'students', editingId);
       const emails = [editData.apoderadoEmail1.toLowerCase().trim(), editData.apoderadoEmail2.toLowerCase().trim()].filter(e => e);
       const fullName = `${editData.firstName} ${editData.lastNamePaternal} ${editData.lastNameMaternal}`.trim();
-      
+
       const updateApoderadoName = async (email, newName) => {
         if (!email || !newName) return;
         const emailLower = email.toLowerCase().trim();
-        
+
         let targetDocId = emailLower;
         let existingRoles = {};
         let existingDefaultCourse = selectedCourse.id;
@@ -612,14 +612,14 @@ const StudentManagement = ({ onBack }) => {
       }
 
       await updateDoc(studentRef, studentUpdateData);
-      
-      let updatedList = students.map(s => 
-        s.id === editingId ? { 
-          ...s, 
-          ...editData, 
-          apoderadoEmails: emails, 
-          balance: Number(editData.balance) || 0, 
-          rut: editData.rut.trim(), 
+
+      let updatedList = students.map(s =>
+        s.id === editingId ? {
+          ...s,
+          ...editData,
+          apoderadoEmails: emails,
+          balance: Number(editData.balance) || 0,
+          rut: editData.rut.trim(),
           status: editData.status,
           ...(role === 'superadmin' ? { showExpensesInPortal: Boolean(editData.showExpensesInPortal) } : {})
         } : s
@@ -630,7 +630,7 @@ const StudentManagement = ({ onBack }) => {
         return aNum - bNum;
       });
       setStudents(updatedList);
-      
+
       setMessage('Alumno modificado correctamente');
       setTimeout(() => setMessage(''), 3000);
       cancelEditing();
@@ -654,7 +654,7 @@ const StudentManagement = ({ onBack }) => {
         return;
       }
 
-      const text = `*ALUMNOS SIN APODERADO ASIGNADO*\n\nPor favor, los apoderados de los siguientes alumnos deben conectarse a la aplicación para registrarse y poder estar al tanto de los pagos de su pupilo:\n\n` + 
+      const text = `*ALUMNOS SIN APODERADO ASIGNADO*\n\nPor favor, los apoderados de los siguientes alumnos deben conectarse a la aplicación para registrarse y poder estar al tanto de los pagos de su pupilo:\n\n` +
         pendingStudents.map(s => `• ${formatStudentName(s)}`).join('\n') +
         `\n\n*Ingresa aquí:* https://control-curso.vercel.app/admin\n\n_¡Muchas gracias por su colaboración!_`;
 
@@ -680,25 +680,25 @@ const StudentManagement = ({ onBack }) => {
         </button>
         <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap', alignItems: 'center' }}>
           {role === 'superadmin' && (
-            <div style={{ 
-              display: 'flex', 
-              alignItems: 'center', 
-              gap: '0.4rem', 
-              padding: '0.2rem 0.4rem', 
-              backgroundColor: 'rgba(255, 255, 255, 0.03)', 
-              borderRadius: 'var(--radius-md)', 
-              border: '1px solid var(--border-color)' 
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '0.4rem',
+              padding: '0.2rem 0.4rem',
+              backgroundColor: 'rgba(255, 255, 255, 0.03)',
+              borderRadius: 'var(--radius-md)',
+              border: '1px solid var(--border-color)'
             }}>
-              <button 
+              <button
                 type="button"
                 onClick={() => handleBulkToggleExpenseView(true)}
                 className="btn btn-outline"
-                style={{ 
-                  display: 'flex', 
-                  alignItems: 'center', 
-                  gap: '0.35rem', 
-                  borderColor: 'rgba(16, 185, 129, 0.4)', 
-                  color: 'var(--success)', 
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '0.35rem',
+                  borderColor: 'rgba(16, 185, 129, 0.4)',
+                  color: 'var(--success)',
                   backgroundColor: 'rgba(16, 185, 129, 0.08)',
                   fontSize: '0.85rem',
                   padding: '0.45rem 0.75rem'
@@ -707,16 +707,16 @@ const StudentManagement = ({ onBack }) => {
               >
                 <Receipt size={16} /> Activar Gastos a Todos
               </button>
-              <button 
+              <button
                 type="button"
                 onClick={() => handleBulkToggleExpenseView(false)}
                 className="btn btn-outline"
-                style={{ 
-                  display: 'flex', 
-                  alignItems: 'center', 
-                  gap: '0.35rem', 
-                  borderColor: 'rgba(239, 68, 68, 0.4)', 
-                  color: '#f87171', 
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '0.35rem',
+                  borderColor: 'rgba(239, 68, 68, 0.4)',
+                  color: '#f87171',
                   backgroundColor: 'rgba(239, 68, 68, 0.08)',
                   fontSize: '0.85rem',
                   padding: '0.45rem 0.75rem'
@@ -727,7 +727,7 @@ const StudentManagement = ({ onBack }) => {
               </button>
             </div>
           )}
-          <button 
+          <button
             onClick={generatePendingReport}
             className="btn btn-outline"
             style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', borderColor: 'var(--warning)', color: 'var(--warning)' }}
@@ -735,14 +735,14 @@ const StudentManagement = ({ onBack }) => {
           >
             Copiar Informe Pendientes (WhatsApp)
           </button>
-          <button 
-            onClick={() => setShowBulkImport(!showBulkImport)} 
+          <button
+            onClick={() => setShowBulkImport(!showBulkImport)}
             className="btn btn-outline"
             style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', borderColor: 'var(--primary)', color: 'var(--primary)' }}
           >
             {showBulkImport ? 'Ocultar Carga Masiva' : 'Carga Masiva Excel/Texto'}
           </button>
-          <button 
+          <button
             onClick={() => setShowWithdrawn(!showWithdrawn)}
             className="btn btn-outline"
             style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}
@@ -760,12 +760,12 @@ const StudentManagement = ({ onBack }) => {
 
       {showBulkImport && (
         <div style={{ marginBottom: '2rem' }}>
-          <BulkImport 
-            onBack={() => setShowBulkImport(false)} 
+          <BulkImport
+            onBack={() => setShowBulkImport(false)}
             onImportSuccess={() => {
               setShowBulkImport(false);
               fetchStudents();
-            }} 
+            }}
           />
         </div>
       )}
@@ -778,10 +778,10 @@ const StudentManagement = ({ onBack }) => {
         <form onSubmit={handleAddStudent} style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap', alignItems: 'flex-end' }}>
           <div className="input-group" style={{ flex: '1', minWidth: '120px', marginBottom: 0 }}>
             <label className="input-label">Nombres</label>
-            <input 
-              type="text" 
+            <input
+              type="text"
               required
-              className="input-field" 
+              className="input-field"
               placeholder="Ej. Martín"
               value={newFirstName}
               onChange={(e) => setNewFirstName(e.target.value)}
@@ -789,10 +789,10 @@ const StudentManagement = ({ onBack }) => {
           </div>
           <div className="input-group" style={{ flex: '1', minWidth: '120px', marginBottom: 0 }}>
             <label className="input-label">A. Paterno</label>
-            <input 
-              type="text" 
+            <input
+              type="text"
               required
-              className="input-field" 
+              className="input-field"
               placeholder="Ej. Pérez"
               value={newLastNamePaternal}
               onChange={(e) => setNewLastNamePaternal(e.target.value)}
@@ -800,9 +800,9 @@ const StudentManagement = ({ onBack }) => {
           </div>
           <div className="input-group" style={{ flex: '1', minWidth: '120px', marginBottom: 0 }}>
             <label className="input-label">A. Materno</label>
-            <input 
-              type="text" 
-              className="input-field" 
+            <input
+              type="text"
+              className="input-field"
               placeholder="Ej. Gómez"
               value={newLastNameMaternal}
               onChange={(e) => setNewLastNameMaternal(e.target.value)}
@@ -810,9 +810,9 @@ const StudentManagement = ({ onBack }) => {
           </div>
           <div className="input-group" style={{ flex: '1', minWidth: '130px', marginBottom: 0 }}>
             <label className="input-label">RUT</label>
-            <input 
-              type="text" 
-              className="input-field" 
+            <input
+              type="text"
+              className="input-field"
               placeholder="XX.XXX.XXX-X"
               value={newRut}
               onChange={(e) => setNewRut(formatRut(e.target.value))}
@@ -820,9 +820,9 @@ const StudentManagement = ({ onBack }) => {
           </div>
           <div className="input-group" style={{ flex: '0.5', minWidth: '80px', marginBottom: 0 }}>
             <label className="input-label">N° Lista</label>
-            <input 
-              type="number" 
-              className="input-field" 
+            <input
+              type="number"
+              className="input-field"
               placeholder="Ej. 1"
               value={newListNumber}
               onChange={(e) => setNewListNumber(e.target.value)}
@@ -830,9 +830,9 @@ const StudentManagement = ({ onBack }) => {
           </div>
           <div className="input-group" style={{ flex: '1', minWidth: '150px', marginBottom: 0 }}>
             <label className="input-label">Email Apoderado 1</label>
-            <input 
-              type="email" 
-              className="input-field" 
+            <input
+              type="email"
+              className="input-field"
               placeholder="correo1@apoderado.com"
               value={newApoderadoEmail1}
               onChange={(e) => setNewApoderadoEmail1(e.target.value)}
@@ -840,9 +840,9 @@ const StudentManagement = ({ onBack }) => {
           </div>
           <div className="input-group" style={{ flex: '1', minWidth: '150px', marginBottom: 0 }}>
             <label className="input-label">Email Apoderado 2</label>
-            <input 
-              type="email" 
-              className="input-field" 
+            <input
+              type="email"
+              className="input-field"
               placeholder="correo2@apoderado.com (Opc.)"
               value={newApoderadoEmail2}
               onChange={(e) => setNewApoderadoEmail2(e.target.value)}
@@ -850,9 +850,9 @@ const StudentManagement = ({ onBack }) => {
           </div>
           <div className="input-group" style={{ flex: '1', minWidth: '120px', marginBottom: 0 }}>
             <label className="input-label">Saldo a Favor ($)</label>
-            <input 
-              type="number" 
-              className="input-field" 
+            <input
+              type="number"
+              className="input-field"
               placeholder="Ej. 10000"
               value={newBalance}
               onChange={(e) => setNewBalance(e.target.value)}
@@ -867,10 +867,10 @@ const StudentManagement = ({ onBack }) => {
       {/* Buscador de Alumnos en la tabla */}
       <div style={{ marginBottom: '1rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '1rem', flexWrap: 'wrap' }}>
         <div style={{ position: 'relative', flex: '1', maxWidth: '400px' }}>
-          <input 
-            type="text" 
-            className="input-field" 
-            placeholder="Buscar por nombre, RUT, apoderado o N° lista..." 
+          <input
+            type="text"
+            className="input-field"
+            placeholder="Buscar por nombre, RUT, apoderado o N° lista..."
             value={tableSearch}
             onChange={(e) => setTableSearch(e.target.value)}
             style={{ width: '100%', paddingLeft: '2.5rem' }}
@@ -887,9 +887,9 @@ const StudentManagement = ({ onBack }) => {
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', flexWrap: 'wrap' }}>
           {role === 'superadmin' && (
-            <div style={{ 
-              fontSize: '0.8rem', 
-              padding: '0.3rem 0.65rem', 
+            <div style={{
+              fontSize: '0.8rem',
+              padding: '0.3rem 0.65rem',
               borderRadius: 'var(--radius-sm)',
               backgroundColor: activeExpensesCount > 0 ? 'rgba(16, 185, 129, 0.12)' : 'rgba(255, 255, 255, 0.04)',
               border: `1px solid ${activeExpensesCount > 0 ? 'rgba(16, 185, 129, 0.3)' : 'var(--border-color)'}`,
@@ -921,7 +921,7 @@ const StudentManagement = ({ onBack }) => {
           </thead>
           <tbody>
             {filteredStudents.map(s => (
-              <StudentRow 
+              <StudentRow
                 key={s.id}
                 student={s}
                 editingId={editingId}
@@ -966,10 +966,10 @@ const StudentManagement = ({ onBack }) => {
           padding: '1rem',
           overflowY: 'auto'
         }}>
-          <StudentDetailModal 
-            student={selectedStudent} 
-            usersMap={usersMap} 
-            onClose={() => setSelectedStudent(null)} 
+          <StudentDetailModal
+            student={selectedStudent}
+            usersMap={usersMap}
+            onClose={() => setSelectedStudent(null)}
             isModal={true}
           />
         </div>

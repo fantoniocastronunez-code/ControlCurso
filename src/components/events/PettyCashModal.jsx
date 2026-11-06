@@ -225,7 +225,7 @@ const PettyCashModal = ({
   };
 
   return createPortal(
-    <div 
+    <div
       className="modal-overlay"
       style={{
         position: 'fixed',

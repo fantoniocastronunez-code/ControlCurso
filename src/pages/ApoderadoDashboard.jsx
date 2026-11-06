@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { 
+import {
   LogOut, CheckCircle, Clock, Search, UserPlus, Upload, AlertCircle, MessageCircle,
-  Receipt, TrendingDown, Eye, X, ExternalLink, DollarSign, Calendar, CreditCard, User 
+  Receipt, TrendingDown, Eye, X, ExternalLink, DollarSign, Calendar, CreditCard, User
 } from 'lucide-react';
 import { db, storage } from '../firebase/config';
 import { collection, query, where, getDocs, getDoc, doc, updateDoc, setDoc, or, addDoc, onSnapshot } from 'firebase/firestore';
@@ -19,26 +19,26 @@ const ApoderadoDashboard = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const impersonateStudentId = location.state?.impersonateStudentId;
-  
+
   const [myStudents, setMyStudents] = useState([]);
   const [activeStudentId, setActiveStudentId] = useState(null);
   const [debts, setDebts] = useState([]);
   const [loading, setLoading] = useState(true);
-  
+
   // Profile completion states
   const [isProfileComplete, setIsProfileComplete] = useState(true);
   const [formalName, setFormalName] = useState('');
-  
+
   // States for search
   const [lastNameSearch, setLastNameSearch] = useState('');
   const [searchResults, setSearchResults] = useState([]);
   const [hasSearched, setHasSearched] = useState(false);
-  
+
   const [payingDebt, setPayingDebt] = useState(null);
   const [paidAmount, setPaidAmount] = useState('');
   const [receiptFile, setReceiptFile] = useState(null);
   const [uploading, setUploading] = useState(false);
-  
+
   // Settings
   const [transferData, setTransferData] = useState(null);
   const [whatsappContact, setWhatsappContact] = useState('');
@@ -92,7 +92,7 @@ const ApoderadoDashboard = () => {
         }
       } else {
         const qStudents = query(
-          collection(db, 'students'), 
+          collection(db, 'students'),
           or(
             where('apoderadoEmail', '==', user.email),
             where('apoderadoEmails', 'array-contains', user.email)
@@ -116,10 +116,10 @@ const ApoderadoDashboard = () => {
 
   useEffect(() => {
     if (myStudents.length === 0) return;
-    
+
     const studentIds = myStudents.map(s => s.id).slice(0, 30); // max 30 for 'in' query
     const qDebts = query(collection(db, 'debts'), where('studentId', 'in', studentIds));
-    
+
     const unsubscribe = onSnapshot(qDebts, (snapDebts) => {
       const fetchedDebts = snapDebts.docs.map(doc => ({ id: doc.id, ...doc.data() }));
       // Ordenar: pendientes primero
@@ -251,7 +251,7 @@ const ApoderadoDashboard = () => {
 
   const getOutcomeBreakdown = (outcome, studentId) => {
     const totalAmount = outcome.amount || 0;
-    
+
     // Check if outcome has explicit student participants
     if (Array.isArray(outcome.participantStudentIds) && outcome.participantStudentIds.length > 0) {
       const assignedCount = outcome.participantStudentIds.length;
@@ -300,13 +300,13 @@ const ApoderadoDashboard = () => {
   const handleSearch = async (e) => {
     e.preventDefault();
     if (!lastNameSearch.trim()) return;
-    
+
     setHasSearched(true);
     try {
       const snapshot = await getDocs(collection(db, 'students'));
       const allStudents = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
       const term = lastNameSearch.toLowerCase().trim();
-      
+
       const filtered = allStudents.filter(s => s.name.toLowerCase().includes(term));
       filtered.sort((a, b) => {
         const aNum = parseInt(a.listNumber) || 999;
@@ -322,7 +322,7 @@ const ApoderadoDashboard = () => {
   const handleLinkStudent = async (e) => {
     e.preventDefault();
     setRutError('');
-    
+
     // Basic format validation XX.XXX.XXX-X
     const rutRegex = /^[0-9]{1,2}\.[0-9]{3}\.[0-9]{3}-[0-9kK]{1}$/;
     if (!rutRegex.test(rutInput.trim())) {
@@ -335,7 +335,7 @@ const ApoderadoDashboard = () => {
       const studentSnap = await getDoc(studentRef);
       if (studentSnap.exists()) {
         const data = studentSnap.data();
-        
+
         // Verificamos el RUT
         if (data.rut && data.rut !== rutInput.trim()) {
           setRutError('El RUT ingresado no coincide con nuestros registros.');
@@ -350,7 +350,7 @@ const ApoderadoDashboard = () => {
           }
           emails.push(user.email);
           // Guardar RUT si es la primera vez
-          await updateDoc(studentRef, { 
+          await updateDoc(studentRef, {
             apoderadoEmails: emails,
             rut: rutInput.trim()
           });
@@ -391,7 +391,7 @@ const ApoderadoDashboard = () => {
             console.error("Error sending notification email:", mailError);
           }
         }
-        
+
         // Éxito
         fetchData();
         setLastNameSearch('');
@@ -412,7 +412,7 @@ const ApoderadoDashboard = () => {
     try {
       const trimmedName = formalName.trim();
       // Guardar en user.uid (identificador canónico de autenticación)
-      await setDoc(doc(db, 'users', user.uid), { 
+      await setDoc(doc(db, 'users', user.uid), {
         formalName: trimmedName,
         displayName: trimmedName,
         email: user.email ? user.email.toLowerCase().trim() : '',
@@ -455,7 +455,7 @@ const ApoderadoDashboard = () => {
           const fileExt = receiptFile.name.split('.').pop();
           const fileName = `receipts/${payingDebt.id}_${Date.now()}.${fileExt}`;
           const storageRef = ref(storage, fileName);
-          
+
           await uploadBytes(storageRef, receiptFile);
           downloadURL = await getDownloadURL(storageRef);
         } catch (uploadError) {
@@ -471,7 +471,7 @@ const ApoderadoDashboard = () => {
         lastPaymentAmount: parseFloat(paidAmount),
         paidAt: new Date().toISOString()
       };
-      
+
       if (downloadURL) {
         updateData.receiptUrl = downloadURL;
       }
@@ -548,508 +548,276 @@ const ApoderadoDashboard = () => {
 
   return (
     <>
-    <div className="container animate-fade-in">
-      <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-          <img 
-            src="/LOGOAPPCURSO.jpg" 
-            alt="Logo" 
-            style={{ width: '75px', height: '75px', borderRadius: '8px', objectFit: 'cover', backgroundColor: 'white', padding: 0, border: '1px solid rgba(255,255,255,0.1)' }} 
-            onError={(e) => e.target.style.display = 'none'}
-          />
-          <div>
-            <h2 style={{ margin: 0 }}>Mi Portal</h2>
-            <p style={{ color: 'var(--text-muted)', margin: 0 }}>Bienvenido, {user?.displayName || user?.email}</p>
-          </div>
-        </div>
-        <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>
-          {(role === 'admin' || role === 'superadmin') && (
-            <button onClick={() => navigate('/admin')} className="btn btn-outline" style={{ borderColor: 'var(--primary)', color: 'var(--primary)' }}>
-              Volver a Panel Admin
-            </button>
-          )}
-          <InstallAppGuide />
-          <button onClick={handleLogout} className="btn btn-outline" title="Cerrar sesión">
-            <LogOut size={18} />
-            Cerrar Sesión
-          </button>
-        </div>
-      </header>
-
-      {/* Student Selector Top Bar */}
-      {isProfileComplete && myStudents.length > 1 && (
-        <div className="tabs-scroll" style={{ display: 'flex', gap: '0.5rem', marginBottom: '2rem', overflowX: 'auto', WebkitOverflowScrolling: 'touch', touchAction: 'pan-x pan-y', paddingBottom: '0.5rem' }}>
-          {myStudents.map(student => (
-            <button
-              key={student.id}
-              onClick={() => setActiveStudentId(student.id)}
-              className={`btn ${activeStudentId === student.id ? 'btn-primary' : 'btn-outline'}`}
-              style={{ whiteSpace: 'nowrap', flexShrink: 0 }}
-            >
-              {formatStudentName(student)}
-            </button>
-          ))}
-        </div>
-      )}
-
-      {/* BANNER URGENTE */}
-      {isProfileComplete && debts.some(d => (role === 'superadmin' || d.visibleInPortal !== false) && d.urgentNotice && (d.status === 'pending' || d.status === 'partial')) && (
-        <div className="glass-panel" style={{ backgroundColor: 'rgba(239, 68, 68, 0.1)', border: '1px solid var(--danger)', padding: '1rem', marginBottom: '2rem', display: 'flex', alignItems: 'center', gap: '1rem', color: 'var(--danger)' }}>
-          <AlertCircle size={24} />
-          <div>
-            <h4 style={{ margin: 0, fontWeight: 'bold' }}>¡Aviso Urgente de la Directiva!</h4>
-            <p style={{ margin: 0, fontSize: '0.9rem' }}>Tienes cuotas pendientes que requieren tu atención inmediata. Por favor, regulariza tu situación subiendo los comprobantes correspondientes.</p>
-          </div>
-        </div>
-      )}
-
-      {!isProfileComplete ? (
-        <div className="glass-panel" style={{ padding: '3rem 2rem', textAlign: 'center', maxWidth: '500px', margin: '0 auto' }}>
-          <div style={{ width: '56px', height: '56px', borderRadius: 'var(--radius-md)', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', backgroundColor: 'var(--bg-card-hover)', border: '1px solid var(--border-color)', color: 'var(--primary)', marginBottom: '1.5rem' }}>
-            <UserPlus size={28} />
-          </div>
-          <h3 style={{ marginBottom: '1rem' }}>Completa tu Perfil</h3>
-          <p style={{ color: 'var(--text-muted)', marginBottom: '2rem' }}>
-            Para poder gestionar los pagos y vincular a tu alumno, necesitamos que ingreses tu nombre y apellido real.
-          </p>
-
-          <form onSubmit={handleSaveProfile} style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
-            <div className="input-group" style={{ textAlign: 'left' }}>
-              <label className="input-label">Nombre y Apellido del Apoderado</label>
-              <input 
-                type="text" 
-                required
-                className="input-field" 
-                placeholder="Ej. Juan Pérez"
-                value={formalName}
-                onChange={(e) => setFormalName(e.target.value)}
-              />
-            </div>
-            <button type="submit" className="btn btn-primary" style={{ width: '100%', padding: '0.8rem' }}>
-              Guardar y Continuar
-            </button>
-          </form>
-        </div>
-      ) : (
-        <>
-          {/* MODAL RUT */}
-          {linkingStudentId && (
-            <div className="modal-overlay" style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.7)', display: 'flex', alignItems: 'flex-start', justifyContent: 'center', zIndex: 1000, padding: '1.25rem 0.5rem 2rem', overflowY: 'auto', WebkitOverflowScrolling: 'touch' }}>
-              <div className="glass-panel animate-fade-in" style={{ width: '100%', maxWidth: '400px', marginTop: '0.25rem', padding: '2rem', backgroundColor: 'var(--bg-main)' }}>
-                <h3 style={{ marginBottom: '1rem' }}>Confirmar Identidad</h3>
-                <p style={{ color: 'var(--text-muted)', marginBottom: '1.5rem', fontSize: '0.9rem' }}>
-                  Para proteger la privacidad de los alumnos, debes ingresar el RUT de tu hijo/a para confirmar que eres su apoderado.
-                </p>
-                {rutError && (
-                  <div style={{ backgroundColor: 'rgba(239, 68, 68, 0.1)', color: 'var(--danger)', padding: '0.75rem', borderRadius: 'var(--radius-sm)', marginBottom: '1rem', fontSize: '0.9rem' }}>
-                    {rutError}
-                  </div>
-                )}
-                <form onSubmit={handleLinkStudent} style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
-                  <div className="input-group" style={{ marginBottom: 0 }}>
-                    <label className="input-label">RUT del Alumno</label>
-                    <input 
-                      type="text" 
-                      required
-                      className="input-field" 
-                      value={rutInput}
-                      onChange={(e) => setRutInput(formatRut(e.target.value))}
-                      placeholder="Ej. 12.345.678-9"
-                    />
-                  </div>
-                  <div style={{ display: 'flex', gap: '1rem', marginTop: '0.5rem' }}>
-                    <button type="button" onClick={() => { setLinkingStudentId(null); setRutInput(''); setRutError(''); }} className="btn btn-outline" style={{ flex: 1 }}>
-                      Cancelar
-                    </button>
-                    <button type="submit" className="btn btn-primary" style={{ flex: 1 }}>
-                      Confirmar
-                    </button>
-                  </div>
-                </form>
-              </div>
-            </div>
-          )}
-
-
-      {myStudents.length === 0 ? (
-        <div className="glass-panel" style={{ padding: '2rem', marginBottom: '2rem', textAlign: 'center' }}>
-          <div style={{ width: '56px', height: '56px', borderRadius: 'var(--radius-md)', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', backgroundColor: 'var(--bg-card-hover)', border: '1px solid var(--border-color)', color: 'var(--primary)', marginBottom: '1rem' }}>
-            <Search size={28} />
-          </div>
-          <h3 style={{ marginBottom: '0.5rem' }}>No tienes alumnos vinculados</h3>
-          <p style={{ color: 'var(--text-muted)', marginBottom: '2rem', maxWidth: '500px', margin: '0 auto 2rem auto' }}>
-            Para ver el estado de los pagos, primero debes vincular a tu hijo/a a tu cuenta. Ingresa sus apellidos para buscarlo en la lista del curso.
-          </p>
-
-          <form onSubmit={handleSearch} style={{ display: 'flex', gap: '1rem', justifyContent: 'center', maxWidth: '400px', margin: '0 auto' }}>
-            <input 
-              type="text" 
-              className="input-field" 
-              placeholder="Ej. Pérez"
-              value={lastNameSearch}
-              onChange={(e) => setLastNameSearch(e.target.value)}
-              style={{ flex: 1 }}
+      <div className="container animate-fade-in">
+        <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+            <img
+              src="/LOGOAPPCURSO.jpg"
+              alt="Logo"
+              style={{ width: '75px', height: '75px', borderRadius: '8px', objectFit: 'cover', backgroundColor: 'white', padding: 0, border: '1px solid rgba(255,255,255,0.1)' }}
+              onError={(e) => e.target.style.display = 'none'}
             />
-            <button type="submit" className="btn btn-primary">Buscar</button>
-          </form>
-
-          {hasSearched && (
-            <div style={{ marginTop: '2rem', textAlign: 'left' }}>
-              <div style={{ display: 'grid', gap: '1rem' }}>
-                <h4 style={{ color: 'var(--text-muted)', marginBottom: '0.5rem' }}>Resultados encontrados:</h4>
-                {searchResults.map(s => (
-                  <div key={s.id} style={{ display: 'flex', flexWrap: 'wrap', gap: '1rem', justifyContent: 'space-between', alignItems: 'center', padding: '1rem', backgroundColor: 'rgba(255,255,255,0.03)', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-color)' }}>
-                    <div style={{ flex: '1 1 auto', minWidth: '200px' }}>
-                      <p style={{ fontWeight: '500', fontSize: '1.1rem', wordBreak: 'break-word' }}>{formatStudentName(s)}</p>
-                      <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>
-                        {(s.apoderadoEmails?.length > 0) 
-                          ? `(Vinculado a: ${s.apoderadoEmails.join(', ')})` 
-                          : (s.apoderadoEmail ? `(Vinculado a ${s.apoderadoEmail})` : 'Sin apoderado vinculado')}
-                      </p>
-                    </div>
-                    <button 
-                      onClick={() => {
-                        setLinkingStudentId(s.id);
-                        setRutInput('');
-                        setRutError('');
-                      }}
-                      className="btn btn-outline" 
-                      style={{ color: 'var(--success)', borderColor: 'rgba(16,185,129,0.3)', flex: '0 0 auto', whiteSpace: 'nowrap' }}
-                    >
-                      <UserPlus size={18} /> Soy su apoderado
-                    </button>
-                  </div>
-                ))}
-                {searchResults.length === 0 && <p>No se encontraron alumnos.</p>}
-              </div>
+            <div>
+              <h2 style={{ margin: 0 }}>Mi Portal</h2>
+              <p style={{ color: 'var(--text-muted)', margin: 0 }}>Bienvenido, {user?.displayName || user?.email}</p>
             </div>
-          )}
-        </div>
-      ) : (
-        <>
-          {myStudents.filter(student => student.id === activeStudentId).map(student => {
-            const allStudentDebts = debts.filter(d => d.studentId === student.id);
-            const studentDebts = allStudentDebts.filter(d => {
-              const baseTitle = d.title.replace('(Saldo Restante)', '').trim();
-              
-              if (d.status === 'partial') {
-                const hasSpecificSaldoRestante = allStudentDebts.some(other => 
-                  other.title.includes('(Saldo Restante)') && other.title.includes(baseTitle)
-                );
-                if (hasSpecificSaldoRestante) return false;
-              }
+          </div>
+          <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>
+            {(role === 'admin' || role === 'superadmin') && (
+              <button onClick={() => navigate('/admin')} className="btn btn-outline" style={{ borderColor: 'var(--primary)', color: 'var(--primary)' }}>
+                Volver a Panel Admin
+              </button>
+            )}
+            <InstallAppGuide />
+            <button onClick={handleLogout} className="btn btn-outline" title="Cerrar sesión">
+              <LogOut size={18} />
+              Cerrar Sesión
+            </button>
+          </div>
+        </header>
 
-              if (d.title.includes('(Saldo Restante)')) {
-                const originalIsPaid = allStudentDebts.some(other => 
-                  other.title.trim() === baseTitle && other.status === 'paid'
-                );
-                if (originalIsPaid) return false;
-              }
-              
-              return true;
-            });
-            
-            return (
-              <React.Fragment key={student.id}>
-                <div className="glass-panel" style={{ padding: '2rem', marginBottom: '2rem' }}>
-                <h3 style={{ marginBottom: '1.5rem', color: 'var(--primary)' }}>Estado de Pagos: {formatStudentName(student)}</h3>
-                
-                {parseFloat(student.balance) > 0 && (
-                  <div style={{ padding: '1rem', marginBottom: '1.5rem', backgroundColor: 'rgba(16, 185, 129, 0.1)', color: 'var(--success)', borderRadius: 'var(--radius-md)', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                    <CheckCircle size={18} /> 
-                    <span>
-                      Tienes un saldo a favor de <strong>{new Intl.NumberFormat('es-CL', { style: 'currency', currency: 'CLP' }).format(student.balance)}</strong>. 
-                      <span style={{ fontSize: '0.85rem', display: 'block', marginTop: '0.2rem', opacity: 0.8 }}>Este dinero puede ser utilizado por la directiva para descontar futuras cuotas.</span>
-                    </span>
-                  </div>
-                )}
-                
-                {studentDebts.length === 0 ? (
-                  <p style={{ color: 'var(--text-muted)' }}>No hay cobros registrados para este alumno.</p>
-                ) : (
-                  <div style={{ display: 'grid', gap: '1rem' }}>
-                    {studentDebts.map(debt => {
-                      const paidAmt = debt.paidAmount || 0;
-                      const remainingAmount = Math.max(0, debt.amount - paidAmt);
-                      const isPartial = paidAmt > 0 && remainingAmount > 0;
-                      
-                      return (
-                      <div key={debt.id} style={{ 
-                        display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '1rem', padding: '1rem', backgroundColor: 'rgba(255,255,255,0.03)', borderRadius: 'var(--radius-md)', 
-                        borderLeft: `4px solid ${debt.status === 'paid' ? 'var(--success)' : debt.status === 'review' ? 'var(--warning)' : (debt.status === 'partial' || isPartial) ? '#eab308' : 'var(--danger)'}` 
-                      }}>
-                        <div>
-                          <p style={{ fontWeight: '500', fontSize: '1.1rem', marginBottom: '0.2rem' }}>
-                            {debt.title}
-                          </p>
-                          <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>
-                            {isPartial ? `Saldo Restante: ` : `Monto de la cuota: `} <strong>${isPartial ? remainingAmount : debt.amount}</strong> 
-                            {paidAmt > 0 && <span style={{opacity: 0.7}}> (Pagado: ${paidAmt})</span>}
-                            <span> • Emitida: {debt.date}</span>
-                          </p>
+        {/* Student Selector Top Bar */}
+        {isProfileComplete && myStudents.length > 1 && (
+          <div className="tabs-scroll" style={{ display: 'flex', gap: '0.5rem', marginBottom: '2rem', overflowX: 'auto', WebkitOverflowScrolling: 'touch', touchAction: 'pan-x pan-y', paddingBottom: '0.5rem' }}>
+            {myStudents.map(student => (
+              <button
+                key={student.id}
+                onClick={() => setActiveStudentId(student.id)}
+                className={`btn ${activeStudentId === student.id ? 'btn-primary' : 'btn-outline'}`}
+                style={{ whiteSpace: 'nowrap', flexShrink: 0 }}
+              >
+                {formatStudentName(student)}
+              </button>
+            ))}
+          </div>
+        )}
+
+        {/* BANNER URGENTE */}
+        {isProfileComplete && debts.some(d => (role === 'superadmin' || d.visibleInPortal !== false) && d.urgentNotice && (d.status === 'pending' || d.status === 'partial')) && (
+          <div className="glass-panel" style={{ backgroundColor: 'rgba(239, 68, 68, 0.1)', border: '1px solid var(--danger)', padding: '1rem', marginBottom: '2rem', display: 'flex', alignItems: 'center', gap: '1rem', color: 'var(--danger)' }}>
+            <AlertCircle size={24} />
+            <div>
+              <h4 style={{ margin: 0, fontWeight: 'bold' }}>¡Aviso Urgente de la Directiva!</h4>
+              <p style={{ margin: 0, fontSize: '0.9rem' }}>Tienes cuotas pendientes que requieren tu atención inmediata. Por favor, regulariza tu situación subiendo los comprobantes correspondientes.</p>
+            </div>
+          </div>
+        )}
+
+        {!isProfileComplete ? (
+          <div className="glass-panel" style={{ padding: '3rem 2rem', textAlign: 'center', maxWidth: '500px', margin: '0 auto' }}>
+            <div style={{ width: '56px', height: '56px', borderRadius: 'var(--radius-md)', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', backgroundColor: 'var(--bg-card-hover)', border: '1px solid var(--border-color)', color: 'var(--primary)', marginBottom: '1.5rem' }}>
+              <UserPlus size={28} />
+            </div>
+            <h3 style={{ marginBottom: '1rem' }}>Completa tu Perfil</h3>
+            <p style={{ color: 'var(--text-muted)', marginBottom: '2rem' }}>
+              Para poder gestionar los pagos y vincular a tu alumno, necesitamos que ingreses tu nombre y apellido real.
+            </p>
+
+            <form onSubmit={handleSaveProfile} style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+              <div className="input-group" style={{ textAlign: 'left' }}>
+                <label className="input-label">Nombre y Apellido del Apoderado</label>
+                <input
+                  type="text"
+                  required
+                  className="input-field"
+                  placeholder="Ej. Juan Pérez"
+                  value={formalName}
+                  onChange={(e) => setFormalName(e.target.value)}
+                />
+              </div>
+              <button type="submit" className="btn btn-primary" style={{ width: '100%', padding: '0.8rem' }}>
+                Guardar y Continuar
+              </button>
+            </form>
+          </div>
+        ) : (
+          <>
+            {/* MODAL RUT */}
+            {linkingStudentId && (
+              <div className="modal-overlay" style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.7)', display: 'flex', alignItems: 'flex-start', justifyContent: 'center', zIndex: 1000, padding: '1.25rem 0.5rem 2rem', overflowY: 'auto', WebkitOverflowScrolling: 'touch' }}>
+                <div className="glass-panel animate-fade-in" style={{ width: '100%', maxWidth: '400px', marginTop: '0.25rem', padding: '2rem', backgroundColor: 'var(--bg-main)' }}>
+                  <h3 style={{ marginBottom: '1rem' }}>Confirmar Identidad</h3>
+                  <p style={{ color: 'var(--text-muted)', marginBottom: '1.5rem', fontSize: '0.9rem' }}>
+                    Para proteger la privacidad de los alumnos, debes ingresar el RUT de tu hijo/a para confirmar que eres su apoderado.
+                  </p>
+                  {rutError && (
+                    <div style={{ backgroundColor: 'rgba(239, 68, 68, 0.1)', color: 'var(--danger)', padding: '0.75rem', borderRadius: 'var(--radius-sm)', marginBottom: '1rem', fontSize: '0.9rem' }}>
+                      {rutError}
+                    </div>
+                  )}
+                  <form onSubmit={handleLinkStudent} style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+                    <div className="input-group" style={{ marginBottom: 0 }}>
+                      <label className="input-label">RUT del Alumno</label>
+                      <input
+                        type="text"
+                        required
+                        className="input-field"
+                        value={rutInput}
+                        onChange={(e) => setRutInput(formatRut(e.target.value))}
+                        placeholder="Ej. 12.345.678-9"
+                      />
+                    </div>
+                    <div style={{ display: 'flex', gap: '1rem', marginTop: '0.5rem' }}>
+                      <button type="button" onClick={() => { setLinkingStudentId(null); setRutInput(''); setRutError(''); }} className="btn btn-outline" style={{ flex: 1 }}>
+                        Cancelar
+                      </button>
+                      <button type="submit" className="btn btn-primary" style={{ flex: 1 }}>
+                        Confirmar
+                      </button>
+                    </div>
+                  </form>
+                </div>
+              </div>
+            )}
+
+
+            {myStudents.length === 0 ? (
+              <div className="glass-panel" style={{ padding: '2rem', marginBottom: '2rem', textAlign: 'center' }}>
+                <div style={{ width: '56px', height: '56px', borderRadius: 'var(--radius-md)', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', backgroundColor: 'var(--bg-card-hover)', border: '1px solid var(--border-color)', color: 'var(--primary)', marginBottom: '1rem' }}>
+                  <Search size={28} />
+                </div>
+                <h3 style={{ marginBottom: '0.5rem' }}>No tienes alumnos vinculados</h3>
+                <p style={{ color: 'var(--text-muted)', marginBottom: '2rem', maxWidth: '500px', margin: '0 auto 2rem auto' }}>
+                  Para ver el estado de los pagos, primero debes vincular a tu hijo/a a tu cuenta. Ingresa sus apellidos para buscarlo en la lista del curso.
+                </p>
+
+                <form onSubmit={handleSearch} style={{ display: 'flex', gap: '1rem', justifyContent: 'center', maxWidth: '400px', margin: '0 auto' }}>
+                  <input
+                    type="text"
+                    className="input-field"
+                    placeholder="Ej. Pérez"
+                    value={lastNameSearch}
+                    onChange={(e) => setLastNameSearch(e.target.value)}
+                    style={{ flex: 1 }}
+                  />
+                  <button type="submit" className="btn btn-primary">Buscar</button>
+                </form>
+
+                {hasSearched && (
+                  <div style={{ marginTop: '2rem', textAlign: 'left' }}>
+                    <div style={{ display: 'grid', gap: '1rem' }}>
+                      <h4 style={{ color: 'var(--text-muted)', marginBottom: '0.5rem' }}>Resultados encontrados:</h4>
+                      {searchResults.map(s => (
+                        <div key={s.id} style={{ display: 'flex', flexWrap: 'wrap', gap: '1rem', justifyContent: 'space-between', alignItems: 'center', padding: '1rem', backgroundColor: 'rgba(255,255,255,0.03)', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-color)' }}>
+                          <div style={{ flex: '1 1 auto', minWidth: '200px' }}>
+                            <p style={{ fontWeight: '500', fontSize: '1.1rem', wordBreak: 'break-word' }}>{formatStudentName(s)}</p>
+                            <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>
+                              {(s.apoderadoEmails?.length > 0)
+                                ? `(Vinculado a: ${s.apoderadoEmails.join(', ')})`
+                                : (s.apoderadoEmail ? `(Vinculado a ${s.apoderadoEmail})` : 'Sin apoderado vinculado')}
+                            </p>
+                          </div>
+                          <button
+                            onClick={() => {
+                              setLinkingStudentId(s.id);
+                              setRutInput('');
+                              setRutError('');
+                            }}
+                            className="btn btn-outline"
+                            style={{ color: 'var(--success)', borderColor: 'rgba(16,185,129,0.3)', flex: '0 0 auto', whiteSpace: 'nowrap' }}
+                          >
+                            <UserPlus size={18} /> Soy su apoderado
+                          </button>
                         </div>
-                        
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-                          {(debt.status === 'pending' || debt.status === 'partial' || isPartial) && (
-                            <>
-                              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: (debt.status === 'partial' || isPartial) ? '#eab308' : 'var(--danger)', fontWeight: '500' }}>
-                                <AlertCircle size={18} /> {(debt.status === 'partial' || isPartial) ? 'Pago Parcial (Saldo Pendiente)' : 'Por Pagar'}
-                              </div>
-                              <button 
-                                onClick={() => {
-                                  // Update payingDebt to have the correct remaining amount so the modal shows the right value
-                                  setPayingDebt({ ...debt, amount: remainingAmount });
-                                  setPaidAmount(remainingAmount.toString());
-                                }} 
-                                className="btn btn-primary" style={{ padding: '0.5rem 1rem' }}
-                              >
-                                <Upload size={16} /> Subir Comprobante
-                              </button>
-                            </>
-                          )}
-                          
-                          {debt.status === 'review' && (
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: 'var(--warning)', fontWeight: '500', padding: '0.5rem 1rem', backgroundColor: 'rgba(245, 158, 11, 0.1)', borderRadius: 'var(--radius-sm)' }}>
-                              <Clock size={18} /> En revisión (Comprobante enviado)
-                            </div>
-                          )}
-                          
-                          {debt.status === 'paid' && (
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: 'var(--success)', fontWeight: '500', padding: '0.5rem 1rem', backgroundColor: 'rgba(16, 185, 129, 0.1)', borderRadius: 'var(--radius-sm)' }}>
-                              <CheckCircle size={18} /> Pagado
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    );
-                    })}
+                      ))}
+                      {searchResults.length === 0 && <p>No se encontraron alumnos.</p>}
+                    </div>
                   </div>
                 )}
               </div>
+            ) : (
+              <>
+                {myStudents.filter(student => student.id === activeStudentId).map(student => {
+                  const allStudentDebts = debts.filter(d => d.studentId === student.id);
+                  const studentDebts = allStudentDebts.filter(d => {
+                    const baseTitle = d.title.replace('(Saldo Restante)', '').trim();
 
-              {/* Transparencia de Gastos del Curso */}
-              {canViewExpenses && (
-                <div className="glass-panel" style={{ padding: '2rem', marginBottom: '2rem' }}>
-                  {/* Header */}
-                  <div style={{ marginBottom: '1.5rem', borderBottom: '1px solid var(--border-color)', paddingBottom: '1.25rem' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', marginBottom: '0.35rem' }}>
-                      <div style={{ backgroundColor: 'rgba(239, 68, 68, 0.1)', padding: '0.5rem', borderRadius: 'var(--radius-sm)', color: 'var(--danger)', display: 'flex', alignItems: 'center' }}>
-                        <Receipt size={22} />
-                      </div>
-                      <h3 style={{ margin: 0, color: 'var(--text-main)', fontSize: '1.3rem' }}>
-                        Transparencia de Gastos del Curso
-                      </h3>
-                    </div>
-                    <p style={{ margin: 0, color: 'var(--text-muted)', fontSize: '0.875rem' }}>
-                      Detalle de compras y egresos del curso con la cuota proporcional calculada para <strong>{formatStudentName(student)}</strong>.
-                    </p>
-                  </div>
+                    if (d.status === 'partial') {
+                      const hasSpecificSaldoRestante = allStudentDebts.some(other =>
+                        other.title.includes('(Saldo Restante)') && other.title.includes(baseTitle)
+                      );
+                      if (hasSpecificSaldoRestante) return false;
+                    }
 
-                  {/* KPI Financial Summary Cards */}
-                  {(() => {
-                    const visibleOutcomes = outcomes.filter(o => o.visibleInPortal !== false);
+                    if (d.title.includes('(Saldo Restante)')) {
+                      const originalIsPaid = allStudentDebts.some(other =>
+                        other.title.trim() === baseTitle && other.status === 'paid'
+                      );
+                      if (originalIsPaid) return false;
+                    }
 
-                    const totalCourseExpenses = visibleOutcomes.reduce((sum, o) => sum + (o.amount || 0), 0);
-                    const totalStudentExpenses = visibleOutcomes.reduce((sum, o) => {
-                      const bd = getOutcomeBreakdown(o, student.id);
-                      return sum + (bd.isAssigned ? bd.share : 0);
-                    }, 0);
+                    return true;
+                  });
 
-                    const filteredOutcomes = visibleOutcomes.filter(o => {
-                      if (!expenseSearch.trim()) return true;
-                      const term = expenseSearch.toLowerCase();
-                      const titleMatch = (o.title || '').toLowerCase().includes(term);
-                      const dateMatch = (o.date || '').toLowerCase().includes(term);
-                      const fundMatch = (fundsMap[o.fundId] || '').toLowerCase().includes(term);
-                      const responsableMatch = (o.responsable || '').toLowerCase().includes(term);
-                      return titleMatch || dateMatch || fundMatch || responsableMatch;
-                    });
+                  return (
+                    <React.Fragment key={student.id}>
+                      <div className="glass-panel" style={{ padding: '2rem', marginBottom: '2rem' }}>
+                        <h3 style={{ marginBottom: '1.5rem', color: 'var(--primary)' }}>Estado de Pagos: {formatStudentName(student)}</h3>
 
-                    return (
-                      <>
-                        <div style={{ 
-                          display: 'grid', 
-                          gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', 
-                          gap: '1rem', 
-                          marginBottom: '1.5rem' 
-                        }}>
-                          {/* Total Gastos Curso */}
-                          <div style={{ padding: '1rem', backgroundColor: 'var(--bg-card)', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-color)' }}>
-                            <p style={{ margin: '0 0 0.25rem 0', fontSize: '0.75rem', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
-                              <TrendingDown size={14} style={{ color: 'var(--danger)' }} /> Total Gastos del Curso
-                            </p>
-                            <h3 style={{ margin: 0, color: 'var(--danger)', fontSize: '1.3rem' }}>
-                              {formatMoney(totalCourseExpenses)}
-                            </h3>
-                            <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
-                              {visibleOutcomes.length} gastos registrados
+                        {parseFloat(student.balance) > 0 && (
+                          <div style={{ padding: '1rem', marginBottom: '1.5rem', backgroundColor: 'rgba(16, 185, 129, 0.1)', color: 'var(--success)', borderRadius: 'var(--radius-md)', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                            <CheckCircle size={18} />
+                            <span>
+                              Tienes un saldo a favor de <strong>{new Intl.NumberFormat('es-CL', { style: 'currency', currency: 'CLP' }).format(student.balance)}</strong>.
+                              <span style={{ fontSize: '0.85rem', display: 'block', marginTop: '0.2rem', opacity: 0.8 }}>Este dinero puede ser utilizado por la directiva para descontar futuras cuotas.</span>
                             </span>
                           </div>
+                        )}
 
-                          {/* Cuota Alumno */}
-                          <div style={{ padding: '1rem', backgroundColor: 'var(--bg-card)', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-color)' }}>
-                            <p style={{ margin: '0 0 0.25rem 0', fontSize: '0.75rem', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
-                              <Receipt size={14} style={{ color: 'var(--primary)' }} /> Proporcional a este Alumno
-                            </p>
-                            <h3 style={{ margin: 0, color: 'var(--text-main)', fontSize: '1.3rem' }}>
-                              {formatMoney(totalStudentExpenses)}
-                            </h3>
-                            <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
-                              Suma correspondiente al alumno
-                            </span>
-                          </div>
-
-                          {/* Alumnos en Curso */}
-                          <div style={{ padding: '1rem', backgroundColor: 'var(--bg-card)', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-color)' }}>
-                            <p style={{ margin: '0 0 0.25rem 0', fontSize: '0.75rem', color: 'var(--text-muted)' }}>
-                              Alumnos Activos en Curso
-                            </p>
-                            <h3 style={{ margin: 0, color: 'var(--text-main)', fontSize: '1.3rem' }}>
-                              {courseStudentsCount}
-                            </h3>
-                            <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
-                              Base división general (~{(100 / (courseStudentsCount || 1)).toFixed(1)}% c/u)
-                            </span>
-                          </div>
-                        </div>
-
-                        {/* Buscador de Gastos */}
-                        <div style={{ marginBottom: '1.25rem', display: 'flex', gap: '0.75rem', alignItems: 'center', flexWrap: 'wrap' }}>
-                          <div style={{ position: 'relative', flex: 1, minWidth: '220px', maxWidth: '350px' }}>
-                            <input 
-                              type="text"
-                              className="input-field"
-                              placeholder="Buscar gasto por detalle, fecha o fondo..."
-                              value={expenseSearch}
-                              onChange={(e) => setExpenseSearch(e.target.value)}
-                              style={{ width: '100%', paddingLeft: '2.2rem', fontSize: '0.9rem' }}
-                            />
-                            <Search size={15} style={{ position: 'absolute', left: '0.75rem', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
-                          </div>
-                          {expenseSearch && (
-                            <button type="button" onClick={() => setExpenseSearch('')} className="btn btn-outline" style={{ padding: '0.4rem 0.75rem', fontSize: '0.85rem' }}>
-                              Limpiar filtro
-                            </button>
-                          )}
-                          <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginLeft: 'auto' }}>
-                            Mostrando {filteredOutcomes.length} de {visibleOutcomes.length} gastos
-                          </span>
-                        </div>
-
-                        {/* Listado de Gastos */}
-                        {outcomesLoading ? (
-                          <div style={{ padding: '2rem', textAlign: 'center', color: 'var(--text-muted)' }}>
-                            Cargando registro de gastos del curso...
-                          </div>
-                        ) : filteredOutcomes.length === 0 ? (
-                          <div style={{ padding: '2rem', textAlign: 'center', color: 'var(--text-muted)', backgroundColor: 'rgba(255,255,255,0.02)', borderRadius: 'var(--radius-md)' }}>
-                            {visibleOutcomes.length === 0 ? 'No hay gastos registrados en este curso aún.' : 'No se encontraron gastos que coincidan con la búsqueda.'}
-                          </div>
+                        {studentDebts.length === 0 ? (
+                          <p style={{ color: 'var(--text-muted)' }}>No hay cobros registrados para este alumno.</p>
                         ) : (
-                          <div style={{ display: 'grid', gap: '0.75rem' }}>
-                            {filteredOutcomes.map(outcome => {
-                              const bd = getOutcomeBreakdown(outcome, student.id);
-                              const receipt = outcome.receiptUrl || outcome.receiptUrls?.[0] || outcome.voucherUrl;
+                          <div style={{ display: 'grid', gap: '1rem' }}>
+                            {studentDebts.map(debt => {
+                              const paidAmt = debt.paidAmount || 0;
+                              const remainingAmount = Math.max(0, debt.amount - paidAmt);
+                              const isPartial = paidAmt > 0 && remainingAmount > 0;
 
                               return (
-                                <div 
-                                  key={outcome.id} 
-                                  style={{ 
-                                    padding: '1rem 1.25rem', 
-                                    backgroundColor: 'rgba(255, 255, 255, 0.03)', 
-                                    borderRadius: 'var(--radius-md)', 
-                                    border: '1px solid var(--border-color)', 
-                                    display: 'flex', 
-                                    flexWrap: 'wrap', 
-                                    alignItems: 'center', 
-                                    justifyContent: 'space-between', 
-                                    gap: '1rem',
-                                    borderLeft: bd.isAssigned ? '4px solid var(--primary)' : '4px solid rgba(255,255,255,0.2)'
-                                  }}
-                                >
-                                  {/* Left: Detalle, Fecha, Fondo */}
-                                  <div style={{ flex: '1 1 260px', minWidth: '220px' }}>
-                                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap', marginBottom: '0.25rem' }}>
-                                      <h4 style={{ margin: 0, fontSize: '1.05rem', color: 'var(--text-main)', fontWeight: '600' }}>
-                                        {outcome.title}
-                                      </h4>
-                                      {outcome.fundId && (
-                                        <span style={{ 
-                                          fontSize: '0.7rem', 
-                                          padding: '0.15rem 0.5rem', 
-                                          borderRadius: 'var(--radius-sm)', 
-                                          backgroundColor: 'var(--bg-card-hover)', 
-                                          color: 'var(--text-main)',
-                                          border: '1px solid var(--border-color)',
-                                          fontWeight: '500'
-                                        }}>
-                                          {fundsMap[outcome.fundId] || outcome.fundId}
-                                        </span>
-                                      )}
-                                    </div>
-
-                                    <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap', fontSize: '0.825rem', color: 'var(--text-muted)' }}>
-                                      <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.3rem' }}><Calendar size={13} /> {formatExpenseDate(outcome.date)}</span>
-                                      {outcome.paymentMethod && <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.3rem' }}><CreditCard size={13} /> {outcome.paymentMethod === 'transfer' ? 'Transferencia' : outcome.paymentMethod === 'cash' ? 'Efectivo' : outcome.paymentMethod}</span>}
-                                      {outcome.responsable && <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.3rem' }}><User size={13} /> {outcome.responsable}</span>}
-                                    </div>
+                                <div key={debt.id} style={{
+                                  display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '1rem', padding: '1rem', backgroundColor: 'rgba(255,255,255,0.03)', borderRadius: 'var(--radius-md)',
+                                  borderLeft: `4px solid ${debt.status === 'paid' ? 'var(--success)' : debt.status === 'review' ? 'var(--warning)' : (debt.status === 'partial' || isPartial) ? '#eab308' : 'var(--danger)'}`
+                                }}>
+                                  <div>
+                                    <p style={{ fontWeight: '500', fontSize: '1.1rem', marginBottom: '0.2rem' }}>
+                                      {debt.title}
+                                    </p>
+                                    <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>
+                                      {isPartial ? `Saldo Restante: ` : `Monto de la cuota: `} <strong>${isPartial ? remainingAmount : debt.amount}</strong>
+                                      {paidAmt > 0 && <span style={{ opacity: 0.7 }}> (Pagado: ${paidAmt})</span>}
+                                      <span> • Emitida: {debt.date}</span>
+                                    </p>
                                   </div>
 
-                                  {/* Middle: Gasto Total y Asignación */}
-                                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', minWidth: '130px' }}>
-                                    <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Gasto Total</span>
-                                    <span style={{ fontSize: '1.1rem', fontWeight: '700', color: 'var(--danger)' }}>
-                                      {formatMoney(outcome.amount)}
-                                    </span>
-                                    <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
-                                      {bd.label} ({bd.percent.toFixed(1)}%)
-                                    </span>
-                                  </div>
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+                                    {(debt.status === 'pending' || debt.status === 'partial' || isPartial) && (
+                                      <>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: (debt.status === 'partial' || isPartial) ? '#eab308' : 'var(--danger)', fontWeight: '500' }}>
+                                          <AlertCircle size={18} /> {(debt.status === 'partial' || isPartial) ? 'Pago Parcial (Saldo Pendiente)' : 'Por Pagar'}
+                                        </div>
+                                        <button
+                                          onClick={() => {
+                                            // Update payingDebt to have the correct remaining amount so the modal shows the right value
+                                            setPayingDebt({ ...debt, amount: remainingAmount });
+                                            setPaidAmount(remainingAmount.toString());
+                                          }}
+                                          className="btn btn-primary" style={{ padding: '0.5rem 1rem' }}
+                                        >
+                                          <Upload size={16} /> Subir Comprobante
+                                        </button>
+                                      </>
+                                    )}
 
-                                  {/* Right: Cuota que le corresponde al alumno */}
-                                  <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', flexWrap: 'wrap' }}>
-                                    <div style={{ 
-                                      textAlign: 'right', 
-                                      minWidth: '130px',
-                                      padding: '0.5rem 0.75rem',
-                                      borderRadius: 'var(--radius-sm)',
-                                      backgroundColor: 'var(--bg-card-hover)',
-                                      border: '1px solid var(--border-color)'
-                                    }}>
-                                      <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', display: 'block', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-                                        Le Corresponde
-                                      </span>
-                                      {bd.isAssigned ? (
-                                        <>
-                                          <span style={{ fontSize: '1.15rem', fontWeight: '800', color: 'var(--text-main)' }}>
-                                            {formatMoney(bd.share)}
-                                          </span>
-                                          <span style={{ display: 'block', fontSize: '0.7rem', color: 'var(--primary)', fontWeight: '600' }}>
-                                            {bd.percent.toFixed(1)}% del gasto
-                                          </span>
-                                        </>
-                                      ) : (
-                                        <>
-                                          <span style={{ fontSize: '1rem', fontWeight: '600', color: 'var(--text-muted)' }}>
-                                            $0
-                                          </span>
-                                          <span style={{ display: 'block', fontSize: '0.7rem', color: 'var(--text-muted)' }}>
-                                            No asignado
-                                          </span>
-                                        </>
-                                      )}
-                                    </div>
+                                    {debt.status === 'review' && (
+                                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: 'var(--warning)', fontWeight: '500', padding: '0.5rem 1rem', backgroundColor: 'rgba(245, 158, 11, 0.1)', borderRadius: 'var(--radius-sm)' }}>
+                                        <Clock size={18} /> En revisión (Comprobante enviado)
+                                      </div>
+                                    )}
 
-                                    {receipt && (
-                                      <button 
-                                        type="button"
-                                        onClick={() => setPreviewReceiptUrl(receipt)}
-                                        className="btn btn-outline"
-                                        style={{ padding: '0.45rem 0.75rem', fontSize: '0.8rem', display: 'flex', alignItems: 'center', gap: '0.4rem', color: 'var(--primary)', borderColor: 'rgba(99, 102, 241, 0.3)' }}
-                                        title="Ver boleta o comprobante"
-                                      >
-                                        <Eye size={15} /> Boleta
-                                      </button>
+                                    {debt.status === 'paid' && (
+                                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: 'var(--success)', fontWeight: '500', padding: '0.5rem 1rem', backgroundColor: 'rgba(16, 185, 129, 0.1)', borderRadius: 'var(--radius-sm)' }}>
+                                        <CheckCircle size={18} /> Pagado
+                                      </div>
                                     )}
                                   </div>
                                 </div>
@@ -1057,142 +825,374 @@ const ApoderadoDashboard = () => {
                             })}
                           </div>
                         )}
-                      </>
-                    );
-                  })()}
-                </div>
-              )}
-              </React.Fragment>
-            );
-          })}
+                      </div>
 
-        </>
-      )}
-        </>
-      )}
+                      {/* Transparencia de Gastos del Curso */}
+                      {canViewExpenses && (
+                        <div className="glass-panel" style={{ padding: '2rem', marginBottom: '2rem' }}>
+                          {/* Header */}
+                          <div style={{ marginBottom: '1.5rem', borderBottom: '1px solid var(--border-color)', paddingBottom: '1.25rem' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', marginBottom: '0.35rem' }}>
+                              <div style={{ backgroundColor: 'rgba(239, 68, 68, 0.1)', padding: '0.5rem', borderRadius: 'var(--radius-sm)', color: 'var(--danger)', display: 'flex', alignItems: 'center' }}>
+                                <Receipt size={22} />
+                              </div>
+                              <h3 style={{ margin: 0, color: 'var(--text-main)', fontSize: '1.3rem' }}>
+                                Transparencia de Gastos del Curso
+                              </h3>
+                            </div>
+                            <p style={{ margin: 0, color: 'var(--text-muted)', fontSize: '0.875rem' }}>
+                              Detalle de compras y egresos del curso con la cuota proporcional calculada para <strong>{formatStudentName(student)}</strong>.
+                            </p>
+                          </div>
 
-      <div className="glass-panel" style={{ padding: '2rem' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem' }}>
-          <h3 style={{ margin: 0 }}>Información del Curso</h3>
-          {whatsappContact && (
-            <a 
-              href={`https://wa.me/${whatsappContact.replace(/\D/g, '')}`} 
-              target="_blank" 
-              rel="noopener noreferrer" 
-              className="btn btn-primary"
-              style={{ backgroundColor: '#25D366', borderColor: '#25D366', padding: '0.5rem 1rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}
-            >
-              <MessageCircle size={18} /> Contactar Tesorería
-            </a>
-          )}
-        </div>
-        <p style={{ color: 'var(--text-muted)', marginTop: '0.5rem', marginBottom: '1rem' }}>
-          Para cualquier duda respecto a los pagos, por favor contacta a la directiva del curso.
-        </p>
-        <div style={{ padding: '1rem', backgroundColor: 'rgba(59, 130, 246, 0.1)', borderRadius: 'var(--radius-md)', borderLeft: '4px solid var(--primary)', display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-          <AlertCircle size={20} style={{ color: 'var(--primary)' }} />
-          <p style={{ margin: 0, color: 'var(--text-main)', fontSize: '0.95rem' }}>
-            <strong>Recuerda:</strong> Si no se ven reflejados tus pagos, actualiza la app o recarga la página.
-          </p>
-        </div>
-      </div>
-    </div>
+                          {/* KPI Financial Summary Cards */}
+                          {(() => {
+                            const visibleOutcomes = outcomes.filter(o => o.visibleInPortal !== false);
 
-    {/* MODAL DE PAGO MOVED OUTSIDE CONTAINER */}
-    {payingDebt && (
-      <div className="modal-overlay" style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.7)', display: 'flex', alignItems: 'flex-start', justifyContent: 'center', zIndex: 1000, padding: '1.25rem 0.5rem 2rem', overflowY: 'auto', WebkitOverflowScrolling: 'touch' }}>
-        <div className="glass-panel" style={{ width: '100%', maxWidth: '500px', marginTop: '0.25rem', padding: '2rem', backgroundColor: 'var(--bg-main)' }}>
-          <h3 style={{ marginBottom: '1rem' }}>Informar Pago</h3>
-          <p style={{ color: 'var(--text-muted)', marginBottom: '1.5rem' }}>
-            Estás reportando el pago para <strong>{payingDebt.title}</strong> del alumno <strong>{payingDebt.studentName}</strong>. 
-            El monto esperado es de <strong>${payingDebt.amount}</strong>.
-          </p>
+                            const totalCourseExpenses = visibleOutcomes.reduce((sum, o) => sum + (o.amount || 0), 0);
+                            const totalStudentExpenses = visibleOutcomes.reduce((sum, o) => {
+                              const bd = getOutcomeBreakdown(o, student.id);
+                              return sum + (bd.isAssigned ? bd.share : 0);
+                            }, 0);
 
-          {(() => {
-            const dataToShow = payingDebt.transferData || transferData;
-            if (dataToShow && dataToShow.bank) {
-              return (
-                <div style={{ backgroundColor: 'var(--bg-card-hover)', padding: '1rem', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-color)', marginBottom: '1.5rem', fontSize: '0.9rem' }}>
-                  <h4 style={{ margin: '0 0 0.5rem 0', color: 'var(--primary)', fontSize: '0.95rem' }}>Datos de Transferencia</h4>
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '0.3rem', color: 'var(--text-main)' }}>
-                    {dataToShow.alias && <div><strong>Alias:</strong> {dataToShow.alias}</div>}
-                    {dataToShow.bank && <div><strong>Banco:</strong> {dataToShow.bank}</div>}
-                    {dataToShow.accountType && <div><strong>Tipo de Cuenta:</strong> {dataToShow.accountType}</div>}
-                    {dataToShow.accountNumber && <div><strong>Número:</strong> {dataToShow.accountNumber}</div>}
-                    {dataToShow.rut && <div><strong>RUT:</strong> {dataToShow.rut}</div>}
-                    {dataToShow.name && <div><strong>Nombre:</strong> {dataToShow.name}</div>}
-                    {dataToShow.email && <div><strong>Correo:</strong> {dataToShow.email}</div>}
-                  </div>
-                </div>
-              );
-            }
-            return null;
-          })()}
+                            const filteredOutcomes = visibleOutcomes.filter(o => {
+                              if (!expenseSearch.trim()) return true;
+                              const term = expenseSearch.toLowerCase();
+                              const titleMatch = (o.title || '').toLowerCase().includes(term);
+                              const dateMatch = (o.date || '').toLowerCase().includes(term);
+                              const fundMatch = (fundsMap[o.fundId] || '').toLowerCase().includes(term);
+                              const responsableMatch = (o.responsable || '').toLowerCase().includes(term);
+                              return titleMatch || dateMatch || fundMatch || responsableMatch;
+                            });
 
-          <form onSubmit={handlePaymentSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
-            <div className="input-group" style={{ marginBottom: 0 }}>
-              <label className="input-label">Monto Transferido ($)</label>
-              <input 
-                type="number" 
-                required
-                min="1"
-                className="input-field" 
-                value={paidAmount}
-                onChange={(e) => setPaidAmount(e.target.value)}
-                placeholder="Ej. 15000"
-              />
-            </div>
+                            return (
+                              <>
+                                <div style={{
+                                  display: 'grid',
+                                  gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
+                                  gap: '1rem',
+                                  marginBottom: '1.5rem'
+                                }}>
+                                  {/* Total Gastos Curso */}
+                                  <div style={{ padding: '1rem', backgroundColor: 'var(--bg-card)', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-color)' }}>
+                                    <p style={{ margin: '0 0 0.25rem 0', fontSize: '0.75rem', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
+                                      <TrendingDown size={14} style={{ color: 'var(--danger)' }} /> Total Gastos del Curso
+                                    </p>
+                                    <h3 style={{ margin: 0, color: 'var(--danger)', fontSize: '1.3rem' }}>
+                                      {formatMoney(totalCourseExpenses)}
+                                    </h3>
+                                    <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                                      {visibleOutcomes.length} gastos registrados
+                                    </span>
+                                  </div>
 
-            <div className="input-group" style={{ marginBottom: 0 }}>
-              <label className="input-label">Comprobante (Imagen o PDF) - Opcional</label>
-              <input 
-                type="file" 
-                accept="image/*,.pdf"
-                className="input-field" 
-                style={{ padding: '0.5rem' }}
-                onChange={(e) => setReceiptFile(e.target.files[0])}
-              />
-            </div>
+                                  {/* Cuota Alumno */}
+                                  <div style={{ padding: '1rem', backgroundColor: 'var(--bg-card)', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-color)' }}>
+                                    <p style={{ margin: '0 0 0.25rem 0', fontSize: '0.75rem', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
+                                      <Receipt size={14} style={{ color: 'var(--primary)' }} /> Proporcional a este Alumno
+                                    </p>
+                                    <h3 style={{ margin: 0, color: 'var(--text-main)', fontSize: '1.3rem' }}>
+                                      {formatMoney(totalStudentExpenses)}
+                                    </h3>
+                                    <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                                      Suma correspondiente al alumno
+                                    </span>
+                                  </div>
 
-            <div style={{ display: 'flex', gap: '1rem', marginTop: '1rem' }}>
-              <button type="button" onClick={() => setPayingDebt(null)} className="btn btn-outline" style={{ flex: 1 }}>
-                Cancelar
-              </button>
-              <button type="submit" disabled={uploading} className="btn btn-primary" style={{ flex: 1 }}>
-                {uploading ? 'Subiendo...' : 'Enviar Comprobante'}
-              </button>
-            </div>
-          </form>
-        </div>
-      </div>
-    )}
+                                  {/* Alumnos en Curso */}
+                                  <div style={{ padding: '1rem', backgroundColor: 'var(--bg-card)', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-color)' }}>
+                                    <p style={{ margin: '0 0 0.25rem 0', fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                                      Alumnos Activos en Curso
+                                    </p>
+                                    <h3 style={{ margin: 0, color: 'var(--text-main)', fontSize: '1.3rem' }}>
+                                      {courseStudentsCount}
+                                    </h3>
+                                    <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                                      Base división general (~{(100 / (courseStudentsCount || 1)).toFixed(1)}% c/u)
+                                    </span>
+                                  </div>
+                                </div>
 
-    {/* MODAL DE COMPROBANTE DE GASTO */}
-    {previewReceiptUrl && (
-      <div 
-        style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.85)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem' }} 
-        onClick={() => setPreviewReceiptUrl(null)}
-      >
-        <div className="glass-panel" style={{ maxWidth: '650px', width: '100%', maxHeight: '90vh', overflowY: 'auto', padding: '1.5rem', backgroundColor: 'var(--bg-main)', position: 'relative' }} onClick={(e) => e.stopPropagation()}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem', borderBottom: '1px solid var(--border-color)', paddingBottom: '0.75rem' }}>
-            <h4 style={{ margin: 0 }}>Comprobante de Gasto</h4>
-            <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
-              <a href={previewReceiptUrl} target="_blank" rel="noopener noreferrer" className="btn btn-outline" style={{ padding: '0.35rem 0.75rem', fontSize: '0.8rem', display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
-                <ExternalLink size={14} /> Abrir original
+                                {/* Buscador de Gastos */}
+                                <div style={{ marginBottom: '1.25rem', display: 'flex', gap: '0.75rem', alignItems: 'center', flexWrap: 'wrap' }}>
+                                  <div style={{ position: 'relative', flex: 1, minWidth: '220px', maxWidth: '350px' }}>
+                                    <input
+                                      type="text"
+                                      className="input-field"
+                                      placeholder="Buscar gasto por detalle, fecha o fondo..."
+                                      value={expenseSearch}
+                                      onChange={(e) => setExpenseSearch(e.target.value)}
+                                      style={{ width: '100%', paddingLeft: '2.2rem', fontSize: '0.9rem' }}
+                                    />
+                                    <Search size={15} style={{ position: 'absolute', left: '0.75rem', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
+                                  </div>
+                                  {expenseSearch && (
+                                    <button type="button" onClick={() => setExpenseSearch('')} className="btn btn-outline" style={{ padding: '0.4rem 0.75rem', fontSize: '0.85rem' }}>
+                                      Limpiar filtro
+                                    </button>
+                                  )}
+                                  <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginLeft: 'auto' }}>
+                                    Mostrando {filteredOutcomes.length} de {visibleOutcomes.length} gastos
+                                  </span>
+                                </div>
+
+                                {/* Listado de Gastos */}
+                                {outcomesLoading ? (
+                                  <div style={{ padding: '2rem', textAlign: 'center', color: 'var(--text-muted)' }}>
+                                    Cargando registro de gastos del curso...
+                                  </div>
+                                ) : filteredOutcomes.length === 0 ? (
+                                  <div style={{ padding: '2rem', textAlign: 'center', color: 'var(--text-muted)', backgroundColor: 'rgba(255,255,255,0.02)', borderRadius: 'var(--radius-md)' }}>
+                                    {visibleOutcomes.length === 0 ? 'No hay gastos registrados en este curso aún.' : 'No se encontraron gastos que coincidan con la búsqueda.'}
+                                  </div>
+                                ) : (
+                                  <div style={{ display: 'grid', gap: '0.75rem' }}>
+                                    {filteredOutcomes.map(outcome => {
+                                      const bd = getOutcomeBreakdown(outcome, student.id);
+                                      const receipt = outcome.receiptUrl || outcome.receiptUrls?.[0] || outcome.voucherUrl;
+
+                                      return (
+                                        <div
+                                          key={outcome.id}
+                                          style={{
+                                            padding: '1rem 1.25rem',
+                                            backgroundColor: 'rgba(255, 255, 255, 0.03)',
+                                            borderRadius: 'var(--radius-md)',
+                                            border: '1px solid var(--border-color)',
+                                            display: 'flex',
+                                            flexWrap: 'wrap',
+                                            alignItems: 'center',
+                                            justifyContent: 'space-between',
+                                            gap: '1rem',
+                                            borderLeft: bd.isAssigned ? '4px solid var(--primary)' : '4px solid rgba(255,255,255,0.2)'
+                                          }}
+                                        >
+                                          {/* Left: Detalle, Fecha, Fondo */}
+                                          <div style={{ flex: '1 1 260px', minWidth: '220px' }}>
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap', marginBottom: '0.25rem' }}>
+                                              <h4 style={{ margin: 0, fontSize: '1.05rem', color: 'var(--text-main)', fontWeight: '600' }}>
+                                                {outcome.title}
+                                              </h4>
+                                              {outcome.fundId && (
+                                                <span style={{
+                                                  fontSize: '0.7rem',
+                                                  padding: '0.15rem 0.5rem',
+                                                  borderRadius: 'var(--radius-sm)',
+                                                  backgroundColor: 'var(--bg-card-hover)',
+                                                  color: 'var(--text-main)',
+                                                  border: '1px solid var(--border-color)',
+                                                  fontWeight: '500'
+                                                }}>
+                                                  {fundsMap[outcome.fundId] || outcome.fundId}
+                                                </span>
+                                              )}
+                                            </div>
+
+                                            <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap', fontSize: '0.825rem', color: 'var(--text-muted)' }}>
+                                              <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.3rem' }}><Calendar size={13} /> {formatExpenseDate(outcome.date)}</span>
+                                              {outcome.paymentMethod && <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.3rem' }}><CreditCard size={13} /> {outcome.paymentMethod === 'transfer' ? 'Transferencia' : outcome.paymentMethod === 'cash' ? 'Efectivo' : outcome.paymentMethod}</span>}
+                                              {outcome.responsable && <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.3rem' }}><User size={13} /> {outcome.responsable}</span>}
+                                            </div>
+                                          </div>
+
+                                          {/* Middle: Gasto Total y Asignación */}
+                                          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', minWidth: '130px' }}>
+                                            <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Gasto Total</span>
+                                            <span style={{ fontSize: '1.1rem', fontWeight: '700', color: 'var(--danger)' }}>
+                                              {formatMoney(outcome.amount)}
+                                            </span>
+                                            <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                                              {bd.label} ({bd.percent.toFixed(1)}%)
+                                            </span>
+                                          </div>
+
+                                          {/* Right: Cuota que le corresponde al alumno */}
+                                          <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', flexWrap: 'wrap' }}>
+                                            <div style={{
+                                              textAlign: 'right',
+                                              minWidth: '130px',
+                                              padding: '0.5rem 0.75rem',
+                                              borderRadius: 'var(--radius-sm)',
+                                              backgroundColor: 'var(--bg-card-hover)',
+                                              border: '1px solid var(--border-color)'
+                                            }}>
+                                              <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', display: 'block', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                                                Le Corresponde
+                                              </span>
+                                              {bd.isAssigned ? (
+                                                <>
+                                                  <span style={{ fontSize: '1.15rem', fontWeight: '800', color: 'var(--text-main)' }}>
+                                                    {formatMoney(bd.share)}
+                                                  </span>
+                                                  <span style={{ display: 'block', fontSize: '0.7rem', color: 'var(--primary)', fontWeight: '600' }}>
+                                                    {bd.percent.toFixed(1)}% del gasto
+                                                  </span>
+                                                </>
+                                              ) : (
+                                                <>
+                                                  <span style={{ fontSize: '1rem', fontWeight: '600', color: 'var(--text-muted)' }}>
+                                                    $0
+                                                  </span>
+                                                  <span style={{ display: 'block', fontSize: '0.7rem', color: 'var(--text-muted)' }}>
+                                                    No asignado
+                                                  </span>
+                                                </>
+                                              )}
+                                            </div>
+
+                                            {receipt && (
+                                              <button
+                                                type="button"
+                                                onClick={() => setPreviewReceiptUrl(receipt)}
+                                                className="btn btn-outline"
+                                                style={{ padding: '0.45rem 0.75rem', fontSize: '0.8rem', display: 'flex', alignItems: 'center', gap: '0.4rem', color: 'var(--primary)', borderColor: 'rgba(99, 102, 241, 0.3)' }}
+                                                title="Ver boleta o comprobante"
+                                              >
+                                                <Eye size={15} /> Boleta
+                                              </button>
+                                            )}
+                                          </div>
+                                        </div>
+                                      );
+                                    })}
+                                  </div>
+                                )}
+                              </>
+                            );
+                          })()}
+                        </div>
+                      )}
+                    </React.Fragment>
+                  );
+                })}
+
+              </>
+            )}
+          </>
+        )}
+
+        <div className="glass-panel" style={{ padding: '2rem' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem' }}>
+            <h3 style={{ margin: 0 }}>Información del Curso</h3>
+            {whatsappContact && (
+              <a
+                href={`https://wa.me/${whatsappContact.replace(/\D/g, '')}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="btn btn-primary"
+                style={{ backgroundColor: '#25D366', borderColor: '#25D366', padding: '0.5rem 1rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}
+              >
+                <MessageCircle size={18} /> Contactar Tesorería
               </a>
-              <button type="button" onClick={() => setPreviewReceiptUrl(null)} className="btn btn-outline" style={{ padding: '0.35rem 0.6rem' }}>
-                <X size={16} />
-              </button>
-            </div>
+            )}
           </div>
-          {previewReceiptUrl.toLowerCase().includes('.pdf') ? (
-            <iframe src={previewReceiptUrl} style={{ width: '100%', height: '500px', border: 'none', borderRadius: 'var(--radius-sm)' }} title="Boleta PDF" />
-          ) : (
-            <img src={previewReceiptUrl} alt="Comprobante" style={{ width: '100%', height: 'auto', maxHeight: '70vh', objectFit: 'contain', borderRadius: 'var(--radius-sm)' }} />
-          )}
+          <p style={{ color: 'var(--text-muted)', marginTop: '0.5rem', marginBottom: '1rem' }}>
+            Para cualquier duda respecto a los pagos, por favor contacta a la directiva del curso.
+          </p>
+          <div style={{ padding: '1rem', backgroundColor: 'rgba(59, 130, 246, 0.1)', borderRadius: 'var(--radius-md)', borderLeft: '4px solid var(--primary)', display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+            <AlertCircle size={20} style={{ color: 'var(--primary)' }} />
+            <p style={{ margin: 0, color: 'var(--text-main)', fontSize: '0.95rem' }}>
+              <strong>Recuerda:</strong> Si no se ven reflejados tus pagos, actualiza la app o recarga la página.
+            </p>
+          </div>
         </div>
       </div>
-    )}
+
+      {/* MODAL DE PAGO MOVED OUTSIDE CONTAINER */}
+      {payingDebt && (
+        <div className="modal-overlay" style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.7)', display: 'flex', alignItems: 'flex-start', justifyContent: 'center', zIndex: 1000, padding: '1.25rem 0.5rem 2rem', overflowY: 'auto', WebkitOverflowScrolling: 'touch' }}>
+          <div className="glass-panel" style={{ width: '100%', maxWidth: '500px', marginTop: '0.25rem', padding: '2rem', backgroundColor: 'var(--bg-main)' }}>
+            <h3 style={{ marginBottom: '1rem' }}>Informar Pago</h3>
+            <p style={{ color: 'var(--text-muted)', marginBottom: '1.5rem' }}>
+              Estás reportando el pago para <strong>{payingDebt.title}</strong> del alumno <strong>{payingDebt.studentName}</strong>.
+              El monto esperado es de <strong>${payingDebt.amount}</strong>.
+            </p>
+
+            {(() => {
+              const dataToShow = payingDebt.transferData || transferData;
+              if (dataToShow && dataToShow.bank) {
+                return (
+                  <div style={{ backgroundColor: 'var(--bg-card-hover)', padding: '1rem', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-color)', marginBottom: '1.5rem', fontSize: '0.9rem' }}>
+                    <h4 style={{ margin: '0 0 0.5rem 0', color: 'var(--primary)', fontSize: '0.95rem' }}>Datos de Transferencia</h4>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '0.3rem', color: 'var(--text-main)' }}>
+                      {dataToShow.alias && <div><strong>Alias:</strong> {dataToShow.alias}</div>}
+                      {dataToShow.bank && <div><strong>Banco:</strong> {dataToShow.bank}</div>}
+                      {dataToShow.accountType && <div><strong>Tipo de Cuenta:</strong> {dataToShow.accountType}</div>}
+                      {dataToShow.accountNumber && <div><strong>Número:</strong> {dataToShow.accountNumber}</div>}
+                      {dataToShow.rut && <div><strong>RUT:</strong> {dataToShow.rut}</div>}
+                      {dataToShow.name && <div><strong>Nombre:</strong> {dataToShow.name}</div>}
+                      {dataToShow.email && <div><strong>Correo:</strong> {dataToShow.email}</div>}
+                    </div>
+                  </div>
+                );
+              }
+              return null;
+            })()}
+
+            <form onSubmit={handlePaymentSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+              <div className="input-group" style={{ marginBottom: 0 }}>
+                <label className="input-label">Monto Transferido ($)</label>
+                <input
+                  type="number"
+                  required
+                  min="1"
+                  className="input-field"
+                  value={paidAmount}
+                  onChange={(e) => setPaidAmount(e.target.value)}
+                  placeholder="Ej. 15000"
+                />
+              </div>
+
+              <div className="input-group" style={{ marginBottom: 0 }}>
+                <label className="input-label">Comprobante (Imagen o PDF) - Opcional</label>
+                <input
+                  type="file"
+                  accept="image/*,.pdf"
+                  className="input-field"
+                  style={{ padding: '0.5rem' }}
+                  onChange={(e) => setReceiptFile(e.target.files[0])}
+                />
+              </div>
+
+              <div style={{ display: 'flex', gap: '1rem', marginTop: '1rem' }}>
+                <button type="button" onClick={() => setPayingDebt(null)} className="btn btn-outline" style={{ flex: 1 }}>
+                  Cancelar
+                </button>
+                <button type="submit" disabled={uploading} className="btn btn-primary" style={{ flex: 1 }}>
+                  {uploading ? 'Subiendo...' : 'Enviar Comprobante'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL DE COMPROBANTE DE GASTO */}
+      {previewReceiptUrl && (
+        <div
+          style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.85)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem' }}
+          onClick={() => setPreviewReceiptUrl(null)}
+        >
+          <div className="glass-panel" style={{ maxWidth: '650px', width: '100%', maxHeight: '90vh', overflowY: 'auto', padding: '1.5rem', backgroundColor: 'var(--bg-main)', position: 'relative' }} onClick={(e) => e.stopPropagation()}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem', borderBottom: '1px solid var(--border-color)', paddingBottom: '0.75rem' }}>
+              <h4 style={{ margin: 0 }}>Comprobante de Gasto</h4>
+              <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+                <a href={previewReceiptUrl} target="_blank" rel="noopener noreferrer" className="btn btn-outline" style={{ padding: '0.35rem 0.75rem', fontSize: '0.8rem', display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
+                  <ExternalLink size={14} /> Abrir original
+                </a>
+                <button type="button" onClick={() => setPreviewReceiptUrl(null)} className="btn btn-outline" style={{ padding: '0.35rem 0.6rem' }}>
+                  <X size={16} />
+                </button>
+              </div>
+            </div>
+            {previewReceiptUrl.toLowerCase().includes('.pdf') ? (
+              <iframe src={previewReceiptUrl} style={{ width: '100%', height: '500px', border: 'none', borderRadius: 'var(--radius-sm)' }} title="Boleta PDF" />
+            ) : (
+              <img src={previewReceiptUrl} alt="Comprobante" style={{ width: '100%', height: 'auto', maxHeight: '70vh', objectFit: 'contain', borderRadius: 'var(--radius-sm)' }} />
+            )}
+          </div>
+        </div>
+      )}
     </>
   );
 };

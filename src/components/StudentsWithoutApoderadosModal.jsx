@@ -5,14 +5,14 @@ const StudentsWithoutApoderadosModal = ({ isOpen, onClose, students }) => {
   if (!isOpen) return null;
 
   return (
-    <div 
+    <div
       className="modal-overlay"
       style={{
         position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
         backgroundColor: 'rgba(0,0,0,0.75)',
         display: 'flex', justifyContent: 'center', alignItems: 'flex-start',
         zIndex: 1000, padding: '1rem 0.5rem 2rem', overflowY: 'auto', WebkitOverflowScrolling: 'touch'
-      }} 
+      }}
       onClick={onClose}
     >
       <div style={{
@@ -22,7 +22,7 @@ const StudentsWithoutApoderadosModal = ({ isOpen, onClose, students }) => {
         border: '1px solid var(--border-color)', position: 'relative',
         boxShadow: '0 12px 32px rgba(0, 0, 0, 0.5)'
       }} onClick={e => e.stopPropagation()}>
-        
+
         <button onClick={onClose} style={{
           position: 'absolute', top: '1.25rem', right: '1.25rem',
           background: 'transparent', border: 'none', color: 'var(--text-muted)',

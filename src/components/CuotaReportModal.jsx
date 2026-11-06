@@ -59,7 +59,7 @@ const CuotaReportModal = ({
 
     setLoading(true);
     try {
-      const expensesPromise = preloadedExpenses 
+      const expensesPromise = preloadedExpenses
         ? Promise.resolve({ docs: preloadedExpenses.map(e => ({ id: e.id, data: () => e })) })
         : getDocs(query(collection(db, 'expenses'), where('courseId', '==', selectedCourse.id)));
 
@@ -69,7 +69,7 @@ const CuotaReportModal = ({
 
       const debtsPromise = preloadedDebts
         ? Promise.resolve({ docs: preloadedDebts.map(d => ({ id: d.id, data: () => d })) })
-        : getDocs(query(collection(db, 'debts'), where('courseId', '==', selectedCourse.id)));
+        : getDocs(collection(db, 'debts'));
 
       const [expSnap, stuSnap, debSnap] = await Promise.all([
         expensesPromise,
@@ -87,7 +87,11 @@ const CuotaReportModal = ({
         return aNum - bNum;
       });
 
-      const debList = debSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+      const expIds = new Set(expList.map(e => e.id));
+      const stuIds = new Set(stuList.map(s => s.id));
+      const debList = debSnap.docs
+        .map(d => ({ id: d.id, ...d.data() }))
+        .filter(d => d.courseId === selectedCourse.id || (!d.courseId && (expIds.has(d.expenseId) || stuIds.has(d.studentId))));
 
       setExpenses(expList);
       setStudents(stuList);
@@ -126,7 +130,7 @@ const CuotaReportModal = ({
           expected += debtAmt;
 
           if (d.status === 'paid') {
-            paid += typeof d.paidAmount === 'number' ? d.paidAmount : debtAmt;
+            paid += (typeof d.paidAmount === 'number' && d.paidAmount > 0) ? d.paidAmount : debtAmt;
           } else if (d.status === 'partial') {
             paid += d.paidAmount || 0;
           }
@@ -137,7 +141,7 @@ const CuotaReportModal = ({
         if (debt) {
           expected = debt.amount || currentExpense?.totalAmount || 0;
           if (debt.status === 'paid') {
-            paid = typeof debt.paidAmount === 'number' ? debt.paidAmount : expected;
+            paid = (typeof debt.paidAmount === 'number' && debt.paidAmount > 0) ? debt.paidAmount : expected;
           } else if (debt.status === 'partial') {
             paid = debt.paidAmount || 0;
           }
@@ -252,8 +256,8 @@ const CuotaReportModal = ({
       const filterLabel = filter === 'all'
         ? 'TOTALES (TODOS LOS ALUMNOS)'
         : filter === 'paid'
-        ? 'SOLO ALUMNOS PAGADOS (AL DÍA)'
-        : 'SOLO ALUMNOS IMPAGOS (CON DEUDA)';
+          ? 'SOLO ALUMNOS PAGADOS (AL DÍA)'
+          : 'SOLO ALUMNOS IMPAGOS (CON DEUDA)';
 
       const reportTitle = scope === 'all'
         ? 'REPORTE CONSOLIDADO DE CUOTAS TOTALES'
@@ -281,9 +285,9 @@ const CuotaReportModal = ({
         { label: 'Alumnos en Listado', val: `${filteredList.length} alumnos` },
         { label: 'Total Recaudado (Pagado)', val: formatMoney(summaryTotals.totalPaid), color: [16, 124, 65] },
         { label: 'Saldo Deuda Pendiente', val: formatMoney(summaryTotals.totalPending), color: summaryTotals.totalPending > 0 ? [220, 38, 38] : [100, 116, 139] },
-        { 
-          label: '% Cumplimiento', 
-          val: `${summaryTotals.totalExpected > 0 ? Math.round((summaryTotals.totalPaid / summaryTotals.totalExpected) * 100) : 100}%` 
+        {
+          label: '% Cumplimiento',
+          val: `${summaryTotals.totalExpected > 0 ? Math.round((summaryTotals.totalPaid / summaryTotals.totalExpected) * 100) : 100}%`
         }
       ];
 
@@ -396,8 +400,8 @@ const CuotaReportModal = ({
             doc.text(String(item.listNumber), cx + (col.width / 2), y + 4.6, { align: 'center' });
           } else if (col.key === 'name') {
             const maxChars = columnMode === 'classic' ? 48 : 32;
-            const truncatedName = item.name.length > maxChars 
-              ? item.name.substring(0, maxChars - 3) + '...' 
+            const truncatedName = item.name.length > maxChars
+              ? item.name.substring(0, maxChars - 3) + '...'
               : item.name;
             doc.text(truncatedName, cx + 3, y + 4.6);
           } else if (col.key === 'expected') {
@@ -522,7 +526,7 @@ const CuotaReportModal = ({
   if (!isOpen) return null;
 
   return createPortal(
-    <div 
+    <div
       className="modal-overlay"
       style={{
         position: 'fixed',

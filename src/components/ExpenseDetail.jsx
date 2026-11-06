@@ -113,7 +113,44 @@ const ExpenseDetail = ({ expenseId, onBack }) => {
       // Obtener las deudas de este gasto
       const q = query(collection(db, 'debts'), where('expenseId', '==', expenseId));
       const debtSnap = await getDocs(q);
-      const debtsData = debtSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+      const expDataSnapshot = expenseSnap.exists() ? expenseSnap.data() : null;
+      const effectiveCourseId = expDataSnapshot?.courseId || selectedCourse.id;
+      const effectiveFundId = expDataSnapshot?.fundId || 'general';
+
+      const debtsData = debtSnap.docs.map(d => {
+        const raw = { id: d.id, ...d.data() };
+        const repairUpdates = {};
+
+        if (!raw.courseId && effectiveCourseId) {
+          raw.courseId = effectiveCourseId;
+          repairUpdates.courseId = effectiveCourseId;
+        }
+        if (!raw.fundId && effectiveFundId) {
+          raw.fundId = effectiveFundId;
+          repairUpdates.fundId = effectiveFundId;
+        }
+        if (raw.status === 'paid' && (!raw.paidAmount || raw.paidAmount <= 0) && (raw.amount || 0) > 0) {
+          raw.paidAmount = raw.amount;
+          repairUpdates.paidAmount = raw.amount;
+        }
+        if ((raw.status === 'paid' || raw.status === 'partial') && (raw.paidAmount || 0) > 0 && !raw.paymentMethod) {
+          raw.paymentMethod = 'transfer';
+          repairUpdates.paymentMethod = 'transfer';
+          if (!raw.approvedAt) {
+            const approvedIso = raw.paidAt || raw.createdAt || new Date().toISOString();
+            raw.approvedAt = approvedIso;
+            repairUpdates.approvedAt = approvedIso;
+          }
+        }
+
+        if (Object.keys(repairUpdates).length > 0) {
+          updateDoc(doc(db, 'debts', d.id), repairUpdates).catch(err =>
+            console.error("Error auto-reparando deuda:", err)
+          );
+        }
+
+        return raw;
+      });
       
       // Ordenar estrictamente por el número de lista del alumno
       debtsData.sort((a, b) => {
@@ -128,15 +165,22 @@ const ExpenseDetail = ({ expenseId, onBack }) => {
 
       // Sincronización y auto-reparación en Firestore de contadores
       if (expenseSnap.exists()) {
-        const expData = expenseSnap.data();
+        const expData = { ...expDataSnapshot };
         const realPaidCount = debtsData.filter(d => d.status === 'paid').length;
         const realStudentsCount = debtsData.length;
+        const sumDebtsAmount = debtsData.reduce((sum, d) => sum + (Number(d.amount) || 0), 0);
+        const shouldSyncTotal = expData.calculationMode !== 'divide' && sumDebtsAmount > 0 && expData.totalAmount !== sumDebtsAmount;
 
-        if (realStudentsCount > 0 && (expData.paidCount !== realPaidCount || expData.studentsCount !== realStudentsCount)) {
-          updateDoc(expenseRef, {
+        if (realStudentsCount > 0 && (expData.paidCount !== realPaidCount || expData.studentsCount !== realStudentsCount || shouldSyncTotal)) {
+          const expUpdates = {
             paidCount: realPaidCount,
             studentsCount: realStudentsCount
-          }).catch(err => console.error("Error auto-sincronizando cuota:", err));
+          };
+          if (shouldSyncTotal) {
+            expUpdates.totalAmount = sumDebtsAmount;
+            expData.totalAmount = sumDebtsAmount;
+          }
+          updateDoc(expenseRef, expUpdates).catch(err => console.error("Error auto-sincronizando cuota:", err));
           expData.paidCount = realPaidCount;
           expData.studentsCount = realStudentsCount;
         }
@@ -279,25 +323,38 @@ const ExpenseDetail = ({ expenseId, onBack }) => {
     const debtToPay = debts.find(d => d.id === debtId);
     if (!debtToPay) return;
     
+    let targetDebtAmount = Number(debtToPay.amount) || 0;
+    if (!isApproval && targetDebtAmount <= 0) {
+      const promptAmtStr = await showPrompt("Este alumno tiene un monto a cobrar de $0. Ingresa el monto de la cuota ($) para registrar su pago:", "");
+      if (promptAmtStr === null) return;
+      const parsedAmt = parseFloat(promptAmtStr);
+      if (isNaN(parsedAmt) || parsedAmt <= 0) {
+        await showAlert("Debes ingresar un monto válido mayor a $0.");
+        return;
+      }
+      targetDebtAmount = parsedAmt;
+    }
+
     let finalTotalPaid = 0;
     let exactPaidNow = 0;
 
     if (isApproval) {
       // En aprobaciones, el apoderado ya subió un comprobante con un monto. Se aprueba directamente.
-      const suggestedAmount = debtToPay.paidAmount || debtToPay.amount;
+      const suggestedAmount = debtToPay.paidAmount || targetDebtAmount;
       finalTotalPaid = suggestedAmount;
       exactPaidNow = suggestedAmount;
     } else {
       // Pago manual (Efectivo/Transferencia): se registra de inmediato el monto pendiente sin prompts.
       const currentPaid = debtToPay.paidAmount || 0;
-      const remaining = debtToPay.amount - currentPaid;
+      const remaining = targetDebtAmount - currentPaid;
       
-      exactPaidNow = remaining > 0 ? remaining : debtToPay.amount;
+      exactPaidNow = remaining > 0 ? remaining : targetDebtAmount;
       finalTotalPaid = currentPaid + exactPaidNow;
     }
 
     try {
       const fundId = debtToPay.fundId || expense.fundId || 'general';
+      const effectiveCourseId = debtToPay.courseId || expense.courseId || selectedCourse.id;
       const relatedFund = funds.find(f => f.id === fundId);
       
       if (relatedFund && relatedFund.isLocked) {
@@ -312,7 +369,7 @@ const ExpenseDetail = ({ expenseId, onBack }) => {
       const debtRef = doc(db, 'debts', debtId);
       
       let newStatus = 'pending';
-      if (finalTotalPaid >= debtToPay.amount) newStatus = 'paid';
+      if (targetDebtAmount > 0 && finalTotalPaid >= targetDebtAmount) newStatus = 'paid';
       else if (finalTotalPaid > 0) newStatus = 'partial';
 
       const fullyPaidCount = (expense?.paidCount || 0) + (newStatus === 'paid' && debtToPay.status !== 'paid' ? 1 : (newStatus !== 'paid' && debtToPay.status === 'paid' ? -1 : 0));
@@ -323,7 +380,14 @@ const ExpenseDetail = ({ expenseId, onBack }) => {
           expensePaidCount: fullyPaidCount,
           debtsToUpdate: [{
             debtId,
-            updates: { status: newStatus, paidAmount: finalTotalPaid, paymentMethod: method }
+            updates: {
+              amount: targetDebtAmount,
+              status: newStatus,
+              paidAmount: finalTotalPaid,
+              paymentMethod: method,
+              courseId: effectiveCourseId,
+              fundId: fundId
+            }
           }]
         };
         await requestApproval('REGISTER_PAYMENTS', `Pago: ${debtToPay.studentName} ($${finalTotalPaid})`, payload, user, selectedCourse.id);
@@ -332,13 +396,18 @@ const ExpenseDetail = ({ expenseId, onBack }) => {
         return;
       }
 
+      const approvedAtIso = new Date().toISOString();
+
       // Actualización optimista inmediata en interfaz (sin recarga ni saltos de scroll)
       setDebts(prev => prev.map(d => d.id === debtId ? {
         ...d,
+        amount: targetDebtAmount,
         status: newStatus,
         paidAmount: finalTotalPaid,
         paymentMethod: method,
-        approvedAt: new Date().toISOString()
+        courseId: effectiveCourseId,
+        fundId: fundId,
+        approvedAt: approvedAtIso
       } : d));
 
       setExpense(prev => prev ? {
@@ -347,24 +416,27 @@ const ExpenseDetail = ({ expenseId, onBack }) => {
       } : prev);
 
       await updateDoc(debtRef, {
+        amount: targetDebtAmount,
         status: newStatus,
         paidAmount: finalTotalPaid,
         paymentMethod: method,
-        approvedAt: new Date().toISOString()
+        courseId: effectiveCourseId,
+        fundId: fundId,
+        approvedAt: approvedAtIso
       });
 
       // Log real payment transaction
       if (exactPaidNow > 0) {
         await addDoc(collection(db, 'payments'), {
           debtId: debtId,
-          courseId: selectedCourse.id,
+          courseId: effectiveCourseId,
           fundId: fundId,
           amount: exactPaidNow,
           paymentMethod: method,
           studentName: debtToPay.studentName,
-          title: debtToPay.title,
+          title: debtToPay.title || expense.title,
           status: newStatus,
-          createdAt: new Date().toISOString()
+          createdAt: approvedAtIso
         });
       }
 
@@ -372,11 +444,14 @@ const ExpenseDetail = ({ expenseId, onBack }) => {
       const q = query(collection(db, 'debts'), where('expenseId', '==', expenseId));
       const snap = await getDocs(q);
       const updatedFullyPaidCount = snap.docs.filter(d => d.data().status === 'paid').length;
+      const updatedTotalAmount = snap.docs.reduce((sum, d) => sum + (Number(d.data().amount) || 0), 0);
       
       const expenseRef = doc(db, 'expenses', expenseId);
-      await updateDoc(expenseRef, {
-        paidCount: updatedFullyPaidCount
-      });
+      const expUpdates = { paidCount: updatedFullyPaidCount };
+      if (expense.calculationMode !== 'divide' && updatedTotalAmount > 0) {
+        expUpdates.totalAmount = updatedTotalAmount;
+      }
+      await updateDoc(expenseRef, expUpdates);
 
       fetchDetail(false);
     } catch (error) {
@@ -454,12 +529,73 @@ const ExpenseDetail = ({ expenseId, onBack }) => {
       return;
     }
 
-    setDebts(prev => prev.map(d => d.id === debtId ? { ...d, amount: newAmount } : d));
+    const effectiveCourseId = debtToEdit.courseId || expense?.courseId || selectedCourse.id;
+    const effectiveFundId = debtToEdit.fundId || expense?.fundId || 'general';
+    const wasPaidWithZero = debtToEdit.status === 'paid' && (!debtToEdit.paidAmount || debtToEdit.paidAmount <= 0);
+    const updatedPaidAmount = wasPaidWithZero ? newAmount : (debtToEdit.paidAmount || 0);
+    let newStatus = debtToEdit.status;
+    if (wasPaidWithZero) {
+      newStatus = 'paid';
+    } else if (updatedPaidAmount > 0) {
+      newStatus = updatedPaidAmount >= newAmount ? 'paid' : 'partial';
+    } else if (debtToEdit.status !== 'review') {
+      newStatus = 'pending';
+    }
+
+    const effectiveMethod = updatedPaidAmount > 0 ? (debtToEdit.paymentMethod || 'transfer') : null;
+    const effectiveApprovedAt = updatedPaidAmount > 0 ? (debtToEdit.approvedAt || new Date().toISOString()) : null;
+
+    setDebts(prev => prev.map(d => d.id === debtId ? {
+      ...d,
+      amount: newAmount,
+      paidAmount: updatedPaidAmount,
+      status: newStatus,
+      paymentMethod: effectiveMethod,
+      approvedAt: effectiveApprovedAt,
+      courseId: effectiveCourseId,
+      fundId: effectiveFundId
+    } : d));
 
     try {
       await updateDoc(doc(db, 'debts', debtId), {
-        amount: newAmount
+        amount: newAmount,
+        paidAmount: updatedPaidAmount,
+        status: newStatus,
+        paymentMethod: effectiveMethod,
+        approvedAt: effectiveApprovedAt,
+        courseId: effectiveCourseId,
+        fundId: effectiveFundId
       });
+
+      if (wasPaidWithZero && updatedPaidAmount > 0) {
+        const paymentsQ = query(collection(db, 'payments'), where('debtId', '==', debtId));
+        const paymentsSnap = await getDocs(paymentsQ);
+        for (const pDoc of paymentsSnap.docs) {
+          await deleteDoc(doc(db, 'payments', pDoc.id));
+        }
+        await addDoc(collection(db, 'payments'), {
+          debtId: debtId,
+          courseId: effectiveCourseId,
+          fundId: effectiveFundId,
+          amount: updatedPaidAmount,
+          paymentMethod: effectiveMethod,
+          studentName: debtToEdit.studentName,
+          title: debtToEdit.title || expense?.title,
+          status: newStatus,
+          createdAt: effectiveApprovedAt
+        });
+      }
+
+      const q = query(collection(db, 'debts'), where('expenseId', '==', expenseId));
+      const snap = await getDocs(q);
+      const updatedFullyPaidCount = snap.docs.filter(d => d.data().status === 'paid').length;
+      const updatedTotalAmount = snap.docs.reduce((sum, d) => sum + (Number(d.data().amount) || 0), 0);
+
+      await updateDoc(doc(db, 'expenses', expenseId), {
+        paidCount: updatedFullyPaidCount,
+        totalAmount: updatedTotalAmount
+      });
+
       fetchDetail(false);
     } catch (error) {
       console.error("Error modificando deuda:", error);
@@ -481,26 +617,71 @@ const ExpenseDetail = ({ expenseId, onBack }) => {
       return;
     }
 
+    const effectiveCourseId = debtToEdit.courseId || expense?.courseId || selectedCourse.id;
+    const effectiveFundId = debtToEdit.fundId || expense?.fundId || 'general';
+    const updatedDebtAmount = (debtToEdit.amount || 0) > 0 ? debtToEdit.amount : (newAmount > 0 ? newAmount : 0);
+
     let newStatus = 'pending';
-    if (newAmount >= debtToEdit.amount) newStatus = 'paid';
+    if (newAmount > 0 && updatedDebtAmount > 0 && newAmount >= updatedDebtAmount) newStatus = 'paid';
     else if (newAmount > 0) newStatus = 'partial';
 
-    setDebts(prev => prev.map(d => d.id === debtId ? { ...d, paidAmount: newAmount, status: newStatus } : d));
+    const effectiveMethod = newAmount > 0 ? (debtToEdit.paymentMethod || 'transfer') : null;
+    const effectiveApprovedAt = newAmount > 0 ? (debtToEdit.approvedAt || new Date().toISOString()) : null;
+
+    setDebts(prev => prev.map(d => d.id === debtId ? {
+      ...d,
+      amount: updatedDebtAmount,
+      paidAmount: newAmount,
+      status: newStatus,
+      paymentMethod: effectiveMethod,
+      approvedAt: effectiveApprovedAt,
+      courseId: effectiveCourseId,
+      fundId: effectiveFundId
+    } : d));
 
     try {
       await updateDoc(doc(db, 'debts', debtId), {
+        amount: updatedDebtAmount,
         paidAmount: newAmount,
-        status: newStatus
+        status: newStatus,
+        paymentMethod: effectiveMethod,
+        approvedAt: effectiveApprovedAt,
+        courseId: effectiveCourseId,
+        fundId: effectiveFundId
       });
+
+      // Sincronizar colección "payments" para que el monto se refleje en el historial de movimientos/banco
+      const paymentsQ = query(collection(db, 'payments'), where('debtId', '==', debtId));
+      const paymentsSnap = await getDocs(paymentsQ);
+      for (const pDoc of paymentsSnap.docs) {
+        await deleteDoc(doc(db, 'payments', pDoc.id));
+      }
+
+      if (newAmount > 0) {
+        await addDoc(collection(db, 'payments'), {
+          debtId: debtId,
+          courseId: effectiveCourseId,
+          fundId: effectiveFundId,
+          amount: newAmount,
+          paymentMethod: effectiveMethod,
+          studentName: debtToEdit.studentName,
+          title: debtToEdit.title || expense?.title,
+          status: newStatus,
+          createdAt: effectiveApprovedAt
+        });
+      }
 
       const q = query(collection(db, 'debts'), where('expenseId', '==', expenseId));
       const snap = await getDocs(q);
       const updatedFullyPaidCount = snap.docs.filter(d => d.data().status === 'paid').length;
+      const updatedTotalAmount = snap.docs.reduce((sum, d) => sum + (Number(d.data().amount) || 0), 0);
       
-      await updateDoc(doc(db, 'expenses', expenseId), {
-        paidCount: updatedFullyPaidCount
-      });
-      setExpense(prev => prev ? { ...prev, paidCount: updatedFullyPaidCount } : prev);
+      const expUpdates = { paidCount: updatedFullyPaidCount };
+      if (expense?.calculationMode !== 'divide' && updatedTotalAmount > 0) {
+        expUpdates.totalAmount = updatedTotalAmount;
+      }
+      await updateDoc(doc(db, 'expenses', expenseId), expUpdates);
+      setExpense(prev => prev ? { ...prev, ...expUpdates } : prev);
 
       fetchDetail(false);
     } catch (error) {
@@ -1131,7 +1312,22 @@ const ExpenseDetail = ({ expenseId, onBack }) => {
 
       // Agregar alumnos
       let addedAmount = 0;
-      const defaultAmount = typeof expense.amountPerStudent === 'number' ? expense.amountPerStudent : 0;
+      const positiveAmounts = [...new Set(debts.map(d => Number(d.amount) || 0).filter(a => a > 0))];
+      let defaultAmount = (typeof expense.amountPerStudent === 'number' && expense.amountPerStudent > 0)
+        ? expense.amountPerStudent
+        : (positiveAmounts.length === 1 ? positiveAmounts[0] : 0);
+
+      if (addedIds.length > 0 && defaultAmount === 0) {
+        const promptedAmt = await showPrompt("Ingresa el Monto a Cobrar ($) para el/los nuevo(s) alumno(s) agregado(s):", "");
+        if (promptedAmt !== null && promptedAmt !== '') {
+          const parsedAmt = parseFloat(promptedAmt);
+          if (!isNaN(parsedAmt) && parsedAmt >= 0) {
+            defaultAmount = parsedAmt;
+          }
+        }
+      }
+
+      const effectiveCourseId = expense.courseId || selectedCourse.id;
       for (const studentId of addedIds) {
         const student = students.find(s => s.id === studentId);
         const debtId = `debt_${expenseId}_${studentId}`;
@@ -1148,6 +1344,7 @@ const ExpenseDetail = ({ expenseId, onBack }) => {
           title: expense.title,
           date: expense.date,
           fundId: expense.fundId || 'general',
+          courseId: effectiveCourseId,
           transferData: expense.transferData || null,
           visibleInPortal: expense.visibleInPortal !== false,
           createdAt: new Date().toISOString()
@@ -1201,7 +1398,7 @@ const ExpenseDetail = ({ expenseId, onBack }) => {
   // Cálculos y Helpers del Modo Auditoría
   const systemTotalCollected = useMemo(() => {
     return debts.reduce((sum, d) => {
-      if (d.status === 'paid') return sum + (typeof d.paidAmount === 'number' ? d.paidAmount : (d.amount || 0));
+      if (d.status === 'paid') return sum + ((typeof d.paidAmount === 'number' && d.paidAmount > 0) ? d.paidAmount : (d.amount || 0));
       if (d.status === 'partial') return sum + (d.paidAmount || 0);
       return sum;
     }, 0);
@@ -1231,7 +1428,7 @@ const ExpenseDetail = ({ expenseId, onBack }) => {
       const debt = debts.find(d => d.id === debtId);
       if (debt) {
         const sysVal = debt.status === 'paid' 
-          ? (typeof debt.paidAmount === 'number' ? debt.paidAmount : (debt.amount || 0))
+          ? ((typeof debt.paidAmount === 'number' && debt.paidAmount > 0) ? debt.paidAmount : (debt.amount || 0))
           : (debt.status === 'partial' ? (debt.paidAmount || 0) : 0);
         setAuditManualAmounts(prev => ({ ...prev, [debtId]: sysVal }));
       }
@@ -1251,7 +1448,7 @@ const ExpenseDetail = ({ expenseId, onBack }) => {
     const newChecks = {};
     debts.forEach(d => {
       const sysVal = d.status === 'paid'
-        ? (typeof d.paidAmount === 'number' ? d.paidAmount : (d.amount || 0))
+        ? ((typeof d.paidAmount === 'number' && d.paidAmount > 0) ? d.paidAmount : (d.amount || 0))
         : (d.status === 'partial' ? (d.paidAmount || 0) : 0);
       newAmounts[d.id] = sysVal;
       newChecks[d.id] = true;
@@ -1285,11 +1482,13 @@ const ExpenseDetail = ({ expenseId, onBack }) => {
     try {
       const debtsToUpdate = [];
       let updatedCount = 0;
+      const effectiveCourseId = expense?.courseId || selectedCourse.id;
+      const effectiveFundId = expense?.fundId || 'general';
       
       const fullyPaidCount = debts.filter(d => {
         const amtStr = auditManualAmounts[d.id];
         const amt = (amtStr !== undefined && amtStr !== '') ? parseFloat(amtStr) : 0;
-        return amt >= d.amount;
+        return amt > 0 && amt >= (d.amount || 0);
       }).length;
 
       for (const debt of debts) {
@@ -1302,7 +1501,7 @@ const ExpenseDetail = ({ expenseId, onBack }) => {
         }
 
         let newStatus = 'pending';
-        if (manualAmt >= debt.amount) newStatus = 'paid';
+        if (manualAmt > 0 && manualAmt >= (debt.amount || 0)) newStatus = 'paid';
         else if (manualAmt > 0) newStatus = 'partial';
 
         debtsToUpdate.push({
@@ -1310,7 +1509,9 @@ const ExpenseDetail = ({ expenseId, onBack }) => {
           updates: {
             paidAmount: manualAmt,
             status: newStatus,
-            paymentMethod: manualAmt > 0 ? (debt.paymentMethod || 'cash') : null
+            paymentMethod: manualAmt > 0 ? (debt.paymentMethod || 'transfer') : null,
+            courseId: debt.courseId || effectiveCourseId,
+            fundId: debt.fundId || effectiveFundId
           }
         });
         
@@ -1863,7 +2064,7 @@ const ExpenseDetail = ({ expenseId, onBack }) => {
               const isExpanded = expandedDebts.includes(debt.id);
               const isAudited = !!auditChecks[debt.id];
               const sysPaidAmt = debt.status === 'paid' 
-                ? (typeof debt.paidAmount === 'number' ? debt.paidAmount : (debt.amount || 0))
+                ? ((typeof debt.paidAmount === 'number' && debt.paidAmount > 0) ? debt.paidAmount : (debt.amount || 0))
                 : (debt.status === 'partial' ? (debt.paidAmount || 0) : 0);
 
               const rowBgColor = isAuditMode 

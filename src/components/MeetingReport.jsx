@@ -1,9 +1,9 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { db } from '../firebase/config';
 import { collection, getDocs } from 'firebase/firestore';
-import { 
-  ArrowLeft, Download, PieChart, TrendingUp, TrendingDown, 
-  Users, CheckCircle, Calendar, DollarSign, Eye, EyeOff, 
+import {
+  ArrowLeft, Download, PieChart, TrendingUp, TrendingDown,
+  Users, CheckCircle, Calendar, DollarSign, Eye, EyeOff,
   Share2, Search, RefreshCw
 } from 'lucide-react';
 import { formatStudentName } from '../utils/nameUtils';
@@ -22,7 +22,7 @@ const MeetingReport = ({ onBack }) => {
   const [meetingTitle] = useState('Informe Financiero - Reunión de Apoderados');
   const [meetingDate, setMeetingDate] = useState(new Date().toISOString().split('T')[0]);
   const [hideSensitiveNames, setHideSensitiveNames] = useState(false); // Modo Proyector
-  
+
   // Data states
   const [students, setStudents] = useState([]);
   const [usersMap, setUsersMap] = useState({});
@@ -40,17 +40,17 @@ const MeetingReport = ({ onBack }) => {
 
   // Selected Student for payment detail
   const [selectedStudentForDetail, setSelectedStudentForDetail] = useState(null);
-  
+
   // Generating states
   const [generatingPdf, setGeneratingPdf] = useState(false);
   const [generatingImage, setGeneratingImage] = useState(false);
   const [sendingEmail, setSendingEmail] = useState(false);
-  
+
   // Export settings states
   const [showExportModal, setShowExportModal] = useState(false);
   const [exportIncludeDetails, setExportIncludeDetails] = useState(false);
   const [exportSendEmail, setExportSendEmail] = useState(false);
-  
+
   // Signatures
   const [sigTreasurer, setSigTreasurer] = useState(null);
   const [sigPresident, setSigPresident] = useState(null);
@@ -62,7 +62,7 @@ const MeetingReport = ({ onBack }) => {
       setLoading(true);
       try {
         const [
-          usersSnap, studentsSnap, debtsSnap, expensesSnap, 
+          usersSnap, studentsSnap, debtsSnap, expensesSnap,
           fundsSnap, outcomesSnap, incomesSnap
         ] = await Promise.all([
           getDocs(collection(db, 'users')),
@@ -153,14 +153,15 @@ const MeetingReport = ({ onBack }) => {
       if (!currentFunds[fundId]) return;
 
       if (d.status === 'paid' || d.status === 'partial') {
-        const amt = typeof d.paidAmount === 'number' ? d.paidAmount : (d.amount || 0);
+        const amt = (typeof d.paidAmount === 'number' && d.paidAmount > 0) ? d.paidAmount : (d.status === 'paid' ? (d.amount || 0) : 0);
         collected += amt;
         const expected = d.amount || 0;
         const baseAmt = Math.min(amt, expected);
         const overpayAmt = Math.max(0, amt - expected);
 
-        if (d.paymentMethod === 'cash') cIn += baseAmt;
-        if (d.paymentMethod === 'transfer') tIn += baseAmt;
+        const method = d.paymentMethod || 'transfer';
+        if (method === 'cash') cIn += baseAmt;
+        if (method === 'transfer') tIn += baseAmt;
         tIn += overpayAmt;
 
         currentFunds[fundId].totalIn += amt;
@@ -237,7 +238,7 @@ const MeetingReport = ({ onBack }) => {
       st.debts.push(d);
 
       const amt = d.amount || 0;
-      const paidAmt = typeof d.paidAmount === 'number' ? d.paidAmount : (d.status === 'paid' ? amt : 0);
+      const paidAmt = (typeof d.paidAmount === 'number' && d.paidAmount > 0) ? d.paidAmount : (d.status === 'paid' ? amt : 0);
 
       if (d.status === 'paid') {
         st.paidCount += 1;
@@ -322,7 +323,7 @@ const MeetingReport = ({ onBack }) => {
         apNames.some(a => a.includes(term))
       );
 
-      const matchStatus = debtorFilterStatus === 'all' || 
+      const matchStatus = debtorFilterStatus === 'all' ||
         (debtorFilterStatus === 'paid' && item.status === 'paid') ||
         (debtorFilterStatus === 'unpaid' && (item.status === 'unpaid' || item.status === 'partial')) ||
         (debtorFilterStatus === 'partial' && item.status === 'partial');
@@ -433,7 +434,7 @@ const MeetingReport = ({ onBack }) => {
         doc.text(f.name, 18, y + 4);
         doc.text(formatMoney(f.totalIn), 90, y + 4, { align: 'right' });
         doc.text(formatMoney(f.totalOut), 135, y + 4, { align: 'right' });
-        
+
         doc.setFont('helvetica', 'bold');
         doc.setTextColor(f.balance >= 0 ? successColor[0] : dangerColor[0], f.balance >= 0 ? successColor[1] : dangerColor[1], f.balance >= 0 ? successColor[2] : dangerColor[2]);
         doc.text(formatMoney(f.balance), pageWidth - 18, y + 4, { align: 'right' });
@@ -453,57 +454,57 @@ const MeetingReport = ({ onBack }) => {
         doc.setFontSize(13);
         doc.setFont('helvetica', 'bold');
         doc.text(`${sectionCount}. Lista Detallada de Gastos (${outcomes.length} registros)`, 14, y);
-      y += 5;
+        y += 5;
 
-      doc.setFillColor(241, 245, 249);
-      doc.rect(14, y, pageWidth - 28, 7, 'F');
-      doc.setFontSize(8);
-      doc.setFont('helvetica', 'bold');
-      doc.setTextColor(textMain[0], textMain[1], textMain[2]);
-      doc.text('Fecha', 18, y + 5);
-      doc.text('Motivo / Descripción', 45, y + 5);
-      doc.text('Fondo', 130, y + 5);
-      doc.text('Monto', pageWidth - 18, y + 5, { align: 'right' });
-      y += 8;
-
-      outcomes.forEach((o) => {
-        // Check page overflow
-        if (y > pageHeight - 30) {
-          doc.addPage();
-          y = 15;
-          // Header on new page
-          doc.setFillColor(241, 245, 249);
-          doc.rect(14, y, pageWidth - 28, 7, 'F');
-          doc.setFontSize(8);
-          doc.setFont('helvetica', 'bold');
-          doc.text('Fecha', 18, y + 5);
-          doc.text('Motivo / Descripción', 45, y + 5);
-          doc.text('Fondo', 130, y + 5);
-          doc.text('Monto', pageWidth - 18, y + 5, { align: 'right' });
-          y += 8;
-        }
-
-        const fundName = finalFundsMap[o.fundId]?.name || 'General';
-        doc.setFont('helvetica', 'normal');
+        doc.setFillColor(241, 245, 249);
+        doc.rect(14, y, pageWidth - 28, 7, 'F');
         doc.setFontSize(8);
-        doc.setTextColor(textMain[0], textMain[1], textMain[2]);
-        doc.text(o.date || '-', 18, y + 4);
-        
-        const titleStr = o.title && o.title.length > 45 ? o.title.substring(0, 42) + '...' : (o.title || '-');
-        doc.text(titleStr, 45, y + 4);
-        doc.text(fundName, 130, y + 4);
-        
         doc.setFont('helvetica', 'bold');
-        doc.setTextColor(dangerColor[0], dangerColor[1], dangerColor[2]);
-        doc.text(formatMoney(o.amount), pageWidth - 18, y + 4, { align: 'right' });
+        doc.setTextColor(textMain[0], textMain[1], textMain[2]);
+        doc.text('Fecha', 18, y + 5);
+        doc.text('Motivo / Descripción', 45, y + 5);
+        doc.text('Fondo', 130, y + 5);
+        doc.text('Monto', pageWidth - 18, y + 5, { align: 'right' });
+        y += 8;
 
-        doc.setDrawColor(241, 245, 249);
-        doc.line(14, y + 6, pageWidth - 14, y + 6);
-        y += 7;
-      });
+        outcomes.forEach((o) => {
+          // Check page overflow
+          if (y > pageHeight - 30) {
+            doc.addPage();
+            y = 15;
+            // Header on new page
+            doc.setFillColor(241, 245, 249);
+            doc.rect(14, y, pageWidth - 28, 7, 'F');
+            doc.setFontSize(8);
+            doc.setFont('helvetica', 'bold');
+            doc.text('Fecha', 18, y + 5);
+            doc.text('Motivo / Descripción', 45, y + 5);
+            doc.text('Fondo', 130, y + 5);
+            doc.text('Monto', pageWidth - 18, y + 5, { align: 'right' });
+            y += 8;
+          }
 
-      y += 6;
-      sectionCount++;
+          const fundName = finalFundsMap[o.fundId]?.name || 'General';
+          doc.setFont('helvetica', 'normal');
+          doc.setFontSize(8);
+          doc.setTextColor(textMain[0], textMain[1], textMain[2]);
+          doc.text(o.date || '-', 18, y + 4);
+
+          const titleStr = o.title && o.title.length > 45 ? o.title.substring(0, 42) + '...' : (o.title || '-');
+          doc.text(titleStr, 45, y + 4);
+          doc.text(fundName, 130, y + 4);
+
+          doc.setFont('helvetica', 'bold');
+          doc.setTextColor(dangerColor[0], dangerColor[1], dangerColor[2]);
+          doc.text(formatMoney(o.amount), pageWidth - 18, y + 4, { align: 'right' });
+
+          doc.setDrawColor(241, 245, 249);
+          doc.line(14, y + 6, pageWidth - 14, y + 6);
+          y += 7;
+        });
+
+        y += 6;
+        sectionCount++;
       }
 
       // Check page overflow for Cuotas & Debtors
@@ -538,7 +539,7 @@ const MeetingReport = ({ onBack }) => {
 
         const expDebts = debts.filter(d => d.expenseId === exp.id);
         const expCollected = expDebts.reduce((sum, d) => sum + (d.status === 'paid' ? (Number(d.amount) || 0) : (Number(d.paidAmount) || 0)), 0);
-        
+
         const debtSum = expDebts.reduce((sum, d) => sum + (Number(d.amount) || 0), 0);
         const expExpected = debtSum > 0 ? debtSum : (Number(exp.totalAmount) || (Number(exp.amount) || 0) * (expDebts.length || students.length || 1));
         const expPct = expExpected > 0 ? Math.min(100, Math.round((expCollected / expExpected) * 100)) : 0;
@@ -618,12 +619,12 @@ const MeetingReport = ({ onBack }) => {
 
       // 1. Descargar PDF localmente
       doc.save(`Informe_Reunion_Apoderados_${meetingDate}.pdf`);
-      
+
       // 2. Preparar el envío automático de correos (Trigger Email)
       if (exportSendEmail) {
         setSendingEmail(true);
         const pdfBase64 = doc.output('datauristring').split(',')[1];
-        
+
         const allEmails = new Set();
         students.forEach(s => {
           if (s.apoderadoEmails && s.apoderadoEmails.length > 0) {
@@ -632,12 +633,12 @@ const MeetingReport = ({ onBack }) => {
             allEmails.add(s.apoderadoEmail);
           }
         });
-        
+
         const emailList = Array.from(allEmails);
-        
+
         if (emailList.length > 0) {
           const logoUrl = `${window.location.origin}/LOGOAPPCURSO.jpg`;
-          
+
           const emailHtml = `
             <div style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; max-width: 600px; margin: 0 auto; border: 1px solid #eaeaea; border-radius: 8px; overflow: hidden; box-shadow: 0 4px 6px rgba(0,0,0,0.05);">
               <div style="background-color: #1e1e2f; padding: 20px; text-align: center;">
@@ -662,7 +663,7 @@ const MeetingReport = ({ onBack }) => {
               </div>
             </div>
           `;
-  
+
           await addDoc(collection(db, 'mail'), {
             to: emailList,
             message: {
@@ -686,7 +687,7 @@ const MeetingReport = ({ onBack }) => {
       }
 
       setShowExportModal(false);
-      
+
     } catch (error) {
       console.error("Error al generar PDF:", error);
       await showAlert("Hubo un error al generar el PDF.");
@@ -750,7 +751,7 @@ const MeetingReport = ({ onBack }) => {
 
   return (
     <div className="container animate-fade-in" style={{ paddingBottom: '4rem' }}>
-      
+
       {/* Top Header & Actions Bar */}
       <div id="report-actions-bar" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem', flexWrap: 'wrap', gap: '1rem' }}>
         <button onClick={onBack} className="btn btn-outline" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
@@ -759,10 +760,10 @@ const MeetingReport = ({ onBack }) => {
 
         <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap', alignItems: 'center' }}>
           {/* Privacy Toggle (Modo Proyector) */}
-          <button 
+          <button
             onClick={() => setHideSensitiveNames(!hideSensitiveNames)}
             className="btn btn-outline"
-            style={{ 
+            style={{
               borderColor: hideSensitiveNames ? 'var(--warning)' : 'var(--border-color)',
               color: hideSensitiveNames ? 'var(--warning)' : 'var(--text-muted)',
               display: 'flex',
@@ -777,7 +778,7 @@ const MeetingReport = ({ onBack }) => {
           </button>
 
           {/* Export WhatsApp Image */}
-          <button 
+          <button
             onClick={handleShareImage}
             disabled={generatingImage}
             className="btn btn-outline"
@@ -788,7 +789,7 @@ const MeetingReport = ({ onBack }) => {
           </button>
 
           {/* Export PDF Button */}
-          <button 
+          <button
             onClick={() => setShowExportModal(true)}
             disabled={generatingPdf || sendingEmail}
             className="btn btn-primary"
@@ -807,12 +808,12 @@ const MeetingReport = ({ onBack }) => {
         <div className="glass-panel" style={{ padding: '2rem', marginBottom: '2rem', border: '1px solid var(--border-color)', backgroundColor: 'var(--bg-card)' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '1.5rem' }}>
             <div style={{ flex: '1 1 350px' }}>
-              <span style={{ 
-                fontSize: '0.75rem', 
-                fontWeight: '600', 
-                padding: '0.25rem 0.65rem', 
-                borderRadius: 'var(--radius-sm)', 
-                backgroundColor: 'rgba(37, 99, 235, 0.1)', 
+              <span style={{
+                fontSize: '0.75rem',
+                fontWeight: '600',
+                padding: '0.25rem 0.65rem',
+                borderRadius: 'var(--radius-sm)',
+                backgroundColor: 'rgba(37, 99, 235, 0.1)',
                 color: '#93c5fd',
                 border: '1px solid rgba(37, 99, 235, 0.25)',
                 textTransform: 'uppercase',
@@ -832,8 +833,8 @@ const MeetingReport = ({ onBack }) => {
             <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center', flexWrap: 'wrap' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', backgroundColor: 'rgba(255,255,255,0.05)', padding: '0.5rem 0.85rem', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-color)' }}>
                 <Calendar size={16} style={{ color: 'var(--primary)' }} />
-                <input 
-                  type="date" 
+                <input
+                  type="date"
                   value={meetingDate}
                   onChange={(e) => setMeetingDate(e.target.value)}
                   style={{ background: 'transparent', border: 'none', color: 'var(--text-main)', fontFamily: 'inherit', fontSize: '0.9rem', outline: 'none' }}
@@ -845,7 +846,7 @@ const MeetingReport = ({ onBack }) => {
 
         {/* Top KPI Cards */}
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '1.25rem', marginBottom: '2rem' }}>
-          
+
           {/* Fondo Total Disponible */}
           <div className="glass-panel" style={{ padding: '1.5rem', borderLeft: '4px solid var(--success)' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
@@ -906,7 +907,7 @@ const MeetingReport = ({ onBack }) => {
 
         {/* Interactive Visual Graphs */}
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '1.5rem', marginBottom: '2rem' }}>
-          
+
           {/* Gráfico 1: Cumplimiento de Pagos (Al Día vs Con Deuda) */}
           <div className="glass-panel" style={{ padding: '1.75rem' }}>
             <h4 style={{ margin: '0 0 1rem 0', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
@@ -998,10 +999,10 @@ const MeetingReport = ({ onBack }) => {
 
         {/* Navigation Tabs */}
         <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1.5rem', flexWrap: 'wrap', borderBottom: '1px solid var(--border-color)', paddingBottom: '0.5rem' }}>
-          <button 
+          <button
             onClick={() => setActiveTab('resumen')}
             className="btn"
-            style={{ 
+            style={{
               backgroundColor: activeTab === 'resumen' ? 'var(--primary)' : 'transparent',
               color: activeTab === 'resumen' ? 'white' : 'var(--text-muted)',
               border: activeTab === 'resumen' ? 'none' : '1px solid var(--border-color)',
@@ -1010,10 +1011,10 @@ const MeetingReport = ({ onBack }) => {
           >
             Fondos de Curso ({Object.keys(finalFundsMap).length})
           </button>
-          <button 
+          <button
             onClick={() => setActiveTab('gastos')}
             className="btn"
-            style={{ 
+            style={{
               backgroundColor: activeTab === 'gastos' ? 'var(--primary)' : 'transparent',
               color: activeTab === 'gastos' ? 'white' : 'var(--text-muted)',
               border: activeTab === 'gastos' ? 'none' : '1px solid var(--border-color)',
@@ -1022,10 +1023,10 @@ const MeetingReport = ({ onBack }) => {
           >
             Lista de Gastos ({outcomes.length})
           </button>
-          <button 
+          <button
             onClick={() => setActiveTab('cuotas')}
             className="btn"
-            style={{ 
+            style={{
               backgroundColor: activeTab === 'cuotas' ? 'var(--primary)' : 'transparent',
               color: activeTab === 'cuotas' ? 'white' : 'var(--text-muted)',
               border: activeTab === 'cuotas' ? 'none' : '1px solid var(--border-color)',
@@ -1034,10 +1035,10 @@ const MeetingReport = ({ onBack }) => {
           >
             Cuotas Emitidas ({expenses.length})
           </button>
-          <button 
+          <button
             onClick={() => setActiveTab('morosos')}
             className="btn"
-            style={{ 
+            style={{
               backgroundColor: activeTab === 'morosos' ? 'var(--primary)' : 'transparent',
               color: activeTab === 'morosos' ? 'white' : 'var(--text-muted)',
               border: activeTab === 'morosos' ? 'none' : '1px solid var(--border-color)',
@@ -1056,7 +1057,7 @@ const MeetingReport = ({ onBack }) => {
             </h3>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: '1rem' }}>
               {Object.values(finalFundsMap).map(f => (
-                <div 
+                <div
                   key={f.id}
                   style={{
                     padding: '1.25rem',
@@ -1070,10 +1071,10 @@ const MeetingReport = ({ onBack }) => {
                 >
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                     <h4 style={{ margin: 0, fontSize: '1.1rem' }}>{f.name}</h4>
-                    <span style={{ 
-                      fontSize: '0.75rem', 
-                      padding: '0.15rem 0.5rem', 
-                      borderRadius: '10px', 
+                    <span style={{
+                      fontSize: '0.75rem',
+                      padding: '0.15rem 0.5rem',
+                      borderRadius: '10px',
                       backgroundColor: f.balance >= 0 ? 'rgba(16, 185, 129, 0.1)' : 'rgba(239, 68, 68, 0.1)',
                       color: f.balance >= 0 ? 'var(--success)' : 'var(--danger)'
                     }}>
@@ -1117,8 +1118,8 @@ const MeetingReport = ({ onBack }) => {
 
               {/* Filters */}
               <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap' }}>
-                <select 
-                  value={outcomeFilterFund} 
+                <select
+                  value={outcomeFilterFund}
                   onChange={(e) => setOutcomeFilterFund(e.target.value)}
                   className="input-field"
                   style={{ padding: '0.5rem', fontSize: '0.85rem' }}
@@ -1130,8 +1131,8 @@ const MeetingReport = ({ onBack }) => {
                 </select>
 
                 <div style={{ position: 'relative' }}>
-                  <input 
-                    type="text" 
+                  <input
+                    type="text"
                     placeholder="Buscar motivo..."
                     value={outcomeSearch}
                     onChange={(e) => setOutcomeSearch(e.target.value)}
@@ -1152,7 +1153,7 @@ const MeetingReport = ({ onBack }) => {
                   const methodLabel = o.paymentMethod === 'transfer' ? 'Transferencia (Banco)' : 'Efectivo (Caja)';
 
                   return (
-                    <div 
+                    <div
                       key={o.id}
                       style={{
                         padding: '1rem 1.25rem',
@@ -1169,21 +1170,21 @@ const MeetingReport = ({ onBack }) => {
                       <div>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
                           <span style={{ fontSize: '0.85rem', fontWeight: '500', color: 'var(--text-muted)' }}>{o.date}</span>
-                          <span style={{ 
-                            fontSize: '0.75rem', 
-                            padding: '0.15rem 0.5rem', 
-                            borderRadius: '10px', 
+                          <span style={{
+                            fontSize: '0.75rem',
+                            padding: '0.15rem 0.5rem',
+                            borderRadius: '10px',
                             backgroundColor: 'rgba(99, 102, 241, 0.15)',
                             color: 'var(--primary)'
                           }}>
                             {fundName}
                           </span>
                           {(o.eventName || o.eventId) && (
-                            <span style={{ 
-                              fontSize: '0.75rem', 
-                              padding: '0.15rem 0.5rem', 
-                              borderRadius: 'var(--radius-sm)', 
-                              backgroundColor: 'var(--bg-main)', 
+                            <span style={{
+                              fontSize: '0.75rem',
+                              padding: '0.15rem 0.5rem',
+                              borderRadius: 'var(--radius-sm)',
+                              backgroundColor: 'var(--bg-main)',
                               color: 'var(--text-muted)',
                               border: '1px solid var(--border-color)',
                               fontWeight: '600'
@@ -1216,7 +1217,7 @@ const MeetingReport = ({ onBack }) => {
         {activeTab === 'cuotas' && (
           <div className="glass-panel" style={{ padding: '1.75rem' }}>
             <h3 style={{ margin: '0 0 1.25rem 0', color: 'var(--primary)' }}>Rendimiento de Cuotas Emitidas</h3>
-            
+
             {expenses.length === 0 ? (
               <p style={{ color: 'var(--text-muted)', textAlign: 'center', padding: '2rem' }}>No hay cuotas emitidas registradas.</p>
             ) : (
@@ -1229,7 +1230,7 @@ const MeetingReport = ({ onBack }) => {
                   const totalCount = expDebts.length || students.length || 1;
 
                   const collected = expDebts.reduce((sum, d) => sum + (d.status === 'paid' ? (Number(d.amount) || 0) : (Number(d.paidAmount) || 0)), 0);
-                  
+
                   // Total esperado de la cuota: suma de las deudas generadas (soporta cuotas fijas y personalizadas/variables)
                   const debtSum = expDebts.reduce((sum, d) => sum + (Number(d.amount) || 0), 0);
                   const expected = debtSum > 0 ? debtSum : (Number(exp.totalAmount) || (Number(exp.amount) || 0) * totalCount);
@@ -1253,7 +1254,7 @@ const MeetingReport = ({ onBack }) => {
                   }
 
                   return (
-                    <div 
+                    <div
                       key={exp.id}
                       style={{
                         padding: '1.25rem',
@@ -1314,7 +1315,7 @@ const MeetingReport = ({ onBack }) => {
 
               {/* Filters */}
               <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap' }}>
-                <select 
+                <select
                   value={debtorFilterStatus}
                   onChange={(e) => setDebtorFilterStatus(e.target.value)}
                   className="input-field"
@@ -1326,8 +1327,8 @@ const MeetingReport = ({ onBack }) => {
                 </select>
 
                 <div style={{ position: 'relative' }}>
-                  <input 
-                    type="text" 
+                  <input
+                    type="text"
                     placeholder="Buscar alumno..."
                     value={debtorSearch}
                     onChange={(e) => setDebtorSearch(e.target.value)}
@@ -1347,7 +1348,7 @@ const MeetingReport = ({ onBack }) => {
                 const displayName = hideSensitiveNames ? `Alumno N° ${s.listNumber || '-'}` : formatStudentName(s);
 
                 return (
-                  <div 
+                  <div
                     key={s.id}
                     onClick={() => setSelectedStudentForDetail(s)}
                     style={{
@@ -1374,7 +1375,7 @@ const MeetingReport = ({ onBack }) => {
                         </span>
                         <h4 style={{ margin: 0, fontSize: '1rem' }}>{displayName}</h4>
                       </div>
-                      
+
                       {!hideSensitiveNames && s.apoderadoEmails && (
                         <p style={{ margin: '0.2rem 0 0 0', color: 'var(--text-muted)', fontSize: '0.8rem' }}>
                           Apoderado: {s.apoderadoEmails.map(e => usersMap[e] || e).join(', ')}
@@ -1385,13 +1386,13 @@ const MeetingReport = ({ onBack }) => {
                     <div style={{ textAlign: 'right', display: 'flex', alignItems: 'center', gap: '1rem' }}>
                       <div>
                         {isPaid ? (
-                          <span style={{ 
-                            fontSize: '0.85rem', 
-                            fontWeight: '600', 
-                            color: 'var(--success)', 
-                            display: 'inline-flex', 
-                            alignItems: 'center', 
-                            gap: '0.3rem' 
+                          <span style={{
+                            fontSize: '0.85rem',
+                            fontWeight: '600',
+                            color: 'var(--success)',
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '0.3rem'
                           }}>
                             <CheckCircle size={15} /> Al día
                           </span>
@@ -1415,22 +1416,22 @@ const MeetingReport = ({ onBack }) => {
         )}
 
       </div>
-      
+
       {/* Signatures Section at the bottom */}
       <div className="glass-panel" style={{ padding: '1.75rem', marginTop: '1.5rem', border: '1px solid rgba(99, 102, 241, 0.3)' }}>
         <h3 style={{ margin: '0 0 1rem 0', color: 'var(--text-main)' }}>Firmas Digitales de la Directiva</h3>
         <p style={{ margin: '0 0 1.5rem 0', color: 'var(--text-muted)', fontSize: '0.9rem' }}>
           Firmen en los recuadros a continuación. Estas firmas se adjuntarán automáticamente al final del informe en PDF antes de ser enviado a los apoderados.
         </p>
-        
+
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '2rem' }}>
-          <SignaturePad 
-            title="Firma Tesorero(a)" 
+          <SignaturePad
+            title="Firma Tesorero(a)"
             onSave={(b64) => setSigTreasurer(b64)}
             onClear={() => setSigTreasurer(null)}
           />
-          <SignaturePad 
-            title="Firma Presidente(a)" 
+          <SignaturePad
+            title="Firma Presidente(a)"
             onSave={(b64) => setSigPresident(b64)}
             onClear={() => setSigPresident(null)}
           />
@@ -1439,7 +1440,7 @@ const MeetingReport = ({ onBack }) => {
 
       {/* Complete Student Payment Detail Modal */}
       {selectedStudentForDetail && (
-        <StudentDetailModal 
+        <StudentDetailModal
           student={selectedStudentForDetail}
           usersMap={usersMap}
           isModal={true}
@@ -1463,13 +1464,13 @@ const MeetingReport = ({ onBack }) => {
             <h2 style={{ margin: '0 0 1.5rem 0', color: 'var(--text-main)', fontSize: '1.4rem' }}>
               Opciones de Descarga
             </h2>
-            
+
             <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem', marginBottom: '2rem' }}>
               <label style={{ display: 'flex', alignItems: 'flex-start', gap: '0.75rem', cursor: 'pointer' }}>
-                <input 
-                  type="checkbox" 
-                  checked={exportIncludeDetails} 
-                  onChange={(e) => setExportIncludeDetails(e.target.checked)} 
+                <input
+                  type="checkbox"
+                  checked={exportIncludeDetails}
+                  onChange={(e) => setExportIncludeDetails(e.target.checked)}
                   style={{ marginTop: '0.25rem', width: '18px', height: '18px', cursor: 'pointer' }}
                 />
                 <div>
@@ -1479,10 +1480,10 @@ const MeetingReport = ({ onBack }) => {
               </label>
 
               <label style={{ display: 'flex', alignItems: 'flex-start', gap: '0.75rem', cursor: 'pointer' }}>
-                <input 
-                  type="checkbox" 
-                  checked={exportSendEmail} 
-                  onChange={(e) => setExportSendEmail(e.target.checked)} 
+                <input
+                  type="checkbox"
+                  checked={exportSendEmail}
+                  onChange={(e) => setExportSendEmail(e.target.checked)}
                   style={{ marginTop: '0.25rem', width: '18px', height: '18px', cursor: 'pointer' }}
                 />
                 <div>
@@ -1491,17 +1492,17 @@ const MeetingReport = ({ onBack }) => {
                 </div>
               </label>
             </div>
-            
+
             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '1rem' }}>
-              <button 
-                className="btn btn-outline" 
+              <button
+                className="btn btn-outline"
                 onClick={() => setShowExportModal(false)}
                 disabled={generatingPdf || sendingEmail}
               >
                 Cancelar
               </button>
-              <button 
-                className="btn btn-primary" 
+              <button
+                className="btn btn-primary"
                 onClick={generatePDFReport}
                 disabled={generatingPdf || sendingEmail}
                 style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}
@@ -1512,7 +1513,7 @@ const MeetingReport = ({ onBack }) => {
             </div>
           </div>
         </div>
-      , document.body)}
+        , document.body)}
     </div>
   );
 };

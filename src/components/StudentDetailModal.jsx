@@ -275,7 +275,7 @@ const StudentDetailModal = ({ student, usersMap = {}, onClose, isModal = false }
   // Calculations
   const totalPaid = debts.reduce((sum, d) => {
     if (d.status === 'paid') {
-      return sum + (typeof d.paidAmount === 'number' ? d.paidAmount : (d.amount || 0));
+      return sum + ((typeof d.paidAmount === 'number' && d.paidAmount > 0) ? d.paidAmount : (d.amount || 0));
     }
     if (d.status === 'partial') {
       return sum + (d.paidAmount || 0);

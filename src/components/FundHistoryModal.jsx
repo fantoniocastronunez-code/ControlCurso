@@ -26,7 +26,7 @@ const FundHistoryModal = ({ fund, transactions, onClose, onRefresh }) => {
   } else {
     fundTransactions = transactions.filter(t => t.fundId === fund.id);
   }
-  
+
   // Ordenar de más reciente a más antiguo por defecto para la vista
   fundTransactions.sort((a, b) => new Date(b.date) - new Date(a.date));
 
@@ -35,11 +35,11 @@ const FundHistoryModal = ({ fund, transactions, onClose, onRefresh }) => {
     const parsedTransactions = fundTransactions.map(tx => {
       let alumno = "-";
       let motivo = tx.description;
-      
+
       const match = tx.description.match(/Pago(?: de (.*?))?:\s*(.*)/);
       if (match) {
-         alumno = match[1] ? match[1].trim() : "-";
-         motivo = match[2].trim();
+        alumno = match[1] ? match[1].trim() : "-";
+        motivo = match[2].trim();
       }
       return { ...tx, alumno, motivo };
     });
@@ -76,7 +76,7 @@ const FundHistoryModal = ({ fund, transactions, onClose, onRefresh }) => {
   return (
     <div className="modal-overlay" onClick={onClose} style={{ zIndex: 1000, display: 'flex', alignItems: 'flex-start', justifyContent: 'center', position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.75)', padding: '1rem 0.5rem 2rem', overflowY: 'auto', WebkitOverflowScrolling: 'touch' }}>
       <div className="modal-content animate-fade-in" onClick={e => e.stopPropagation()} style={{ width: '90%', maxWidth: '600px', maxHeight: '85vh', marginTop: '1rem', display: 'flex', flexDirection: 'column', backgroundColor: 'var(--bg-card)', borderRadius: 'var(--radius-lg)', border: '1px solid var(--border-color)', boxShadow: '0 12px 32px rgba(0,0,0,0.5)', overflow: 'hidden' }}>
-        
+
         {/* Header */}
         <div style={{ padding: '1.25rem 1.5rem', borderBottom: '1px solid var(--border-color)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', backgroundColor: 'var(--bg-card)' }}>
           <div>
@@ -105,19 +105,19 @@ const FundHistoryModal = ({ fund, transactions, onClose, onRefresh }) => {
                   Alumnos con saldo a favor disponible:
                 </p>
                 {fund.studentsWithBalance.map((student, idx) => (
-                  <div key={idx} style={{ 
-                    display: 'flex', 
-                    alignItems: 'center', 
-                    justifyContent: 'space-between', 
-                    padding: '0.85rem 1rem', 
-                    backgroundColor: 'var(--bg-card-hover)', 
+                  <div key={idx} style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    padding: '0.85rem 1rem',
+                    backgroundColor: 'var(--bg-card-hover)',
                     borderRadius: 'var(--radius-sm)',
                     border: '1px solid var(--border-color)'
                   }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.85rem' }}>
-                      <div style={{ 
+                      <div style={{
                         width: '36px', height: '36px', minWidth: '36px',
-                        borderRadius: 'var(--radius-sm)', 
+                        borderRadius: 'var(--radius-sm)',
                         display: 'flex', alignItems: 'center', justifyContent: 'center',
                         backgroundColor: 'var(--bg-card)',
                         border: '1px solid var(--border-color)',
@@ -171,21 +171,21 @@ const FundHistoryModal = ({ fund, transactions, onClose, onRefresh }) => {
             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
               {fundTransactions.map((tx, idx) => {
                 const isPositive = tx.amount > 0;
-                
+
                 return (
-                  <div key={`${tx.id}-${idx}`} style={{ 
-                    display: 'flex', 
-                    alignItems: 'center', 
-                    justifyContent: 'space-between', 
-                    padding: '0.85rem 1rem', 
-                    backgroundColor: 'var(--bg-card-hover)', 
+                  <div key={`${tx.id}-${idx}`} style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    padding: '0.85rem 1rem',
+                    backgroundColor: 'var(--bg-card-hover)',
                     borderRadius: 'var(--radius-sm)',
                     border: '1px solid var(--border-color)'
                   }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.85rem' }}>
-                      <div style={{ 
+                      <div style={{
                         width: '36px', height: '36px', minWidth: '36px',
-                        borderRadius: 'var(--radius-sm)', 
+                        borderRadius: 'var(--radius-sm)',
                         display: 'flex', alignItems: 'center', justifyContent: 'center',
                         backgroundColor: 'var(--bg-card)',
                         border: '1px solid var(--border-color)',
@@ -193,7 +193,7 @@ const FundHistoryModal = ({ fund, transactions, onClose, onRefresh }) => {
                       }}>
                         {isPositive ? <ArrowDownRight size={18} /> : <ArrowUpRight size={18} />}
                       </div>
-                      
+
                       <div>
                         <p style={{ margin: 0, fontWeight: '500', color: 'var(--text-main)', fontSize: '0.9rem' }}>{tx.description}</p>
                         <p style={{ margin: '0.2rem 0 0 0', fontSize: '0.75rem', color: 'var(--text-muted)' }}>
@@ -201,7 +201,7 @@ const FundHistoryModal = ({ fund, transactions, onClose, onRefresh }) => {
                         </p>
                       </div>
                     </div>
-                    
+
                     <div style={{ fontWeight: '600', color: isPositive ? 'var(--success)' : 'var(--danger)' }}>
                       {isPositive ? '+' : ''}{formatMoney(tx.amount)}
                     </div>

@@ -39,7 +39,7 @@ const RegisteredApoderadosModal = ({ isOpen, onClose, apoderados = [] }) => {
   if (!isOpen) return null;
 
   return (
-    <div 
+    <div
       className="modal-overlay"
       style={{
         position: 'fixed',
@@ -58,7 +58,7 @@ const RegisteredApoderadosModal = ({ isOpen, onClose, apoderados = [] }) => {
       }}
       onClick={onClose}
     >
-      <div 
+      <div
         style={{
           width: '100%',
           maxWidth: '520px',
@@ -75,11 +75,11 @@ const RegisteredApoderadosModal = ({ isOpen, onClose, apoderados = [] }) => {
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
-        <div style={{ 
-          display: 'flex', 
-          justifyContent: 'space-between', 
-          alignItems: 'center', 
-          padding: '1.25rem 1.5rem', 
+        <div style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          padding: '1.25rem 1.5rem',
           borderBottom: '1px solid var(--border-color)',
           backgroundColor: 'var(--bg-card)'
         }}>
@@ -103,12 +103,12 @@ const RegisteredApoderadosModal = ({ isOpen, onClose, apoderados = [] }) => {
                 <h3 style={{ margin: 0, fontSize: '1.15rem', color: 'var(--text-main)', fontWeight: '600' }}>
                   Apoderados Registrados
                 </h3>
-                <span style={{ 
-                  padding: '0.1rem 0.5rem', 
-                  borderRadius: 'var(--radius-sm)', 
-                  backgroundColor: 'var(--bg-card-hover)', 
+                <span style={{
+                  padding: '0.1rem 0.5rem',
+                  borderRadius: 'var(--radius-sm)',
+                  backgroundColor: 'var(--bg-card-hover)',
                   border: '1px solid var(--border-color)',
-                  fontSize: '0.75rem', 
+                  fontSize: '0.75rem',
                   color: 'var(--text-muted)',
                   fontWeight: '500'
                 }}>
@@ -120,12 +120,12 @@ const RegisteredApoderadosModal = ({ isOpen, onClose, apoderados = [] }) => {
               </p>
             </div>
           </div>
-          <button 
-            onClick={onClose} 
+          <button
+            onClick={onClose}
             className="btn btn-outline"
-            style={{ 
+            style={{
               padding: '0.35rem 0.5rem',
-              color: 'var(--text-muted)', 
+              color: 'var(--text-muted)',
               borderColor: 'var(--border-color)'
             }}
             title="Cerrar"
@@ -146,7 +146,7 @@ const RegisteredApoderadosModal = ({ isOpen, onClose, apoderados = [] }) => {
             borderRadius: 'var(--radius-sm)'
           }}>
             <Search size={15} style={{ color: 'var(--text-muted)' }} />
-            <input 
+            <input
               type="text"
               placeholder="Buscar por nombre o correo..."
               value={searchTerm}
@@ -161,8 +161,8 @@ const RegisteredApoderadosModal = ({ isOpen, onClose, apoderados = [] }) => {
               }}
             />
             {searchTerm && (
-              <button 
-                onClick={() => setSearchTerm('')} 
+              <button
+                onClick={() => setSearchTerm('')}
                 style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', padding: 0 }}
               >
                 <X size={14} />
@@ -184,10 +184,10 @@ const RegisteredApoderadosModal = ({ isOpen, onClose, apoderados = [] }) => {
             filteredApoderados.map(user => {
               const displayName = user.displayName || user.name;
               const initial = displayName ? displayName.charAt(0).toUpperCase() : (user.email ? user.email.charAt(0).toUpperCase() : '?');
-              
+
               return (
-                <div 
-                  key={user.id} 
+                <div
+                  key={user.id}
                   style={{
                     padding: '0.85rem 1rem',
                     backgroundColor: 'var(--bg-card-hover)',
@@ -217,9 +217,9 @@ const RegisteredApoderadosModal = ({ isOpen, onClose, apoderados = [] }) => {
 
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.5rem' }}>
-                      <h4 style={{ 
-                        margin: 0, 
-                        color: displayName ? 'var(--text-main)' : 'var(--text-muted)', 
+                      <h4 style={{
+                        margin: 0,
+                        color: displayName ? 'var(--text-main)' : 'var(--text-muted)',
                         fontSize: '0.9rem',
                         fontWeight: '600',
                         fontStyle: displayName ? 'normal' : 'italic',
@@ -231,9 +231,9 @@ const RegisteredApoderadosModal = ({ isOpen, onClose, apoderados = [] }) => {
                       </h4>
                     </div>
 
-                    <p style={{ 
-                      margin: '0.15rem 0 0.35rem 0', 
-                      color: 'var(--text-muted)', 
+                    <p style={{
+                      margin: '0.15rem 0 0.35rem 0',
+                      color: 'var(--text-muted)',
                       fontSize: '0.8rem',
                       whiteSpace: 'nowrap',
                       overflow: 'hidden',
@@ -241,12 +241,12 @@ const RegisteredApoderadosModal = ({ isOpen, onClose, apoderados = [] }) => {
                     }}>
                       {user.email}
                     </p>
-                    
-                    <div style={{ 
-                      display: 'inline-flex', 
-                      alignItems: 'center', 
-                      gap: '0.35rem', 
-                      color: 'var(--text-muted)', 
+
+                    <div style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '0.35rem',
+                      color: 'var(--text-muted)',
                       fontSize: '0.725rem'
                     }}>
                       <Calendar size={12} />

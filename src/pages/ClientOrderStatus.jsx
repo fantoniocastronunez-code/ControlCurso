@@ -3,8 +3,8 @@ import { useParams, Link } from 'react-router-dom';
 import { db, auth } from '../firebase/config';
 import { doc, getDoc, onSnapshot } from 'firebase/firestore';
 import { signInAnonymously } from 'firebase/auth';
-import { 
-  Clock, Flame, CheckCircle2, ShoppingBag, 
+import {
+  Clock, Flame, CheckCircle2, ShoppingBag,
   Sparkles, RefreshCw, AlertCircle, ChefHat, Volume2, VolumeX, Heart
 } from 'lucide-react';
 
@@ -102,7 +102,7 @@ const ClientOrderStatus = () => {
       if (!isInitialLoadRef.current && prevStatusRef.current && prevStatusRef.current !== currentStatus && soundEnabled) {
         playStatusChangeSound();
         if (navigator.vibrate) {
-          try { navigator.vibrate([100, 50, 100]); } catch {}
+          try { navigator.vibrate([100, 50, 100]); } catch { }
         }
       }
 
@@ -117,7 +117,7 @@ const ClientOrderStatus = () => {
           if (evSnap.exists()) {
             setEventData({ id: evSnap.id, ...evSnap.data() });
           }
-        }).catch(() => {});
+        }).catch(() => { });
       }
 
       setLoading(false);
@@ -154,7 +154,7 @@ const ClientOrderStatus = () => {
     }}>
       {/* Contenedor Centrado Responsive */}
       <div style={{ width: '100%', maxWidth: '480px', display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
-        
+
         {/* Cabecera / Marca del Evento */}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0.25rem 0' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>

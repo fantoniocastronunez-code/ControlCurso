@@ -79,7 +79,7 @@ const StudentSearchModal = ({ isOpen, onClose, onSelectStudent }) => {
         }
 
         const amt = d.amount || 0;
-        const paidAmt = typeof d.paidAmount === 'number' ? d.paidAmount : (d.status === 'paid' ? amt : 0);
+        const paidAmt = (typeof d.paidAmount === 'number' && d.paidAmount > 0) ? d.paidAmount : (d.status === 'paid' ? amt : 0);
 
         if (d.status === 'pending' || d.status === 'review') {
           dMap[d.studentId].pendingCount += 1;
@@ -151,7 +151,7 @@ const StudentSearchModal = ({ isOpen, onClose, onSelectStudent }) => {
 
   return (
     <>
-      <div 
+      <div
         style={{
           position: 'fixed',
           top: 0,
@@ -170,7 +170,7 @@ const StudentSearchModal = ({ isOpen, onClose, onSelectStudent }) => {
           if (e.target === e.currentTarget) onClose();
         }}
       >
-        <div 
+        <div
           className="glass-panel animate-fade-in"
           style={{
             width: '100%',
@@ -198,9 +198,9 @@ const StudentSearchModal = ({ isOpen, onClose, onSelectStudent }) => {
                 </p>
               </div>
             </div>
-            <button 
-              onClick={onClose} 
-              className="btn btn-outline" 
+            <button
+              onClick={onClose}
+              className="btn btn-outline"
               style={{ padding: '0.35rem 0.5rem', color: 'var(--text-muted)', borderColor: 'var(--border-color)' }}
               title="Cerrar buscador"
             >
@@ -210,7 +210,7 @@ const StudentSearchModal = ({ isOpen, onClose, onSelectStudent }) => {
 
           {/* Search Input Bar */}
           <div style={{ position: 'relative', marginBottom: '1.5rem' }}>
-            <input 
+            <input
               type="text"
               className="input-field"
               placeholder="Buscar por alumno, apoderado, RUT o N° lista..."
@@ -226,9 +226,9 @@ const StudentSearchModal = ({ isOpen, onClose, onSelectStudent }) => {
                 border: '1px solid var(--border-color)'
               }}
             />
-            <Search 
-              size={18} 
-              style={{ position: 'absolute', left: '1rem', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} 
+            <Search
+              size={18}
+              style={{ position: 'absolute', left: '1rem', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }}
             />
             {searchTerm && (
               <button
@@ -276,7 +276,7 @@ const StudentSearchModal = ({ isOpen, onClose, onSelectStudent }) => {
                 const debtInfo = debtsMap[student.id] || { pendingCount: 0, totalPending: 0, paidCount: 0, totalPaid: 0, partialCount: 0 };
                 const emails = student.apoderadoEmails || (student.apoderadoEmail ? [student.apoderadoEmail] : []);
                 const hasPending = debtInfo.pendingCount > 0 || debtInfo.partialCount > 0;
-                
+
                 return (
                   <div
                     key={student.id}
@@ -302,11 +302,11 @@ const StudentSearchModal = ({ isOpen, onClose, onSelectStudent }) => {
                     {/* Top row: Name, List Num, and Action */}
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '0.5rem' }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
-                        <span style={{ 
-                          fontSize: '0.75rem', 
-                          fontWeight: '600', 
-                          padding: '0.15rem 0.45rem', 
-                          borderRadius: 'var(--radius-sm)', 
+                        <span style={{
+                          fontSize: '0.75rem',
+                          fontWeight: '600',
+                          padding: '0.15rem 0.45rem',
+                          borderRadius: 'var(--radius-sm)',
                           backgroundColor: 'var(--bg-card)',
                           border: '1px solid var(--border-color)',
                           color: 'var(--text-muted)'
@@ -433,7 +433,7 @@ const StudentSearchModal = ({ isOpen, onClose, onSelectStudent }) => {
 
       {/* Complete Student Payment Detail Modal */}
       {selectedStudentForDetail && (
-        <StudentDetailModal 
+        <StudentDetailModal
           student={selectedStudentForDetail}
           usersMap={usersMap}
           isModal={true}

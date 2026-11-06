@@ -666,13 +666,12 @@ const EventManagement = ({ onBack }) => {
                           : statusInfo?.canClose
                             ? 'rgba(37, 99, 235, 0.15)'
                             : 'var(--bg-main)',
-                        border: `1px solid ${
-                          isDone
+                        border: `1px solid ${isDone
                             ? 'rgba(16, 185, 129, 0.3)'
                             : statusInfo?.canClose
                               ? 'rgba(37, 99, 235, 0.35)'
                               : 'var(--border-color)'
-                        }`,
+                          }`,
                         color: isDone
                           ? 'var(--success)'
                           : statusInfo?.canClose
