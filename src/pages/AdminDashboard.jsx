@@ -114,7 +114,7 @@ const AdminDashboard = () => {
       const outcomesPromise = getDocs(query(collection(db, 'outcomes'), where('courseId', '==', selectedCourse.id)));
       const incomesPromise = getDocs(query(collection(db, 'incomes'), where('courseId', '==', selectedCourse.id)));
       const transfersPromise = getDocs(query(collection(db, 'fund_transfers'), where('courseId', '==', selectedCourse.id)));
-      const paymentsPromise = getDocs(query(collection(db, 'payments'), where('courseId', '==', selectedCourse.id)));
+      const paymentsPromise = getDocs(collection(db, 'payments'));
 
       const usersPromise = (role === 'superadmin' || role === 'admin')
         ? getDocs(collection(db, 'users'))
@@ -239,12 +239,65 @@ const AdminDashboard = () => {
         fundsMap.set('general', { id: 'general', name: 'Fondo General', balance: 0 });
       }
 
-      // 4. Cobros (Dinero realmente pagado)
+      // 4. Cobros (Dinero realmente pagado) y desglose de pagos
       let collected = 0;
       let cashIn = 0;
       let transferIn = 0;
       const allTransactions = [];
       const expenseCollectedMap = {};
+
+      const debtsWithPayments = new Set();
+      const paymentsSumByDebt = new Map();
+      const cashPaidByDebt = new Map();
+      const bankPaidByDebt = new Map();
+      const debtsMap = new Map();
+      debtsDocs.forEach(d => debtsMap.set(d.id, d));
+      const allCourseDebtsMap = new Map();
+      courseDebts.forEach(d => allCourseDebtsMap.set(d.id, d));
+
+      if (paymentsSnap) {
+        paymentsSnap.forEach(docSnap => {
+          const p = docSnap.data();
+          const belongsToCourse = p.courseId === selectedCourse.id || (!p.courseId && allCourseDebtsMap.has(p.debtId));
+          if (!belongsToCourse) return;
+
+          if (!p.courseId) {
+            updateDoc(doc(db, 'payments', docSnap.id), { courseId: selectedCourse.id }).catch(() => {});
+          }
+
+          const relatedDebt = allCourseDebtsMap.get(p.debtId);
+          if (relatedDebt && (relatedDebt.status === 'pending' || (!relatedDebt.paidAmount && !relatedDebt.amount))) {
+            return; // Ignorar pagos huérfanos de cuotas canceladas
+          }
+          const pAmt = Number(p.amount) || 0;
+          if (pAmt <= 0) {
+            return; // Ignorar pagos en $0
+          }
+
+          const effectivePayMethod = p.paymentMethod || relatedDebt?.paymentMethod || 'transfer';
+          debtsWithPayments.add(p.debtId);
+          paymentsSumByDebt.set(p.debtId, (paymentsSumByDebt.get(p.debtId) || 0) + pAmt);
+
+          if (effectivePayMethod === 'cash') {
+            cashPaidByDebt.set(p.debtId, (cashPaidByDebt.get(p.debtId) || 0) + pAmt);
+          } else {
+            bankPaidByDebt.set(p.debtId, (bankPaidByDebt.get(p.debtId) || 0) + pAmt);
+          }
+
+          const baseDesc = `Pago ${p.status === 'partial' ? 'parcial ' : ''}de ${p.studentName || relatedDebt?.studentName || ''}: ${p.title || relatedDebt?.title || 'Cuota'}`;
+          allTransactions.push({
+            id: docSnap.id,
+            fundId: p.fundId || relatedDebt?.fundId || 'general',
+            type: 'debt_payment',
+            amount: pAmt,
+            paymentMethod: effectivePayMethod,
+            description: effectivePayMethod === 'balance' && !baseDesc.includes('Saldo a favor')
+              ? `${baseDesc} (Saldo a favor)`
+              : baseDesc,
+            date: p.createdAt || relatedDebt?.approvedAt || relatedDebt?.createdAt
+          });
+        });
+      }
 
       debtsDocs.forEach(data => {
         let fundId = data.fundId || 'general';
@@ -263,8 +316,23 @@ const AdminDashboard = () => {
         collected += amt;
 
         const effectiveMethod = data.paymentMethod || 'transfer';
-        if (effectiveMethod === 'cash') cashIn += baseAmt;
-        if (effectiveMethod === 'transfer') transferIn += baseAmt;
+        if (debtsWithPayments.has(data.id)) {
+          let debtCash = cashPaidByDebt.get(data.id) || 0;
+          let debtBank = bankPaidByDebt.get(data.id) || 0;
+          const recordedTotal = debtCash + debtBank;
+          if (amt > recordedTotal) {
+            const diff = amt - recordedTotal;
+            if (effectiveMethod === 'cash') debtCash += diff;
+            else debtBank += diff;
+          }
+          const effectiveCashBase = Math.min(baseAmt, debtCash);
+          const effectiveBankBase = Math.max(0, baseAmt - effectiveCashBase);
+          cashIn += effectiveCashBase;
+          transferIn += effectiveBankBase;
+        } else {
+          if (effectiveMethod === 'cash') cashIn += baseAmt;
+          if (effectiveMethod === 'transfer' || effectiveMethod === 'balance') transferIn += baseAmt;
+        }
 
         // El usuario solicitó que todo el saldo a favor (overpay) se cuente como transferencia
         transferIn += overpayAmt;
@@ -346,38 +414,7 @@ const AdminDashboard = () => {
         if (data.paymentMethod === 'transfer') transferIn += amt;
       });
 
-      // Calcular balances por fondo y llenar transacciones
-      const debtsWithPayments = new Set();
-      const paymentsSumByDebt = new Map();
-      const debtsMap = new Map();
-      debtsDocs.forEach(d => debtsMap.set(d.id, d));
-
-      if (paymentsSnap) {
-        paymentsSnap.forEach(docSnap => {
-          const p = docSnap.data();
-
-          const relatedDebt = debtsMap.get(p.debtId);
-          if (relatedDebt && (relatedDebt.status === 'pending' || (!relatedDebt.paidAmount && !relatedDebt.amount))) {
-            return; // Ignorar pagos huérfanos de cuotas canceladas
-          }
-          if (!p.amount || p.amount <= 0) {
-            return; // Ignorar pagos en $0
-          }
-
-          debtsWithPayments.add(p.debtId);
-          paymentsSumByDebt.set(p.debtId, (paymentsSumByDebt.get(p.debtId) || 0) + Number(p.amount));
-          allTransactions.push({
-            id: docSnap.id,
-            fundId: p.fundId || relatedDebt?.fundId || 'general',
-            type: 'debt_payment',
-            amount: p.amount,
-            paymentMethod: p.paymentMethod || relatedDebt?.paymentMethod || 'transfer',
-            description: `Pago ${p.status === 'partial' ? 'parcial ' : ''}de ${p.studentName}: ${p.title}`,
-            date: p.createdAt
-          });
-        });
-      }
-
+      // Calcular balances por fondo y completar transacciones faltantes
       debtsDocs.forEach(data => {
         let fundId = data.fundId || 'general';
         if (!fundsMap.has(fundId)) return;
@@ -390,24 +427,47 @@ const AdminDashboard = () => {
 
         const effectiveMethod = data.paymentMethod || 'transfer';
         const recordedPaid = paymentsSumByDebt.get(data.id) || 0;
+        const txDate = data.approvedAt || data.paidAt || data.createdAt || new Date().toISOString();
 
         // Mostrar como movimiento si no tiene historial en la colección 'payments' o si hay diferencia no registrada
         if (!debtsWithPayments.has(data.id) && amt > 0) {
-          if (effectiveMethod === 'balance') {
-            allTransactions.push({ id: data.id + '_add', fundId: fundId, type: 'debt_payment', amount: amt, paymentMethod: effectiveMethod, description: `Pago de ${data.studentName ? data.studentName : ''}: ${data.title || 'Cuota'} (Saldo a favor)`, date: data.approvedAt || data.paidAt || data.createdAt });
-          } else {
-            allTransactions.push({ id: data.id, fundId: fundId, type: 'debt_payment', amount: amt, paymentMethod: effectiveMethod, description: `Pago de ${data.studentName ? data.studentName : ''}: ${data.title || 'Cuota'}`, date: data.approvedAt || data.paidAt || data.createdAt });
-          }
+          const desc = effectiveMethod === 'balance'
+            ? `Pago de ${data.studentName ? data.studentName : ''}: ${data.title || 'Cuota'} (Saldo a favor)`
+            : `Pago de ${data.studentName ? data.studentName : ''}: ${data.title || 'Cuota'}`;
+          allTransactions.push({
+            id: data.id + (effectiveMethod === 'balance' ? '_add' : ''),
+            fundId: fundId,
+            type: 'debt_payment',
+            amount: amt,
+            paymentMethod: effectiveMethod,
+            description: desc,
+            date: txDate
+          });
+          // Autorreparar registro faltante en la colección 'payments' para persistir en el historial
+          addDoc(collection(db, 'payments'), {
+            debtId: data.id,
+            courseId: selectedCourse.id,
+            fundId: fundId,
+            amount: amt,
+            paymentMethod: effectiveMethod,
+            studentName: data.studentName || '',
+            title: data.title || 'Cuota',
+            status: data.status,
+            createdAt: txDate
+          }).catch(err => console.error("Error auto-creando payment en Dashboard:", err));
         } else if (debtsWithPayments.has(data.id) && amt > recordedPaid) {
           const diffAmt = amt - recordedPaid;
+          const desc = effectiveMethod === 'balance'
+            ? `Pago de ${data.studentName ? data.studentName : ''}: ${data.title || 'Cuota'} (Saldo a favor)`
+            : `Pago de ${data.studentName ? data.studentName : ''}: ${data.title || 'Cuota'}`;
           allTransactions.push({
             id: data.id + '_diff',
             fundId: fundId,
             type: 'debt_payment',
             amount: diffAmt,
             paymentMethod: effectiveMethod,
-            description: `Pago de ${data.studentName ? data.studentName : ''}: ${data.title || 'Cuota'}`,
-            date: data.approvedAt || data.paidAt || data.createdAt
+            description: desc,
+            date: txDate
           });
         }
       });

@@ -18,17 +18,15 @@ const FundHistoryModal = ({ fund, transactions, onClose, onRefresh }) => {
   if (fund.id === 'cash_history') {
     fundTransactions = transactions.filter(t => t.paymentMethod === 'cash');
   } else if (fund.id === 'transfer_history') {
-    fundTransactions = transactions.filter(t => t.paymentMethod === 'transfer');
+    fundTransactions = transactions.filter(t => t.paymentMethod === 'transfer' || t.paymentMethod === 'balance');
   } else if (fund.id === 'favor_balance') {
-    // Para el fondo virtual "Saldos a favor", evitamos mostrar transacciones regulares si no tienen detalle.
-    // Usaremos el panel personalizado para mostrar los saldos de cada alumno.
-    fundTransactions = transactions.filter(t => t.fundId === fund.id);
+    fundTransactions = transactions.filter(t => t.paymentMethod === 'balance' || t.fundId === fund.id);
   } else {
     fundTransactions = transactions.filter(t => t.fundId === fund.id);
   }
 
   // Ordenar de más reciente a más antiguo por defecto para la vista
-  fundTransactions.sort((a, b) => new Date(b.date) - new Date(a.date));
+  fundTransactions.sort((a, b) => new Date(b.date || 0) - new Date(a.date || 0));
 
   const handleDownloadExcel = () => {
     // Extraer alumno y motivo para poder ordenar como solicitó el usuario
@@ -36,7 +34,7 @@ const FundHistoryModal = ({ fund, transactions, onClose, onRefresh }) => {
       let alumno = "-";
       let motivo = tx.description;
 
-      const match = tx.description.match(/Pago(?: de (.*?))?:\s*(.*)/);
+      const match = tx.description.match(/Pago(?: parcial)?(?: de (.*?))?:\s*(.*)/);
       if (match) {
         alumno = match[1] ? match[1].trim() : "-";
         motivo = match[2].trim();
@@ -159,11 +157,56 @@ const FundHistoryModal = ({ fund, transactions, onClose, onRefresh }) => {
                 ))}
               </div>
             ) : (
-              <div style={{ textAlign: 'center', color: 'var(--text-muted)', padding: '2rem 0' }}>
-                No hay alumnos con saldo a favor.
+              <div style={{ textAlign: 'center', color: 'var(--text-muted)', padding: '1rem 0' }}>
+                No hay alumnos con saldo a favor disponible actualmente.
               </div>
             )
-          ) : fundTransactions.length === 0 ? (
+          ) : null}
+
+          {fund.id === 'favor_balance' && fundTransactions.length > 0 && (
+            <div style={{ marginTop: '1.25rem', paddingTop: '1rem', borderTop: '1px solid var(--border-color)' }}>
+              <p style={{ color: 'var(--text-muted)', marginBottom: '0.6rem', fontSize: '0.85rem' }}>
+                Pagos aplicados con saldo a favor:
+              </p>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                {fundTransactions.map((tx, idx) => (
+                  <div key={`${tx.id}-${idx}`} style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    padding: '0.85rem 1rem',
+                    backgroundColor: 'var(--bg-card-hover)',
+                    borderRadius: 'var(--radius-sm)',
+                    border: '1px solid var(--border-color)'
+                  }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.85rem' }}>
+                      <div style={{
+                        width: '36px', height: '36px', minWidth: '36px',
+                        borderRadius: 'var(--radius-sm)',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        backgroundColor: 'var(--bg-card)',
+                        border: '1px solid var(--border-color)',
+                        color: 'var(--success)'
+                      }}>
+                        <ArrowDownRight size={18} />
+                      </div>
+                      <div>
+                        <p style={{ margin: 0, fontWeight: '500', color: 'var(--text-main)', fontSize: '0.9rem' }}>{tx.description}</p>
+                        <p style={{ margin: '0.2rem 0 0 0', fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                          {new Date(tx.date).toLocaleDateString('es-CL', { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                        </p>
+                      </div>
+                    </div>
+                    <div style={{ fontWeight: '600', color: 'var(--success)' }}>
+                      +{formatMoney(tx.amount)}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {fund.id !== 'favor_balance' && (fundTransactions.length === 0 ? (
             <div style={{ textAlign: 'center', color: 'var(--text-muted)', padding: '2rem 0' }}>
               No hay movimientos registrados en este fondo.
             </div>
@@ -198,6 +241,7 @@ const FundHistoryModal = ({ fund, transactions, onClose, onRefresh }) => {
                         <p style={{ margin: 0, fontWeight: '500', color: 'var(--text-main)', fontSize: '0.9rem' }}>{tx.description}</p>
                         <p style={{ margin: '0.2rem 0 0 0', fontSize: '0.75rem', color: 'var(--text-muted)' }}>
                           {new Date(tx.date).toLocaleDateString('es-CL', { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                          {tx.paymentMethod === 'balance' ? ' • Saldo a favor' : ''}
                         </p>
                       </div>
                     </div>
@@ -209,7 +253,7 @@ const FundHistoryModal = ({ fund, transactions, onClose, onRefresh }) => {
                 );
               })}
             </div>
-          )}
+          ))}
         </div>
       </div>
 

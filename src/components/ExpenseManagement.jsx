@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { db } from '../firebase/config';
-import { collection, getDocs, doc, setDoc, updateDoc, getDoc, query, where } from 'firebase/firestore';
+import { collection, getDocs, doc, setDoc, updateDoc, getDoc, query, where, addDoc } from 'firebase/firestore';
 import { ArrowLeft, PlusCircle, CheckCircle, Sparkles, Eye, EyeOff } from 'lucide-react';
 import { useModal } from '../context/ModalContext';
 import { formatStudentName } from '../utils/nameUtils';
@@ -305,6 +305,19 @@ const ExpenseManagement = ({ onBack }) => {
 
         for (const debt of debtsData) {
           await setDoc(doc(db, 'debts', debt.debtId), debt.debtData);
+          if (debt.debtData.paidAmount > 0 && debt.debtData.paymentMethod === 'balance') {
+            await addDoc(collection(db, 'payments'), {
+              debtId: debt.debtId,
+              courseId: debt.debtData.courseId || selectedCourse.id,
+              fundId: debt.debtData.fundId || finalFundId,
+              amount: debt.debtData.paidAmount,
+              paymentMethod: 'balance',
+              studentName: debt.debtData.studentName,
+              title: debt.debtData.title || title,
+              status: debt.debtData.status,
+              createdAt: debt.debtData.approvedAt || new Date().toISOString()
+            });
+          }
         }
 
         if (studentBalances.length > 0) {

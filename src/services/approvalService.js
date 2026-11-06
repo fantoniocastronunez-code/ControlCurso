@@ -72,10 +72,25 @@ const executeRegisterPayments = async (payload) => {
   
   if (payload.debtsToUpdate) {
     for (const debtUpdate of payload.debtsToUpdate) {
+      const approvedAtIso = new Date().toISOString();
       await updateDoc(doc(db, 'debts', debtUpdate.debtId), {
         ...debtUpdate.updates,
-        approvedAt: new Date().toISOString()
+        approvedAt: approvedAtIso
       });
+      const paidNow = debtUpdate.amountToLog || debtUpdate.updates?.paidAmount || 0;
+      if (paidNow > 0) {
+        await addDoc(collection(db, 'payments'), {
+          debtId: debtUpdate.debtId,
+          courseId: debtUpdate.updates?.courseId || '',
+          fundId: debtUpdate.updates?.fundId || 'general',
+          amount: paidNow,
+          paymentMethod: debtUpdate.updates?.paymentMethod || 'transfer',
+          studentName: debtUpdate.updates?.studentName || '',
+          title: debtUpdate.updates?.title || 'Cuota',
+          status: debtUpdate.updates?.status || 'paid',
+          createdAt: approvedAtIso
+        });
+      }
     }
   }
 
@@ -110,6 +125,19 @@ const executeCreateExpense = async (payload) => {
 
   for (const debt of debtsData) {
     await setDoc(doc(db, 'debts', debt.debtId), debt.debtData);
+    if (debt.debtData?.paidAmount > 0) {
+      await addDoc(collection(db, 'payments'), {
+        debtId: debt.debtId,
+        courseId: debt.debtData.courseId || expenseData?.courseId || '',
+        fundId: debt.debtData.fundId || expenseData?.fundId || 'general',
+        amount: debt.debtData.paidAmount,
+        paymentMethod: debt.debtData.paymentMethod || 'balance',
+        studentName: debt.debtData.studentName || '',
+        title: debt.debtData.title || expenseData?.title || 'Cuota',
+        status: debt.debtData.status || 'paid',
+        createdAt: debt.debtData.approvedAt || new Date().toISOString()
+      });
+    }
   }
 
   if (studentBalances && studentBalances.length > 0) {

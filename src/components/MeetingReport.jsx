@@ -161,7 +161,7 @@ const MeetingReport = ({ onBack }) => {
 
         const method = d.paymentMethod || 'transfer';
         if (method === 'cash') cIn += baseAmt;
-        if (method === 'transfer') tIn += baseAmt;
+        if (method === 'transfer' || method === 'balance') tIn += baseAmt;
         tIn += overpayAmt;
 
         currentFunds[fundId].totalIn += amt;

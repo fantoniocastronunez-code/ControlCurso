@@ -380,13 +380,16 @@ const ExpenseDetail = ({ expenseId, onBack }) => {
           expensePaidCount: fullyPaidCount,
           debtsToUpdate: [{
             debtId,
+            amountToLog: exactPaidNow,
             updates: {
               amount: targetDebtAmount,
               status: newStatus,
               paidAmount: finalTotalPaid,
               paymentMethod: method,
               courseId: effectiveCourseId,
-              fundId: fundId
+              fundId: fundId,
+              studentName: debtToPay.studentName,
+              title: debtToPay.title || expense.title
             }
           }]
         };
@@ -532,10 +535,18 @@ const ExpenseDetail = ({ expenseId, onBack }) => {
     const effectiveCourseId = debtToEdit.courseId || expense?.courseId || selectedCourse.id;
     const effectiveFundId = debtToEdit.fundId || expense?.fundId || 'general';
     const wasPaidWithZero = debtToEdit.status === 'paid' && (!debtToEdit.paidAmount || debtToEdit.paidAmount <= 0);
-    const updatedPaidAmount = wasPaidWithZero ? newAmount : (debtToEdit.paidAmount || 0);
+    const studentForBalance = wasPaidWithZero && debtToEdit.paymentMethod === 'balance'
+      ? students.find(s => s.id === debtToEdit.studentId || s.name === debtToEdit.studentName)
+      : null;
+    const balanceToDeductOnEdit = studentForBalance && (studentForBalance.balance || 0) > 0
+      ? Math.min(Number(studentForBalance.balance) || 0, newAmount)
+      : 0;
+    const updatedPaidAmount = wasPaidWithZero
+      ? (debtToEdit.paymentMethod === 'balance' && balanceToDeductOnEdit > 0 ? balanceToDeductOnEdit : newAmount)
+      : (debtToEdit.paidAmount || 0);
     let newStatus = debtToEdit.status;
     if (wasPaidWithZero) {
-      newStatus = 'paid';
+      newStatus = updatedPaidAmount >= newAmount ? 'paid' : 'partial';
     } else if (updatedPaidAmount > 0) {
       newStatus = updatedPaidAmount >= newAmount ? 'paid' : 'partial';
     } else if (debtToEdit.status !== 'review') {
@@ -556,6 +567,11 @@ const ExpenseDetail = ({ expenseId, onBack }) => {
       fundId: effectiveFundId
     } : d));
 
+    if (studentForBalance && balanceToDeductOnEdit > 0) {
+      const updatedBal = Math.max(0, (Number(studentForBalance.balance) || 0) - balanceToDeductOnEdit);
+      setStudents(prev => prev.map(s => s.id === studentForBalance.id ? { ...s, balance: updatedBal } : s));
+    }
+
     try {
       await updateDoc(doc(db, 'debts', debtId), {
         amount: newAmount,
@@ -566,6 +582,13 @@ const ExpenseDetail = ({ expenseId, onBack }) => {
         courseId: effectiveCourseId,
         fundId: effectiveFundId
       });
+
+      if (studentForBalance && balanceToDeductOnEdit > 0) {
+        const updatedBal = Math.max(0, (Number(studentForBalance.balance) || 0) - balanceToDeductOnEdit);
+        await updateDoc(doc(db, 'students', studentForBalance.id), {
+          balance: updatedBal
+        });
+      }
 
       if (wasPaidWithZero && updatedPaidAmount > 0) {
         const paymentsQ = query(collection(db, 'payments'), where('debtId', '==', debtId));
@@ -735,11 +758,29 @@ const ExpenseDetail = ({ expenseId, onBack }) => {
         approvedAt: null
       });
 
-      // Eliminar historial de pagos en la colección "payments" para esta cuota
+      // Eliminar historial de pagos en la colección "payments" para esta cuota y calcular devolución de saldo a favor si corresponde
       const paymentsQ = query(collection(db, 'payments'), where('debtId', '==', debtId));
       const paymentsSnap = await getDocs(paymentsQ);
+      let balanceRefund = 0;
       for (const pDoc of paymentsSnap.docs) {
+        const pData = pDoc.data();
+        if (pData.paymentMethod === 'balance' && Number(pData.amount) > 0) {
+          balanceRefund += Number(pData.amount);
+        }
         await deleteDoc(doc(db, 'payments', pDoc.id));
+      }
+      if (balanceRefund === 0 && debtToCancel.paymentMethod === 'balance' && Number(debtToCancel.paidAmount) > 0) {
+        balanceRefund = Number(debtToCancel.paidAmount);
+      }
+      if (balanceRefund > 0) {
+        const student = students.find(s => s.id === debtToCancel.studentId || s.name === debtToCancel.studentName);
+        if (student) {
+          const restoredBalance = (Number(student.balance) || 0) + balanceRefund;
+          setStudents(prev => prev.map(s => s.id === student.id ? { ...s, balance: restoredBalance } : s));
+          await updateDoc(doc(db, 'students', student.id), {
+            balance: restoredBalance
+          });
+        }
       }
 
       const q = query(collection(db, 'debts'), where('expenseId', '==', expenseId));
@@ -765,6 +806,8 @@ const ExpenseDetail = ({ expenseId, onBack }) => {
     const selectedIds = [...selectedDebts];
     setSelectedDebts([]);
 
+    const effectiveCourseId = expense?.courseId || selectedCourse.id;
+    const defaultFundId = expense?.fundId || 'general';
     let newlyPaidCount = 0;
     const debtsToUpdate = [];
 
@@ -773,7 +816,15 @@ const ExpenseDetail = ({ expenseId, onBack }) => {
       if (debtToPay) {
         debtsToUpdate.push({
           debtId,
-          updates: { status: 'paid', paidAmount: debtToPay.amount, paymentMethod: method }
+          updates: {
+            status: 'paid',
+            paidAmount: debtToPay.amount,
+            paymentMethod: method,
+            courseId: debtToPay.courseId || effectiveCourseId,
+            fundId: debtToPay.fundId || defaultFundId,
+            studentName: debtToPay.studentName,
+            title: debtToPay.title || expense?.title
+          }
         });
         if (debtToPay.status !== 'paid') newlyPaidCount++;
       }
@@ -801,6 +852,8 @@ const ExpenseDetail = ({ expenseId, onBack }) => {
           status: 'paid',
           paidAmount: d.amount,
           paymentMethod: method,
+          courseId: d.courseId || effectiveCourseId,
+          fundId: d.fundId || defaultFundId,
           approvedAt: new Date().toISOString()
         };
       }
@@ -818,12 +871,12 @@ const ExpenseDetail = ({ expenseId, onBack }) => {
         const debtToPay = debts.find(d => d.id === update.debtId);
         await addDoc(collection(db, 'payments'), {
           debtId: update.debtId,
-          courseId: selectedCourse.id,
-          fundId: debtToPay?.fundId || expense.fundId || 'general',
+          courseId: update.updates.courseId,
+          fundId: update.updates.fundId,
           amount: update.updates.paidAmount,
           paymentMethod: update.updates.paymentMethod,
           studentName: debtToPay?.studentName,
-          title: debtToPay?.title,
+          title: debtToPay?.title || expense?.title,
           status: 'paid',
           createdAt: new Date().toISOString()
         });
@@ -843,22 +896,41 @@ const ExpenseDetail = ({ expenseId, onBack }) => {
 
   const handlePayWithBalance = async (debtId) => {
     const debtToPay = debts.find(d => d.id === debtId);
+    if (!debtToPay) return;
     const student = students.find(s => s.id === debtToPay.studentId || s.name === debtToPay.studentName);
     
     if (!student) return;
-
-    const currentPaid = debtToPay.paidAmount || 0;
-    const remaining = debtToPay.amount - currentPaid;
 
     if (!student.balance || student.balance <= 0) {
       await showAlert("El alumno no tiene saldo a favor.");
       return;
     }
 
-    const amountToUse = Math.min(student.balance, remaining);
-    const newBalance = student.balance - amountToUse;
+    let targetDebtAmount = Number(debtToPay.amount) || 0;
+    if (targetDebtAmount <= 0) {
+      const promptAmtStr = await showPrompt("Este alumno tiene un monto a cobrar de $0. Ingresa el monto de la cuota ($) para aplicar su saldo a favor:", "");
+      if (promptAmtStr === null) return;
+      const parsedAmt = parseFloat(promptAmtStr);
+      if (isNaN(parsedAmt) || parsedAmt <= 0) {
+        await showAlert("Debes ingresar un monto válido mayor a $0.");
+        return;
+      }
+      targetDebtAmount = parsedAmt;
+    }
+
+    const currentPaid = debtToPay.paidAmount || 0;
+    const remaining = Math.max(0, targetDebtAmount - currentPaid);
+    if (remaining <= 0) {
+      await showAlert("Esta cuota ya se encuentra completamente cubierta.");
+      return;
+    }
+
+    const amountToUse = Math.min(Number(student.balance) || 0, remaining);
+    const newBalance = (Number(student.balance) || 0) - amountToUse;
     const newPaidAmount = currentPaid + amountToUse;
-    const isFullyPaid = newPaidAmount >= debtToPay.amount;
+    const isFullyPaid = newPaidAmount >= targetDebtAmount;
+    const effectiveCourseId = debtToPay.courseId || expense?.courseId || selectedCourse.id;
+    const effectiveFundId = debtToPay.fundId || expense?.fundId || 'general';
 
     if (!(await showConfirm(`¿Usar ${formatMoney(amountToUse)} del saldo a favor de ${student.name}? Le quedarán ${formatMoney(newBalance)} a favor.`))) return;
     
@@ -871,7 +943,17 @@ const ExpenseDetail = ({ expenseId, onBack }) => {
         expensePaidCount,
         debtsToUpdate: [{
           debtId,
-          updates: { status: isFullyPaid ? 'paid' : 'partial', paidAmount: newPaidAmount, paymentMethod: 'balance' }
+          amountToLog: amountToUse,
+          updates: {
+            amount: targetDebtAmount,
+            status: isFullyPaid ? 'paid' : 'partial',
+            paidAmount: newPaidAmount,
+            paymentMethod: 'balance',
+            courseId: effectiveCourseId,
+            fundId: effectiveFundId,
+            studentName: debtToPay.studentName,
+            title: debtToPay.title || expense?.title
+          }
         }],
         studentBalances: [{
           studentId: student.id,
@@ -884,13 +966,18 @@ const ExpenseDetail = ({ expenseId, onBack }) => {
       return;
     }
 
+    const approvedAtIso = new Date().toISOString();
+
     // Actualización optimista
     setDebts(prev => prev.map(d => d.id === debtId ? {
       ...d,
+      amount: targetDebtAmount,
       status: isFullyPaid ? 'paid' : 'partial',
       paidAmount: newPaidAmount,
       paymentMethod: 'balance',
-      approvedAt: new Date().toISOString()
+      courseId: effectiveCourseId,
+      fundId: effectiveFundId,
+      approvedAt: approvedAtIso
     } : d));
     setStudents(prev => prev.map(s => s.id === student.id ? { ...s, balance: newBalance } : s));
     if (isFullyPaid && debtToPay.status !== 'paid') {
@@ -901,22 +988,25 @@ const ExpenseDetail = ({ expenseId, onBack }) => {
       // 1. Actualizar deuda
       const debtRef = doc(db, 'debts', debtId);
       await updateDoc(debtRef, {
+        amount: targetDebtAmount,
         status: isFullyPaid ? 'paid' : 'partial',
         paidAmount: newPaidAmount,
         paymentMethod: 'balance',
-        approvedAt: new Date().toISOString()
+        courseId: effectiveCourseId,
+        fundId: effectiveFundId,
+        approvedAt: approvedAtIso
       });
 
       await addDoc(collection(db, 'payments'), {
         debtId: debtId,
-        courseId: selectedCourse.id,
-        fundId: debtToPay.fundId || expense.fundId || 'general',
+        courseId: effectiveCourseId,
+        fundId: effectiveFundId,
         amount: amountToUse,
         paymentMethod: 'balance',
         studentName: debtToPay.studentName,
-        title: debtToPay.title,
+        title: debtToPay.title || expense?.title,
         status: isFullyPaid ? 'paid' : 'partial',
-        createdAt: new Date().toISOString()
+        createdAt: approvedAtIso
       });
 
       // 2. Descontar saldo del estudiante
@@ -925,13 +1015,18 @@ const ExpenseDetail = ({ expenseId, onBack }) => {
         balance: newBalance
       });
 
-      // 3. Aumentar el contador del gasto (solo si se completó el pago)
-      if (isFullyPaid && debtToPay.status !== 'paid') {
-        const expenseRef = doc(db, 'expenses', expenseId);
-        await updateDoc(expenseRef, {
-          paidCount: expensePaidCount
-        });
+      // 3. Recalcular contadores y monto total del gasto
+      const q = query(collection(db, 'debts'), where('expenseId', '==', expenseId));
+      const snap = await getDocs(q);
+      const updatedFullyPaidCount = snap.docs.filter(d => d.data().status === 'paid').length;
+      const updatedTotalAmount = snap.docs.reduce((sum, d) => sum + (Number(d.data().amount) || 0), 0);
+
+      const expenseRef = doc(db, 'expenses', expenseId);
+      const expUpdates = { paidCount: updatedFullyPaidCount };
+      if (expense?.calculationMode !== 'divide' && updatedTotalAmount > 0) {
+        expUpdates.totalAmount = updatedTotalAmount;
       }
+      await updateDoc(expenseRef, expUpdates);
 
       fetchDetail(false);
     } catch (error) {
@@ -1017,6 +1112,8 @@ const ExpenseDetail = ({ expenseId, onBack }) => {
       setSelectedDebts([]);
     }
 
+    const effectiveCourseId = expense?.courseId || selectedCourse.id;
+    const defaultFundId = expense?.fundId || 'general';
     const currentPaidCount = expense?.paidCount || 0;
     let newlyPaidCount = 0;
     const debtsToUpdate = [];
@@ -1026,10 +1123,15 @@ const ExpenseDetail = ({ expenseId, onBack }) => {
       if (p.isFullyPaid && p.debt.status !== 'paid') newlyPaidCount++;
       debtsToUpdate.push({
         debtId: p.debt.id,
+        amountToLog: p.amountToUse,
         updates: {
           status: p.isFullyPaid ? 'paid' : 'partial',
           paidAmount: p.newPaidAmount,
-          paymentMethod: 'balance'
+          paymentMethod: 'balance',
+          courseId: p.debt.courseId || effectiveCourseId,
+          fundId: p.debt.fundId || defaultFundId,
+          studentName: p.debt.studentName,
+          title: p.debt.title || expense?.title
         }
       });
       studentBalancesMap.set(p.student.id, {
@@ -1063,6 +1165,8 @@ const ExpenseDetail = ({ expenseId, onBack }) => {
           status: item.isFullyPaid ? 'paid' : 'partial',
           paidAmount: item.newPaidAmount,
           paymentMethod: 'balance',
+          courseId: d.courseId || effectiveCourseId,
+          fundId: d.fundId || defaultFundId,
           approvedAt: new Date().toISOString()
         };
       }
@@ -1082,23 +1186,27 @@ const ExpenseDetail = ({ expenseId, onBack }) => {
 
     try {
       for (const p of plan) {
+        const debtCourseId = p.debt.courseId || effectiveCourseId;
+        const debtFundId = p.debt.fundId || defaultFundId;
         // 1. Actualizar deuda
         await updateDoc(doc(db, 'debts', p.debt.id), {
           status: p.isFullyPaid ? 'paid' : 'partial',
           paidAmount: p.newPaidAmount,
           paymentMethod: 'balance',
+          courseId: debtCourseId,
+          fundId: debtFundId,
           approvedAt: new Date().toISOString()
         });
 
         // 2. Registrar en payments
         await addDoc(collection(db, 'payments'), {
           debtId: p.debt.id,
-          courseId: selectedCourse.id,
-          fundId: p.debt.fundId || expense.fundId || 'general',
+          courseId: debtCourseId,
+          fundId: debtFundId,
           amount: p.amountToUse,
           paymentMethod: 'balance',
           studentName: p.debt.studentName,
-          title: p.debt.title,
+          title: p.debt.title || expense?.title,
           status: p.isFullyPaid ? 'paid' : 'partial',
           createdAt: new Date().toISOString()
         });

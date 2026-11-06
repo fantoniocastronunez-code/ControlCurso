@@ -130,25 +130,31 @@ const StudentDetailModal = ({ student, usersMap = {}, onClose, isModal = false }
 
     setApplyingBalance(true);
     try {
+      const effectiveCourseId = debt.courseId || student.courseId;
+      const effectiveFundId = debt.fundId || 'general';
+      const approvedAtIso = new Date().toISOString();
+
       // 1. Actualizar deuda
       await updateDoc(doc(db, 'debts', debt.id), {
         status: isFullyPaid ? 'paid' : 'partial',
         paidAmount: newPaidAmount,
         paymentMethod: 'balance',
-        approvedAt: new Date().toISOString()
+        courseId: effectiveCourseId,
+        fundId: effectiveFundId,
+        approvedAt: approvedAtIso
       });
 
       // 2. Registrar pago
       await addDoc(collection(db, 'payments'), {
         debtId: debt.id,
-        courseId: debt.courseId || student.courseId,
-        fundId: debt.fundId || 'general',
+        courseId: effectiveCourseId,
+        fundId: effectiveFundId,
         amount: amountToUse,
         paymentMethod: 'balance',
         studentName: student.name,
         title: debt.title,
         status: isFullyPaid ? 'paid' : 'partial',
-        createdAt: new Date().toISOString()
+        createdAt: approvedAtIso
       });
 
       // 3. Descontar saldo del estudiante
@@ -224,23 +230,29 @@ const StudentDetailModal = ({ student, usersMap = {}, onClose, isModal = false }
     setApplyingBalance(true);
     try {
       for (const p of plan) {
+        const effectiveCourseId = p.debt.courseId || student.courseId;
+        const effectiveFundId = p.debt.fundId || 'general';
+        const approvedAtIso = new Date().toISOString();
+
         await updateDoc(doc(db, 'debts', p.debt.id), {
           status: p.isFullyPaid ? 'paid' : 'partial',
           paidAmount: p.newPaidAmount,
           paymentMethod: 'balance',
-          approvedAt: new Date().toISOString()
+          courseId: effectiveCourseId,
+          fundId: effectiveFundId,
+          approvedAt: approvedAtIso
         });
 
         await addDoc(collection(db, 'payments'), {
           debtId: p.debt.id,
-          courseId: p.debt.courseId || student.courseId,
-          fundId: p.debt.fundId || 'general',
+          courseId: effectiveCourseId,
+          fundId: effectiveFundId,
           amount: p.amountToUse,
           paymentMethod: 'balance',
           studentName: student.name,
           title: p.debt.title,
           status: p.isFullyPaid ? 'paid' : 'partial',
-          createdAt: new Date().toISOString()
+          createdAt: approvedAtIso
         });
 
         if (p.isFullyPaid && p.debt.expenseId && p.debt.status !== 'paid') {
