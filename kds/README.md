@@ -34,3 +34,4 @@ Este directorio contiene el firmware de Arduino para el controlador físico KDS 
 
 - **Cambiar Perfil (CAFE / CURSO / JUEGO)**: Mantener presionados **ARRIBA + ABAJO** simultáneamente.
 - **Cambiar Dispositivo Bluetooth (Tablet / PC / Celular)**: Mantener presionados **HISTORIAL + INGENIERÍA** simultáneamente.
+

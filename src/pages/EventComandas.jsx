@@ -3,9 +3,9 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { db, auth } from '../firebase/config';
 import { collection, query, where, onSnapshot, doc, getDoc, updateDoc } from 'firebase/firestore';
 import { signInAnonymously } from 'firebase/auth';
-import { 
-  ChefHat, Clock, CheckCircle2, Flame, AlertCircle, Volume2, 
-  VolumeX, Maximize, Minimize, RefreshCw, MessageSquare, 
+import {
+  ChefHat, Clock, CheckCircle2, Flame, AlertCircle, Volume2,
+  VolumeX, Maximize, Minimize, RefreshCw, MessageSquare,
   ArrowLeft, Search, Filter, Check, RotateCcw, Camera, X,
   Keyboard, HelpCircle
 } from 'lucide-react';
@@ -203,9 +203,9 @@ const EventComandas = () => {
   // 5. Pantalla Completa
   const toggleFullscreen = () => {
     if (!document.fullscreenElement) {
-      document.documentElement.requestFullscreen().then(() => setIsFullscreen(true)).catch(() => {});
+      document.documentElement.requestFullscreen().then(() => setIsFullscreen(true)).catch(() => { });
     } else {
-      document.exitFullscreen().then(() => setIsFullscreen(false)).catch(() => {});
+      document.exitFullscreen().then(() => setIsFullscreen(false)).catch(() => { });
     }
   };
 
@@ -302,8 +302,8 @@ const EventComandas = () => {
     const handleKeyDown = (e) => {
       // Si el usuario está escribiendo en el buscador o editando notas de cocina, no interceptar
       if (
-        e.target.tagName === 'INPUT' || 
-        e.target.tagName === 'TEXTAREA' || 
+        e.target.tagName === 'INPUT' ||
+        e.target.tagName === 'TEXTAREA' ||
         showScanner ||
         activeKitchenNoteOrder !== null
       ) {
@@ -517,7 +517,7 @@ const EventComandas = () => {
           {/* Buscador Rápido de Ticket */}
           <div style={{ position: 'relative' }}>
             <Search size={15} style={{ position: 'absolute', left: '0.65rem', top: '50%', transform: 'translateY(-50%)', color: '#94a3b8' }} />
-            <input 
+            <input
               type="text"
               placeholder="Buscar # ticket..."
               value={searchTerm}
@@ -887,8 +887,8 @@ const EventComandas = () => {
                   border: cardBorder,
                   borderRadius: 'var(--radius-lg)',
                   padding: '1.15rem',
-                  boxShadow: isSelected 
-                    ? '0 0 24px rgba(99, 102, 241, 0.45), 0 4px 14px rgba(0,0,0,0.6)' 
+                  boxShadow: isSelected
+                    ? '0 0 24px rgba(99, 102, 241, 0.45), 0 4px 14px rgba(0,0,0,0.6)'
                     : 'var(--shadow-sm)',
                   display: 'flex',
                   flexDirection: 'column',
@@ -975,7 +975,7 @@ const EventComandas = () => {
                 {/* Lista de Ítems / Productos a Preparar */}
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '0.55rem' }}>
                   {order.items && order.items.map((item, idx) => (
-                    <div 
+                    <div
                       key={idx}
                       style={{
                         backgroundColor: 'rgba(255, 255, 255, 0.04)',
@@ -1043,7 +1043,7 @@ const EventComandas = () => {
                 {/* Formulario rápido para añadir/editar nota de cocina */}
                 {activeKitchenNoteOrder === order.id && (
                   <div style={{ display: 'flex', gap: '0.4rem', marginTop: '0.25rem' }}>
-                    <input 
+                    <input
                       type="text"
                       placeholder="Escribe detalle (ej. Falta pan)..."
                       value={kitchenNoteInput}
