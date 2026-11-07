@@ -6,7 +6,8 @@ import { signInAnonymously } from 'firebase/auth';
 import { 
   ChefHat, Clock, CheckCircle2, Flame, AlertCircle, Volume2, 
   VolumeX, Maximize, Minimize, RefreshCw, MessageSquare, 
-  ArrowLeft, Search, Filter, Check, RotateCcw, Camera, X
+  ArrowLeft, Search, Filter, Check, RotateCcw, Camera, X,
+  Keyboard, HelpCircle
 } from 'lucide-react';
 import QRScannerModal from '../components/events/QRScannerModal';
 
@@ -48,6 +49,29 @@ const playKitchenChime = () => {
 };
 
 /**
+ * Beep corto y táctil para confirmación de comandos KDS / Bump bar
+ */
+const playActionBeep = (freq = 600, duration = 0.08) => {
+  try {
+    const AudioContext = window.AudioContext || window.webkitAudioContext;
+    if (!AudioContext) return;
+    const ctx = new AudioContext();
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = 'triangle';
+    osc.frequency.setValueAtTime(freq, ctx.currentTime);
+    gain.gain.setValueAtTime(0.15, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + duration);
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.start(ctx.currentTime);
+    osc.stop(ctx.currentTime + duration);
+  } catch (e) {
+    // audio context blocked or unsupported
+  }
+};
+
+/**
  * Calcula el tiempo transcurrido en formato amigable
  */
 const getTimeElapsed = (dateString) => {
@@ -78,6 +102,11 @@ const EventComandas = () => {
   const [activeKitchenNoteOrder, setActiveKitchenNoteOrder] = useState(null);
   const [kitchenNoteInput, setKitchenNoteInput] = useState('');
   const [showScanner, setShowScanner] = useState(false);
+  const [selectedOrderId, setSelectedOrderId] = useState(null);
+  const [showKdsGuide, setShowKdsGuide] = useState(true);
+
+  const previousOrderIdsRef = useRef(new Set());
+  const initialLoadCompletedRef = useRef(false);
 
   const handleScanSuccess = (decodedText) => {
     setShowScanner(false);
@@ -88,9 +117,6 @@ const EventComandas = () => {
     cleanId = cleanId.replace('#', '').trim();
     navigate(`/entrega/${cleanId}`);
   };
-
-  const previousOrderIdsRef = useRef(new Set());
-  const initialLoadCompletedRef = useRef(false);
 
   // 1. Autenticación anónima silenciosa si el usuario entra por QR sin sesión
   useEffect(() => {
@@ -250,6 +276,177 @@ const EventComandas = () => {
     return true;
   });
 
+  // Sincronización automática de selección de comanda
+  useEffect(() => {
+    if (filteredOrders.length === 0) {
+      if (selectedOrderId !== null) setSelectedOrderId(null);
+      return;
+    }
+    const exists = filteredOrders.some(o => o.id === selectedOrderId);
+    if (!exists) {
+      setSelectedOrderId(filteredOrders[0].id);
+    }
+  }, [filteredOrders, selectedOrderId]);
+
+  // Auto-scroll para mantener la comanda seleccionada siempre en foco
+  useEffect(() => {
+    if (!selectedOrderId) return;
+    const cardEl = document.getElementById(`order-card-${selectedOrderId}`);
+    if (cardEl) {
+      cardEl.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'nearest' });
+    }
+  }, [selectedOrderId]);
+
+  // Manejador Global de Teclas KDS (Perfil "CURSO" del Teclado / Bump Bar Bluetooth)
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      // Si el usuario está escribiendo en el buscador o editando notas de cocina, no interceptar
+      if (
+        e.target.tagName === 'INPUT' || 
+        e.target.tagName === 'TEXTAREA' || 
+        showScanner ||
+        activeKitchenNoteOrder !== null
+      ) {
+        return;
+      }
+
+      const tabs = ['pending', 'preparing', 'delivered', 'all'];
+      const key = e.key;
+
+      // 1. Navegación de Pestañas: 'q' / 'Q' (Pestaña Izq) y 'e' / 'E' (Pestaña Der)
+      if (key === 'q' || key === 'Q') {
+        e.preventDefault();
+        playActionBeep(520, 0.05);
+        setActiveTab(prev => {
+          const idx = tabs.indexOf(prev);
+          const nextIdx = idx <= 0 ? tabs.length - 1 : idx - 1;
+          return tabs[nextIdx];
+        });
+        return;
+      }
+
+      if (key === 'e' || key === 'E') {
+        e.preventDefault();
+        playActionBeep(520, 0.05);
+        setActiveTab(prev => {
+          const idx = tabs.indexOf(prev);
+          const nextIdx = (idx + 1) % tabs.length;
+          return tabs[nextIdx];
+        });
+        return;
+      }
+
+      // Atajos de número para pestañas: 1 (Pendientes), 2 (En Prep.), 3 (Entregados), 4 (Todas)
+      if (key === '1') { e.preventDefault(); playActionBeep(520, 0.05); setActiveTab('pending'); return; }
+      if (key === '2') { e.preventDefault(); playActionBeep(520, 0.05); setActiveTab('preparing'); return; }
+      if (key === '3') { e.preventDefault(); playActionBeep(520, 0.05); setActiveTab('delivered'); return; }
+      if (key === '4') { e.preventDefault(); playActionBeep(520, 0.05); setActiveTab('all'); return; }
+
+      // Atajo de Pantalla Completa: 'f' / 'F'
+      if (key === 'f' || key === 'F') {
+        e.preventDefault();
+        toggleFullscreen();
+        return;
+      }
+
+      // Atajo de Sonido: 's' / 'S'
+      if (key === 's' || key === 'S') {
+        e.preventDefault();
+        setSoundEnabled(prev => {
+          const next = !prev;
+          if (next) playKitchenChime();
+          return next;
+        });
+        return;
+      }
+
+      if (filteredOrders.length === 0) return;
+
+      const currentIndex = filteredOrders.findIndex(o => o.id === selectedOrderId);
+      const safeIndex = currentIndex >= 0 ? currentIndex : 0;
+      const currentOrder = filteredOrders[safeIndex];
+
+      // 2. Mover Selección: Flecha Izquierda (Anterior)
+      if (key === 'ArrowLeft') {
+        e.preventDefault();
+        playActionBeep(420, 0.04);
+        const nextIndex = safeIndex <= 0 ? filteredOrders.length - 1 : safeIndex - 1;
+        setSelectedOrderId(filteredOrders[nextIndex].id);
+        return;
+      }
+
+      // Mover Selección: Flecha Derecha (Siguiente)
+      if (key === 'ArrowRight') {
+        e.preventDefault();
+        playActionBeep(420, 0.04);
+        const nextIndex = (safeIndex + 1) % filteredOrders.length;
+        setSelectedOrderId(filteredOrders[nextIndex].id);
+        return;
+      }
+
+      // 3. Acción Principal / Bump: ENTER (Avanzar estado según el flujo de cocina)
+      if (key === 'Enter') {
+        e.preventDefault();
+        if (!currentOrder) return;
+        playActionBeep(780, 0.12);
+
+        if (currentOrder.orderStatus === 'pending') {
+          handleUpdateStatus(currentOrder.id, 'preparing');
+        } else if (currentOrder.orderStatus === 'preparing') {
+          handleUpdateStatus(currentOrder.id, 'delivered');
+        } else if (currentOrder.orderStatus === 'delivered') {
+          handleUpdateStatus(currentOrder.id, 'preparing');
+        }
+        return;
+      }
+
+      // 4. Acción directa PREPARAR ('p' / 'P' o 'ArrowUp')
+      if (key === 'p' || key === 'P' || key === 'ArrowUp') {
+        e.preventDefault();
+        if (!currentOrder) return;
+        if (currentOrder.orderStatus === 'pending' || currentOrder.orderStatus === 'delivered') {
+          playActionBeep(680, 0.1);
+          handleUpdateStatus(currentOrder.id, 'preparing');
+        } else if (key === 'ArrowUp') {
+          playActionBeep(420, 0.04);
+          const nextIndex = safeIndex <= 0 ? filteredOrders.length - 1 : safeIndex - 1;
+          setSelectedOrderId(filteredOrders[nextIndex].id);
+        }
+        return;
+      }
+
+      // 5. Acción directa ENTREGAR / LISTO ('d' / 'D' / 'l' / 'L')
+      if (key === 'd' || key === 'D' || key === 'l' || key === 'L') {
+        e.preventDefault();
+        if (!currentOrder) return;
+        playActionBeep(880, 0.12);
+        handleUpdateStatus(currentOrder.id, 'delivered');
+        return;
+      }
+
+      // 6. Acción directa DEVOLVER / REVERTIR ('r' / 'R' o 'ArrowDown' o Backspace)
+      if (key === 'r' || key === 'R' || key === 'Backspace' || key === 'ArrowDown') {
+        e.preventDefault();
+        if (!currentOrder) return;
+        if (currentOrder.orderStatus === 'preparing') {
+          playActionBeep(350, 0.1);
+          handleUpdateStatus(currentOrder.id, 'pending');
+        } else if (currentOrder.orderStatus === 'delivered') {
+          playActionBeep(350, 0.1);
+          handleUpdateStatus(currentOrder.id, 'preparing');
+        } else if (key === 'ArrowDown') {
+          playActionBeep(420, 0.04);
+          const nextIndex = (safeIndex + 1) % filteredOrders.length;
+          setSelectedOrderId(filteredOrders[nextIndex].id);
+        }
+        return;
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [filteredOrders, selectedOrderId, activeTab, showScanner, activeKitchenNoteOrder]);
+
   return (
     <div style={{
       minHeight: '100vh',
@@ -364,6 +561,29 @@ const EventComandas = () => {
             <span>{soundEnabled ? 'Sonido ON' : 'Silencio'}</span>
           </button>
 
+          {/* Toggle Guía KDS */}
+          <button
+            type="button"
+            onClick={() => setShowKdsGuide(!showKdsGuide)}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '0.35rem',
+              padding: '0.45rem 0.75rem',
+              borderRadius: '8px',
+              fontSize: '0.8rem',
+              fontWeight: 600,
+              backgroundColor: showKdsGuide ? 'rgba(99, 102, 241, 0.25)' : 'rgba(255, 255, 255, 0.05)',
+              border: showKdsGuide ? '1px solid #6366f1' : '1px solid rgba(255, 255, 255, 0.15)',
+              color: showKdsGuide ? '#c7d2fe' : '#94a3b8',
+              cursor: 'pointer'
+            }}
+            title="Mostrar / ocultar atajos del teclado KDS Bluetooth"
+          >
+            <Keyboard size={16} />
+            <span>KDS Teclas</span>
+          </button>
+
           {/* Pantalla Completa */}
           <button
             type="button"
@@ -387,6 +607,47 @@ const EventComandas = () => {
           </button>
         </div>
       </header>
+
+      {/* Banner de Atajos de Teclado KDS Bluetooth (Modo "CURSO") */}
+      {showKdsGuide && (
+        <div style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          flexWrap: 'wrap',
+          gap: '0.5rem',
+          backgroundColor: 'rgba(99, 102, 241, 0.08)',
+          border: '1px solid rgba(99, 102, 241, 0.25)',
+          borderRadius: '10px',
+          padding: '0.55rem 1rem',
+          marginBottom: '0.85rem',
+          fontSize: '0.78rem',
+          color: '#cbd5e1'
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', flexWrap: 'wrap' }}>
+            <span style={{ fontWeight: 800, color: '#a5b4fc', display: 'flex', alignItems: 'center', gap: '5px' }}>
+              <Keyboard size={15} /> KDS Bump Bar (Modo CURSO):
+            </span>
+            <span><kbd style={{ backgroundColor: 'rgba(255,255,255,0.1)', padding: '2px 6px', borderRadius: '4px', color: '#fff', fontWeight: 'bold' }}>Q</kbd> / <kbd style={{ backgroundColor: 'rgba(255,255,255,0.1)', padding: '2px 6px', borderRadius: '4px', color: '#fff', fontWeight: 'bold' }}>E</kbd> Pestaña Izq / Der</span>
+            <span>•</span>
+            <span><kbd style={{ backgroundColor: 'rgba(255,255,255,0.1)', padding: '2px 6px', borderRadius: '4px', color: '#fff', fontWeight: 'bold' }}>←</kbd> <kbd style={{ backgroundColor: 'rgba(255,255,255,0.1)', padding: '2px 6px', borderRadius: '4px', color: '#fff', fontWeight: 'bold' }}>→</kbd> Comanda Anterior / Siguiente</span>
+            <span>•</span>
+            <span><kbd style={{ backgroundColor: '#10b981', color: '#000', padding: '2px 7px', borderRadius: '4px', fontWeight: 900 }}>ENTER</kbd> Aceptar / Avanzar</span>
+            <span>•</span>
+            <span><kbd style={{ backgroundColor: '#3b82f6', color: '#fff', padding: '2px 6px', borderRadius: '4px', fontWeight: 700 }}>P / ↑</kbd> Preparar</span>
+            <span>•</span>
+            <span><kbd style={{ backgroundColor: 'rgba(239, 68, 68, 0.2)', border: '1px solid rgba(239, 68, 68, 0.4)', color: '#fca5a5', padding: '2px 6px', borderRadius: '4px', fontWeight: 700 }}>R / ↓</kbd> Devolver</span>
+          </div>
+          <button
+            type="button"
+            onClick={() => setShowKdsGuide(false)}
+            style={{ background: 'none', border: 'none', color: '#94a3b8', cursor: 'pointer', padding: '2px' }}
+            title="Ocultar barra de atajos"
+          >
+            <X size={14} />
+          </button>
+        </div>
+      )}
 
       {/* Barra de Filtros de Estado: Compacta en 1 sola línea */}
       <div style={{ marginBottom: '1rem', width: '100%' }}>
@@ -585,6 +846,7 @@ const EventComandas = () => {
             const isPending = order.orderStatus === 'pending';
             const isPreparing = order.orderStatus === 'preparing';
             const isDelivered = order.orderStatus === 'delivered';
+            const isSelected = order.id === selectedOrderId;
 
             // Tiempo transcurrido
             const createdMs = new Date(order.createdAt).getTime();
@@ -596,7 +858,7 @@ const EventComandas = () => {
               else timeColor = '#10b981'; // Verde (<8m)
             }
 
-            // Borde y fondo según estado
+            // Borde y fondo según estado y selección KDS
             let cardBorder = '1px solid var(--border-color)';
             let cardBg = '#13151b';
             if (isPending) {
@@ -610,26 +872,53 @@ const EventComandas = () => {
               cardBg = 'var(--bg-main)';
             }
 
+            if (isSelected) {
+              cardBorder = '2px solid #818cf8';
+              cardBg = '#191e2b';
+            }
+
             return (
               <div
                 key={order.id}
+                id={`order-card-${order.id}`}
+                onClick={() => setSelectedOrderId(order.id)}
                 style={{
                   backgroundColor: cardBg,
                   border: cardBorder,
                   borderRadius: 'var(--radius-lg)',
                   padding: '1.15rem',
-                  boxShadow: 'var(--shadow-sm)',
+                  boxShadow: isSelected 
+                    ? '0 0 24px rgba(99, 102, 241, 0.45), 0 4px 14px rgba(0,0,0,0.6)' 
+                    : 'var(--shadow-sm)',
                   display: 'flex',
                   flexDirection: 'column',
-                  gap: '0.85rem'
+                  gap: '0.85rem',
+                  position: 'relative',
+                  cursor: 'pointer',
+                  transition: 'all 0.15s ease'
                 }}
               >
                 {/* Cabecera de la Comanda: # Ticket, Tiempo y Estado */}
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                   <div>
-                    <span style={{ fontSize: '1.6rem', fontWeight: 700, color: '#fff', letterSpacing: '-0.02em', display: 'block' }}>
-                      Ticket #{order.correlative}
-                    </span>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+                      <span style={{ fontSize: '1.6rem', fontWeight: 700, color: '#fff', letterSpacing: '-0.02em', display: 'block' }}>
+                        Ticket #{order.correlative}
+                      </span>
+                      {isSelected && (
+                        <span style={{
+                          backgroundColor: '#4f46e5',
+                          color: '#fff',
+                          padding: '2px 8px',
+                          borderRadius: '6px',
+                          fontSize: '0.68rem',
+                          fontWeight: 800,
+                          letterSpacing: '0.5px'
+                        }}>
+                          ★ EN FOCO
+                        </span>
+                      )}
+                    </div>
                     <span style={{ fontSize: '0.78rem', color: timeColor, fontWeight: 600, display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
                       <Clock size={12} />
                       {getTimeElapsed(order.createdAt)} • {new Date(order.createdAt).toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit' })}
@@ -801,7 +1090,7 @@ const EventComandas = () => {
                     <>
                       <button
                         type="button"
-                        onClick={() => handleUpdateStatus(order.id, 'preparing')}
+                        onClick={(e) => { e.stopPropagation(); handleUpdateStatus(order.id, 'preparing'); }}
                         style={{
                           flex: 1,
                           padding: '0.65rem',
@@ -815,14 +1104,15 @@ const EventComandas = () => {
                           display: 'flex',
                           alignItems: 'center',
                           justifyContent: 'center',
-                          gap: '0.4rem'
+                          gap: '0.4rem',
+                          boxShadow: isSelected ? '0 0 10px rgba(59, 130, 246, 0.45)' : 'none'
                         }}
                       >
-                        <Flame size={16} /> Preparar
+                        <Flame size={16} /> Preparar {isSelected && <kbd style={{ fontSize: '0.68rem', backgroundColor: 'rgba(0,0,0,0.3)', padding: '1px 5px', borderRadius: '4px' }}>[ENTER]</kbd>}
                       </button>
                       <button
                         type="button"
-                        onClick={() => handleUpdateStatus(order.id, 'delivered')}
+                        onClick={(e) => { e.stopPropagation(); handleUpdateStatus(order.id, 'delivered'); }}
                         style={{
                           flex: 1,
                           padding: '0.65rem',
@@ -839,7 +1129,7 @@ const EventComandas = () => {
                           gap: '0.4rem'
                         }}
                       >
-                        <Check size={16} /> Entregar
+                        <Check size={16} /> Entregar {isSelected && <kbd style={{ fontSize: '0.68rem', backgroundColor: 'rgba(0,0,0,0.2)', padding: '1px 5px', borderRadius: '4px' }}>[D]</kbd>}
                       </button>
                     </>
                   )}
@@ -848,7 +1138,7 @@ const EventComandas = () => {
                     <>
                       <button
                         type="button"
-                        onClick={() => handleUpdateStatus(order.id, 'delivered')}
+                        onClick={(e) => { e.stopPropagation(); handleUpdateStatus(order.id, 'delivered'); }}
                         style={{
                           flex: 2,
                           padding: '0.75rem',
@@ -862,14 +1152,15 @@ const EventComandas = () => {
                           display: 'flex',
                           alignItems: 'center',
                           justifyContent: 'center',
-                          gap: '0.4rem'
+                          gap: '0.4rem',
+                          boxShadow: isSelected ? '0 0 12px rgba(16, 185, 129, 0.5)' : 'none'
                         }}
                       >
-                        <Check size={18} /> ¡Listo / Entregar!
+                        <Check size={18} /> ¡Listo / Entregar! {isSelected && <kbd style={{ fontSize: '0.72rem', backgroundColor: 'rgba(0,0,0,0.25)', padding: '2px 6px', borderRadius: '4px' }}>[ENTER]</kbd>}
                       </button>
                       <button
                         type="button"
-                        onClick={() => handleUpdateStatus(order.id, 'pending')}
+                        onClick={(e) => { e.stopPropagation(); handleUpdateStatus(order.id, 'pending'); }}
                         style={{
                           flex: 1,
                           padding: '0.75rem',
@@ -879,11 +1170,15 @@ const EventComandas = () => {
                           color: '#94a3b8',
                           fontWeight: 600,
                           fontSize: '0.8rem',
-                          cursor: 'pointer'
+                          cursor: 'pointer',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          gap: '0.3rem'
                         }}
                         title="Devolver a pendientes"
                       >
-                        <RotateCcw size={14} />
+                        <RotateCcw size={14} /> Devolver {isSelected && <kbd style={{ fontSize: '0.68rem', backgroundColor: 'rgba(255,255,255,0.1)', padding: '1px 4px', borderRadius: '4px' }}>[R]</kbd>}
                       </button>
                     </>
                   )}
@@ -891,7 +1186,7 @@ const EventComandas = () => {
                   {isDelivered && (
                     <button
                       type="button"
-                      onClick={() => handleUpdateStatus(order.id, 'preparing')}
+                      onClick={(e) => { e.stopPropagation(); handleUpdateStatus(order.id, 'preparing'); }}
                       style={{
                         flex: 1,
                         padding: '0.5rem',
@@ -908,7 +1203,7 @@ const EventComandas = () => {
                         gap: '0.35rem'
                       }}
                     >
-                      <RotateCcw size={13} /> Reabrir Comanda
+                      <RotateCcw size={13} /> Reabrir Comanda {isSelected && <kbd style={{ fontSize: '0.68rem', backgroundColor: 'rgba(255,255,255,0.1)', padding: '1px 4px', borderRadius: '4px' }}>[ENTER]</kbd>}
                     </button>
                   )}
 
