@@ -76,6 +76,10 @@ const PrinterSettingsModal = ({ isOpen, onClose, eventName }) => {
     const payload = buildTestReceiptPayload(eventName || 'APPCURSO POS', 'Test de Impresora');
 
     if (modeToTest === 'rawbt') {
+      if (!isAndroid()) {
+        await showAlert('La app RawBT es exclusiva para celulares y tablets Android. En este computador debes usar el modo "Impresión del Sistema" o "Bluetooth Directo (BLE)".');
+        return;
+      }
       try {
         printViaRawBT(payload);
       } catch (err) {
@@ -182,13 +186,31 @@ const PrinterSettingsModal = ({ isOpen, onClose, eventName }) => {
                   fontSize: '0.75rem',
                   padding: '0.2rem 0.6rem',
                   borderRadius: '12px',
-                  backgroundColor: 'rgba(16, 185, 129, 0.2)',
-                  color: '#34d399',
+                  backgroundColor: isAndroid() ? 'rgba(16, 185, 129, 0.2)' : 'rgba(234, 179, 8, 0.2)',
+                  color: isAndroid() ? '#34d399' : '#fbbf24',
                   fontWeight: 'bold'
                 }}>
-                  Recomendado para Android
+                  {isAndroid() ? 'Recomendado para Android' : 'Exclusivo Android (PC usará Sistema)'}
                 </span>
               </div>
+
+              {!isAndroid() && (
+                <div style={{
+                  backgroundColor: 'rgba(234, 179, 8, 0.12)',
+                  border: '1px solid rgba(234, 179, 8, 0.25)',
+                  borderRadius: '6px',
+                  padding: '0.45rem 0.65rem',
+                  marginBottom: '0.65rem',
+                  fontSize: '0.78rem',
+                  color: '#fef08a',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '0.45rem'
+                }}>
+                  <AlertCircle size={14} style={{ flexShrink: 0 }} />
+                  <span>Estás en un navegador de escritorio (PC/Mac). RawBT requiere Android; aquí se usará automáticamente la impresión del sistema.</span>
+                </div>
+              )}
 
               <p style={{ margin: '0 0 0.75rem 0', fontSize: '0.82rem', color: '#cbd5e1' }}>
                 <strong>¡Sin ventana de Android!</strong> Envía la orden directamente a tu impresora térmica Bluetooth o USB en menos de 1 segundo.

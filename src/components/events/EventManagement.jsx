@@ -334,7 +334,6 @@ const EventManagement = ({ onBack }) => {
       setSelectedStudentIds(new Set(courseStudents.map(s => s.id)));
       setStudentSearchTerm('');
 
-      fetchEvents();
       setTimeout(() => setMessage(''), 3000);
 
     } catch (error) {

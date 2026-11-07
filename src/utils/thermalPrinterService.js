@@ -48,6 +48,12 @@ export const isAndroid = () => {
 
 export const getPrinterConfig = () => {
   const saved = localStorage.getItem('appcurso_printer_mode');
+  // RawBT es exclusivo de Android mediante el protocolo de Intent.
+  // Si se configuró 'rawbt' pero el usuario está en un computador (PC/Mac),
+  // se devuelve 'system' automáticamente para evitar errores de enlace no registrado.
+  if (saved === 'rawbt' && !isAndroid()) {
+    return 'system';
+  }
   if (saved) return saved;
   return isAndroid() ? 'rawbt' : 'system';
 };
@@ -729,20 +735,32 @@ export const stringToBase64 = (str) => {
  * Dispara la impresión hacia RawBT en Android mediante su URI Intent
  */
 export const printViaRawBT = (payloadString) => {
-  const base64Data = stringToBase64(payloadString);
-  const intentUrl = `intent:base64,${base64Data}#Intent;scheme=rawbt;package=ru.a402d.rawbtprinter;S.browser_fallback_url=https%3A%2F%2Fplay.google.com%2Fstore%2Fapps%2Fdetails%3Fid%3Dru.a402d.rawbtprinter;end;`;
-
-  const a = document.createElement('a');
-  a.href = intentUrl;
-  document.body.appendChild(a);
-  a.click();
-  setTimeout(() => {
-    try {
-      document.body.removeChild(a);
-    } catch {
-      // Ignorar
+  if (!isAndroid()) {
+    console.warn("RawBT sólo está disponible en Android. Usando impresión estándar del sistema.");
+    if (typeof window !== 'undefined' && typeof window.print === 'function') {
+      window.print();
     }
-  }, 300);
+    return;
+  }
+
+  try {
+    const base64Data = stringToBase64(payloadString);
+    const intentUrl = `intent:base64,${base64Data}#Intent;scheme=rawbt;package=ru.a402d.rawbtprinter;S.browser_fallback_url=https%3A%2F%2Fplay.google.com%2Fstore%2Fapps%2Fdetails%3Fid%3Dru.a402d.rawbtprinter;end;`;
+
+    const a = document.createElement('a');
+    a.href = intentUrl;
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(() => {
+      try {
+        document.body.removeChild(a);
+      } catch {
+        // Ignorar
+      }
+    }, 300);
+  } catch (err) {
+    console.error("Error al disparar Intent RawBT:", err);
+  }
 };
 
 /**
