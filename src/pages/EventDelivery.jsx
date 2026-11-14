@@ -307,17 +307,39 @@ const EventDelivery = () => {
             ) : (
               <div style={{
                 padding: '0.85rem 1rem',
-                backgroundColor: 'rgba(16, 185, 129, 0.15)',
-                border: '1px solid #10b981',
+                backgroundColor: (sale?.orderStatus || sale?.kitchenStatus) === 'ready'
+                  ? 'rgba(16, 185, 129, 0.18)'
+                  : (sale?.orderStatus || sale?.kitchenStatus) === 'preparing'
+                    ? 'rgba(59, 130, 246, 0.15)'
+                    : 'rgba(16, 185, 129, 0.15)',
+                border: (sale?.orderStatus || sale?.kitchenStatus) === 'preparing'
+                  ? '1px solid #3b82f6'
+                  : '1px solid #10b981',
                 borderRadius: '12px',
                 display: 'flex',
                 alignItems: 'center',
                 gap: '0.75rem',
                 marginBottom: '1.25rem'
               }}>
-                <ShieldCheck size={32} style={{ color: '#10b981', flexShrink: 0 }} />
+                <ShieldCheck
+                  size={32}
+                  style={{
+                    color: (sale?.orderStatus || sale?.kitchenStatus) === 'preparing' ? '#60a5fa' : '#10b981',
+                    flexShrink: 0
+                  }}
+                />
                 <div>
-                  <h4 style={{ margin: 0, color: '#6ee7b7', fontSize: '0.95rem' }}>Ticket Válido - Listo para Entrega</h4>
+                  <h4 style={{
+                    margin: 0,
+                    color: (sale?.orderStatus || sale?.kitchenStatus) === 'preparing' ? '#bfdbfe' : '#6ee7b7',
+                    fontSize: '0.95rem'
+                  }}>
+                    {(sale?.orderStatus || sale?.kitchenStatus) === 'ready'
+                      ? '¡Listo en Cocina! - Listo para Entrega'
+                      : (sale?.orderStatus || sale?.kitchenStatus) === 'preparing'
+                        ? 'Ticket Válido (En Preparación en Cocina)'
+                        : 'Ticket Válido - Listo para Entrega'}
+                  </h4>
                   <p style={{ margin: 0, fontSize: '0.8rem', color: 'var(--text-muted)' }}>
                     Verifica los productos antes de presionar confirmar entrega.
                   </p>

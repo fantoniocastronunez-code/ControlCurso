@@ -137,6 +137,7 @@ const ClientOrderStatus = () => {
   const status = sale?.orderStatus || sale?.kitchenStatus || 'pending';
   const isCancelled = sale?.status === 'cancelled';
   const isDelivered = status === 'delivered';
+  const isReady = status === 'ready';
   const isPreparing = status === 'preparing';
   const isPending = status === 'pending';
 
@@ -242,12 +243,12 @@ const ClientOrderStatus = () => {
               borderRadius: '16px',
               border: isCancelled
                 ? '1px solid var(--danger)'
-                : isDelivered
+                : isDelivered || isReady
                   ? '1px solid rgba(16, 185, 129, 0.6)'
                   : isPreparing
                     ? '1px solid rgba(245, 158, 11, 0.6)'
                     : '1px solid rgba(99, 102, 241, 0.5)',
-              boxShadow: isDelivered
+              boxShadow: isDelivered || isReady
                 ? '0 0 30px rgba(16, 185, 129, 0.2)'
                 : isPreparing
                   ? '0 0 30px rgba(245, 158, 11, 0.25)'
@@ -267,8 +268,8 @@ const ClientOrderStatus = () => {
                 }}>
                   <div style={{
                     height: '100%',
-                    backgroundColor: isDelivered ? '#10b981' : isPreparing ? '#f59e0b' : '#6366f1',
-                    width: isDelivered ? '100%' : isPreparing ? '50%' : '0%',
+                    backgroundColor: isDelivered || isReady ? '#10b981' : isPreparing ? '#f59e0b' : '#6366f1',
+                    width: isDelivered || isReady ? '100%' : isPreparing ? '50%' : '0%',
                     transition: 'all 0.5s ease'
                   }} />
                 </div>
@@ -301,11 +302,11 @@ const ClientOrderStatus = () => {
                     height: '32px',
                     borderRadius: '50%',
                     backgroundColor: 'var(--bg-card)',
-                    border: isPreparing || isDelivered ? '2px solid #f59e0b' : '2px solid var(--border-color)',
+                    border: isPreparing || isReady || isDelivered ? '2px solid #f59e0b' : '2px solid var(--border-color)',
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
-                    color: isPreparing || isDelivered ? '#f59e0b' : 'var(--text-muted)',
+                    color: isPreparing || isReady || isDelivered ? '#f59e0b' : 'var(--text-muted)',
                     fontSize: '0.85rem'
                   }}>
                     <Flame size={16} />
@@ -313,7 +314,7 @@ const ClientOrderStatus = () => {
                   <span style={{
                     fontSize: '0.72rem',
                     marginTop: '0.35rem',
-                    color: isPreparing || isDelivered ? '#fcd34d' : 'var(--text-muted)',
+                    color: isPreparing || isReady || isDelivered ? '#fcd34d' : 'var(--text-muted)',
                     fontWeight: isPreparing ? 'bold' : 'normal'
                   }}>
                     Preparando
@@ -327,11 +328,11 @@ const ClientOrderStatus = () => {
                     height: '32px',
                     borderRadius: '50%',
                     backgroundColor: 'var(--bg-card)',
-                    border: isDelivered ? '2px solid #10b981' : '2px solid var(--border-color)',
+                    border: isReady || isDelivered ? '2px solid #10b981' : '2px solid var(--border-color)',
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
-                    color: isDelivered ? '#10b981' : 'var(--text-muted)',
+                    color: isReady || isDelivered ? '#10b981' : 'var(--text-muted)',
                     fontSize: '0.85rem'
                   }}>
                     <CheckCircle2 size={16} />
@@ -339,8 +340,8 @@ const ClientOrderStatus = () => {
                   <span style={{
                     fontSize: '0.72rem',
                     marginTop: '0.35rem',
-                    color: isDelivered ? '#6ee7b7' : 'var(--text-muted)',
-                    fontWeight: isDelivered ? 'bold' : 'normal'
+                    color: isReady || isDelivered ? '#6ee7b7' : 'var(--text-muted)',
+                    fontWeight: isReady || isDelivered ? 'bold' : 'normal'
                   }}>
                     Listo
                   </span>
@@ -354,7 +355,7 @@ const ClientOrderStatus = () => {
                 borderRadius: '12px',
                 backgroundColor: isCancelled
                   ? 'rgba(239, 68, 68, 0.15)'
-                  : isDelivered
+                  : isDelivered || isReady
                     ? 'rgba(16, 185, 129, 0.15)'
                     : isPreparing
                       ? 'rgba(245, 158, 11, 0.15)'
@@ -385,6 +386,21 @@ const ClientOrderStatus = () => {
                         Retirado a las: {new Date(sale.deliveredAt).toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit' })}
                       </span>
                     )}
+                  </>
+                ) : isReady ? (
+                  <>
+                    <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.5rem', color: '#10b981', marginBottom: '0.25rem' }}>
+                      <Sparkles size={24} />
+                      <h3 style={{ margin: 0, fontSize: '1.35rem', color: '#6ee7b7', fontWeight: 800 }}>
+                        ¡Pedido Listo para Retirar!
+                      </h3>
+                    </div>
+                    <p style={{ margin: '0.4rem 0 0 0', fontSize: '0.95rem', color: '#fff', fontWeight: 600 }}>
+                      Tu comida ya está lista en cocina.
+                    </p>
+                    <p style={{ margin: '0.45rem 0 0 0', fontSize: '0.85rem', color: '#a7f3d0' }}>
+                      Acércate al mesón de entrega con tu Ticket #{sale.correlative || 'S/N'}.
+                    </p>
                   </>
                 ) : isPreparing ? (
                   <>

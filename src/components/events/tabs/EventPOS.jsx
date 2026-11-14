@@ -1922,6 +1922,10 @@ const EventPOS = ({ event, onNavigateTab }) => {
                               <span style={{ fontSize: '0.72rem', backgroundColor: 'rgba(16, 185, 129, 0.12)', color: '#10b981', border: '1px solid rgba(16, 185, 129, 0.3)', padding: '2px 6px', borderRadius: 'var(--radius-sm)', fontWeight: '600' }}>
                                 Entregado
                               </span>
+                            ) : (sale.orderStatus || sale.kitchenStatus) === 'ready' ? (
+                              <span style={{ fontSize: '0.72rem', backgroundColor: 'rgba(16, 185, 129, 0.18)', color: '#34d399', border: '1px solid rgba(16, 185, 129, 0.45)', padding: '2px 6px', borderRadius: 'var(--radius-sm)', fontWeight: '700' }}>
+                                Listo
+                              </span>
                             ) : (sale.orderStatus || sale.kitchenStatus) === 'preparing' ? (
                               <span style={{ fontSize: '0.72rem', backgroundColor: 'rgba(245, 158, 11, 0.12)', color: '#f59e0b', border: '1px solid rgba(245, 158, 11, 0.3)', padding: '2px 6px', borderRadius: 'var(--radius-sm)', fontWeight: '600' }}>
                                 Preparando
