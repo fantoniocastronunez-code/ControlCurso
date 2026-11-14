@@ -1392,52 +1392,59 @@ const ExpenseDetail = ({ expenseId, onBack }) => {
   };
 
   const handleSaveManageStudents = async () => {
-    setLoading(true);
-    try {
-      const currentStudentIds = debts.map(d => d.studentId);
-      const addedIds = selectedManageStudents.filter(id => !currentStudentIds.includes(id));
-      const removedIds = currentStudentIds.filter(id => !selectedManageStudents.includes(id));
+    const currentStudentIds = debts.map(d => d.studentId);
+    const addedIds = selectedManageStudents.filter(id => !currentStudentIds.includes(id));
+    const removedIds = currentStudentIds.filter(id => !selectedManageStudents.includes(id));
 
-      // Validación para no borrar alumnos que ya pagaron
-      for (const id of removedIds) {
-        const debtToRemove = debts.find(d => d.studentId === id);
-        if (debtToRemove && (debtToRemove.paidAmount > 0 || debtToRemove.status === 'paid' || debtToRemove.status === 'review')) {
-          await showAlert(`No puedes quitar al alumno ${debtToRemove.studentName} porque ya tiene pagos registrados o en revisión.`);
-          setLoading(false);
+    // Validación para no borrar alumnos que ya pagaron
+    for (const id of removedIds) {
+      const debtToRemove = debts.find(d => d.studentId === id);
+      if (debtToRemove && (debtToRemove.paidAmount > 0 || debtToRemove.status === 'paid' || debtToRemove.status === 'review')) {
+        await showAlert(`No puedes quitar al alumno ${debtToRemove.studentName} porque ya tiene pagos registrados o en revisión.`);
+        return;
+      }
+    }
+
+    // Resolver monto antes de iniciar cambios o activar loading
+    const positiveAmounts = [...new Set(debts.map(d => Number(d.amount) || 0).filter(a => a > 0))];
+    let defaultAmount = (typeof expense.amountPerStudent === 'number' && expense.amountPerStudent > 0)
+      ? expense.amountPerStudent
+      : (positiveAmounts.length === 1 ? positiveAmounts[0] : 0);
+
+    if (addedIds.length > 0 && defaultAmount === 0) {
+      const promptedAmt = await showPrompt("Ingresa el Monto a Cobrar ($) para el/los nuevo(s) alumno(s) agregado(s):", "");
+      if (promptedAmt === null) {
+        return;
+      }
+      if (promptedAmt.trim() !== '') {
+        const parsedAmt = parseFloat(promptedAmt);
+        if (isNaN(parsedAmt) || parsedAmt < 0) {
+          await showAlert("Ingresa un monto válido (0 o mayor).");
           return;
         }
+        defaultAmount = parsedAmt;
       }
+    }
 
+    setLoading(true);
+    try {
       // Eliminar alumnos
       let removedAmount = 0;
       for (const id of removedIds) {
         const debtToRemove = debts.find(d => d.studentId === id);
         if (debtToRemove) {
-          removedAmount += debtToRemove.amount;
+          removedAmount += Number(debtToRemove.amount) || 0;
           await deleteDoc(doc(db, 'debts', debtToRemove.id));
         }
       }
 
       // Agregar alumnos
       let addedAmount = 0;
-      const positiveAmounts = [...new Set(debts.map(d => Number(d.amount) || 0).filter(a => a > 0))];
-      let defaultAmount = (typeof expense.amountPerStudent === 'number' && expense.amountPerStudent > 0)
-        ? expense.amountPerStudent
-        : (positiveAmounts.length === 1 ? positiveAmounts[0] : 0);
-
-      if (addedIds.length > 0 && defaultAmount === 0) {
-        const promptedAmt = await showPrompt("Ingresa el Monto a Cobrar ($) para el/los nuevo(s) alumno(s) agregado(s):", "");
-        if (promptedAmt !== null && promptedAmt !== '') {
-          const parsedAmt = parseFloat(promptedAmt);
-          if (!isNaN(parsedAmt) && parsedAmt >= 0) {
-            defaultAmount = parsedAmt;
-          }
-        }
-      }
-
-      const effectiveCourseId = expense.courseId || selectedCourse.id;
+      let actualAddedCount = 0;
+      const effectiveCourseId = expense.courseId || selectedCourse?.id;
       for (const studentId of addedIds) {
         const student = students.find(s => s.id === studentId);
+        if (!student) continue;
         const debtId = `debt_${expenseId}_${studentId}`;
         await setDoc(doc(db, 'debts', debtId), {
           expenseId,
@@ -1458,11 +1465,12 @@ const ExpenseDetail = ({ expenseId, onBack }) => {
           createdAt: new Date().toISOString()
         });
         addedAmount += defaultAmount;
+        actualAddedCount += 1;
       }
 
       // Actualizar total y conteo en expense
-      const newTotalAmount = (expense.totalAmount || 0) - removedAmount + addedAmount;
-      const newStudentsCount = (expense.studentsCount || currentStudentIds.length) - removedIds.length + addedIds.length;
+      const newTotalAmount = Math.max(0, (Number(expense.totalAmount) || 0) - removedAmount + addedAmount);
+      const newStudentsCount = Math.max(0, (expense.studentsCount || currentStudentIds.length) - removedIds.length + actualAddedCount);
 
       await updateDoc(doc(db, 'expenses', expenseId), {
         totalAmount: newTotalAmount,
@@ -1470,11 +1478,13 @@ const ExpenseDetail = ({ expenseId, onBack }) => {
       });
 
       setIsManagingStudents(false);
-      fetchDetail();
+      await fetchDetail(false);
+      setLoading(false);
       await showAlert('Alumnos gestionados correctamente.');
     } catch (error) {
       console.error("Error al gestionar alumnos:", error);
       await showAlert('Hubo un error al guardar los cambios.');
+    } finally {
       setLoading(false);
     }
   };
