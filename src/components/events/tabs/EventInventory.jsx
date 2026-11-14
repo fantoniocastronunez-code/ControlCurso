@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { db } from '../../../firebase/config';
-import { collection, getDocs, doc, setDoc, updateDoc, deleteDoc, query, where } from 'firebase/firestore';
+import { collection, getDocs, doc, setDoc, updateDoc, deleteDoc, query, where, onSnapshot } from 'firebase/firestore';
 import {
   Package, Plus, Trash2, Edit2, AlertTriangle, CheckCircle,
   DollarSign, RefreshCw, ClipboardList, Save, Check, X, Info, Sparkles
@@ -9,6 +9,10 @@ import { useModal } from '../../../context/ModalContext';
 import { useAuth } from '../../../context/AuthContext';
 import { useCourse } from '../../../context/CourseContext';
 import { loadDemoEventData } from '../../../utils/eventTestUtils';
+import {
+  adjustInventoryInitialTransaction,
+  restockInventoryTransaction
+} from '../../../utils/inventoryTransactions';
 
 const UNIT_OPTIONS = [
   'unidades',
@@ -83,7 +87,19 @@ const EventInventory = ({ event }) => {
 
   useEffect(() => {
     fetchInventory();
-  }, [fetchInventory]);
+    if (!event?.id) return;
+    const qInv = query(collection(db, 'eventInventory'), where('eventId', '==', event.id));
+    const unsubscribeInv = onSnapshot(qInv, (snap) => {
+      const list = snap.docs
+        .map(d => ({ id: d.id, ...d.data() }))
+        .sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+      setInventory(list);
+      setLoading(false);
+    }, (error) => {
+      console.error("Error al escuchar inventario en tiempo real:", error);
+    });
+    return () => unsubscribeInv();
+  }, [fetchInventory, event?.id]);
 
   const resetForm = () => {
     setEditingItemId(null);
@@ -114,24 +130,22 @@ const EventInventory = ({ event }) => {
 
     try {
       if (editingItemId) {
-        // Actualización de ítem existente
-        const currentItem = inventory.find(i => i.id === editingItemId);
-        const qtyDiff = qty - (currentItem?.initialQuantity || 0);
-        const newStock = Math.max(0, (currentItem?.currentStock ?? 0) + qtyDiff);
+        // Actualización atómica de ítem existente (sincroniza initialQuantity, totalPurchased y currentStock)
+        const nowIso = new Date().toISOString();
+        const updatedItem = await adjustInventoryInitialTransaction(db, {
+          itemId: editingItemId,
+          newInitialQuantity: qty,
+          updateFields: {
+            name: name.trim(),
+            unit: effectiveUnit,
+            cost: costNum,
+            notes: notes.trim(),
+            updatedBy: user?.email || user?.displayName || 'Unknown'
+          },
+          timestamp: nowIso
+        });
 
-        const updateData = {
-          name: name.trim(),
-          unit: effectiveUnit,
-          initialQuantity: qty,
-          currentStock: newStock,
-          cost: costNum,
-          notes: notes.trim(),
-          updatedAt: new Date().toISOString(),
-          updatedBy: user?.email || user?.displayName || 'Unknown'
-        };
-
-        await updateDoc(doc(db, 'eventInventory', editingItemId), updateData);
-        setInventory(prev => prev.map(i => i.id === editingItemId ? { ...i, ...updateData } : i));
+        setInventory(prev => prev.map(i => i.id === editingItemId ? { ...i, ...updatedItem } : i));
         showAlert("Insumo actualizado exitosamente.");
         resetForm();
       } else {
@@ -230,18 +244,13 @@ const EventInventory = ({ event }) => {
       const extraCostNum = restockCost ? parseFloat(restockCost) : 0;
 
       try {
-        const newTotalPurchased = (restockItem.totalPurchased || restockItem.initialQuantity || 0) + extraQty;
-        const newCurrentStock = (restockItem.currentStock || 0) + extraQty;
-        const newTotalCost = (restockItem.cost || 0) + extraCostNum;
-
-        const updateData = {
-          totalPurchased: newTotalPurchased,
-          currentStock: newCurrentStock,
-          cost: newTotalCost,
-          updatedAt: new Date().toISOString()
-        };
-
-        await updateDoc(doc(db, 'eventInventory', restockItem.id), updateData);
+        const nowIso = new Date().toISOString();
+        const updateData = await restockInventoryTransaction(db, {
+          itemId: restockItem.id,
+          extraQty,
+          extraCost: extraCostNum,
+          timestamp: nowIso
+        });
 
         // Si seleccionó registrar como gasto
           if (restockRecordExpense && extraCostNum > 0 && (event.fundId || event.id)) {

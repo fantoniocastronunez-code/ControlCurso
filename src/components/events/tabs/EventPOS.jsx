@@ -25,8 +25,13 @@ import {
   calculateTotalDeductions,
   resolveSubproductDeductions,
   getSubproductStockInfo,
-  getInventoryItemStock
+  getInventoryItemStock,
+  normalizeDeductionsMap
 } from '../../../utils/inventoryDeductions';
+import {
+  applyInventoryDeductionsTransaction,
+  cancelSaleAndRestoreInventoryTransaction
+} from '../../../utils/inventoryTransactions';
 import { calculateKitchenWaitMetrics } from '../../../utils/kitchenWaitTime';
 
 const EventPOS = ({ event, onNavigateTab }) => {
@@ -133,11 +138,34 @@ const EventPOS = ({ event, onNavigateTab }) => {
   useEffect(() => {
     let unsubscribeSales = () => { };
     let unsubscribePettyCash = () => { };
+    let unsubscribeInventory = () => { };
+    let unsubscribeItems = () => { };
 
     const fetchData = async () => {
       setLoading(true);
       try {
         await fetchMenuAndInventory();
+
+        // Suscripción en tiempo real a inventario e ítems para evitar caché obsoleto entre cajas/pestañas
+        const qItemsLive = query(collection(db, 'eventItems'), where('eventId', '==', event.id));
+        unsubscribeItems = onSnapshot(qItemsLive, (snapItems) => {
+          const itemsList = snapItems.docs
+            .map(d => ({ id: d.id, ...d.data() }))
+            .sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+          setItems(itemsList);
+        }, (err) => {
+          console.error("Error al escuchar ítems en tiempo real:", err);
+        });
+
+        const qInvLive = query(collection(db, 'eventInventory'), where('eventId', '==', event.id));
+        unsubscribeInventory = onSnapshot(qInvLive, (snapInv) => {
+          const invList = snapInv.docs
+            .map(d => ({ id: d.id, ...d.data() }))
+            .sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+          setInventory(invList);
+        }, (err) => {
+          console.error("Error al escuchar inventario en tiempo real:", err);
+        });
 
         // Suscripción en tiempo real a las ventas para sincronizar con la cocina (Comandas)
         const qSales = query(collection(db, 'eventSales'), where('eventId', '==', event.id));
@@ -170,6 +198,8 @@ const EventPOS = ({ event, onNavigateTab }) => {
     return () => {
       unsubscribeSales();
       unsubscribePettyCash();
+      unsubscribeInventory();
+      unsubscribeItems();
     };
   }, [event.id, fetchMenuAndInventory]);
 
@@ -435,7 +465,7 @@ const EventPOS = ({ event, onNavigateTab }) => {
       const nextCorrelative = sales.length > 0 ? sales[0].correlative + 1 : 1;
 
       // Calcular deducciones de inventario según insumos del producto y de sus agregados (ej. té, bebidas, etc.)
-      const deductions = calculateTotalDeductions(cart, inventory, items);
+      const deductions = normalizeDeductionsMap(calculateTotalDeductions(cart, inventory, items));
 
       const activeCashier = (cashierName.trim() || user?.displayName || user?.email?.split('@')[0] || 'Cajero').trim();
       if (!cashierName.trim()) {
@@ -466,27 +496,18 @@ const EventPOS = ({ event, onNavigateTab }) => {
       // 1. Guardar Venta
       await setDoc(doc(db, 'eventSales', saleId), newSale);
 
-      // 2. Descontar del inventario en Firestore
-      for (const [invId, qtyToDeduct] of Object.entries(deductions)) {
-        const invItem = inventory.find(i => i.id === invId);
-        if (!invItem) continue;
-        const newStock = Math.max(0, getInventoryItemStock(invItem) - qtyToDeduct);
-        await updateDoc(doc(db, 'eventInventory', invId), {
-          currentStock: newStock,
-          updatedAt: new Date().toISOString()
-        });
-      }
+      // 2. Descontar del inventario en Firestore mediante transacción atómica (evita caché obsoleto)
+      const nowInvIso = new Date().toISOString();
+      const updatedStocks = await applyInventoryDeductionsTransaction(db, deductions, nowInvIso);
 
-      // Actualizar inventario en estado local inmediatamente
-      setInventory(prev => prev.map(inv => {
-        if (deductions[inv.id]) {
-          return {
-            ...inv,
-            currentStock: Math.max(0, getInventoryItemStock(inv) - deductions[inv.id])
-          };
-        }
-        return inv;
-      }));
+      // Actualizar inventario en estado local inmediatamente con el stock real tras transacción
+      if (Object.keys(updatedStocks).length > 0) {
+        setInventory(prev => prev.map(inv => (
+          updatedStocks[inv.id] !== undefined
+            ? { ...inv, currentStock: updatedStocks[inv.id], updatedAt: nowInvIso }
+            : inv
+        )));
+      }
 
       // 3. Ingresar el dinero automáticamente al Fondo del evento (como Ingreso Extra)
       const incomeId = 'inc_' + Date.now();
@@ -547,34 +568,30 @@ const EventPOS = ({ event, onNavigateTab }) => {
 
     try {
       // 1. Marcar venta como anulada
-      await updateDoc(doc(db, 'eventSales', sale.id), { status: 'cancelled' });
+      const nowIso = new Date().toISOString();
+      // 1 y 2. Anular venta y restaurar stock en el inventario atómicamente en Firestore
+      const txResult = await cancelSaleAndRestoreInventoryTransaction(db, {
+        saleRef: doc(db, 'eventSales', sale.id),
+        saleUpdateData: {
+          cancelledAt: nowIso,
+          cancelledBy: activeCashierDisplayName || user?.email || 'Admin'
+        },
+        inventoryList: inventory,
+        menuItems: items,
+        timestamp: nowIso
+      });
 
-      // 2. Restaurar stock en el inventario si la venta tenía insumos descontados
-      let deductionsToRestore = sale.inventoryDeductions || {};
-      // Si la venta no tenía inventoryDeductions guardadas explícitamente, calcular de sus items y agregados
-      if (Object.keys(deductionsToRestore).length === 0 && sale.items && Array.isArray(sale.items)) {
-        deductionsToRestore = calculateTotalDeductions(sale.items, inventory, items);
+      if (txResult.notFound || txResult.alreadyCancelled) {
+        return;
       }
 
-      for (const [invId, qtyToRestore] of Object.entries(deductionsToRestore)) {
-        const invItem = inventory.find(i => i.id === invId);
-        if (!invItem) continue;
-        const restoredStock = getInventoryItemStock(invItem) + qtyToRestore;
-        await updateDoc(doc(db, 'eventInventory', invId), {
-          currentStock: restoredStock,
-          updatedAt: new Date().toISOString()
-        });
+      if (Object.keys(txResult.updatedStocks).length > 0) {
+        setInventory(prev => prev.map(inv => (
+          txResult.updatedStocks[inv.id] !== undefined
+            ? { ...inv, currentStock: txResult.updatedStocks[inv.id], updatedAt: nowIso }
+            : inv
+        )));
       }
-
-      setInventory(prev => prev.map(inv => {
-        if (deductionsToRestore[inv.id]) {
-          return {
-            ...inv,
-            currentStock: getInventoryItemStock(inv) + deductionsToRestore[inv.id]
-          };
-        }
-        return inv;
-      }));
 
       // 3. Eliminar el ingreso asociado en la colección incomes
       const qIncome = query(collection(db, 'incomes'), where('saleId', '==', sale.id));

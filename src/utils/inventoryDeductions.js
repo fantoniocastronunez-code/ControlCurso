@@ -17,6 +17,56 @@ export const normalizeInventoryName = (str) => {
     .trim();
 };
 
+export const roundInventoryQuantity = (value) => {
+  const num = Number(value);
+  if (!Number.isFinite(num)) return 0;
+  return Math.round(num * 10000) / 10000;
+};
+
+/**
+ * Parsea una cantidad asegurando un número estrictamente positivo.
+ * Si el campo viene vacío o indefinido usa `fallbackWhenEmpty` (por compatibilidad heredada);
+ * si viene explícitamente <= 0 o inválido devuelve 0 para impedir restas/sumas negativas.
+ */
+export const parsePositiveQuantity = (value, fallbackWhenEmpty = 1) => {
+  if (value === undefined || value === null || value === '') {
+    return fallbackWhenEmpty;
+  }
+  const num = parseFloat(value);
+  if (!Number.isFinite(num) || num <= 0) {
+    return 0;
+  }
+  return num;
+};
+
+/**
+ * Normaliza un mapa `{ [inventoryId]: qty }` dejando solo cantidades finitas > 0.
+ */
+export const normalizeDeductionsMap = (rawDeductions = {}) => {
+  const clean = {};
+  if (!rawDeductions || typeof rawDeductions !== 'object') return clean;
+
+  for (const [invId, rawQty] of Object.entries(rawDeductions)) {
+    if (!invId) continue;
+    const qty = roundInventoryQuantity(parseFloat(rawQty));
+    if (Number.isFinite(qty) && qty > 0) {
+      clean[invId] = qty;
+    }
+  }
+  return clean;
+};
+
+/**
+ * Aplica un delta numérico (+/-) sobre un stock o acumulado asegurando coerción numérica y piso 0.
+ */
+export const applyStockDelta = (currentValue, delta) => {
+  const base = Number(currentValue);
+  const diff = Number(delta);
+  const safeBase = Number.isFinite(base) ? base : 0;
+  const safeDiff = Number.isFinite(diff) ? diff : 0;
+  return Math.max(0, roundInventoryQuantity(safeBase + safeDiff));
+};
+
 /**
  * Devuelve el stock numérico disponible de un insumo de eventInventory,
  * manteniendo consistencia entre currentStock y campos heredados (totalPurchased/initialQuantity).
@@ -33,13 +83,15 @@ export const getInventoryItemStock = (inv) => {
 
 const findInventoryDeduction = (inventoryId, quantity, fallbackName, inventoryList = []) => {
   if (!inventoryId || inventoryId === '__none__') return null;
+  const safeQty = parsePositiveQuantity(quantity, 0);
+  if (!(safeQty > 0)) return [];
   const invItem = inventoryList.find(i => i.id === inventoryId);
   // Si el insumo ya no existe en el inventario del evento, no descontar ni marcar falsos "Agotado".
   if (!invItem) return [];
   return [{
     inventoryId: invItem.id,
     name: invItem.name || fallbackName || 'Insumo agregado',
-    quantity,
+    quantity: safeQty,
     unit: invItem.unit || 'un.'
   }];
 };
@@ -62,7 +114,8 @@ const findInventoryDeduction = (inventoryId, quantity, fallbackName, inventoryLi
 export const resolveSubproductDeductions = (subproduct, item, inventoryList = [], menuItemsList = []) => {
   if (!subproduct) return [];
 
-  const subQty = Math.max(0.001, parseFloat(subproduct.quantity) || 1);
+  const subQty = parsePositiveQuantity(subproduct.quantity, 1);
+  if (!(subQty > 0)) return [];
 
   // 1. Si el subproducto ya tiene un inventoryId explícito
   if (subproduct.inventoryId) {
@@ -95,9 +148,10 @@ export const resolveSubproductDeductions = (subproduct, item, inventoryList = []
 
         if (optDef && typeof optDef === 'object') {
           if (optDef.inventoryId) {
+            const optQty = parsePositiveQuantity(optDef.quantity, 1);
             const resolved = findInventoryDeduction(
               optDef.inventoryId,
-              (parseFloat(optDef.quantity) || 1) * subQty,
+              optQty * subQty,
               optDef.name || subproduct.selectedOption,
               inventoryList
             );
@@ -113,9 +167,10 @@ export const resolveSubproductDeductions = (subproduct, item, inventoryList = []
       // 2b. Si el subproducto en sí tiene inventoryId (sin opciones) o fue dejado en "No descontar"
       if (!spDef.hasOptions) {
         if (spDef.inventoryId) {
+          const spQty = parsePositiveQuantity(spDef.quantity, 1);
           const resolved = findInventoryDeduction(
             spDef.inventoryId,
-            (parseFloat(spDef.quantity) || 1) * subQty,
+            spQty * subQty,
             spDef.name,
             inventoryList
           );
@@ -169,9 +224,10 @@ export const resolveSubproductDeductions = (subproduct, item, inventoryList = []
         .map(ing => ({
           inventoryId: ing.inventoryId,
           name: ing.name,
-          quantity: (parseFloat(ing.quantity) || 1) * subQty,
+          quantity: parsePositiveQuantity(ing.quantity, 0) * subQty,
           unit: ing.unit || 'un.'
-        }));
+        }))
+        .filter(d => d.quantity > 0);
     }
   }
 
@@ -188,15 +244,16 @@ export const calculateTotalDeductions = (cartList = [], inventoryList = [], menu
   if (!cartList || !Array.isArray(cartList)) return deductions;
 
   cartList.forEach(cartItem => {
-    const itemQty = cartItem.quantity || 1;
+    const itemQty = parsePositiveQuantity(cartItem?.quantity, 1);
+    if (!(itemQty > 0)) return;
 
     // 1. Insumos del producto base
     if (cartItem.ingredients && Array.isArray(cartItem.ingredients)) {
       cartItem.ingredients.forEach(ing => {
         if (ing?.inventoryId && inventoryList.some(inv => inv.id === ing.inventoryId)) {
-          const qty = (parseFloat(ing.quantity) || 0) * itemQty;
+          const qty = parsePositiveQuantity(ing.quantity, 0) * itemQty;
           if (qty > 0) {
-            deductions[ing.inventoryId] = (deductions[ing.inventoryId] || 0) + qty;
+            deductions[ing.inventoryId] = roundInventoryQuantity((deductions[ing.inventoryId] || 0) + qty);
           }
         }
       });
@@ -208,15 +265,17 @@ export const calculateTotalDeductions = (cartList = [], inventoryList = [], menu
         const spDeductions = resolveSubproductDeductions(sp, cartItem, inventoryList, menuItemsList);
         spDeductions.forEach(subDeduct => {
           if (subDeduct.inventoryId) {
-            const qty = (parseFloat(subDeduct.quantity) || 1) * itemQty;
-            deductions[subDeduct.inventoryId] = (deductions[subDeduct.inventoryId] || 0) + qty;
+            const qty = parsePositiveQuantity(subDeduct.quantity, 1) * itemQty;
+            if (qty > 0) {
+              deductions[subDeduct.inventoryId] = roundInventoryQuantity((deductions[subDeduct.inventoryId] || 0) + qty);
+            }
           }
         });
       });
     }
   });
 
-  return deductions;
+  return normalizeDeductionsMap(deductions);
 };
 
 /**
@@ -231,7 +290,7 @@ export const getSubproductStockInfo = (spDef, opt, parentItem, inventoryList = [
     name: typeof opt === 'string' ? opt : (opt?.name || spDef?.name || ''),
     selectedOption: opt ? (typeof opt === 'string' ? opt : opt.name) : null,
     inventoryId: isObjOpt ? (opt.inventoryId || null) : (spDef?.inventoryId || null),
-    quantity: isObjOpt ? (opt.quantity || 1) : (spDef?.quantity || 1)
+    quantity: isObjOpt ? parsePositiveQuantity(opt.quantity, 1) : parsePositiveQuantity(spDef?.quantity, 1)
   };
 
   const deductions = resolveSubproductDeductions(dummySp, effectiveParentItem, inventoryList, menuItemsList);

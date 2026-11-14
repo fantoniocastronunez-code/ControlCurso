@@ -5,7 +5,7 @@ import { Plus, Trash2, Edit2, Check, X, Package, Sparkles, Copy } from 'lucide-r
 import { useModal } from '../../../context/ModalContext';
 import { useAuth } from '../../../context/AuthContext';
 import { loadDemoEventData } from '../../../utils/eventTestUtils';
-import { normalizeInventoryName } from '../../../utils/inventoryDeductions';
+import { normalizeInventoryName, parsePositiveQuantity } from '../../../utils/inventoryDeductions';
 import CopyMenuItemsModal from '../CopyMenuItemsModal';
 import { buildMenuFormStateFromItem, generateUniqueFirestoreId } from '../../../utils/menuCopyUtils';
 
@@ -110,22 +110,24 @@ const EventMenu = ({ event }) => {
                 return opt.trim();
               }
               const optName = (opt.name || '').trim();
+              const parsedOptQty = parsePositiveQuantity(opt.quantity, 1);
               return {
                 name: optName,
                 inventoryId: opt.inventoryId || '',
-                quantity: parseFloat(opt.quantity) || 1
+                quantity: parsedOptQty > 0 ? parsedOptQty : 1
               };
             })
             .filter(opt => Boolean(typeof opt === 'string' ? opt : opt.name));
 
           const spInvId = !sp.hasOptions ? (sp.inventoryId || '') : '';
+          const parsedSpQty = !sp.hasOptions ? parsePositiveQuantity(sp.quantity, 1) : 1;
 
           return {
             name: sp.name.trim(),
             price: parseFloat(sp.price || 0),
             hasOptions: Boolean(sp.hasOptions && cleanOptions.length > 0),
             inventoryId: spInvId,
-            quantity: !sp.hasOptions ? (parseFloat(sp.quantity) || 1) : 1,
+            quantity: parsedSpQty > 0 ? parsedSpQty : 1,
             options: cleanOptions
           };
         }) : [],

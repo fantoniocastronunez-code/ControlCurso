@@ -23,7 +23,7 @@ import {
   printViaRawBT,
   printViaWebBluetooth
 } from '../../../utils/thermalPrinterService';
-import { calculateTotalDeductions } from '../../../utils/inventoryDeductions';
+import { cancelSaleAndRestoreInventoryTransaction } from '../../../utils/inventoryTransactions';
 import { checkEventClosureReadiness } from '../../../utils/eventClosureValidation';
 
 const EventReconciliation = ({ event, onNavigateTab }) => {
@@ -97,25 +97,26 @@ const EventReconciliation = ({ event, onNavigateTab }) => {
       }
     });
 
-    // Cargar Inventario y Menú (para deducciones/reposiciones al anular)
-    const fetchAuxData = async () => {
-      try {
-        const qInv = query(collection(db, 'eventInventory'), where('eventId', '==', event.id));
-        const snapInv = await getDocs(qInv);
-        setInventory(snapInv.docs.map(d => ({ id: d.id, ...d.data() })));
+    // Escuchar Inventario y Menú en tiempo real (evita caché obsoleto al anular ventas)
+    const qInv = query(collection(db, 'eventInventory'), where('eventId', '==', event.id));
+    const unsubscribeInv = onSnapshot(qInv, (snapInv) => {
+      setInventory(snapInv.docs.map(d => ({ id: d.id, ...d.data() })));
+    }, (error) => {
+      console.error("Error al escuchar inventario:", error);
+    });
 
-        const qMenu = query(collection(db, 'eventItems'), where('eventId', '==', event.id));
-        const snapMenu = await getDocs(qMenu);
-        setMenuItems(snapMenu.docs.map(d => ({ id: d.id, ...d.data() })));
-      } catch (err) {
-        console.error("Error al cargar datos auxiliares:", err);
-      }
-    };
-    fetchAuxData();
+    const qMenu = query(collection(db, 'eventItems'), where('eventId', '==', event.id));
+    const unsubscribeMenu = onSnapshot(qMenu, (snapMenu) => {
+      setMenuItems(snapMenu.docs.map(d => ({ id: d.id, ...d.data() })));
+    }, (error) => {
+      console.error("Error al escuchar menú:", error);
+    });
 
     return () => {
       unsubscribeSales();
       unsubscribePetty();
+      unsubscribeInv();
+      unsubscribeMenu();
     };
   }, [event?.id]);
 
@@ -507,26 +508,30 @@ const EventReconciliation = ({ event, onNavigateTab }) => {
     if (!confirm) return;
 
     try {
-      // 1. Marcar como anulada en eventSales
-      await updateDoc(doc(db, 'eventSales', sale.id), {
-        status: 'cancelled',
-        cancelledAt: new Date().toISOString(),
-        cancelledBy: user?.displayName || user?.email || 'Admin'
+      const nowIso = new Date().toISOString();
+      // 1 y 2. Anular venta y restaurar stock de inventario atómicamente en Firestore
+      const txResult = await cancelSaleAndRestoreInventoryTransaction(db, {
+        saleRef: doc(db, 'eventSales', sale.id),
+        saleUpdateData: {
+          cancelledAt: nowIso,
+          cancelledBy: user?.displayName || user?.email || 'Admin'
+        },
+        inventoryList: inventory,
+        menuItems,
+        timestamp: nowIso
       });
 
-      // 2. Restaurar stock de inventario
-      let deductionsToRestore = sale.inventoryDeductions || {};
-      if (Object.keys(deductionsToRestore).length === 0 && sale.items && Array.isArray(sale.items)) {
-        deductionsToRestore = calculateTotalDeductions(sale.items, inventory, menuItems);
+      if (txResult.notFound || txResult.alreadyCancelled) {
+        showToast(`La venta #${sale.correlative} ya se encontraba anulada.`, 'warning');
+        return;
       }
 
-      for (const [invId, qtyToRestore] of Object.entries(deductionsToRestore)) {
-        const invItem = inventory.find(i => i.id === invId);
-        const restoredStock = (invItem?.currentStock ?? 0) + qtyToRestore;
-        await updateDoc(doc(db, 'eventInventory', invId), {
-          currentStock: restoredStock,
-          updatedAt: new Date().toISOString()
-        });
+      if (Object.keys(txResult.updatedStocks).length > 0) {
+        setInventory(prev => prev.map(inv => (
+          txResult.updatedStocks[inv.id] !== undefined
+            ? { ...inv, currentStock: txResult.updatedStocks[inv.id], updatedAt: nowIso }
+            : inv
+        )));
       }
 
       // 3. Eliminar de incomes
