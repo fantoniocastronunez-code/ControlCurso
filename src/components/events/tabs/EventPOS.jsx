@@ -29,7 +29,7 @@ import {
   normalizeDeductionsMap
 } from '../../../utils/inventoryDeductions';
 import {
-  applyInventoryDeductionsTransaction,
+  createSaleWithInventoryTransaction,
   cancelSaleAndRestoreInventoryTransaction
 } from '../../../utils/inventoryTransactions';
 import { calculateKitchenWaitMetrics } from '../../../utils/kitchenWaitTime';
@@ -102,6 +102,12 @@ const EventPOS = ({ event, onNavigateTab }) => {
   const [lastSale, setLastSale] = useState(null);
   const [waitTimerNow, setWaitTimerNow] = useState(() => Date.now());
 
+  // Concurrency locks (avoid double-sell & double-cancel race)
+  const [isProcessingSale, setIsProcessingSale] = useState(false);
+  const processingSaleRef = useRef(false);
+  const [cancellingSaleId, setCancellingSaleId] = useState(null);
+  const cancellingSaleIdsRef = useRef(new Set());
+
   // Refrescar cada 30s para mantener actualizado el cálculo de espera de comandas
   useEffect(() => {
     const timer = setInterval(() => {
@@ -136,66 +142,66 @@ const EventPOS = ({ event, onNavigateTab }) => {
   }, [event.id]);
 
   useEffect(() => {
-    let unsubscribeSales = () => { };
-    let unsubscribePettyCash = () => { };
-    let unsubscribeInventory = () => { };
-    let unsubscribeItems = () => { };
+    let isCancelled = false;
+    setLoading(true);
 
-    const fetchData = async () => {
-      setLoading(true);
-      try {
-        await fetchMenuAndInventory();
+    // Suscripción en tiempo real a inventario e ítems para evitar caché obsoleto entre cajas/pestañas
+    const qItemsLive = query(collection(db, 'eventItems'), where('eventId', '==', event.id));
+    const unsubscribeItems = onSnapshot(qItemsLive, (snapItems) => {
+      if (isCancelled) return;
+      const itemsList = snapItems.docs
+        .map(d => ({ id: d.id, ...d.data() }))
+        .sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+      setItems(itemsList);
+    }, (err) => {
+      console.error("Error al escuchar ítems en tiempo real:", err);
+    });
 
-        // Suscripción en tiempo real a inventario e ítems para evitar caché obsoleto entre cajas/pestañas
-        const qItemsLive = query(collection(db, 'eventItems'), where('eventId', '==', event.id));
-        unsubscribeItems = onSnapshot(qItemsLive, (snapItems) => {
-          const itemsList = snapItems.docs
-            .map(d => ({ id: d.id, ...d.data() }))
-            .sort((a, b) => (a.name || '').localeCompare(b.name || ''));
-          setItems(itemsList);
-        }, (err) => {
-          console.error("Error al escuchar ítems en tiempo real:", err);
-        });
+    const qInvLive = query(collection(db, 'eventInventory'), where('eventId', '==', event.id));
+    const unsubscribeInventory = onSnapshot(qInvLive, (snapInv) => {
+      if (isCancelled) return;
+      const invList = snapInv.docs
+        .map(d => ({ id: d.id, ...d.data() }))
+        .sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+      setInventory(invList);
+    }, (err) => {
+      console.error("Error al escuchar inventario en tiempo real:", err);
+    });
 
-        const qInvLive = query(collection(db, 'eventInventory'), where('eventId', '==', event.id));
-        unsubscribeInventory = onSnapshot(qInvLive, (snapInv) => {
-          const invList = snapInv.docs
-            .map(d => ({ id: d.id, ...d.data() }))
-            .sort((a, b) => (a.name || '').localeCompare(b.name || ''));
-          setInventory(invList);
-        }, (err) => {
-          console.error("Error al escuchar inventario en tiempo real:", err);
-        });
+    // Suscripción en tiempo real a las ventas para sincronizar con la cocina (Comandas)
+    const qSales = query(collection(db, 'eventSales'), where('eventId', '==', event.id));
+    const unsubscribeSales = onSnapshot(qSales, (snapSales) => {
+      if (isCancelled) return;
+      const salesList = snapSales.docs.map(d => ({ id: d.id, ...d.data() }));
+      salesList.sort((a, b) => (b.correlative || 0) - (a.correlative || 0));
+      setSales(salesList);
+    });
 
-        // Suscripción en tiempo real a las ventas para sincronizar con la cocina (Comandas)
-        const qSales = query(collection(db, 'eventSales'), where('eventId', '==', event.id));
-        unsubscribeSales = onSnapshot(qSales, (snapSales) => {
-          const salesList = snapSales.docs.map(d => ({ id: d.id, ...d.data() }));
-          salesList.sort((a, b) => (b.correlative || 0) - (a.correlative || 0));
-          setSales(salesList);
-        });
-
-        // Suscripción en tiempo real a la Caja Chica (Fondo Inicial)
-        const pettyDocRef = doc(db, 'eventPettyCash', `petty_${event.id}`);
-        unsubscribePettyCash = onSnapshot(pettyDocRef, (snapDoc) => {
-          if (snapDoc.exists()) {
-            setPettyCash({ id: snapDoc.id, ...snapDoc.data() });
-          } else {
-            setPettyCash(null);
-          }
-        }, (err) => {
-          console.warn("Listener Caja Chica:", err);
-        });
-      } catch (error) {
-        console.error("Error fetching POS data:", error);
-      } finally {
-        setLoading(false);
+    // Suscripción en tiempo real a la Caja Chica (Fondo Inicial)
+    const pettyDocRef = doc(db, 'eventPettyCash', `petty_${event.id}`);
+    const unsubscribePettyCash = onSnapshot(pettyDocRef, (snapDoc) => {
+      if (isCancelled) return;
+      if (snapDoc.exists()) {
+        setPettyCash({ id: snapDoc.id, ...snapDoc.data() });
+      } else {
+        setPettyCash(null);
       }
-    };
+    }, (err) => {
+      console.warn("Listener Caja Chica:", err);
+    });
 
-    fetchData();
+    fetchMenuAndInventory()
+      .catch((error) => {
+        console.error("Error fetching POS data:", error);
+      })
+      .finally(() => {
+        if (!isCancelled) {
+          setLoading(false);
+        }
+      });
 
     return () => {
+      isCancelled = true;
       unsubscribeSales();
       unsubscribePettyCash();
       unsubscribeInventory();
@@ -449,7 +455,7 @@ const EventPOS = ({ event, onNavigateTab }) => {
   const cartTotal = cart.reduce((sum, item) => sum + (item.unitPrice * item.quantity), 0);
 
   const handleCompleteSaleClick = () => {
-    if (cart.length === 0) return;
+    if (cart.length === 0 || processingSaleRef.current) return;
 
     if (paymentMethod === 'cash') {
       setCashReceived('');
@@ -460,9 +466,15 @@ const EventPOS = ({ event, onNavigateTab }) => {
   };
 
   const processSale = async () => {
+    if (processingSaleRef.current || cart.length === 0) return;
+    processingSaleRef.current = true;
+    setIsProcessingSale(true);
+
     try {
       // Generate next correlative
-      const nextCorrelative = sales.length > 0 ? sales[0].correlative + 1 : 1;
+      const nextCorrelative = sales.length > 0
+        ? Math.max(...sales.map(s => Number(s.correlative) || 0)) + 1
+        : 1;
 
       // Calcular deducciones de inventario según insumos del producto y de sus agregados (ej. té, bebidas, etc.)
       const deductions = normalizeDeductionsMap(calculateTotalDeductions(cart, inventory, items));
@@ -473,6 +485,7 @@ const EventPOS = ({ event, onNavigateTab }) => {
         localStorage.setItem(`event_cashier_${event.id}`, activeCashier);
       }
 
+      const nowIso = new Date().toISOString();
       const saleId = 'sale_' + Date.now();
       const newSale = {
         id: saleId,
@@ -489,45 +502,52 @@ const EventPOS = ({ event, onNavigateTab }) => {
         total: cartTotal,
         orderStatus: 'pending',
         kitchenStatus: 'pending',
-        createdAt: new Date().toISOString(),
+        createdAt: nowIso,
         createdBy: user?.email || user?.displayName || 'Unknown User'
       };
 
-      // 1. Guardar Venta
-      await setDoc(doc(db, 'eventSales', saleId), newSale);
-
-      // 2. Descontar del inventario en Firestore mediante transacción atómica (evita caché obsoleto)
-      const nowInvIso = new Date().toISOString();
-      const updatedStocks = await applyInventoryDeductionsTransaction(db, deductions, nowInvIso);
+      // 1. Guardar Venta y Descontar Inventario en una ÚNICA transacción atómica
+      // Garantiza que nunca exista una venta registrada sin su descuento exacto en stock
+      const txResult = await createSaleWithInventoryTransaction(db, {
+        saleRef: doc(db, 'eventSales', saleId),
+        saleData: newSale,
+        rawDeductions: deductions,
+        timestamp: nowIso
+      });
+      const savedSale = txResult.saleDoc;
 
       // Actualizar inventario en estado local inmediatamente con el stock real tras transacción
-      if (Object.keys(updatedStocks).length > 0) {
+      if (Object.keys(txResult.updatedStocks).length > 0) {
         setInventory(prev => prev.map(inv => (
-          updatedStocks[inv.id] !== undefined
-            ? { ...inv, currentStock: updatedStocks[inv.id], updatedAt: nowInvIso }
+          txResult.updatedStocks[inv.id] !== undefined
+            ? { ...inv, currentStock: txResult.updatedStocks[inv.id], updatedAt: nowIso }
             : inv
         )));
       }
 
-      // 3. Ingresar el dinero automáticamente al Fondo del evento (como Ingreso Extra)
-      const incomeId = 'inc_' + Date.now();
-      await setDoc(doc(db, 'incomes', incomeId), {
-        title: `Venta #${nextCorrelative} - ${event.name}`,
-        date: new Date().toISOString().split('T')[0],
-        amount: cartTotal,
-        paymentMethod,
-        fundId: event.fundId,
-        eventId: event.id,
-        courseId: event.courseId,
-        saleId: saleId,
-        isTest: Boolean(event.isTestEvent),
-        createdAt: new Date().toISOString(),
-        createdBy: user?.email || user?.displayName || 'Unknown User'
-      });
+      // 2. Ingresar el dinero automáticamente al Fondo del evento (como Ingreso Extra)
+      try {
+        const incomeId = 'inc_' + Date.now();
+        await setDoc(doc(db, 'incomes', incomeId), {
+          title: `Venta #${nextCorrelative} - ${event.name}`,
+          date: nowIso.split('T')[0],
+          amount: cartTotal,
+          paymentMethod,
+          fundId: event.fundId || '',
+          eventId: event.id,
+          courseId: event.courseId || '',
+          saleId: saleId,
+          isTest: Boolean(event.isTestEvent),
+          createdAt: nowIso,
+          createdBy: user?.email || user?.displayName || 'Unknown User'
+        });
+      } catch (incomeErr) {
+        console.warn("Venta registrada, pero no se pudo registrar el ingreso automático:", incomeErr);
+      }
 
       // Actualizar estado local
-      setSales([{ id: saleId, ...newSale }, ...sales]);
-      setLastSale(newSale); // Para imprimir
+      setSales(prev => (prev.some(s => s.id === saleId) ? prev : [savedSale, ...prev]));
+      setLastSale(savedSale); // Para imprimir
 
       // Limpiar carrito
       setCart([]);
@@ -539,10 +559,10 @@ const EventPOS = ({ event, onNavigateTab }) => {
       isPrintingRef.current = true;
       const printMode = getPrinterConfig();
       if (printMode === 'rawbt') {
-        printViaRawBT(buildSaleReceiptPayload(newSale, event.name));
+        printViaRawBT(buildSaleReceiptPayload(savedSale, event.name));
       } else if (printMode === 'bluetooth') {
         try {
-          await printViaWebBluetooth(buildSaleReceiptPayload(newSale, event.name));
+          await printViaWebBluetooth(buildSaleReceiptPayload(savedSale, event.name));
         } catch (err) {
           console.warn("Fallo bluetooth directo, usando ventana de impresión:", err);
           setTimeout(() => {
@@ -558,18 +578,25 @@ const EventPOS = ({ event, onNavigateTab }) => {
     } catch (error) {
       console.error("Error al completar venta:", error);
       showAlert("Ocurrió un error al registrar la venta.");
+    } finally {
+      processingSaleRef.current = false;
+      setIsProcessingSale(false);
     }
   };
 
   const handleDeleteSale = async (sale) => {
-    if (sale.status === 'cancelled') return;
+    if (!sale?.id || sale.status === 'cancelled' || cancellingSaleIdsRef.current.has(sale.id)) return;
     const confirm = await showConfirm(`¿Estás seguro que deseas anular la venta #${sale.correlative}? Esta acción no se puede deshacer.`);
     if (!confirm) return;
+    if (cancellingSaleIdsRef.current.has(sale.id)) return;
+
+    cancellingSaleIdsRef.current.add(sale.id);
+    setCancellingSaleId(sale.id);
 
     try {
       // 1. Marcar venta como anulada
       const nowIso = new Date().toISOString();
-      // 1 y 2. Anular venta y restaurar stock en el inventario atómicamente en Firestore
+      // 1 y 2. Anular venta y restaurar stock exacto en el inventario atómicamente en Firestore
       const txResult = await cancelSaleAndRestoreInventoryTransaction(db, {
         saleRef: doc(db, 'eventSales', sale.id),
         saleUpdateData: {
@@ -582,6 +609,7 @@ const EventPOS = ({ event, onNavigateTab }) => {
       });
 
       if (txResult.notFound || txResult.alreadyCancelled) {
+        await showAlert(`La venta #${sale.correlative} ya había sido anulada previamente.`);
         return;
       }
 
@@ -607,6 +635,9 @@ const EventPOS = ({ event, onNavigateTab }) => {
     } catch (error) {
       console.error("Error al anular venta:", error);
       await showAlert("Ocurrió un error al anular la venta.");
+    } finally {
+      cancellingSaleIdsRef.current.delete(sale.id);
+      setCancellingSaleId(prev => (prev === sale.id ? null : prev));
     }
   };
 
@@ -1266,13 +1297,14 @@ const EventPOS = ({ event, onNavigateTab }) => {
               <button
                 className="btn btn-primary"
                 style={{ flex: 2 }}
-                disabled={!cashReceived || Number(cashReceived) < cartTotal}
+                disabled={isProcessingSale || !cashReceived || Number(cashReceived) < cartTotal}
                 onClick={() => {
+                  if (processingSaleRef.current) return;
                   setShowCashModal(false);
                   processSale();
                 }}
               >
-                Confirmar
+                {isProcessingSale ? 'Procesando...' : 'Confirmar'}
               </button>
             </div>
           </div>
@@ -1657,7 +1689,7 @@ const EventPOS = ({ event, onNavigateTab }) => {
 
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.4rem' }}>
                 {inventory.map(inv => {
-                  const stock = inv.currentStock !== undefined ? inv.currentStock : (inv.totalPurchased || inv.initialQuantity || 0);
+                  const stock = getInventoryItemStock(inv);
                   let color = 'var(--success)';
                   let bg = 'rgba(16,185,129,0.12)';
                   let border = '1px solid rgba(16,185,129,0.3)';
@@ -2137,9 +2169,17 @@ const EventPOS = ({ event, onNavigateTab }) => {
                                 </button>
                                 <button
                                   type="button"
+                                  disabled={cancellingSaleId === sale.id}
                                   onClick={() => handleDeleteSale(sale)}
                                   className="btn btn-outline"
-                                  style={{ padding: '0.2rem 0.35rem', fontSize: '0.72rem', borderColor: 'rgba(239, 68, 68, 0.3)', color: 'var(--danger)' }}
+                                  style={{
+                                    padding: '0.2rem 0.35rem',
+                                    fontSize: '0.72rem',
+                                    borderColor: 'rgba(239, 68, 68, 0.3)',
+                                    color: 'var(--danger)',
+                                    opacity: cancellingSaleId === sale.id ? 0.5 : 1,
+                                    cursor: cancellingSaleId === sale.id ? 'wait' : 'pointer'
+                                  }}
                                   title="Anular Venta"
                                 >
                                   <Trash2 size={13} />
@@ -2274,11 +2314,22 @@ const EventPOS = ({ event, onNavigateTab }) => {
 
             <button
               onClick={handleCompleteSaleClick}
-              disabled={cart.length === 0}
+              disabled={cart.length === 0 || isProcessingSale}
               className="btn btn-primary"
-              style={{ width: '100%', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '0.5rem', padding: '0.85rem', fontSize: '1.05rem', fontWeight: 'bold' }}
+              style={{
+                width: '100%',
+                display: 'flex',
+                justifyContent: 'center',
+                alignItems: 'center',
+                gap: '0.5rem',
+                padding: '0.85rem',
+                fontSize: '1.05rem',
+                fontWeight: 'bold',
+                opacity: isProcessingSale ? 0.7 : 1,
+                cursor: isProcessingSale ? 'wait' : 'pointer'
+              }}
             >
-              <Printer size={18} /> Vender e Imprimir Vale
+              <Printer size={18} /> {isProcessingSale ? 'Procesando Venta...' : 'Vender e Imprimir Vale'}
             </button>
           </div>
         </div>

@@ -13,6 +13,10 @@ import {
   adjustInventoryInitialTransaction,
   restockInventoryTransaction
 } from '../../../utils/inventoryTransactions';
+import {
+  getInventoryItemStock,
+  roundInventoryQuantity
+} from '../../../utils/inventoryDeductions';
 
 const UNIT_OPTIONS = [
   'unidades',
@@ -39,6 +43,8 @@ const EventInventory = ({ event }) => {
   const [editingItemId, setEditingItemId] = useState(null);
   const [name, setName] = useState('');
   const [initialQuantity, setInitialQuantity] = useState('');
+  const [editCurrentStock, setEditCurrentStock] = useState('');
+  const [editingOriginalStock, setEditingOriginalStock] = useState(null);
   const [unit, setUnit] = useState('unidades');
   const [customUnit, setCustomUnit] = useState('');
   const [cost, setCost] = useState('');
@@ -105,6 +111,8 @@ const EventInventory = ({ event }) => {
     setEditingItemId(null);
     setName('');
     setInitialQuantity('');
+    setEditCurrentStock('');
+    setEditingOriginalStock(null);
     setUnit('unidades');
     setCustomUnit('');
     setCost('');
@@ -125,6 +133,19 @@ const EventInventory = ({ event }) => {
       return;
     }
 
+    let overrideCurrentStock = null;
+    if (editingItemId && editCurrentStock !== '') {
+      const parsedStock = parseFloat(editCurrentStock);
+      if (isNaN(parsedStock) || parsedStock < 0) {
+        showAlert("El stock disponible actual debe ser un número mayor o igual a 0.");
+        return;
+      }
+      const roundedStock = roundInventoryQuantity(parsedStock);
+      if (editingOriginalStock === null || roundedStock !== roundInventoryQuantity(editingOriginalStock)) {
+        overrideCurrentStock = roundedStock;
+      }
+    }
+
     const effectiveUnit = unit === 'otro' ? (customUnit.trim() || 'unidades') : unit;
     const costNum = cost ? parseFloat(cost) : 0;
 
@@ -135,6 +156,7 @@ const EventInventory = ({ event }) => {
         const updatedItem = await adjustInventoryInitialTransaction(db, {
           itemId: editingItemId,
           newInitialQuantity: qty,
+          overrideCurrentStock,
           updateFields: {
             name: name.trim(),
             unit: effectiveUnit,
@@ -203,6 +225,9 @@ const EventInventory = ({ event }) => {
       setEditingItemId(item.id);
       setName(item.name);
       setInitialQuantity(item.initialQuantity.toString());
+      const currentVal = getInventoryItemStock(item);
+      setEditCurrentStock(currentVal.toString());
+      setEditingOriginalStock(currentVal);
       if (UNIT_OPTIONS.includes(item.unit)) {
         setUnit(item.unit);
         setCustomUnit('');
@@ -411,6 +436,25 @@ const EventInventory = ({ event }) => {
                     onChange={(e) => setInitialQuantity(e.target.value)}
                   />
                 </div>
+
+                {editingItemId && (
+                  <div className="input-group" style={{ marginBottom: 0 }}>
+                    <label className="input-label" style={{ color: 'var(--primary)' }}>Stock Disponible Actual</label>
+                    <input
+                      type="number"
+                      step="any"
+                      min="0"
+                      className="input-field"
+                      placeholder="Ej. 200"
+                      value={editCurrentStock}
+                      onChange={(e) => setEditCurrentStock(e.target.value)}
+                      style={{ borderColor: 'rgba(59, 130, 246, 0.45)' }}
+                    />
+                    <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', display: 'block', marginTop: '0.2rem' }}>
+                      Permite ajustar directamente el stock disponible real sin alterar la compra inicial.
+                    </span>
+                  </div>
+                )}
 
                 <div className="input-group" style={{ marginBottom: 0 }}>
                   <label className="input-label">Unidad de Medida</label>

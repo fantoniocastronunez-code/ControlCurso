@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { db } from '../../../firebase/config';
 import {
   collection, doc, getDocs, updateDoc, deleteDoc,
@@ -52,6 +52,7 @@ const EventReconciliation = ({ event, onNavigateTab }) => {
   const [reprintSale, setReprintSale] = useState(null);
   const [expandedSaleIds, setExpandedSaleIds] = useState(new Set());
   const [updatingSaleId, setUpdatingSaleId] = useState(null);
+  const cancellingSaleIdsRef = useRef(new Set());
   const [statusMessage, setStatusMessage] = useState(null);
 
   // Modal para editar venta (total, nota, medio de pago)
@@ -501,11 +502,13 @@ const EventReconciliation = ({ event, onNavigateTab }) => {
 
   // Anular venta con reposición de inventario
   const handleCancelSale = async (sale) => {
-    if (sale.status === 'cancelled') return;
+    if (sale.status === 'cancelled' || cancellingSaleIdsRef.current.has(sale.id)) return;
     const confirm = await showConfirm(
       `¿Estás seguro de anular la venta #${sale.correlative} por ${formatMoneyCLP(sale.total)}?\n\nEsto restaurará el stock de los insumos y restará el dinero de la recaudación.`
     );
     if (!confirm) return;
+    if (cancellingSaleIdsRef.current.has(sale.id)) return;
+    cancellingSaleIdsRef.current.add(sale.id);
 
     try {
       const nowIso = new Date().toISOString();
@@ -546,6 +549,8 @@ const EventReconciliation = ({ event, onNavigateTab }) => {
     } catch (err) {
       console.error("Error al anular venta:", err);
       await showAlert("Error al anular venta: " + err.message);
+    } finally {
+      cancellingSaleIdsRef.current.delete(sale.id);
     }
   };
 
