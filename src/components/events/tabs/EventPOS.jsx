@@ -1,9 +1,9 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
 import { db } from '../../../firebase/config';
 import { collection, getDocs, doc, setDoc, query, where, orderBy, updateDoc, deleteDoc, onSnapshot } from 'firebase/firestore';
-import { ShoppingCart, Plus, Minus, Trash2, Printer, Maximize, Minimize, Check, Package, AlertTriangle, UserCheck, Users, RefreshCw, Settings, ChefHat, Camera, Banknote, Calculator, Search, X, Edit2, DollarSign } from 'lucide-react';
+import { ShoppingCart, Plus, Minus, Trash2, Printer, Maximize, Minimize, Check, Package, AlertTriangle, UserCheck, Users, RefreshCw, Settings, ChefHat, Camera, Banknote, Calculator, Search, X, Edit2, DollarSign, Copy } from 'lucide-react';
 import { useModal } from '../../../context/ModalContext';
 import { useAuth } from '../../../context/AuthContext';
 import { useCourse } from '../../../context/CourseContext';
@@ -13,6 +13,7 @@ import ComandasQRModal from '../ComandasQRModal';
 import QRScannerModal from '../QRScannerModal';
 import PettyCashModal from '../PettyCashModal';
 import CashReconciliationModal from '../CashReconciliationModal';
+import CopyMenuItemsModal from '../CopyMenuItemsModal';
 import {
   getPrinterConfig,
   buildSaleReceiptPayload,
@@ -61,6 +62,7 @@ const EventPOS = ({ event, onNavigateTab }) => {
   const [showComandasModal, setShowComandasModal] = useState(false);
   const [showPettyCashModal, setShowPettyCashModal] = useState(false);
   const [showReconciliationModal, setShowReconciliationModal] = useState(false);
+  const [showCopyMenuModal, setShowCopyMenuModal] = useState(false);
   const [pettyCash, setPettyCash] = useState(null);
   const [showScanner, setShowScanner] = useState(false);
 
@@ -103,6 +105,20 @@ const EventPOS = ({ event, onNavigateTab }) => {
     }
   }, [user, event.id, cashierName]);
 
+  const fetchMenuAndInventory = useCallback(async () => {
+    const [snapItems, snapInv] = await Promise.all([
+      getDocs(query(collection(db, 'eventItems'), where('eventId', '==', event.id))),
+      getDocs(query(collection(db, 'eventInventory'), where('eventId', '==', event.id)))
+    ]);
+    const itemsList = snapItems.docs.map(d => ({ id: d.id, ...d.data() }));
+    itemsList.sort((a, b) => a.name.localeCompare(b.name));
+    setItems(itemsList);
+
+    const invList = snapInv.docs.map(d => ({ id: d.id, ...d.data() }));
+    invList.sort((a, b) => a.name.localeCompare(b.name));
+    setInventory(invList);
+  }, [event.id]);
+
   useEffect(() => {
     let unsubscribeSales = () => { };
     let unsubscribePettyCash = () => { };
@@ -110,12 +126,7 @@ const EventPOS = ({ event, onNavigateTab }) => {
     const fetchData = async () => {
       setLoading(true);
       try {
-        // Fetch menu items
-        const qItems = query(collection(db, 'eventItems'), where('eventId', '==', event.id));
-        const snapItems = await getDocs(qItems);
-        const itemsList = snapItems.docs.map(d => ({ id: d.id, ...d.data() }));
-        itemsList.sort((a, b) => a.name.localeCompare(b.name));
-        setItems(itemsList);
+        await fetchMenuAndInventory();
 
         // Suscripción en tiempo real a las ventas para sincronizar con la cocina (Comandas)
         const qSales = query(collection(db, 'eventSales'), where('eventId', '==', event.id));
@@ -136,14 +147,6 @@ const EventPOS = ({ event, onNavigateTab }) => {
         }, (err) => {
           console.warn("Listener Caja Chica:", err);
         });
-
-        // Fetch inventory items
-        const qInv = query(collection(db, 'eventInventory'), where('eventId', '==', event.id));
-        const snapInv = await getDocs(qInv);
-        const invList = snapInv.docs.map(d => ({ id: d.id, ...d.data() }));
-        invList.sort((a, b) => a.name.localeCompare(b.name));
-        setInventory(invList);
-
       } catch (error) {
         console.error("Error fetching POS data:", error);
       } finally {
@@ -157,7 +160,7 @@ const EventPOS = ({ event, onNavigateTab }) => {
       unsubscribeSales();
       unsubscribePettyCash();
     };
-  }, [event.id]);
+  }, [event.id, fetchMenuAndInventory]);
 
   // Manejo de Pantalla Completa y sincronización con el navegador
   useEffect(() => {
@@ -177,6 +180,9 @@ const EventPOS = ({ event, onNavigateTab }) => {
 
     const handleKeyDown = (e) => {
       if (e.key === 'Escape') {
+        if (document.querySelector('dialog[open]')) {
+          return;
+        }
         exitFullscreenMode();
       }
     };
@@ -218,6 +224,7 @@ const EventPOS = ({ event, onNavigateTab }) => {
   };
 
   const handleContainerClick = (e) => {
+    if (e.target.closest('dialog')) return;
     // Si estamos en modo POS pero el navegador perdió la pantalla completa nativa (ej. tras imprimir en RawBT),
     // reanudamos la pantalla completa nativa en el primer toque del usuario (excepto si hizo click en un botón/input)
     if (isFullscreen && !document.fullscreenElement && !e.target.closest('button') && !e.target.closest('input') && !e.target.closest('select')) {
@@ -1485,9 +1492,72 @@ const EventPOS = ({ event, onNavigateTab }) => {
 
           {/* Catálogo de Productos Disponibles */}
           <div>
-            <h3 style={{ marginBottom: '1rem', color: 'var(--primary)' }}>Productos Disponibles</h3>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.6rem', marginBottom: '1rem' }}>
+              <h3 style={{ margin: 0, color: 'var(--primary)' }}>Productos Disponibles</h3>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+                <button
+                  type="button"
+                  onClick={() => setShowCopyMenuModal(true)}
+                  className="btn btn-outline"
+                  style={{ padding: '0.35rem 0.75rem', fontSize: '0.8rem', display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}
+                  title="Copiar productos del menú desde otro evento para no escribir todo de nuevo"
+                >
+                  <Copy size={14} aria-hidden="true" />
+                  <span>Copiar Menú / Ítems</span>
+                </button>
+                {onNavigateTab && !isFullscreen && (
+                  <button
+                    type="button"
+                    onClick={() => onNavigateTab('menu')}
+                    className="btn btn-outline"
+                    style={{ padding: '0.35rem 0.75rem', fontSize: '0.8rem', display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}
+                    title="Ir a la pestaña Menú / Ítems para agregar, editar o duplicar productos"
+                  >
+                    <Edit2 size={14} aria-hidden="true" />
+                    <span>Editar Menú</span>
+                  </button>
+                )}
+              </div>
+            </div>
             {items.length === 0 ? (
-              <p style={{ color: 'var(--text-muted)' }}>No hay productos en el menú.</p>
+              <div
+                style={{
+                  padding: '1.5rem',
+                  borderRadius: 'var(--radius-md)',
+                  border: '1px dashed var(--border-color)',
+                  backgroundColor: 'rgba(255, 255, 255, 0.02)',
+                  textAlign: 'center'
+                }}
+              >
+                <p style={{ color: 'var(--text-muted)', marginBottom: '1rem' }}>
+                  No hay productos en el menú de este evento todavía.
+                </p>
+                <div style={{ display: 'flex', justifyContent: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
+                  <button
+                    type="button"
+                    onClick={() => setShowCopyMenuModal(true)}
+                    className="btn btn-primary"
+                    style={{ display: 'inline-flex', alignItems: 'center', gap: '0.45rem' }}
+                  >
+                    <Copy size={16} aria-hidden="true" />
+                    <span>Copiar Menú / Ítems de otro evento</span>
+                  </button>
+                  {onNavigateTab && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (isFullscreen) exitFullscreenMode();
+                        onNavigateTab('menu');
+                      }}
+                      className="btn btn-outline"
+                      style={{ display: 'inline-flex', alignItems: 'center', gap: '0.45rem' }}
+                    >
+                      <Plus size={16} aria-hidden="true" />
+                      <span>Crear Ítems Manualmente</span>
+                    </button>
+                  )}
+                </div>
+              </div>
             ) : (
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(130px, 1fr))', gap: '0.75rem' }}>
                 {items.map(item => {
@@ -2057,6 +2127,27 @@ const EventPOS = ({ event, onNavigateTab }) => {
             totalAmount: (audit?.initialPettyCash !== undefined && audit.initialPettyCash > 0) ? audit.initialPettyCash : (prev?.totalAmount || pettyCashTotal),
             closingAudit: audit
           }));
+        }}
+      />
+
+      {/* Modal para Copiar Menú / Ítems desde otro evento */}
+      <CopyMenuItemsModal
+        isOpen={showCopyMenuModal}
+        onClose={() => setShowCopyMenuModal(false)}
+        targetEvent={event}
+        existingItems={items}
+        onNavigateToMenu={onNavigateTab ? () => {
+          if (isFullscreen) exitFullscreenMode();
+          onNavigateTab('menu');
+        } : undefined}
+        onCopied={async ({ copiedCount, createdInventoryCount, sourceEventName }) => {
+          await fetchMenuAndInventory();
+          const invNote = createdInventoryCount > 0
+            ? `\nSe crearon ${createdInventoryCount} insumo(s) faltantes en Inventario con stock inicial 0.`
+            : '';
+          await showAlert(
+            `Se copiaron ${copiedCount} ${copiedCount === 1 ? 'producto' : 'productos'}${sourceEventName ? ` desde "${sourceEventName}"` : ''} al POS.${invNote}`
+          );
         }}
       />
 

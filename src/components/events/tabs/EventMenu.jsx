@@ -1,11 +1,13 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { db } from '../../../firebase/config';
 import { collection, getDocs, doc, setDoc, updateDoc, query, where, deleteDoc } from 'firebase/firestore';
-import { Plus, Trash2, Edit2, Check, X, Package, Sparkles } from 'lucide-react';
+import { Plus, Trash2, Edit2, Check, X, Package, Sparkles, Copy } from 'lucide-react';
 import { useModal } from '../../../context/ModalContext';
 import { useAuth } from '../../../context/AuthContext';
 import { loadDemoEventData } from '../../../utils/eventTestUtils';
 import { normalizeInventoryName } from '../../../utils/inventoryDeductions';
+import CopyMenuItemsModal from '../CopyMenuItemsModal';
+import { buildMenuFormStateFromItem, generateUniqueFirestoreId } from '../../../utils/menuCopyUtils';
 
 const EventMenu = ({ event }) => {
   const { user } = useAuth();
@@ -21,6 +23,11 @@ const EventMenu = ({ event }) => {
   const [hasIngredients, setHasIngredients] = useState(false);
   const [ingredients, setIngredients] = useState([{ inventoryId: '', quantity: '1' }]);
   const [editingItemId, setEditingItemId] = useState(null);
+  const [copiedFromName, setCopiedFromName] = useState('');
+  const [showCopyMenuModal, setShowCopyMenuModal] = useState(false);
+
+  const formRef = useRef(null);
+  const nameInputRef = useRef(null);
 
   const fetchItems = useCallback(async () => {
     setLoading(true);
@@ -50,6 +57,7 @@ const EventMenu = ({ event }) => {
 
   const resetForm = () => {
     setEditingItemId(null);
+    setCopiedFromName('');
     setNewItemName('');
     setNewItemPrice('');
     setHasSubproducts(false);
@@ -91,6 +99,7 @@ const EventMenu = ({ event }) => {
 
       const item = {
         eventId: event.id,
+        courseId: event.courseId || '',
         name: newItemName.trim(),
         price: parseFloat(newItemPrice),
         ingredients: cleanIngredients,
@@ -151,9 +160,10 @@ const EventMenu = ({ event }) => {
         resetForm();
         showAlert("Producto actualizado exitosamente");
       } else {
-        const id = 'item_' + Date.now();
-        await setDoc(doc(db, 'eventItems', id), item);
-        setItems([...items, { id, ...item }].sort((a, b) => a.name.localeCompare(b.name)));
+        const id = generateUniqueFirestoreId('item', 0);
+        const newItemDoc = { ...item, createdAt: new Date().toISOString() };
+        await setDoc(doc(db, 'eventItems', id), newItemDoc);
+        setItems([...items, { id, ...newItemDoc }].sort((a, b) => a.name.localeCompare(b.name)));
         resetForm();
       }
     } catch (error) {
@@ -162,46 +172,34 @@ const EventMenu = ({ event }) => {
     }
   };
 
+  const populateFormFromItem = (item, { asCopy = false } = {}) => {
+    const formState = buildMenuFormStateFromItem(item, { asCopy });
+    setEditingItemId(asCopy ? null : item.id);
+    setCopiedFromName(asCopy ? item.name : '');
+    setNewItemName(formState.name);
+    setNewItemPrice(formState.price);
+    setHasIngredients(formState.hasIngredients);
+    setIngredients(formState.ingredients);
+    setHasSubproducts(formState.hasSubproducts);
+    setSubproducts(formState.subproducts);
+  };
+
   const handleEditClick = (item) => {
-    setEditingItemId(item.id);
-    setNewItemName(item.name);
-    setNewItemPrice(item.price.toString());
-
-    if (item.ingredients && item.ingredients.length > 0) {
-      setHasIngredients(true);
-      setIngredients(item.ingredients.map(ing => ({
-        inventoryId: ing.inventoryId,
-        quantity: (ing.quantity ?? 1).toString()
-      })));
-    } else {
-      setHasIngredients(false);
-      setIngredients([{ inventoryId: '', quantity: '1' }]);
-    }
-
-    if (item.subproducts && item.subproducts.length > 0) {
-      setHasSubproducts(true);
-      setSubproducts(item.subproducts.map(sp => ({
-        name: sp.name || '',
-        price: sp.price !== undefined ? sp.price.toString() : '',
-        hasOptions: Boolean(sp.hasOptions || (sp.options && sp.options.length > 0)),
-        inventoryId: sp.inventoryId || '',
-        quantity: sp.quantity !== undefined ? sp.quantity.toString() : '1',
-        options: (sp.options || []).map(opt => {
-          if (typeof opt === 'string') {
-            return { name: opt, inventoryId: '', quantity: 1 };
-          }
-          return {
-            name: opt.name || '',
-            inventoryId: opt.inventoryId || '',
-            quantity: opt.quantity || 1
-          };
-        })
-      })));
-    } else {
-      setHasSubproducts(false);
-      setSubproducts([{ name: '', price: '', hasOptions: false, inventoryId: '', quantity: '1', options: [] }]);
-    }
+    populateFormFromItem(item, { asCopy: false });
     window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const handleCopyItemToForm = (item) => {
+    populateFormFromItem(item, { asCopy: true });
+    if (formRef.current) {
+      formRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    } else {
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+    setTimeout(() => {
+      nameInputRef.current?.focus();
+      nameInputRef.current?.select();
+    }, 120);
   };
 
   const handleDeleteItem = async (id) => {
@@ -224,12 +222,57 @@ const EventMenu = ({ event }) => {
 
   return (
     <div className="glass-panel" style={{ padding: '2rem' }}>
-      <h3 style={{ marginBottom: '1.5rem', color: 'var(--primary)' }}>Menú / Inventario del Evento</h3>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.75rem', marginBottom: '1.5rem' }}>
+        <h3 style={{ margin: 0, color: 'var(--primary)' }}>Menú / Inventario del Evento</h3>
+        <button
+          type="button"
+          className="btn btn-outline"
+          onClick={() => setShowCopyMenuModal(true)}
+          style={{ display: 'inline-flex', alignItems: 'center', gap: '0.45rem', fontSize: '0.85rem' }}
+          title="Copiar productos del menú desde otro evento para no escribir todo de nuevo"
+        >
+          <Copy size={16} aria-hidden="true" />
+          <span>Copiar de otro evento</span>
+        </button>
+      </div>
 
-      <form onSubmit={handleAddItem} style={{ display: 'flex', gap: '1rem', alignItems: 'flex-end', marginBottom: '2rem', flexWrap: 'wrap' }}>
+      {copiedFromName && (
+        <div
+          style={{
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            gap: '0.75rem',
+            flexWrap: 'wrap',
+            padding: '0.75rem 1rem',
+            marginBottom: '1.25rem',
+            borderRadius: 'var(--radius-md)',
+            backgroundColor: 'rgba(37, 99, 235, 0.12)',
+            border: '1px solid rgba(37, 99, 235, 0.35)',
+            fontSize: '0.85rem',
+            color: '#bfdbfe'
+          }}
+        >
+          <span>
+            Creando nuevo producto basado en <strong>{copiedFromName}</strong>. Modifica el nombre o precio y presiona <strong>Agregar</strong>.
+          </span>
+          <button
+            type="button"
+            className="btn btn-outline"
+            style={{ padding: '0.25rem 0.6rem', fontSize: '0.78rem' }}
+            onClick={resetForm}
+          >
+            Limpiar formulario
+          </button>
+        </div>
+      )}
+
+      <form ref={formRef} onSubmit={handleAddItem} style={{ display: 'flex', gap: '1rem', alignItems: 'flex-end', marginBottom: '2rem', flexWrap: 'wrap' }}>
         <div className="input-group" style={{ flex: 1, minWidth: '200px' }}>
-          <label className="input-label">Nombre del Producto (Ej. Promo Completo, Bebida)</label>
+          <label htmlFor="menu-item-name" className="input-label">Nombre del Producto (Ej. Promo Completo, Bebida)</label>
           <input
+            id="menu-item-name"
+            ref={nameInputRef}
             type="text"
             required
             className="input-field"
@@ -238,8 +281,9 @@ const EventMenu = ({ event }) => {
           />
         </div>
         <div className="input-group" style={{ flex: 1, minWidth: '150px' }}>
-          <label className="input-label">Precio de Venta ($)</label>
+          <label htmlFor="menu-item-price" className="input-label">Precio de Venta ($)</label>
           <input
+            id="menu-item-price"
             type="number"
             min="0"
             required
@@ -753,19 +797,29 @@ const EventMenu = ({ event }) => {
 
       {items.length === 0 ? (
         <div style={{ textAlign: 'center', padding: '2rem', backgroundColor: 'rgba(255,255,255,0.02)', borderRadius: 'var(--radius-md)', border: '1px dashed var(--border-color)' }}>
-          <p style={{ color: 'var(--text-muted)', marginBottom: event.isTestEvent ? '1rem' : 0 }}>
-            No hay ítems en el menú todavía. Agrega algunos arriba.
+          <p style={{ color: 'var(--text-muted)', marginBottom: '1rem' }}>
+            No hay ítems en el menú todavía. Agrega algunos arriba o cópialos desde otro evento.
           </p>
-          {event.isTestEvent && (
+          <div style={{ display: 'flex', justifyContent: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
             <button
               type="button"
-              onClick={handleLoadDemoData}
-              className="btn btn-warning"
-              style={{ display: 'inline-flex', alignItems: 'center', gap: '0.5rem', fontWeight: 'bold' }}
+              onClick={() => setShowCopyMenuModal(true)}
+              className="btn btn-primary"
+              style={{ display: 'inline-flex', alignItems: 'center', gap: '0.5rem' }}
             >
-              <Sparkles size={16} /> Precargar Menú e Insumos Demo (Completos)
+              <Copy size={16} aria-hidden="true" /> Copiar menú de otro evento
             </button>
-          )}
+            {event.isTestEvent && (
+              <button
+                type="button"
+                onClick={handleLoadDemoData}
+                className="btn btn-warning"
+                style={{ display: 'inline-flex', alignItems: 'center', gap: '0.5rem', fontWeight: 'bold' }}
+              >
+                <Sparkles size={16} aria-hidden="true" /> Precargar Menú e Insumos Demo (Completos)
+              </button>
+            )}
+          </div>
         </div>
       ) : (
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(250px, 1fr))', gap: '1rem' }}>
@@ -796,26 +850,55 @@ const EventMenu = ({ event }) => {
                   </div>
                 )}
               </div>
-              <div style={{ display: 'flex', gap: '0.5rem' }}>
+              <div style={{ display: 'flex', gap: '0.35rem', flexShrink: 0 }}>
                 <button
-                  onClick={() => handleEditClick(item)}
-                  style={{ background: 'none', border: 'none', color: 'var(--primary)', cursor: 'pointer', padding: '0.5rem' }}
-                  title="Editar producto"
+                  type="button"
+                  onClick={() => handleCopyItemToForm(item)}
+                  aria-label={`Copiar ${item.name} al formulario`}
+                  style={{ background: 'none', border: 'none', color: '#93c5fd', cursor: 'pointer', padding: '0.45rem', minWidth: '32px', minHeight: '32px', display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}
+                  title="Copiar producto como base para uno nuevo"
                 >
-                  <Edit2 size={18} />
+                  <Copy size={17} aria-hidden="true" />
                 </button>
                 <button
+                  type="button"
+                  onClick={() => handleEditClick(item)}
+                  aria-label={`Editar ${item.name}`}
+                  style={{ background: 'none', border: 'none', color: 'var(--primary)', cursor: 'pointer', padding: '0.45rem', minWidth: '32px', minHeight: '32px', display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}
+                  title="Editar producto"
+                >
+                  <Edit2 size={18} aria-hidden="true" />
+                </button>
+                <button
+                  type="button"
                   onClick={() => handleDeleteItem(item.id)}
-                  style={{ background: 'none', border: 'none', color: 'var(--danger)', cursor: 'pointer', padding: '0.5rem' }}
+                  aria-label={`Eliminar ${item.name}`}
+                  style={{ background: 'none', border: 'none', color: 'var(--danger)', cursor: 'pointer', padding: '0.45rem', minWidth: '32px', minHeight: '32px', display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}
                   title="Eliminar producto"
                 >
-                  <Trash2 size={18} />
+                  <Trash2 size={18} aria-hidden="true" />
                 </button>
               </div>
             </div>
           ))}
         </div>
       )}
+
+      <CopyMenuItemsModal
+        isOpen={showCopyMenuModal}
+        onClose={() => setShowCopyMenuModal(false)}
+        targetEvent={event}
+        existingItems={items}
+        onCopied={async ({ copiedCount, createdInventoryCount, sourceEventName }) => {
+          await fetchItems();
+          const invNote = createdInventoryCount > 0
+            ? `\nSe crearon ${createdInventoryCount} insumo(s) faltantes en Inventario con stock inicial 0.`
+            : '';
+          await showAlert(
+            `Se copiaron ${copiedCount} ${copiedCount === 1 ? 'producto' : 'productos'}${sourceEventName ? ` desde "${sourceEventName}"` : ''} al menú.${invNote}`
+          );
+        }}
+      />
     </div>
   );
 };

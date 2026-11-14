@@ -265,6 +265,45 @@ h1, h2, h3, h4, h5, h6 {
   }
 }
 
+/* Native <dialog> Modals */
+dialog.app-modal-dialog {
+  margin: auto;
+  padding: 0;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-lg);
+  background-color: var(--bg-card);
+  color: var(--text-main);
+  width: min(680px, 94vw);
+  max-width: min(680px, 94vw);
+  max-height: 90vh;
+  overflow: hidden;
+  box-shadow: 0 24px 48px rgba(0, 0, 0, 0.65);
+}
+
+dialog.app-modal-dialog:modal {
+  overscroll-behavior: contain;
+}
+
+dialog.app-modal-dialog::backdrop {
+  background-color: rgba(0, 0, 0, 0.72) !important;
+  background-image: none !important;
+  backdrop-filter: blur(4px);
+  overflow: hidden;
+  overscroll-behavior: contain;
+}
+
+.visually-hidden:where(:not(:focus-within, :active)) {
+  position: absolute !important;
+  clip-path: inset(50%) !important;
+  overflow: hidden !important;
+  width: 1px !important;
+  height: 1px !important;
+  margin: -1px !important;
+  padding: 0 !important;
+  border: 0 !important;
+  white-space: nowrap !important;
+}
+
 /* ==========================================================================
    Mobile Responsive Layout Fixes
    ========================================================================== */
