@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { db } from '../firebase/config';
 import { collection, getDocs } from 'firebase/firestore';
-import { Search, X, User, UserCheck, AlertCircle, CheckCircle, DollarSign, ArrowRight, ShieldAlert } from 'lucide-react';
+import { Search, X, User, UserCheck, AlertCircle, CheckCircle, DollarSign, ArrowRight, ShieldAlert, Sparkles } from 'lucide-react';
 import { formatStudentName } from '../utils/nameUtils';
 import StudentDetailModal from './StudentDetailModal';
 
