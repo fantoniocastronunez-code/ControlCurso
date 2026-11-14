@@ -5,7 +5,57 @@ import {
   getInventoryItemStock,
   normalizeDeductionsMap,
   roundInventoryQuantity
-} from './inventoryDeductions';
+} from './inventoryDeductions.js';
+
+/**
+ * Ejecuta dentro de un objeto `transaction` el alta de la venta y el descuento atómico de insumos.
+ */
+export const executeSaleWithInventoryStep = async (
+  transaction,
+  { saleRef, saleData, rawDeductions = {}, timestamp, invRefBuilder }
+) => {
+  const requestedDeductions = normalizeDeductionsMap(rawDeductions);
+  const entries = Object.entries(requestedDeductions);
+  const updatedAt = timestamp || new Date().toISOString();
+
+  const invRefs = entries.map(([invId]) => invRefBuilder(invId));
+  const invSnaps = await Promise.all(invRefs.map(ref => transaction.get(ref)));
+
+  const updatedStocks = {};
+  const appliedDeductions = {};
+
+  invSnaps.forEach((invSnap, index) => {
+    if (!invSnap.exists()) return;
+    const [invId, qtyToDeduct] = entries[index];
+    const liveStock = getInventoryItemStock(invSnap.data());
+    const newStock = applyStockDelta(liveStock, -qtyToDeduct);
+    const actualDeducted = Math.max(0, roundInventoryQuantity(liveStock - newStock));
+
+    transaction.update(invSnap.ref, {
+      currentStock: newStock,
+      updatedAt
+    });
+
+    updatedStocks[invId] = newStock;
+    if (actualDeducted > 0) {
+      appliedDeductions[invId] = actualDeducted;
+    }
+  });
+
+  const finalSaleDoc = {
+    ...saleData,
+    inventoryDeductions: appliedDeductions,
+    inventoryDeducted: Object.keys(appliedDeductions).length > 0
+  };
+
+  transaction.set(saleRef, finalSaleDoc);
+
+  return {
+    updatedStocks,
+    appliedDeductions,
+    saleDoc: finalSaleDoc
+  };
+};
 
 /**
  * Registra la venta y descuenta los insumos en Firestore dentro de una ÚNICA transacción atómica.
@@ -17,49 +67,15 @@ export const createSaleWithInventoryTransaction = async (
   db,
   { saleRef, saleData, rawDeductions = {}, timestamp }
 ) => {
-  const requestedDeductions = normalizeDeductionsMap(rawDeductions);
-  const entries = Object.entries(requestedDeductions);
-  const updatedAt = timestamp || new Date().toISOString();
-
-  return runTransaction(db, async (transaction) => {
-    const invRefs = entries.map(([invId]) => doc(db, 'eventInventory', invId));
-    const invSnaps = await Promise.all(invRefs.map(ref => transaction.get(ref)));
-
-    const updatedStocks = {};
-    const appliedDeductions = {};
-
-    invSnaps.forEach((invSnap, index) => {
-      if (!invSnap.exists()) return;
-      const [invId, qtyToDeduct] = entries[index];
-      const liveStock = getInventoryItemStock(invSnap.data());
-      const newStock = applyStockDelta(liveStock, -qtyToDeduct);
-      const actualDeducted = Math.max(0, roundInventoryQuantity(liveStock - newStock));
-
-      transaction.update(invSnap.ref, {
-        currentStock: newStock,
-        updatedAt
-      });
-
-      updatedStocks[invId] = newStock;
-      if (actualDeducted > 0) {
-        appliedDeductions[invId] = actualDeducted;
-      }
-    });
-
-    const finalSaleDoc = {
-      ...saleData,
-      inventoryDeductions: appliedDeductions,
-      inventoryDeducted: Object.keys(appliedDeductions).length > 0
-    };
-
-    transaction.set(saleRef, finalSaleDoc);
-
-    return {
-      updatedStocks,
-      appliedDeductions,
-      saleDoc: finalSaleDoc
-    };
-  });
+  return runTransaction(db, (transaction) =>
+    executeSaleWithInventoryStep(transaction, {
+      saleRef,
+      saleData,
+      rawDeductions,
+      timestamp,
+      invRefBuilder: (invId) => doc(db, 'eventInventory', invId)
+    })
+  );
 };
 
 /**
@@ -97,6 +113,68 @@ export const resolveRecordedDeductionsForRestore = (
 };
 
 /**
+ * Ejecuta dentro de un objeto `transaction` la anulación idempotente y reposición exacta de inventario.
+ */
+export const executeCancelSaleRestoreStep = async (
+  transaction,
+  {
+    saleRef,
+    saleUpdateData = {},
+    inventoryList = [],
+    menuItems = [],
+    timestamp,
+    invRefBuilder
+  }
+) => {
+  const updatedAt = timestamp || new Date().toISOString();
+  const saleSnap = await transaction.get(saleRef);
+  if (!saleSnap.exists()) {
+    return { notFound: true, alreadyCancelled: false, updatedStocks: {}, deductionsRestored: {} };
+  }
+
+  const liveSale = saleSnap.data();
+  if (liveSale.status === 'cancelled') {
+    return { notFound: false, alreadyCancelled: true, updatedStocks: {}, deductionsRestored: {} };
+  }
+
+  const deductionsToRestore = resolveRecordedDeductionsForRestore(
+    liveSale,
+    inventoryList,
+    menuItems
+  );
+
+  const entries = Object.entries(deductionsToRestore);
+  const invRefs = entries.map(([invId]) => invRefBuilder(invId));
+  const invSnaps = await Promise.all(invRefs.map(ref => transaction.get(ref)));
+
+  transaction.update(saleRef, {
+    ...saleUpdateData,
+    status: 'cancelled'
+  });
+
+  const updatedStocks = {};
+  invSnaps.forEach((invSnap, index) => {
+    if (!invSnap.exists()) return;
+    const [invId, qtyToRestore] = entries[index];
+    const liveStock = getInventoryItemStock(invSnap.data());
+    const restoredStock = applyStockDelta(liveStock, qtyToRestore);
+
+    transaction.update(invSnap.ref, {
+      currentStock: restoredStock,
+      updatedAt
+    });
+    updatedStocks[invId] = restoredStock;
+  });
+
+  return {
+    notFound: false,
+    alreadyCancelled: false,
+    updatedStocks,
+    deductionsRestored: deductionsToRestore
+  };
+};
+
+/**
  * Anula una venta y repone su inventario atómicamente en Firestore.
  * Verifica `status !== 'cancelled'` dentro de la transacción para impedir reposiciones duplicadas.
  */
@@ -110,55 +188,60 @@ export const cancelSaleAndRestoreInventoryTransaction = async (
     timestamp
   }
 ) => {
-  const updatedAt = timestamp || new Date().toISOString();
-
-  return runTransaction(db, async (transaction) => {
-    const saleSnap = await transaction.get(saleRef);
-    if (!saleSnap.exists()) {
-      return { notFound: true, alreadyCancelled: false, updatedStocks: {}, deductionsRestored: {} };
-    }
-
-    const liveSale = saleSnap.data();
-    if (liveSale.status === 'cancelled') {
-      return { notFound: false, alreadyCancelled: true, updatedStocks: {}, deductionsRestored: {} };
-    }
-
-    const deductionsToRestore = resolveRecordedDeductionsForRestore(
-      liveSale,
+  return runTransaction(db, (transaction) =>
+    executeCancelSaleRestoreStep(transaction, {
+      saleRef,
+      saleUpdateData,
       inventoryList,
-      menuItems
-    );
+      menuItems,
+      timestamp,
+      invRefBuilder: (invId) => doc(db, 'eventInventory', invId)
+    })
+  );
+};
 
-    const entries = Object.entries(deductionsToRestore);
-    const invRefs = entries.map(([invId]) => doc(db, 'eventInventory', invId));
-    const invSnaps = await Promise.all(invRefs.map(ref => transaction.get(ref)));
+/**
+ * Ejecuta dentro de un objeto `transaction` la edición del insumo y corrección opcional de stock.
+ */
+export const executeAdjustInventoryInitialStep = async (
+  transaction,
+  { invRef, newInitialQuantity, overrideCurrentStock = null, updateFields = {}, timestamp }
+) => {
+  const updatedAt = timestamp || new Date().toISOString();
+  const invSnap = await transaction.get(invRef);
+  if (!invSnap.exists()) {
+    throw new Error('El insumo ya no existe en el inventario.');
+  }
 
-    transaction.update(saleRef, {
-      ...saleUpdateData,
-      status: 'cancelled'
-    });
+  const liveItem = invSnap.data();
+  const prevInitial = Number(liveItem.initialQuantity ?? 0);
+  const safePrevInitial = Number.isFinite(prevInitial) ? prevInitial : 0;
+  const qtyDiff = roundInventoryQuantity(newInitialQuantity - safePrevInitial);
 
-    const updatedStocks = {};
-    invSnaps.forEach((invSnap, index) => {
-      if (!invSnap.exists()) return;
-      const [invId, qtyToRestore] = entries[index];
-      const liveStock = getInventoryItemStock(invSnap.data());
-      const restoredStock = applyStockDelta(liveStock, qtyToRestore);
+  const liveStock = getInventoryItemStock(liveItem);
+  const hasExplicitStockOverride =
+    overrideCurrentStock !== null &&
+    overrideCurrentStock !== undefined &&
+    Number.isFinite(Number(overrideCurrentStock));
 
-      transaction.update(invSnap.ref, {
-        currentStock: restoredStock,
-        updatedAt
-      });
-      updatedStocks[invId] = restoredStock;
-    });
+  const newStock = hasExplicitStockOverride
+    ? Math.max(0, roundInventoryQuantity(Number(overrideCurrentStock)))
+    : applyStockDelta(liveStock, qtyDiff);
 
-    return {
-      notFound: false,
-      alreadyCancelled: false,
-      updatedStocks,
-      deductionsRestored: deductionsToRestore
-    };
-  });
+  const liveTotalPurchasedRaw = Number(liveItem.totalPurchased ?? liveItem.initialQuantity ?? 0);
+  const safeTotalPurchased = Number.isFinite(liveTotalPurchasedRaw) ? liveTotalPurchasedRaw : 0;
+  const newTotalPurchased = applyStockDelta(safeTotalPurchased, qtyDiff);
+
+  const updateData = {
+    ...updateFields,
+    initialQuantity: newInitialQuantity,
+    totalPurchased: newTotalPurchased,
+    currentStock: newStock,
+    updatedAt
+  };
+
+  transaction.update(invRef, updateData);
+  return { ...liveItem, ...updateData };
 };
 
 /**
@@ -171,44 +254,15 @@ export const adjustInventoryInitialTransaction = async (
   { itemId, newInitialQuantity, overrideCurrentStock = null, updateFields = {}, timestamp }
 ) => {
   const invRef = doc(db, 'eventInventory', itemId);
-  const updatedAt = timestamp || new Date().toISOString();
-
-  return runTransaction(db, async (transaction) => {
-    const invSnap = await transaction.get(invRef);
-    if (!invSnap.exists()) {
-      throw new Error('El insumo ya no existe en el inventario.');
-    }
-
-    const liveItem = invSnap.data();
-    const prevInitial = Number(liveItem.initialQuantity ?? 0);
-    const safePrevInitial = Number.isFinite(prevInitial) ? prevInitial : 0;
-    const qtyDiff = roundInventoryQuantity(newInitialQuantity - safePrevInitial);
-
-    const liveStock = getInventoryItemStock(liveItem);
-    const hasExplicitStockOverride =
-      overrideCurrentStock !== null &&
-      overrideCurrentStock !== undefined &&
-      Number.isFinite(Number(overrideCurrentStock));
-
-    const newStock = hasExplicitStockOverride
-      ? Math.max(0, roundInventoryQuantity(Number(overrideCurrentStock)))
-      : applyStockDelta(liveStock, qtyDiff);
-
-    const liveTotalPurchasedRaw = Number(liveItem.totalPurchased ?? liveItem.initialQuantity ?? 0);
-    const safeTotalPurchased = Number.isFinite(liveTotalPurchasedRaw) ? liveTotalPurchasedRaw : 0;
-    const newTotalPurchased = applyStockDelta(safeTotalPurchased, qtyDiff);
-
-    const updateData = {
-      ...updateFields,
-      initialQuantity: newInitialQuantity,
-      totalPurchased: newTotalPurchased,
-      currentStock: newStock,
-      updatedAt
-    };
-
-    transaction.update(invRef, updateData);
-    return { ...liveItem, ...updateData };
-  });
+  return runTransaction(db, (transaction) =>
+    executeAdjustInventoryInitialStep(transaction, {
+      invRef,
+      newInitialQuantity,
+      overrideCurrentStock,
+      updateFields,
+      timestamp
+    })
+  );
 };
 
 /**
