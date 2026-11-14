@@ -1,27 +1,42 @@
-import React, { useState } from 'react';
+import React, { useState, useId } from 'react';
 import { createPortal } from 'react-dom';
 import {
   Printer, Smartphone, Bluetooth, Monitor, CheckCircle,
-  ExternalLink, X, HelpCircle, AlertCircle, RefreshCw
+  ExternalLink, X, HelpCircle, AlertCircle, RefreshCw, QrCode
 } from 'lucide-react';
 import {
   getPrinterConfig, setPrinterConfig, isAndroid,
   getPaperWidth, setPaperWidth,
   getFontSize, setFontSize,
   getCutterConfig, setCutterConfig,
+  getPrintReceiptQr, setPrintReceiptQr,
   connectWebBluetooth, disconnectWebBluetooth, getConnectedBluetoothDevice,
   printViaRawBT, printViaWebBluetooth, buildTestReceiptPayload
 } from '../../utils/thermalPrinterService';
 import { useModal } from '../../context/ModalContext';
 
-const PrinterSettingsModal = ({ isOpen, onClose, eventName }) => {
+const PrinterSettingsModal = ({ isOpen, onClose, eventName, printReceiptQr: externalPrintQr, onTogglePrintReceiptQr }) => {
   const { showAlert } = useModal();
   const [selectedMode, setSelectedMode] = useState(getPrinterConfig());
   const [paperWidth, setPaperWidthState] = useState(getPaperWidth());
   const [fontSize, setFontSizeState] = useState(getFontSize());
   const [cutterMode, setCutterModeState] = useState(getCutterConfig());
+  const [internalPrintQr, setInternalPrintQr] = useState(getPrintReceiptQr());
   const [bleDeviceName, setBleDeviceName] = useState(getConnectedBluetoothDevice());
   const [connectingBle, setConnectingBle] = useState(false);
+  const modalQrSwitchId = useId();
+
+  const printReceiptQr = typeof externalPrintQr === 'boolean' ? externalPrintQr : internalPrintQr;
+
+  const handleToggleQr = (nextEnabled) => {
+    const normalized = Boolean(nextEnabled);
+    if (onTogglePrintReceiptQr) {
+      onTogglePrintReceiptQr(normalized);
+    } else {
+      setInternalPrintQr(normalized);
+      setPrintReceiptQr(normalized);
+    }
+  };
 
   if (!isOpen) return null;
 
@@ -73,7 +88,12 @@ const PrinterSettingsModal = ({ isOpen, onClose, eventName }) => {
   };
 
   const handleTestPrint = async (modeToTest) => {
-    const payload = buildTestReceiptPayload(eventName || 'APPCURSO POS', 'Test de Impresora');
+    const payload = buildTestReceiptPayload(
+      eventName || 'APPCURSO POS',
+      'Test de Impresora',
+      undefined,
+      printReceiptQr
+    );
 
     if (modeToTest === 'rawbt') {
       if (!isAndroid()) {
@@ -393,6 +413,49 @@ const PrinterSettingsModal = ({ isOpen, onClose, eventName }) => {
 
               <p style={{ margin: 0, fontSize: '0.82rem', color: '#cbd5e1' }}>
                 Abre la vista previa de impresión clásica de tu computador o celular.
+              </p>
+            </div>
+
+            {/* Código QR de seguimiento en el vale (aplica a todos los modos de impresión) */}
+            <div style={{
+              padding: '1rem',
+              backgroundColor: 'rgba(255, 255, 255, 0.03)',
+              borderRadius: '10px',
+              border: '1px solid rgba(255, 255, 255, 0.08)'
+            }}>
+              <div className="pos-switch-row">
+                <label
+                  htmlFor={modalQrSwitchId}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '0.5rem',
+                    fontSize: '0.88rem',
+                    fontWeight: 600,
+                    color: '#f8fafc',
+                    cursor: 'pointer',
+                    flex: 1
+                  }}
+                >
+                  <QrCode size={16} color={printReceiptQr ? '#60a5fa' : '#94a3b8'} aria-hidden="true" />
+                  <span>Imprimir código QR en el vale</span>
+                </label>
+                <input
+                  id={modalQrSwitchId}
+                  type="checkbox"
+                  role="switch"
+                  {...({ switch: '' })}
+                  aria-checked={printReceiptQr}
+                  aria-describedby={`${modalQrSwitchId}-desc`}
+                  checked={printReceiptQr}
+                  onChange={(e) => handleToggleQr(e.target.checked)}
+                  className="pos-switch-control"
+                />
+              </div>
+              <p id={`${modalQrSwitchId}-desc`} style={{ margin: '0.45rem 0 0 0', fontSize: '0.78rem', color: '#94a3b8', lineHeight: 1.4 }}>
+                {printReceiptQr
+                  ? 'Activado: el vale incluye el código QR para que el cliente siga el estado de su pedido.'
+                  : 'Desactivado: imprime un vale más corto y rápido sin código QR.'}
               </p>
             </div>
 

@@ -1,9 +1,9 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useId } from 'react';
 import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
 import { db } from '../../../firebase/config';
 import { collection, getDocs, doc, setDoc, query, where, orderBy, updateDoc, deleteDoc, onSnapshot } from 'firebase/firestore';
-import { ShoppingCart, Plus, Minus, Trash2, Printer, Maximize, Minimize, Check, Package, AlertTriangle, UserCheck, Users, RefreshCw, Settings, ChefHat, Camera, Banknote, Calculator, Search, X, Edit2, DollarSign, Copy, Clock } from 'lucide-react';
+import { ShoppingCart, Plus, Minus, Trash2, Printer, Maximize, Minimize, Check, Package, AlertTriangle, UserCheck, Users, RefreshCw, Settings, ChefHat, Camera, Banknote, Calculator, Search, X, Edit2, DollarSign, Copy, Clock, QrCode } from 'lucide-react';
 import { useModal } from '../../../context/ModalContext';
 import { useAuth } from '../../../context/AuthContext';
 import { useCourse } from '../../../context/CourseContext';
@@ -16,6 +16,8 @@ import CashReconciliationModal from '../CashReconciliationModal';
 import CopyMenuItemsModal from '../CopyMenuItemsModal';
 import {
   getPrinterConfig,
+  getPrintReceiptQr,
+  setPrintReceiptQr,
   buildSaleReceiptPayload,
   buildTestReceiptPayload,
   printViaRawBT,
@@ -107,6 +109,15 @@ const EventPOS = ({ event, onNavigateTab }) => {
   const processingSaleRef = useRef(false);
   const [cancellingSaleId, setCancellingSaleId] = useState(null);
   const cancellingSaleIdsRef = useRef(new Set());
+
+  // Receipt QR toggle preference
+  const [printReceiptQr, setPrintReceiptQrState] = useState(() => getPrintReceiptQr());
+  const qrSwitchId = useId();
+  const handleTogglePrintReceiptQr = (nextEnabled) => {
+    const normalized = Boolean(nextEnabled);
+    setPrintReceiptQrState(normalized);
+    setPrintReceiptQr(normalized);
+  };
 
   // Refrescar cada 30s para mantener actualizado el cálculo de espera de comandas
   useEffect(() => {
@@ -558,11 +569,12 @@ const EventPOS = ({ event, onNavigateTab }) => {
       // Disparar impresión según el método configurado
       isPrintingRef.current = true;
       const printMode = getPrinterConfig();
+      const salePayload = buildSaleReceiptPayload(savedSale, event.name, undefined, printReceiptQr);
       if (printMode === 'rawbt') {
-        printViaRawBT(buildSaleReceiptPayload(savedSale, event.name));
+        printViaRawBT(salePayload);
       } else if (printMode === 'bluetooth') {
         try {
-          await printViaWebBluetooth(buildSaleReceiptPayload(savedSale, event.name));
+          await printViaWebBluetooth(salePayload);
         } catch (err) {
           console.warn("Fallo bluetooth directo, usando ventana de impresión:", err);
           setTimeout(() => {
@@ -868,11 +880,17 @@ const EventPOS = ({ event, onNavigateTab }) => {
   const handlePrintTestTicket = async () => {
     isPrintingRef.current = true;
     const printMode = getPrinterConfig();
+    const testPayload = buildTestReceiptPayload(
+      event.name,
+      activeCashierDisplayName,
+      undefined,
+      printReceiptQr
+    );
     if (printMode === 'rawbt') {
-      printViaRawBT(buildTestReceiptPayload(event.name, activeCashierDisplayName));
+      printViaRawBT(testPayload);
     } else if (printMode === 'bluetooth') {
       try {
-        await printViaWebBluetooth(buildTestReceiptPayload(event.name, activeCashierDisplayName));
+        await printViaWebBluetooth(testPayload);
       } catch (err) {
         console.warn("Fallo bluetooth directo:", err);
         setLastSale({
@@ -901,11 +919,12 @@ const EventPOS = ({ event, onNavigateTab }) => {
   const handleReprintSale = async (sale) => {
     isPrintingRef.current = true;
     const printMode = getPrinterConfig();
+    const salePayload = buildSaleReceiptPayload(sale, event.name, undefined, printReceiptQr);
     if (printMode === 'rawbt') {
-      printViaRawBT(buildSaleReceiptPayload(sale, event.name));
+      printViaRawBT(salePayload);
     } else if (printMode === 'bluetooth') {
       try {
-        await printViaWebBluetooth(buildSaleReceiptPayload(sale, event.name));
+        await printViaWebBluetooth(salePayload);
       } catch (err) {
         console.warn("Fallo bluetooth directo:", err);
         setLastSale(sale);
@@ -1558,7 +1577,7 @@ const EventPOS = ({ event, onNavigateTab }) => {
       )}
 
       {/* Impresión oculta */}
-      <ThermalReceipt sale={lastSale} eventName={event.name} />
+      <ThermalReceipt sale={lastSale} eventName={event.name} showQr={printReceiptQr} />
 
       {/* Cuadro de Tiempo de Espera Aproximado según Comandas */}
       <article
@@ -2307,6 +2326,49 @@ const EventPOS = ({ event, onNavigateTab }) => {
               </div>
             </div>
 
+            {/* Interruptor para incluir o no el código QR en el vale */}
+            <div
+              className="pos-switch-row"
+              style={{
+                padding: '0.55rem 0.7rem',
+                marginBottom: '0.9rem',
+                borderRadius: 'var(--radius-md)',
+                backgroundColor: printReceiptQr ? 'rgba(37, 99, 235, 0.12)' : 'rgba(255, 255, 255, 0.03)',
+                border: `1px solid ${printReceiptQr ? 'rgba(37, 99, 235, 0.35)' : 'rgba(255, 255, 255, 0.1)'}`
+              }}
+            >
+              <label
+                htmlFor={qrSwitchId}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '0.45rem',
+                  fontSize: '0.84rem',
+                  fontWeight: 500,
+                  color: 'var(--text-main)',
+                  cursor: 'pointer',
+                  flex: 1
+                }}
+              >
+                <QrCode size={15} color={printReceiptQr ? 'var(--primary)' : 'var(--text-muted)'} aria-hidden="true" />
+                <span>Imprimir QR en el vale</span>
+              </label>
+              <input
+                id={qrSwitchId}
+                type="checkbox"
+                role="switch"
+                {...({ switch: '' })}
+                aria-checked={printReceiptQr}
+                aria-describedby={`${qrSwitchId}-hint`}
+                checked={printReceiptQr}
+                onChange={(e) => handleTogglePrintReceiptQr(e.target.checked)}
+                className="pos-switch-control"
+              />
+              <span id={`${qrSwitchId}-hint`} className="visually-hidden">
+                Activa o desactiva la impresión del código QR de seguimiento en el ticket de venta.
+              </span>
+            </div>
+
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem', fontSize: '1.2rem' }}>
               <strong>TOTAL:</strong>
               <strong style={{ color: 'var(--success)' }}>{formatMoney(cartTotal)}</strong>
@@ -2340,6 +2402,8 @@ const EventPOS = ({ event, onNavigateTab }) => {
         isOpen={showPrinterModal}
         onClose={() => setShowPrinterModal(false)}
         eventName={event.name}
+        printReceiptQr={printReceiptQr}
+        onTogglePrintReceiptQr={handleTogglePrintReceiptQr}
       />
 
       {/* Modal de Código QR para Pantalla de Comandas / Cocina */}

@@ -1,11 +1,14 @@
 import React from 'react';
 import { createPortal } from 'react-dom';
 import { QRCodeSVG } from 'qrcode.react';
+import { getPrintReceiptQr } from '../../../utils/thermalPrinterService';
 
 // Este componente solo es visible cuando se invoca la impresión (@media print en CSS global)
 // Está pensado para impresoras térmicas (POS) de 58mm.
-const ThermalReceipt = ({ sale, eventName }) => {
+const ThermalReceipt = ({ sale, eventName, showQr }) => {
   if (!sale) return null;
+
+  const shouldShowQr = typeof showQr === 'boolean' ? showQr : getPrintReceiptQr();
 
   const formatMoney = (amount) => {
     return new Intl.NumberFormat('es-CL', { style: 'currency', currency: 'CLP' }).format(amount);
@@ -35,11 +38,13 @@ const ThermalReceipt = ({ sale, eventName }) => {
             <p style={{ margin: '2px 0' }}>[OK] Test acentos: á, é, í, ó, ú, ñ</p>
           </div>
 
-          <div style={{ margin: '8px 0', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-            <QRCodeSVG value={orderTrackingUrl} size={85} level="M" />
-            <p style={{ margin: '4px 0 0 0', fontSize: '9px', fontWeight: 'bold' }}>QR DE PEDIDO LISTO</p>
-            <p style={{ margin: '1px 0 0 0', fontSize: '8px', color: '#666' }}>Escanea para ver estado</p>
-          </div>
+          {shouldShowQr && (
+            <div style={{ margin: '8px 0', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+              <QRCodeSVG value={orderTrackingUrl} size={85} level="M" />
+              <p style={{ margin: '4px 0 0 0', fontSize: '9px', fontWeight: 'bold' }}>QR DE PEDIDO LISTO</p>
+              <p style={{ margin: '1px 0 0 0', fontSize: '8px', color: '#666' }}>Escanea para ver estado</p>
+            </div>
+          )}
 
           <div style={{ fontSize: '12px', fontWeight: 'bold', margin: '8px 0' }}>
             ¡IMPRESIÓN CORRECTA!
@@ -102,17 +107,19 @@ const ThermalReceipt = ({ sale, eventName }) => {
           </div>
 
           {/* Código QR de Seguimiento del Pedido para el Cliente */}
-          <div style={{ textAlign: 'center', marginTop: '12px', borderTop: '1px dashed black', paddingTop: '8px' }}>
-            <div style={{ display: 'inline-block', padding: '3px', background: 'white' }}>
-              <QRCodeSVG value={orderTrackingUrl} size={85} level="M" />
+          {shouldShowQr && (
+            <div style={{ textAlign: 'center', marginTop: '12px', borderTop: '1px dashed black', paddingTop: '8px' }}>
+              <div style={{ display: 'inline-block', padding: '3px', background: 'white' }}>
+                <QRCodeSVG value={orderTrackingUrl} size={85} level="M" />
+              </div>
+              <p style={{ margin: '4px 0 0 0', fontSize: '10px', fontWeight: 'bold' }}>
+                SIGUE EL ESTADO DE TU PEDIDO
+              </p>
+              <p style={{ margin: '1px 0 0 0', fontSize: '8px', color: '#555' }}>
+                Escanea con tu celular • Ticket #{sale.correlative}
+              </p>
             </div>
-            <p style={{ margin: '4px 0 0 0', fontSize: '10px', fontWeight: 'bold' }}>
-              SIGUE EL ESTADO DE TU PEDIDO
-            </p>
-            <p style={{ margin: '1px 0 0 0', fontSize: '8px', color: '#555' }}>
-              Escanea con tu celular • Ticket #{sale.correlative}
-            </p>
-          </div>
+          )}
 
           <div style={{ textAlign: 'center', marginTop: '10px', fontSize: '12px' }}>
             <p>¡Gracias por su colaboración!</p>

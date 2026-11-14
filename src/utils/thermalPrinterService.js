@@ -8,7 +8,7 @@
  * 3. 'system': Impresión estándar mediante el diálogo de impresión del navegador (window.print).
  */
 
-import { formatEventDate } from './eventPdfService';
+import { formatEventDate } from './eventPdfService.js';
 
 // Ancho estándar en columnas para impresoras térmicas portátiles de 58mm
 export const DEFAULT_PAPER_WIDTH = 40; // 40 caracteres en Fuente B compacta, 28 en Fuente A
@@ -88,6 +88,17 @@ export const getPaperWidth = () => {
 
 export const setPaperWidth = (width) => {
   localStorage.setItem('appcurso_paper_width', String(width));
+};
+
+export const getPrintReceiptQr = () => {
+  if (typeof localStorage === 'undefined') return true;
+  const saved = localStorage.getItem('appcurso_print_receipt_qr');
+  return saved !== 'false';
+};
+
+export const setPrintReceiptQr = (enabled) => {
+  if (typeof localStorage === 'undefined') return;
+  localStorage.setItem('appcurso_print_receipt_qr', enabled ? 'true' : 'false');
 };
 
 const getFontInit = () => {
@@ -224,7 +235,7 @@ const formatItemLine = (qty, name, priceFormatted, width) => {
  * Genera el payload ESC/POS para un ticket de venta
  * Formato compacto, tipografía proporcionada (sin fuentes gigantes) y márgenes exactos
  */
-export const buildSaleReceiptPayload = (sale, eventName, width = getPaperWidth()) => {
+export const buildSaleReceiptPayload = (sale, eventName, width = getPaperWidth(), includeQr = getPrintReceiptQr()) => {
   const DOUBLE_LINE = '='.repeat(width);
   const SEP_LINE = '-'.repeat(width);
 
@@ -298,8 +309,8 @@ export const buildSaleReceiptPayload = (sale, eventName, width = getPaperWidth()
     noteLines.forEach(l => { p += `${l}\n`; });
   }
 
-  // 5. Código QR para Seguimiento en Vivo del Pedido
-  if (sale.id) {
+  // 5. Código QR para Seguimiento en Vivo del Pedido (controlado por interruptor en POS)
+  if (includeQr && sale.id) {
     const isLocal = typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
     const baseUrl = isLocal || typeof window === 'undefined' || !window.location?.origin
       ? 'https://control-curso.vercel.app'
@@ -329,7 +340,12 @@ export const buildSaleReceiptPayload = (sale, eventName, width = getPaperWidth()
 /**
  * Genera el payload ESC/POS para un ticket de prueba
  */
-export const buildTestReceiptPayload = (eventName, cashierName, width = getPaperWidth()) => {
+export const buildTestReceiptPayload = (
+  eventName,
+  cashierName,
+  width = getPaperWidth(),
+  includeQr = getPrintReceiptQr()
+) => {
   const DOUBLE_LINE = '='.repeat(width);
   const SEP_LINE = '-'.repeat(width);
 
@@ -354,22 +370,25 @@ export const buildTestReceiptPayload = (eventName, cashierName, width = getPaper
   p += `Tipografia: ${getFontSize() === 'compact' ? 'Compacta (Font B)' : 'Normal (Font A)'}\n`;
   p += `Columnas: ${width} caracteres\n`;
   p += `Corte: ${getCutterConfig() === 'auto' ? 'Automatico' : 'Manual (0 desperdicio)'}\n`;
+  p += `QR en vale: ${includeQr ? 'Si' : 'No'}\n`;
   p += `Numeros: $1.000 / $25.990\n`;
   p += `${SEP_LINE}\n`;
 
   // QR de Prueba
-  const isLocal = typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
-  const baseUrl = isLocal || typeof window === 'undefined' || !window.location?.origin
-    ? 'https://control-curso.vercel.app'
-    : window.location.origin;
-  const testOrderUrl = `${baseUrl}/pedido/test-preview`;
-  p += CMD_ALIGN_CENTER;
-  p += buildEscPosQrCode(testOrderUrl, 4);
-  p += `\n`;
-  p += CMD_BOLD_ON;
-  p += `QR DE PEDIDO LISTO\n`;
-  p += CMD_BOLD_OFF;
-  p += `Escanea para ver estado\n`;
+  if (includeQr) {
+    const isLocal = typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
+    const baseUrl = isLocal || typeof window === 'undefined' || !window.location?.origin
+      ? 'https://control-curso.vercel.app'
+      : window.location.origin;
+    const testOrderUrl = `${baseUrl}/pedido/test-preview`;
+    p += CMD_ALIGN_CENTER;
+    p += buildEscPosQrCode(testOrderUrl, 4);
+    p += `\n`;
+    p += CMD_BOLD_ON;
+    p += `QR DE PEDIDO LISTO\n`;
+    p += CMD_BOLD_OFF;
+    p += `Escanea para ver estado\n`;
+  }
 
   p += CMD_ALIGN_CENTER;
   p += CMD_BOLD_ON;

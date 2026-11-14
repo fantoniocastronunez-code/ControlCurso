@@ -863,3 +863,82 @@ dialog.app-modal-dialog::backdrop {
   border: 1px solid #a7f3d0 !important;
 }
 
+/* Visually hidden accessibility helper */
+.visually-hidden:where(:not(:focus-within, :active)) {
+  position: absolute !important;
+  clip-path: inset(50%) !important;
+  overflow: hidden !important;
+  width: 1px !important;
+  height: 1px !important;
+  margin: -1px !important;
+  padding: 0 !important;
+  border: 0 !important;
+  white-space: nowrap !important;
+}
+
+/* Accessible Switch Control (POS / Settings) */
+.pos-switch-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.pos-switch-control {
+  appearance: none;
+  -webkit-appearance: none;
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  flex-shrink: 0;
+  width: 44px;
+  height: 24px;
+  padding: 2px;
+  margin: 0;
+  border-radius: 999px;
+  border: 1px solid var(--border-focus);
+  background-color: var(--bg-surface-elevated);
+  accent-color: var(--primary);
+  cursor: pointer;
+  transition: background-color 0.2s ease, border-color 0.2s ease;
+}
+
+.pos-switch-control::before {
+  content: "";
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background-color: #cbd5e1;
+  transform: translateX(0);
+  transition: transform 0.2s ease, background-color 0.2s ease;
+}
+
+.pos-switch-control:checked {
+  background-color: var(--primary);
+  border-color: var(--primary);
+}
+
+.pos-switch-control:checked::before {
+  background-color: #ffffff;
+  transform: translateX(20px);
+}
+
+.pos-switch-control:focus-visible {
+  outline: 3px solid var(--primary);
+  outline-offset: 4px;
+}
+
+@media (pointer: coarse) {
+  .pos-switch-row {
+    min-height: 44px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pos-switch-control,
+  .pos-switch-control::before {
+    transition: none;
+  }
+}
+
+
