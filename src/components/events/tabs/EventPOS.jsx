@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
 import { db } from '../../../firebase/config';
 import { collection, getDocs, doc, setDoc, query, where, orderBy, updateDoc, deleteDoc, onSnapshot } from 'firebase/firestore';
-import { ShoppingCart, Plus, Minus, Trash2, Printer, Maximize, Minimize, Check, Package, AlertTriangle, UserCheck, Users, RefreshCw, Settings, ChefHat, Camera, Banknote, Calculator, Search, X, Edit2, DollarSign, Copy } from 'lucide-react';
+import { ShoppingCart, Plus, Minus, Trash2, Printer, Maximize, Minimize, Check, Package, AlertTriangle, UserCheck, Users, RefreshCw, Settings, ChefHat, Camera, Banknote, Calculator, Search, X, Edit2, DollarSign, Copy, Clock } from 'lucide-react';
 import { useModal } from '../../../context/ModalContext';
 import { useAuth } from '../../../context/AuthContext';
 import { useCourse } from '../../../context/CourseContext';
@@ -27,6 +27,7 @@ import {
   getSubproductStockInfo,
   getInventoryItemStock
 } from '../../../utils/inventoryDeductions';
+import { calculateKitchenWaitMetrics } from '../../../utils/kitchenWaitTime';
 
 const EventPOS = ({ event, onNavigateTab }) => {
   const { user } = useAuth();
@@ -94,6 +95,15 @@ const EventPOS = ({ event, onNavigateTab }) => {
 
   // Printing State
   const [lastSale, setLastSale] = useState(null);
+  const [waitTimerNow, setWaitTimerNow] = useState(() => Date.now());
+
+  // Refrescar cada 30s para mantener actualizado el cálculo de espera de comandas
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setWaitTimerNow(Date.now());
+    }, 30000);
+    return () => clearInterval(timer);
+  }, []);
 
   // Inicializar cajero por defecto si no hay uno guardado
   useEffect(() => {
@@ -731,6 +741,38 @@ const EventPOS = ({ event, onNavigateTab }) => {
 
   // Cálculos de Caja Chica y Efectivo en Caja
   const validSales = sales.filter(s => s.status !== 'cancelled');
+  const waitMetrics = calculateKitchenWaitMetrics(sales, waitTimerNow);
+  const waitLevelStyles = {
+    idle: {
+      border: '1px solid rgba(16, 185, 129, 0.3)',
+      bg: 'rgba(16, 185, 129, 0.08)',
+      accent: '#6ee7b7',
+      badgeBg: 'rgba(16, 185, 129, 0.2)',
+      badgeText: '#6ee7b7'
+    },
+    fast: {
+      border: '1px solid rgba(16, 185, 129, 0.42)',
+      bg: 'rgba(16, 185, 129, 0.1)',
+      accent: '#6ee7b7',
+      badgeBg: 'rgba(16, 185, 129, 0.22)',
+      badgeText: '#6ee7b7'
+    },
+    moderate: {
+      border: '1px solid rgba(245, 158, 11, 0.45)',
+      bg: 'rgba(245, 158, 11, 0.1)',
+      accent: '#fcd34d',
+      badgeBg: 'rgba(245, 158, 11, 0.22)',
+      badgeText: '#fde68a'
+    },
+    high: {
+      border: '1px solid rgba(239, 68, 68, 0.45)',
+      bg: 'rgba(239, 68, 68, 0.1)',
+      accent: '#fca5a5',
+      badgeBg: 'rgba(239, 68, 68, 0.22)',
+      badgeText: '#fecaca'
+    }
+  };
+  const waitStyle = waitLevelStyles[waitMetrics.level] || waitLevelStyles.idle;
   const cashSalesTotal = validSales.filter(s => s.paymentMethod === 'cash').reduce((sum, s) => sum + (s.total || 0), 0);
   const transferSalesTotal = validSales.filter(s => s.paymentMethod === 'transfer').reduce((sum, s) => sum + (s.total || 0), 0);
   const totalSalesAmount = validSales.reduce((sum, s) => sum + (s.total || 0), 0);
@@ -1468,6 +1510,104 @@ const EventPOS = ({ event, onNavigateTab }) => {
 
       {/* Impresión oculta */}
       <ThermalReceipt sale={lastSale} eventName={event.name} />
+
+      {/* Cuadro de Tiempo de Espera Aproximado según Comandas */}
+      <article
+        aria-labelledby="pos-wait-title"
+        style={{
+          width: '100%',
+          marginTop: isFullscreen ? '0.85rem' : '1rem',
+          padding: '0.85rem 1.15rem',
+          borderRadius: 'var(--radius-md)',
+          backgroundColor: waitStyle.bg,
+          border: waitStyle.border,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          flexWrap: 'wrap',
+          gap: '0.75rem 1.25rem'
+        }}
+      >
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.8rem', minInlineSize: 0 }}>
+          <div style={{
+            width: '40px',
+            height: '40px',
+            borderRadius: '10px',
+            backgroundColor: waitStyle.badgeBg,
+            color: waitStyle.accent,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            flexShrink: 0
+          }}>
+            <Clock size={20} aria-hidden="true" />
+          </div>
+          <div style={{ minInlineSize: 0 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+              <h3
+                id="pos-wait-title"
+                style={{ margin: 0, fontSize: '0.82rem', fontWeight: 700, color: '#cbd5e1', textTransform: 'uppercase', letterSpacing: '0.03em' }}
+              >
+                Tiempo de espera aprox. por cliente
+              </h3>
+              <span style={{
+                backgroundColor: waitStyle.badgeBg,
+                color: waitStyle.badgeText,
+                padding: '1px 8px',
+                borderRadius: '10px',
+                fontSize: '0.72rem',
+                fontWeight: 700
+              }}>
+                {waitMetrics.statusLabel}
+              </span>
+            </div>
+            <p style={{ margin: '0.2rem 0 0 0', fontSize: '0.82rem', color: '#e2e8f0' }}>
+              {waitMetrics.summaryText}
+            </p>
+          </div>
+        </div>
+
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem', flexWrap: 'wrap' }}>
+          <div style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: '0.45rem',
+            flexWrap: 'wrap',
+            fontSize: '0.78rem'
+          }}>
+            <span style={{
+              backgroundColor: 'rgba(245, 158, 11, 0.16)',
+              border: '1px solid rgba(245, 158, 11, 0.35)',
+              color: '#fde68a',
+              padding: '3px 9px',
+              borderRadius: '8px',
+              fontWeight: 700
+            }}>
+              Pendientes: {waitMetrics.pendingCount}
+            </span>
+            <span style={{
+              backgroundColor: 'rgba(59, 130, 246, 0.16)',
+              border: '1px solid rgba(59, 130, 246, 0.35)',
+              color: '#bfdbfe',
+              padding: '3px 9px',
+              borderRadius: '8px',
+              fontWeight: 700
+            }}>
+              Preparando: {waitMetrics.preparingCount}
+            </span>
+          </div>
+
+          <strong style={{
+            fontSize: '1.35rem',
+            fontWeight: 800,
+            color: waitStyle.accent,
+            lineHeight: 1.1,
+            minInlineSize: 'max-content'
+          }}>
+            {waitMetrics.headlineText}
+          </strong>
+        </div>
+      </article>
 
       {/* Contenedor Principal en 2 Columnas (Izquierda: Catálogo + Historial | Derecha: Carrito) */}
       <div style={{
