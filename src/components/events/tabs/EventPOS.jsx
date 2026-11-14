@@ -1291,11 +1291,18 @@ const EventPOS = ({ event, onNavigateTab }) => {
             </div>
 
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem', marginBottom: '1.5rem' }}>
-              <button className="btn btn-outline" onClick={() => setCashReceived(cartTotal)}>Exacto</button>
-              <button className="btn btn-outline" onClick={() => setCashReceived(Math.ceil(cartTotal / 1000) * 1000)}>Redondear (Mil)</button>
-              <button className="btn btn-outline" onClick={() => setCashReceived(5000)}>$5.000</button>
-              <button className="btn btn-outline" onClick={() => setCashReceived(10000)}>$10.000</button>
-              <button className="btn btn-outline" onClick={() => setCashReceived(20000)}>$20.000</button>
+              <button type="button" className="btn btn-outline" onClick={() => setCashReceived(cartTotal)}>Exacto</button>
+              <button type="button" className="btn btn-outline" onClick={() => setCashReceived(Math.ceil(cartTotal / 1000) * 1000)}>Redondear (Mil)</button>
+              {[2000, 5000, 10000, 20000].map(amount => (
+                <button
+                  key={amount}
+                  type="button"
+                  className="btn btn-outline"
+                  onClick={() => setCashReceived(amount)}
+                >
+                  {formatMoney(amount)}
+                </button>
+              ))}
             </div>
 
             <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '1.5rem', marginBottom: '2rem', borderTop: '1px solid rgba(255,255,255,0.1)', paddingTop: '1rem' }}>
