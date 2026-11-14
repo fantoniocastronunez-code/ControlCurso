@@ -107,40 +107,18 @@ const EventMenu = ({ event }) => {
           const cleanOptions = (sp.options || [])
             .map(opt => {
               if (typeof opt === 'string') {
-                const optTrimmed = opt.trim();
-                const matchedInv = inventoryList.find(i => 
-                  normalizeInventoryName(i.name) === normalizeInventoryName(optTrimmed)
-                );
-                return {
-                  name: optTrimmed,
-                  inventoryId: matchedInv ? matchedInv.id : '',
-                  quantity: 1
-                };
+                return opt.trim();
               }
               const optName = (opt.name || '').trim();
-              let invId = opt.inventoryId || '';
-              if (!invId && optName) {
-                const matchedInv = inventoryList.find(i => 
-                  normalizeInventoryName(i.name) === normalizeInventoryName(optName)
-                );
-                if (matchedInv) invId = matchedInv.id;
-              }
               return {
                 name: optName,
-                inventoryId: invId,
+                inventoryId: opt.inventoryId || '',
                 quantity: parseFloat(opt.quantity) || 1
               };
             })
-            .filter(opt => Boolean(opt.name));
+            .filter(opt => Boolean(typeof opt === 'string' ? opt : opt.name));
 
-          // Si el subproducto no tiene opciones, auto-vincular por nombre si coincide con inventario
-          let spInvId = !sp.hasOptions ? (sp.inventoryId || '') : '';
-          if (!sp.hasOptions && !spInvId && sp.name.trim()) {
-            const matchedInv = inventoryList.find(i => 
-              normalizeInventoryName(i.name) === normalizeInventoryName(sp.name.trim())
-            );
-            if (matchedInv) spInvId = matchedInv.id;
-          }
+          const spInvId = !sp.hasOptions ? (sp.inventoryId || '') : '';
 
           return {
             name: sp.name.trim(),
@@ -395,7 +373,7 @@ const EventMenu = ({ event }) => {
                         setSubproducts(newSp);
                       }}
                     >
-                      <option value="">(Opcional) No descontar o auto-detectar por nombre</option>
+                      <option value="">(Opcional) No descontar del inventario</option>
                       {inventoryList.map(inv => (
                         <option key={inv.id} value={inv.id}>
                           {inv.name} (Stock: {inv.currentStock} {inv.unit})
@@ -625,9 +603,8 @@ const EventMenu = ({ event }) => {
                         <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.4rem' }}>
                           {sp.options.map((opt, optIdx) => {
                             const optName = typeof opt === 'string' ? opt : opt.name;
-                            const optInvId = typeof opt === 'object' ? opt.inventoryId : '';
-                            const linkedInv = inventoryList.find(i => i.id === optInvId) || 
-                              inventoryList.find(i => normalizeInventoryName(i.name) === normalizeInventoryName(optName));
+                            const optInvId = opt && typeof opt === 'object' ? opt.inventoryId : '';
+                            const linkedInv = optInvId ? inventoryList.find(i => i.id === optInvId) : null;
 
                             return (
                               <span

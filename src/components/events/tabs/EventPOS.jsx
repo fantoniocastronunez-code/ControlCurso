@@ -24,7 +24,8 @@ import {
 import {
   calculateTotalDeductions,
   resolveSubproductDeductions,
-  getSubproductStockInfo
+  getSubproductStockInfo,
+  getInventoryItemStock
 } from '../../../utils/inventoryDeductions';
 
 const EventPOS = ({ event, onNavigateTab }) => {
@@ -224,10 +225,10 @@ const EventPOS = ({ event, onNavigateTab }) => {
   };
 
   const handleContainerClick = (e) => {
-    if (e.target.closest('dialog')) return;
+    if (e.target.closest('dialog, [role="dialog"]')) return;
     // Si estamos en modo POS pero el navegador perdió la pantalla completa nativa (ej. tras imprimir en RawBT),
-    // reanudamos la pantalla completa nativa en el primer toque del usuario (excepto si hizo click en un botón/input)
-    if (isFullscreen && !document.fullscreenElement && !e.target.closest('button') && !e.target.closest('input') && !e.target.closest('select')) {
+    // reanudamos la pantalla completa nativa en el primer toque del usuario (excepto si hizo click en controles/modales)
+    if (isFullscreen && !document.fullscreenElement && !e.target.closest('button, input, select, label, textarea, a')) {
       if (document.documentElement.requestFullscreen) {
         document.documentElement.requestFullscreen().catch(() => { });
       }
@@ -255,9 +256,13 @@ const EventPOS = ({ event, onNavigateTab }) => {
     let limitingIng = null;
 
     for (const ing of item.ingredients) {
+      if (!ing?.inventoryId) continue;
       const invItem = inventory.find(i => i.id === ing.inventoryId);
-      const currentStock = invItem ? (invItem.currentStock || 0) : 0;
-      const possibleWithIng = Math.floor(currentStock / ing.quantity);
+      if (!invItem) continue;
+      const qty = parseFloat(ing.quantity);
+      if (!(qty > 0)) continue;
+      const currentStock = getInventoryItemStock(invItem);
+      const possibleWithIng = Math.floor(currentStock / qty);
       if (possibleWithIng < minAvailable) {
         minAvailable = possibleWithIng;
         limitingIng = invItem;
@@ -265,8 +270,8 @@ const EventPOS = ({ event, onNavigateTab }) => {
     }
 
     return {
-      hasStockLimit: true,
-      availableUnits: Math.max(0, minAvailable === Infinity ? 0 : minAvailable),
+      hasStockLimit: minAvailable !== Infinity,
+      availableUnits: minAvailable === Infinity ? null : Math.max(0, minAvailable),
       limitingIngredient: limitingIng
     };
   };
@@ -282,13 +287,19 @@ const EventPOS = ({ event, onNavigateTab }) => {
 
     const neededPerUnit = {};
     baseIngredients.forEach(ing => {
-      if (ing.inventoryId) {
-        neededPerUnit[ing.inventoryId] = (neededPerUnit[ing.inventoryId] || 0) + (parseFloat(ing.quantity) || 0);
+      if (ing?.inventoryId && inventory.some(i => i.id === ing.inventoryId)) {
+        const qty = parseFloat(ing.quantity) || 0;
+        if (qty > 0) {
+          neededPerUnit[ing.inventoryId] = (neededPerUnit[ing.inventoryId] || 0) + qty;
+        }
       }
     });
     spDeductions.forEach(d => {
-      if (d.inventoryId) {
-        neededPerUnit[d.inventoryId] = (neededPerUnit[d.inventoryId] || 0) + (parseFloat(d.quantity) || 1);
+      if (d?.inventoryId && inventory.some(i => i.id === d.inventoryId)) {
+        const qty = parseFloat(d.quantity) || 1;
+        if (qty > 0) {
+          neededPerUnit[d.inventoryId] = (neededPerUnit[d.inventoryId] || 0) + qty;
+        }
       }
     });
 
@@ -300,16 +311,17 @@ const EventPOS = ({ event, onNavigateTab }) => {
 
     for (const [invId, qtyNeededPerUnit] of Object.entries(neededPerUnit)) {
       const invItem = inventory.find(i => i.id === invId);
-      const stock = invItem ? (invItem.currentStock || 0) : 0;
+      if (!invItem) continue;
+      const stock = getInventoryItemStock(invItem);
       const alreadyCommitted = currentCommitted[invId] || 0;
       const totalNeeded = alreadyCommitted + (qtyNeededPerUnit * additionalUnits);
 
       if (totalNeeded > stock) {
         return {
           ok: false,
-          ingredientName: invItem?.name || 'Insumo',
+          ingredientName: invItem.name || 'Insumo',
           availableStock: Math.max(0, stock - alreadyCommitted),
-          unit: invItem?.unit || 'un.'
+          unit: invItem.unit || 'un.'
         };
       }
     }
@@ -447,7 +459,8 @@ const EventPOS = ({ event, onNavigateTab }) => {
       // 2. Descontar del inventario en Firestore
       for (const [invId, qtyToDeduct] of Object.entries(deductions)) {
         const invItem = inventory.find(i => i.id === invId);
-        const newStock = Math.max(0, (invItem?.currentStock ?? 0) - qtyToDeduct);
+        if (!invItem) continue;
+        const newStock = Math.max(0, getInventoryItemStock(invItem) - qtyToDeduct);
         await updateDoc(doc(db, 'eventInventory', invId), {
           currentStock: newStock,
           updatedAt: new Date().toISOString()
@@ -459,7 +472,7 @@ const EventPOS = ({ event, onNavigateTab }) => {
         if (deductions[inv.id]) {
           return {
             ...inv,
-            currentStock: Math.max(0, (inv.currentStock ?? 0) - deductions[inv.id])
+            currentStock: Math.max(0, getInventoryItemStock(inv) - deductions[inv.id])
           };
         }
         return inv;
@@ -535,7 +548,8 @@ const EventPOS = ({ event, onNavigateTab }) => {
 
       for (const [invId, qtyToRestore] of Object.entries(deductionsToRestore)) {
         const invItem = inventory.find(i => i.id === invId);
-        const restoredStock = (invItem?.currentStock ?? 0) + qtyToRestore;
+        if (!invItem) continue;
+        const restoredStock = getInventoryItemStock(invItem) + qtyToRestore;
         await updateDoc(doc(db, 'eventInventory', invId), {
           currentStock: restoredStock,
           updatedAt: new Date().toISOString()
@@ -546,7 +560,7 @@ const EventPOS = ({ event, onNavigateTab }) => {
         if (deductionsToRestore[inv.id]) {
           return {
             ...inv,
-            currentStock: (inv.currentStock ?? 0) + deductionsToRestore[inv.id]
+            currentStock: getInventoryItemStock(inv) + deductionsToRestore[inv.id]
           };
         }
         return inv;
@@ -1208,12 +1222,16 @@ const EventPOS = ({ event, onNavigateTab }) => {
 
       {/* Modal Subproductos */}
       {showSubproductModal && selectedItemForSubproducts && (
-        <div style={{
-          position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
-          backgroundColor: 'rgba(0,0,0,0.65)', backdropFilter: 'blur(5px)',
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-          zIndex: 1000
-        }}>
+        <div
+          role="dialog"
+          aria-modal="true"
+          style={{
+            position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+            backgroundColor: 'rgba(0,0,0,0.65)', backdropFilter: 'blur(5px)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            zIndex: 1000
+          }}
+        >
           <div className="glass-panel" style={{ width: '92%', maxWidth: '440px', maxHeight: '90vh', overflowY: 'auto', padding: '1.75rem', borderRadius: 'var(--radius-lg)' }}>
             <h3 style={{ marginBottom: '0.25rem', color: 'var(--text-main)' }}>Opciones para {selectedItemForSubproducts.name}</h3>
             <p style={{ color: 'var(--text-muted)', marginBottom: '1.25rem', fontSize: '0.9rem' }}>
@@ -1221,22 +1239,33 @@ const EventPOS = ({ event, onNavigateTab }) => {
             </p>
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem', marginBottom: '1.5rem' }}>
-              {selectedItemForSubproducts.subproducts.map((sp, idx) => {
-                const currentSelection = selectedSubproducts.find(s => s.baseName === sp.name || s.name === sp.name);
+              {selectedItemForSubproducts.subproducts.map((rawSp, idx) => {
+                const sp = typeof rawSp === 'string' ? { name: rawSp, price: 0, hasOptions: false } : (rawSp || {});
+                const spName = sp.name || '';
+                const currentSelection = selectedSubproducts.find(s =>
+                  s.spIndex !== undefined
+                    ? s.spIndex === idx
+                    : (s.baseName === spName || s.name === spName)
+                );
                 const isSelected = !!currentSelection;
-                const hasOptions = Boolean(sp.hasOptions && sp.options && sp.options.length > 0);
+                const hasOptions = Boolean(sp.hasOptions && Array.isArray(sp.options) && sp.options.length > 0);
 
                 // Stock check para subproducto sin opciones (ej. "Té" directo o "Palta extra")
                 const spStockInfo = !hasOptions
                   ? getSubproductStockInfo(sp, null, selectedItemForSubproducts, inventory, items)
                   : null;
-                const isSpOutOfStock = spStockInfo?.hasStockLimit && spStockInfo.availableStock <= 0;
+                const allOptionsOutOfStock = hasOptions && sp.options.every(opt => {
+                  const st = getSubproductStockInfo(sp, opt, selectedItemForSubproducts, inventory, items);
+                  return st.hasStockLimit && st.availableStock <= 0;
+                });
+                const isSpOutOfStock = Boolean(
+                  (spStockInfo?.hasStockLimit && spStockInfo.availableStock <= 0) || allOptionsOutOfStock
+                );
 
                 return (
                   <div
                     key={idx}
                     style={{
-                      padding: '0.85rem',
                       backgroundColor: isSelected ? 'rgba(99,102,241,0.08)' : 'rgba(255,255,255,0.03)',
                       borderRadius: 'var(--radius-md)',
                       border: isSelected ? '1px solid var(--primary)' : '1px solid rgba(255,255,255,0.1)',
@@ -1245,6 +1274,7 @@ const EventPOS = ({ event, onNavigateTab }) => {
                   >
                     <label style={{
                       display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                      padding: '0.85rem', width: '100%', boxSizing: 'border-box',
                       cursor: isSpOutOfStock ? 'not-allowed' : 'pointer', userSelect: 'none'
                     }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
@@ -1261,31 +1291,46 @@ const EventPOS = ({ event, onNavigateTab }) => {
                                   return !st.hasStockLimit || st.availableStock > 0;
                                 }) || sp.options[0])
                                 : null;
-                              const defaultOptionName = firstAvailOpt ? (typeof firstAvailOpt === 'string' ? firstAvailOpt : firstAvailOpt.name) : null;
-                              const defaultOptionInvId = typeof firstAvailOpt === 'object' ? firstAvailOpt.inventoryId : (sp.inventoryId || null);
-                              const defaultOptionQty = typeof firstAvailOpt === 'object' ? (firstAvailOpt.quantity || 1) : (sp.quantity || 1);
-                              const displayName = defaultOptionName ? `${sp.name} (${defaultOptionName})` : sp.name;
+                              const isObjOpt = Boolean(firstAvailOpt && typeof firstAvailOpt === 'object');
+                              const defaultOptionName = firstAvailOpt
+                                ? (typeof firstAvailOpt === 'string' ? firstAvailOpt : (firstAvailOpt.name || ''))
+                                : null;
+                              const defaultOptionInvId = isObjOpt ? (firstAvailOpt.inventoryId || null) : (sp.inventoryId || null);
+                              const defaultOptionQty = isObjOpt ? (firstAvailOpt.quantity || 1) : (sp.quantity || 1);
+                              const displayName = defaultOptionName ? `${spName} (${defaultOptionName})` : spName;
 
-                              setSelectedSubproducts([
-                                ...selectedSubproducts,
-                                {
-                                  baseName: sp.name,
-                                  name: displayName,
-                                  selectedOption: defaultOptionName,
-                                  inventoryId: defaultOptionInvId,
-                                  quantity: defaultOptionQty,
-                                  price: parseFloat(sp.price || 0)
-                                }
-                              ]);
+                              setSelectedSubproducts(prev => {
+                                const withoutSelf = prev.filter(s =>
+                                  s.spIndex !== undefined
+                                    ? s.spIndex !== idx
+                                    : (s.baseName !== spName && s.name !== spName)
+                                );
+                                return [
+                                  ...withoutSelf,
+                                  {
+                                    spIndex: idx,
+                                    baseName: spName,
+                                    name: displayName,
+                                    selectedOption: defaultOptionName,
+                                    inventoryId: defaultOptionInvId,
+                                    quantity: defaultOptionQty,
+                                    price: parseFloat(sp.price || 0)
+                                  }
+                                ];
+                              });
                             } else {
-                              setSelectedSubproducts(selectedSubproducts.filter(s => s.baseName !== sp.name && s.name !== sp.name));
+                              setSelectedSubproducts(prev => prev.filter(s =>
+                                s.spIndex !== undefined
+                                  ? s.spIndex !== idx
+                                  : (s.baseName !== spName && s.name !== spName)
+                              ));
                             }
                           }}
-                          style={{ accentColor: 'var(--primary)', width: '18px', height: '18px' }}
+                          style={{ accentColor: 'var(--primary)', width: '18px', height: '18px', cursor: isSpOutOfStock ? 'not-allowed' : 'pointer' }}
                         />
                         <span style={{ fontWeight: isSelected ? '600' : 'normal', color: isSpOutOfStock ? 'var(--text-muted)' : 'var(--text-main)' }}>
-                          {sp.name}
-                          {spStockInfo?.hasStockLimit && (
+                          {spName}
+                          {(spStockInfo?.hasStockLimit || allOptionsOutOfStock) && (
                             <span style={{
                               fontSize: '0.75rem',
                               marginLeft: '0.4rem',
@@ -1305,18 +1350,19 @@ const EventPOS = ({ event, onNavigateTab }) => {
                     {/* Submenú de tipos / opciones si está marcado */}
                     {hasOptions && isSelected && (
                       <div style={{
-                        marginTop: '0.75rem',
+                        margin: '0 0.85rem 0.85rem',
                         paddingTop: '0.75rem',
                         borderTop: '1px solid rgba(255,255,255,0.08)',
                         paddingLeft: '0.25rem'
                       }}>
                         <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginBottom: '0.5rem', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
-                          <span>Elegir tipo de {sp.name}:</span>
+                          <span>Elegir tipo de {spName}:</span>
                           <strong style={{ color: 'var(--primary)' }}>{currentSelection.selectedOption}</strong>
                         </div>
                         <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.4rem' }}>
                           {sp.options.map((opt, optIdx) => {
-                            const optName = typeof opt === 'string' ? opt : opt.name;
+                            const isObjOpt = Boolean(opt && typeof opt === 'object');
+                            const optName = typeof opt === 'string' ? opt : (opt?.name || '');
                             const optStockInfo = getSubproductStockInfo(sp, opt, selectedItemForSubproducts, inventory, items);
                             const isOutOfStock = optStockInfo.hasStockLimit && optStockInfo.availableStock <= 0;
                             const isOptActive = currentSelection.selectedOption === optName;
@@ -1328,15 +1374,19 @@ const EventPOS = ({ event, onNavigateTab }) => {
                                 disabled={isOutOfStock}
                                 onClick={() => {
                                   if (isOutOfStock) return;
-                                  setSelectedSubproducts(selectedSubproducts.map(s => {
-                                    if (s.baseName === sp.name || s.name.startsWith(sp.name)) {
+                                  setSelectedSubproducts(prev => prev.map(s => {
+                                    const matchesRow = s.spIndex !== undefined
+                                      ? s.spIndex === idx
+                                      : (s.baseName === spName || s.name === spName || s.name.startsWith(`${spName} (`));
+                                    if (matchesRow) {
                                       return {
                                         ...s,
-                                        baseName: sp.name,
-                                        name: `${sp.name} (${optName})`,
+                                        spIndex: idx,
+                                        baseName: spName,
+                                        name: `${spName} (${optName})`,
                                         selectedOption: optName,
-                                        inventoryId: typeof opt === 'object' ? opt.inventoryId : null,
-                                        quantity: typeof opt === 'object' ? (opt.quantity || 1) : 1
+                                        inventoryId: isObjOpt ? (opt.inventoryId || null) : null,
+                                        quantity: isObjOpt ? (opt.quantity || 1) : 1
                                       };
                                     }
                                     return s;

@@ -18,12 +18,40 @@ export const normalizeInventoryName = (str) => {
 };
 
 /**
+ * Devuelve el stock numérico disponible de un insumo de eventInventory,
+ * manteniendo consistencia entre currentStock y campos heredados (totalPurchased/initialQuantity).
+ */
+export const getInventoryItemStock = (inv) => {
+  if (!inv || typeof inv !== 'object') return 0;
+  if (inv.currentStock !== undefined && inv.currentStock !== null && inv.currentStock !== '') {
+    const num = Number(inv.currentStock);
+    return Number.isFinite(num) ? num : 0;
+  }
+  const fallback = Number(inv.totalPurchased ?? inv.initialQuantity ?? 0);
+  return Number.isFinite(fallback) ? fallback : 0;
+};
+
+const findInventoryDeduction = (inventoryId, quantity, fallbackName, inventoryList = []) => {
+  if (!inventoryId || inventoryId === '__none__') return null;
+  const invItem = inventoryList.find(i => i.id === inventoryId);
+  // Si el insumo ya no existe en el inventario del evento, no descontar ni marcar falsos "Agotado".
+  if (!invItem) return [];
+  return [{
+    inventoryId: invItem.id,
+    name: invItem.name || fallbackName || 'Insumo agregado',
+    quantity,
+    unit: invItem.unit || 'un.'
+  }];
+};
+
+/**
  * Resuelve qué insumos de inventario debe descontar un subproducto / agregado seleccionado.
  * Prioridad de resolución:
  * 1. subproduct.inventoryId explícito en la selección
  * 2. Si el producto base tiene definido inventoryId para ese agregado u opción en item.subproducts
- * 3. Coincidencia automática por nombre en la lista de insumos de eventInventory
- * 4. Coincidencia con otro producto del menú (eventItems) que tenga su propia receta
+ *    (si se definió explícitamente con inventoryId vacío '', se respeta "No descontar")
+ * 3. Coincidencia automática exacta por nombre para opciones heredadas sin propiedad inventoryId
+ * 4. Coincidencia exacta con otro producto del menú (eventItems) que tenga su propia receta
  *
  * @param {Object} subproduct - Subproducto seleccionado en el carrito { baseName, name, selectedOption, inventoryId, quantity }
  * @param {Object} item - Ítem del menú al que pertenece
@@ -38,57 +66,74 @@ export const resolveSubproductDeductions = (subproduct, item, inventoryList = []
 
   // 1. Si el subproducto ya tiene un inventoryId explícito
   if (subproduct.inventoryId) {
-    const invItem = inventoryList.find(i => i.id === subproduct.inventoryId);
-    return [{
-      inventoryId: subproduct.inventoryId,
-      name: invItem?.name || subproduct.name || 'Insumo agregado',
-      quantity: subQty,
-      unit: invItem?.unit || 'un.'
-    }];
+    const resolved = findInventoryDeduction(subproduct.inventoryId, subQty, subproduct.name, inventoryList);
+    if (resolved !== null) return resolved;
+    return [];
   }
 
   // 2. Buscar en la definición del producto original (en item.subproducts)
+  let hasExplicitNoDeduction = false;
   if (item && item.subproducts && Array.isArray(item.subproducts)) {
-    const spDef = item.subproducts.find(sp =>
-      sp.name === subproduct.baseName ||
-      sp.name === subproduct.name ||
-      (subproduct.name && subproduct.name.startsWith(sp.name))
-    );
+    const byIndex = Number.isInteger(subproduct.spIndex) ? item.subproducts[subproduct.spIndex] : null;
+    const spDef = (byIndex && (!subproduct.baseName || byIndex.name === subproduct.baseName))
+      ? byIndex
+      : item.subproducts.find(sp =>
+          sp && (
+            (subproduct.baseName && sp.name === subproduct.baseName) ||
+            sp.name === subproduct.name ||
+            (subproduct.name && sp.name && subproduct.name.startsWith(`${sp.name} (`))
+          )
+        );
 
     if (spDef) {
       // 2a. Si tiene opciones y se seleccionó una opción
       if (spDef.hasOptions && subproduct.selectedOption && Array.isArray(spDef.options)) {
         const optDef = spDef.options.find(opt => {
-          const optName = typeof opt === 'string' ? opt : opt.name;
+          const optName = typeof opt === 'string' ? opt : opt?.name;
           return optName === subproduct.selectedOption;
         });
 
-        if (optDef && typeof optDef === 'object' && optDef.inventoryId) {
-          const invItem = inventoryList.find(i => i.id === optDef.inventoryId);
-          return [{
-            inventoryId: optDef.inventoryId,
-            name: invItem?.name || optDef.name || subproduct.selectedOption,
-            quantity: (parseFloat(optDef.quantity) || 1) * subQty,
-            unit: invItem?.unit || 'un.'
-          }];
+        if (optDef && typeof optDef === 'object') {
+          if (optDef.inventoryId) {
+            const resolved = findInventoryDeduction(
+              optDef.inventoryId,
+              (parseFloat(optDef.quantity) || 1) * subQty,
+              optDef.name || subproduct.selectedOption,
+              inventoryList
+            );
+            return resolved || [];
+          }
+          if (Object.prototype.hasOwnProperty.call(optDef, 'inventoryId')) {
+            // La opción fue configurada explícitamente sin descuento de inventario.
+            return [];
+          }
         }
       }
 
-      // 2b. Si el subproducto en sí tiene inventoryId (sin opciones)
-      if (!spDef.hasOptions && spDef.inventoryId) {
-        const invItem = inventoryList.find(i => i.id === spDef.inventoryId);
-        return [{
-          inventoryId: spDef.inventoryId,
-          name: invItem?.name || spDef.name,
-          quantity: (parseFloat(spDef.quantity) || 1) * subQty,
-          unit: invItem?.unit || 'un.'
-        }];
+      // 2b. Si el subproducto en sí tiene inventoryId (sin opciones) o fue dejado en "No descontar"
+      if (!spDef.hasOptions) {
+        if (spDef.inventoryId) {
+          const resolved = findInventoryDeduction(
+            spDef.inventoryId,
+            (parseFloat(spDef.quantity) || 1) * subQty,
+            spDef.name,
+            inventoryList
+          );
+          return resolved || [];
+        }
+        if (Object.prototype.hasOwnProperty.call(spDef, 'inventoryId')) {
+          hasExplicitNoDeduction = true;
+        }
       }
     }
   }
 
-  // 3. Coincidencia automática por nombre contra la lista de inventario (insumos)
-  // Probamos nombres candidatos en orden de especificidad:
+  if (hasExplicitNoDeduction) {
+    return [];
+  }
+
+  // 3. Coincidencia automática exacta por nombre contra la lista de inventario (solo opciones heredadas sin inventoryId)
+  // Sin coincidencia parcial por subcadena para evitar falsos cruces (ej. "tomate" con "Té" o "Tomates").
   const candidateNames = [
     subproduct.selectedOption,
     subproduct.baseName,
@@ -99,7 +144,6 @@ export const resolveSubproductDeductions = (subproduct, item, inventoryList = []
     const normCand = normalizeInventoryName(candidate);
     if (!normCand) continue;
 
-    // Coincidencia exacta normalizada
     const matchExact = inventoryList.find(inv => normalizeInventoryName(inv.name) === normCand);
     if (matchExact) {
       return [{
@@ -111,28 +155,7 @@ export const resolveSubproductDeductions = (subproduct, item, inventoryList = []
     }
   }
 
-  // Coincidencia parcial (ej. si el insumo es "Té" o "Té Verde" y el candidato es "Té Verde" o "Té")
-  for (const candidate of candidateNames) {
-    const normCand = normalizeInventoryName(candidate);
-    if (!normCand) continue;
-
-    const matchPartial = inventoryList.find(inv => {
-      const normInv = normalizeInventoryName(inv.name);
-      if (!normInv || normInv.length < 2) return false;
-      return normCand.includes(normInv) || normInv.includes(normCand);
-    });
-
-    if (matchPartial) {
-      return [{
-        inventoryId: matchPartial.id,
-        name: matchPartial.name,
-        quantity: subQty,
-        unit: matchPartial.unit || 'un.'
-      }];
-    }
-  }
-
-  // 4. Coincidencia con otro producto del menú que tenga receta/ingredientes
+  // 4. Coincidencia exacta con otro producto del menú que tenga receta/ingredientes
   for (const candidate of candidateNames) {
     const normCand = normalizeInventoryName(candidate);
     if (!normCand) continue;
@@ -141,12 +164,14 @@ export const resolveSubproductDeductions = (subproduct, item, inventoryList = []
       mi.id !== item?.id && normalizeInventoryName(mi.name) === normCand
     );
     if (matchedMenu && matchedMenu.ingredients && matchedMenu.ingredients.length > 0) {
-      return matchedMenu.ingredients.map(ing => ({
-        inventoryId: ing.inventoryId,
-        name: ing.name,
-        quantity: (parseFloat(ing.quantity) || 1) * subQty,
-        unit: ing.unit || 'un.'
-      }));
+      return matchedMenu.ingredients
+        .filter(ing => ing?.inventoryId && inventoryList.some(i => i.id === ing.inventoryId))
+        .map(ing => ({
+          inventoryId: ing.inventoryId,
+          name: ing.name,
+          quantity: (parseFloat(ing.quantity) || 1) * subQty,
+          unit: ing.unit || 'un.'
+        }));
     }
   }
 
@@ -168,9 +193,11 @@ export const calculateTotalDeductions = (cartList = [], inventoryList = [], menu
     // 1. Insumos del producto base
     if (cartItem.ingredients && Array.isArray(cartItem.ingredients)) {
       cartItem.ingredients.forEach(ing => {
-        if (ing.inventoryId) {
+        if (ing?.inventoryId && inventoryList.some(inv => inv.id === ing.inventoryId)) {
           const qty = (parseFloat(ing.quantity) || 0) * itemQty;
-          deductions[ing.inventoryId] = (deductions[ing.inventoryId] || 0) + qty;
+          if (qty > 0) {
+            deductions[ing.inventoryId] = (deductions[ing.inventoryId] || 0) + qty;
+          }
         }
       });
     }
@@ -197,15 +224,17 @@ export const calculateTotalDeductions = (cartList = [], inventoryList = [], menu
  * @returns {{ hasStockLimit: boolean, availableStock: number, unit: string, limitingName: string }}
  */
 export const getSubproductStockInfo = (spDef, opt, parentItem, inventoryList = [], menuItemsList = []) => {
+  const isObjOpt = Boolean(opt && typeof opt === 'object');
+  const effectiveParentItem = parentItem || (spDef ? { subproducts: [spDef] } : null);
   const dummySp = {
     baseName: spDef?.name || '',
     name: typeof opt === 'string' ? opt : (opt?.name || spDef?.name || ''),
     selectedOption: opt ? (typeof opt === 'string' ? opt : opt.name) : null,
-    inventoryId: typeof opt === 'object' ? opt?.inventoryId : (spDef?.inventoryId || null),
-    quantity: typeof opt === 'object' ? (opt?.quantity || 1) : (spDef?.quantity || 1)
+    inventoryId: isObjOpt ? (opt.inventoryId || null) : (spDef?.inventoryId || null),
+    quantity: isObjOpt ? (opt.quantity || 1) : (spDef?.quantity || 1)
   };
 
-  const deductions = resolveSubproductDeductions(dummySp, parentItem, inventoryList, menuItemsList);
+  const deductions = resolveSubproductDeductions(dummySp, effectiveParentItem, inventoryList, menuItemsList);
 
   if (!deductions || deductions.length === 0) {
     return { hasStockLimit: false, availableStock: Infinity, unit: '', limitingName: '' };
@@ -217,18 +246,21 @@ export const getSubproductStockInfo = (spDef, opt, parentItem, inventoryList = [
 
   for (const d of deductions) {
     const inv = inventoryList.find(i => i.id === d.inventoryId);
-    const stock = inv ? (inv.currentStock || 0) : 0;
-    const avail = Math.floor(stock / (d.quantity || 1));
+    if (!inv) continue;
+    const qty = parseFloat(d.quantity);
+    if (!(qty > 0)) continue;
+    const stock = getInventoryItemStock(inv);
+    const avail = Math.floor(stock / qty);
     if (avail < minStock) {
       minStock = avail;
-      limitingUnit = inv?.unit || d.unit || 'un.';
-      limitingName = inv?.name || d.name || '';
+      limitingUnit = inv.unit || d.unit || 'un.';
+      limitingName = inv.name || d.name || '';
     }
   }
 
   return {
     hasStockLimit: minStock !== Infinity,
-    availableStock: Math.max(0, minStock === Infinity ? 0 : minStock),
+    availableStock: minStock === Infinity ? Infinity : Math.max(0, minStock),
     unit: limitingUnit,
     limitingName
   };
