@@ -47,6 +47,80 @@ export const formatEventDate = (dateVal) => {
 };
 
 /**
+ * Calcula las ganancias netas sin cuota obligatoria y el porcentaje que representa
+ * la cuota obligatoria sobre las ganancias totales del evento.
+ */
+export const computeMandatoryFeeImpact = ({
+  totalSales = 0,
+  totalExpenses = 0,
+  mandatoryTotalPaid = 0,
+  fineTotalPaid = 0,
+  netProfit = null
+} = {}) => {
+  const safeSales = Number(totalSales) || 0;
+  const safeExpenses = Number(totalExpenses) || 0;
+  const safeMandatoryPaid = Number(mandatoryTotalPaid) || 0;
+  const safeFinesPaid = Number(fineTotalPaid) || 0;
+  const totalIncomes = safeSales + safeMandatoryPaid + safeFinesPaid;
+
+  const resolvedNetProfit = (
+    netProfit !== null && netProfit !== undefined && Number.isFinite(Number(netProfit))
+  )
+    ? Number(netProfit)
+    : (totalIncomes - safeExpenses);
+
+  const netProfitWithoutMandatory = resolvedNetProfit - safeMandatoryPaid;
+  const rawMandatoryProfitSharePct = resolvedNetProfit > 0
+    ? (safeMandatoryPaid / resolvedNetProfit) * 100
+    : 0;
+  const mandatoryProfitSharePct = resolvedNetProfit > 0
+    ? Math.min(100, Math.max(0, rawMandatoryProfitSharePct))
+    : 0;
+  const coveredOperationalDeficit = (resolvedNetProfit > 0 && netProfitWithoutMandatory < 0)
+    ? Math.abs(netProfitWithoutMandatory)
+    : 0;
+  const mandatoryIncomeSharePct = totalIncomes > 0
+    ? (safeMandatoryPaid / totalIncomes) * 100
+    : 0;
+
+  return {
+    netProfit: resolvedNetProfit,
+    netProfitWithoutMandatory,
+    mandatoryTotalPaid: safeMandatoryPaid,
+    mandatoryProfitSharePct,
+    rawMandatoryProfitSharePct,
+    mandatoryIncomeSharePct,
+    coveredOperationalDeficit,
+    totalIncomes
+  };
+};
+
+/**
+ * Construye una explicación clara y objetiva sobre el impacto real de la cuota obligatoria.
+ */
+export const buildMandatoryFeeImpactNote = ({
+  feeImpact,
+  mandatoryTotalPaid = 0,
+  mandatoryTotalExpected = 0,
+  formatFn = formatCLP
+}) => {
+  const impact = feeImpact || computeMandatoryFeeImpact({ mandatoryTotalPaid });
+  const paid = Number(mandatoryTotalPaid) || 0;
+  const expected = Number(mandatoryTotalExpected) || 0;
+
+  if (paid <= 0) {
+    return `Aún no se registran pagos de cuota obligatoria (${formatFn(expected)} esperado). La ganancia actual corresponde íntegramente a ventas del evento menos gastos.`;
+  }
+  if (impact.netProfit > 0 && impact.netProfitWithoutMandatory >= 0) {
+    return `Sin la cuota obligatoria, la ganancia neta del evento habría sido de ${formatFn(impact.netProfitWithoutMandatory)} (en lugar de ${formatFn(impact.netProfit)}). La cuota representa el ${impact.mandatoryProfitSharePct.toFixed(1)}% de las ganancias totales.`;
+  }
+  if (impact.netProfit > 0 && impact.netProfitWithoutMandatory < 0) {
+    return `Sin la cuota obligatoria, el evento habría tenido déficit de ${formatFn(impact.coveredOperationalDeficit)} (no cubría los gastos). La cuota cubrió esos costos y generó ${formatFn(impact.netProfit)} de ganancia (100.0% del saldo positivo).`;
+  }
+  return `La cuota obligatoria recaudada (${formatFn(paid)}) aportó el ${impact.mandatoryIncomeSharePct.toFixed(1)}% de los ingresos totales, reduciendo el déficit neto (sin cuota habría sido ${formatFn(impact.netProfitWithoutMandatory)}).`;
+};
+
+/**
  * Carga centralizada y completa de todos los datos financieros de un evento:
  * - Ventas POS (efectivo, transferencia, productos y cajeros)
  * - Cuotas obligatorias y multas (debts)
@@ -290,6 +364,13 @@ export async function loadEventFinancialReportData(eventInput) {
   // 8. Totales Financieros Centralizados
   const totalIncomes = totalSales + mandatoryTotalPaid + fineTotalPaid;
   const netProfit = totalIncomes - totalExpenses;
+  const mandatoryFeeImpact = computeMandatoryFeeImpact({
+    totalSales,
+    totalExpenses,
+    mandatoryTotalPaid,
+    fineTotalPaid,
+    netProfit
+  });
 
   // Rentabilidad (ROI sobre gastos)
   const profitVsExpensesPct = totalExpenses > 0
@@ -335,6 +416,12 @@ export async function loadEventFinancialReportData(eventInput) {
     inventorySummary,
     totalIncomes,
     netProfit,
+    netProfitWithoutMandatory: mandatoryFeeImpact.netProfitWithoutMandatory,
+    mandatoryProfitSharePct: mandatoryFeeImpact.mandatoryProfitSharePct,
+    rawMandatoryProfitSharePct: mandatoryFeeImpact.rawMandatoryProfitSharePct,
+    mandatoryIncomeSharePct: mandatoryFeeImpact.mandatoryIncomeSharePct,
+    coveredOperationalDeficit: mandatoryFeeImpact.coveredOperationalDeficit,
+    mandatoryFeeImpact,
     profitVsExpensesPct,
     profitMarginPct,
     stats: {
@@ -345,6 +432,9 @@ export async function loadEventFinancialReportData(eventInput) {
       pettyCashData,
       expensesTotal: totalExpenses,
       netProfit,
+      netProfitWithoutMandatory: mandatoryFeeImpact.netProfitWithoutMandatory,
+      mandatoryProfitSharePct: mandatoryFeeImpact.mandatoryProfitSharePct,
+      fineTotalPaid,
       paidQuotas: mandatoryTotalPaid,
       totalQuotas: mandatoryTotalExpected,
       expectedCashTotal: initialPettyFund + cashSales
@@ -375,6 +465,19 @@ export function buildEventClipboardReport(data) {
   const mandatoryDebts = data.mandatoryDebts || [];
   const mandatoryPaidCount = Number(data.mandatoryPaidCount || 0);
   const mandatoryPendingCount = Number(data.mandatoryPendingCount || 0);
+  const feeImpact = data.mandatoryFeeImpact || computeMandatoryFeeImpact({
+    totalSales: salesTotal,
+    totalExpenses,
+    mandatoryTotalPaid,
+    fineTotalPaid,
+    netProfit
+  });
+  const hasMandatoryFee = Boolean(
+    mandatoryDebts.length > 0 ||
+    mandatoryTotalPaid > 0 ||
+    mandatoryTotalExpected > 0 ||
+    Number(event?.mandatoryAmount || 0) > 0
+  );
   const top5Items = (data.top5Items && data.top5Items.length > 0)
     ? data.top5Items
     : (data.itemsSummary || []).slice(0, 5);
@@ -401,6 +504,14 @@ export function buildEventClipboardReport(data) {
 
   msg += `*BALANCE FINAL Y RENTABILIDAD:*\n`;
   msg += `• *GANANCIA NETA REAL:* ${formatCLP(netProfit)}\n`;
+  if (hasMandatoryFee) {
+    msg += `• *GANANCIA NETA SIN CUOTA OBLIGATORIA:* ${formatCLP(feeImpact.netProfitWithoutMandatory)}\n`;
+    if (netProfit > 0) {
+      msg += `• *APORTE DE CUOTA OBLIGATORIA A GANANCIAS:* ${feeImpact.mandatoryProfitSharePct.toFixed(1)}% (${formatCLP(mandatoryTotalPaid)})\n`;
+    } else if (mandatoryTotalPaid > 0) {
+      msg += `• *APORTE DE CUOTA OBLIGATORIA A INGRESOS:* ${feeImpact.mandatoryIncomeSharePct.toFixed(1)}% (${formatCLP(mandatoryTotalPaid)})\n`;
+    }
+  }
   msg += `• Rentabilidad vs Gastos: ${profitVsExpensesPct >= 0 ? '+' : ''}${profitVsExpensesPct.toFixed(1)}%\n`;
   msg += `• Margen de Ganancia: ${profitMarginPct.toFixed(1)}%\n\n`;
 
@@ -477,9 +588,32 @@ export async function buildEventSummaryPdfDoc({
   const profitVsExpensesPct = Number(reportData?.profitVsExpensesPct ?? (totalExpenses > 0 ? (netProfit / totalExpenses) * 100 : (netProfit > 0 ? 100 : 0)));
 
   const mandatoryDebts = reportData?.mandatoryDebts || initialMandatoryDebts || [];
-  const mandatoryTotalPaid = Number(reportData?.mandatoryTotalPaid || 0);
+  const mandatoryTotalPaid = Number(
+    reportData?.mandatoryTotalPaid ??
+    stats?.paidQuotas ??
+    mandatoryDebts.reduce((sum, d) => sum + (d.status === 'paid' ? (Number(d.amount) || 0) : (Number(d.paidAmount) || 0)), 0)
+  );
+  const mandatoryTotalExpected = Number(
+    reportData?.mandatoryTotalExpected ??
+    stats?.totalQuotas ??
+    mandatoryDebts.reduce((sum, d) => sum + (Number(d.amount) || 0), 0)
+  );
+  const fineTotalPaid = Number(reportData?.fineTotalPaid ?? stats?.fineTotalPaid ?? 0);
   const mandatoryPaidCount = Number(reportData?.mandatoryPaidCount || mandatoryDebts.filter(d => d.status === 'paid').length);
   const mandatoryPendingCount = Number(reportData?.mandatoryPendingCount || (reportData?.mandatoryPendingList?.length ?? initialPendingList?.length ?? 0));
+  const feeImpact = reportData?.mandatoryFeeImpact || computeMandatoryFeeImpact({
+    totalSales,
+    totalExpenses,
+    mandatoryTotalPaid,
+    fineTotalPaid,
+    netProfit
+  });
+  const hasMandatoryFee = Boolean(
+    mandatoryDebts.length > 0 ||
+    mandatoryTotalPaid > 0 ||
+    mandatoryTotalExpected > 0 ||
+    Number(activeEvent?.mandatoryAmount || 0) > 0
+  );
 
   // Top 5 de ventas por artículos
   const allItems = reportData?.itemsSummary || initialItemsSummary || [];
@@ -687,6 +821,114 @@ export async function buildEventSummaryPdfDoc({
     doc.text(line2, margin + 4, y + 15);
 
     y += cuotaBoxH + 5;
+  }
+
+  // Cuadro Destacado: Análisis de Ganancias Netas sin Cuota Obligatoria y Peso Porcentual
+  if (hasMandatoryFee) {
+    const impactNote = buildMandatoryFeeImpactNote({
+      feeImpact,
+      mandatoryTotalPaid,
+      mandatoryTotalExpected,
+      formatFn: formatCLP
+    });
+
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(7.5);
+    const noteLines = doc.splitTextToSize(impactNote, printableWidth - 8);
+    const headerBarH = 6.5;
+    const cardsTopOffset = 9;
+    const cardsH = 16.5;
+    const impactBoxH = cardsTopOffset + cardsH + 3.2 + (noteLines.length * 3.7) + 1.8;
+
+    checkPageBreak(impactBoxH + 4);
+
+    // Contenedor destacado con borde índigo suave
+    doc.setFillColor(238, 242, 255);
+    doc.setDrawColor(99, 102, 241);
+    doc.setLineWidth(0.35);
+    doc.roundedRect(margin, y, printableWidth, impactBoxH, 1.5, 1.5, 'FD');
+    doc.setLineWidth(0.2);
+
+    // Franja superior de título
+    doc.setFillColor(49, 46, 129);
+    doc.rect(margin, y, printableWidth, headerBarH, 'F');
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(8);
+    doc.setTextColor(255, 255, 255);
+    doc.text('IMPACTO DE LA CUOTA OBLIGATORIA EN LAS GANANCIAS', margin + 4, y + 4.5);
+
+    // 3 Tarjetas comparativas dentro del cuadro
+    const cardGap = 3;
+    const cardW = (printableWidth - 8 - cardGap * 2) / 3;
+    const cardsY = y + cardsTopOffset;
+
+    const comparisonCards = [
+      {
+        title: 'GANANCIA CON CUOTA (REAL)',
+        value: formatCLP(netProfit),
+        sub: 'Ventas POS + cuotas - gastos',
+        fill: [255, 255, 255],
+        border: [199, 210, 254],
+        titleColor: [71, 85, 105],
+        valueColor: netProfit >= 0 ? [16, 185, 129] : [220, 38, 38],
+        subColor: [100, 116, 139]
+      },
+      {
+        title: 'GANANCIA SIN CUOTA OBLIG.',
+        value: formatCLP(feeImpact.netProfitWithoutMandatory),
+        sub: fineTotalPaid > 0 ? 'Ventas y multas menos gastos' : 'Solo ventas POS menos gastos',
+        fill: [255, 251, 235],
+        border: [245, 158, 11],
+        titleColor: [146, 64, 14],
+        valueColor: feeImpact.netProfitWithoutMandatory > 0 ? [180, 83, 9] : [220, 38, 38],
+        subColor: [146, 64, 14]
+      },
+      {
+        title: netProfit > 0 ? '% GANANCIA DE LA CUOTA' : '% INGRESO DE LA CUOTA',
+        value: netProfit > 0
+          ? `${feeImpact.mandatoryProfitSharePct.toFixed(1)}%`
+          : `${feeImpact.mandatoryIncomeSharePct.toFixed(1)}%`,
+        sub: `${formatCLP(mandatoryTotalPaid)} recaudado en cuotas`,
+        fill: [224, 231, 255],
+        border: [99, 102, 241],
+        titleColor: [49, 46, 129],
+        valueColor: [67, 56, 202],
+        subColor: [55, 48, 163]
+      }
+    ];
+
+    comparisonCards.forEach((card, idx) => {
+      const cX = margin + 4 + idx * (cardW + cardGap);
+      doc.setFillColor(card.fill[0], card.fill[1], card.fill[2]);
+      doc.setDrawColor(card.border[0], card.border[1], card.border[2]);
+      doc.roundedRect(cX, cardsY, cardW, cardsH, 1.2, 1.2, 'FD');
+
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(6.2);
+      doc.setTextColor(card.titleColor[0], card.titleColor[1], card.titleColor[2]);
+      doc.text(card.title, cX + 3, cardsY + 4.5);
+
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(10.5);
+      doc.setTextColor(card.valueColor[0], card.valueColor[1], card.valueColor[2]);
+      doc.text(card.value, cX + 3, cardsY + 10.6);
+
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(6.2);
+      doc.setTextColor(card.subColor[0], card.subColor[1], card.subColor[2]);
+      doc.text(card.sub, cX + 3, cardsY + 14.5);
+    });
+
+    // Texto explicativo de transparencia
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(7.5);
+    doc.setTextColor(30, 41, 59);
+    const noteStartY = cardsY + cardsH + 3.8;
+    noteLines.forEach((line, lineIdx) => {
+      doc.text(line, margin + 4, noteStartY + (lineIdx * 3.7));
+    });
+
+    y += impactBoxH + 5;
   }
 
   // ==========================================

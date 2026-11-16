@@ -14,7 +14,9 @@ import {
   buildEventClipboardReport,
   buildEventSummaryPdfDoc,
   shareOrDownloadEventPdf,
-  formatEventDate
+  formatEventDate,
+  computeMandatoryFeeImpact,
+  buildMandatoryFeeImpactNote
 } from '../../utils/eventPdfService';
 
 const formatMoney = (amount) => {
@@ -220,6 +222,21 @@ const EventReportModal = ({ isOpen, onClose, event }) => {
   const profitMarginPct = financialData?.profitMarginPct ?? (totalIncomes > 0
     ? (netProfit / totalIncomes) * 100
     : 0);
+
+  const feeImpact = financialData?.mandatoryFeeImpact || computeMandatoryFeeImpact({
+    totalSales,
+    totalExpenses,
+    mandatoryTotalPaid,
+    fineTotalPaid,
+    netProfit
+  });
+
+  const hasMandatoryFee = Boolean(
+    mandatoryDebts.length > 0 ||
+    mandatoryTotalPaid > 0 ||
+    mandatoryTotalExpected > 0 ||
+    Number(event?.mandatoryAmount || 0) > 0
+  );
 
   // Copiar Resumen para WhatsApp (Formato centralizado sin nombres de apoderados morosos y Top 5)
   const handleCopyWhatsApp = async () => {
@@ -703,6 +720,71 @@ const EventReportModal = ({ isOpen, onClose, event }) => {
                       </button>
                     )}
                   </div>
+
+                  {/* Cuadro Comparativo: Ganancias Sin Cuota Obligatoria y Peso Porcentual */}
+                  {hasMandatoryFee && (
+                    <div style={{
+                      padding: '1.15rem 1.35rem',
+                      borderRadius: '12px',
+                      backgroundColor: 'rgba(99, 102, 241, 0.08)',
+                      border: '1px solid rgba(99, 102, 241, 0.35)',
+                      marginBottom: '1.5rem'
+                    }}>
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '0.5rem', marginBottom: '0.85rem' }}>
+                        <strong style={{ fontSize: '0.92rem', color: '#c7d2fe', textTransform: 'uppercase', letterSpacing: '0.02em' }}>
+                          Impacto de la Cuota Obligatoria en las Ganancias
+                        </strong>
+                        <span style={{ fontSize: '0.78rem', color: '#a5b4fc' }}>
+                          Recaudado por cuotas: <strong>{formatMoney(mandatoryTotalPaid)}</strong>
+                        </span>
+                      </div>
+
+                      <div style={{
+                        display: 'grid',
+                        gridTemplateColumns: 'repeat(auto-fit, minmax(175px, 1fr))',
+                        gap: '0.85rem',
+                        marginBottom: '0.75rem'
+                      }}>
+                        <div style={{ padding: '0.8rem 1rem', borderRadius: '8px', backgroundColor: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.08)' }}>
+                          <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', display: 'block', textTransform: 'uppercase' }}>
+                            Ganancia Real (Con Cuota)
+                          </span>
+                          <strong style={{ fontSize: '1.2rem', color: netProfit >= 0 ? '#10b981' : '#ef4444', display: 'block', marginTop: '0.2rem' }}>
+                            {formatMoney(netProfit)}
+                          </strong>
+                        </div>
+
+                        <div style={{ padding: '0.8rem 1rem', borderRadius: '8px', backgroundColor: 'rgba(245, 158, 11, 0.08)', border: '1px solid rgba(245, 158, 11, 0.35)' }}>
+                          <span style={{ fontSize: '0.72rem', color: '#fcd34d', display: 'block', textTransform: 'uppercase' }}>
+                            Ganancia SIN Cuota Obligatoria
+                          </span>
+                          <strong style={{ fontSize: '1.2rem', color: feeImpact.netProfitWithoutMandatory > 0 ? '#fbbf24' : '#f87171', display: 'block', marginTop: '0.2rem' }}>
+                            {formatMoney(feeImpact.netProfitWithoutMandatory)}
+                          </strong>
+                        </div>
+
+                        <div style={{ padding: '0.8rem 1rem', borderRadius: '8px', backgroundColor: 'rgba(99, 102, 241, 0.14)', border: '1px solid rgba(99, 102, 241, 0.4)' }}>
+                          <span style={{ fontSize: '0.72rem', color: '#c7d2fe', display: 'block', textTransform: 'uppercase' }}>
+                            {netProfit > 0 ? '% de Ganancia por Cuota' : '% Ingreso por Cuota'}
+                          </span>
+                          <strong style={{ fontSize: '1.25rem', color: '#a5b4fc', display: 'block', marginTop: '0.2rem' }}>
+                            {netProfit > 0
+                              ? `${feeImpact.mandatoryProfitSharePct.toFixed(1)}%`
+                              : `${feeImpact.mandatoryIncomeSharePct.toFixed(1)}%`}
+                          </strong>
+                        </div>
+                      </div>
+
+                      <p style={{ margin: 0, fontSize: '0.8rem', color: '#cbd5e1', lineHeight: 1.45 }}>
+                        {buildMandatoryFeeImpactNote({
+                          feeImpact,
+                          mandatoryTotalPaid,
+                          mandatoryTotalExpected,
+                          formatFn: formatMoney
+                        })}
+                      </p>
+                    </div>
+                  )}
 
                   {/* Detalle de Flujo de Efectivo en Caja y Transferencias */}
                   <div style={{

@@ -21,7 +21,8 @@ import {
   loadEventFinancialReportData,
   buildEventClipboardReport,
   buildEventSummaryPdfDoc,
-  shareOrDownloadEventPdf
+  shareOrDownloadEventPdf,
+  computeMandatoryFeeImpact
 } from '../../../utils/eventPdfService';
 import { checkEventClosureReadiness } from '../../../utils/eventClosureValidation';
 
@@ -450,6 +451,28 @@ const EventSummary = ({ event, onNavigateTab }) => {
                 {formatMoney(stats.netProfit)}
               </h3>
               <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem', fontWeight: 'bold' }}>Ganancia Neta (Fondo)</p>
+              {(() => {
+                const hasQuotaContext = Boolean(
+                  (financialData?.mandatoryDebts?.length || 0) > 0 ||
+                  (stats.paidQuotas || 0) > 0 ||
+                  (stats.totalQuotas || 0) > 0 ||
+                  Number(event?.mandatoryAmount || 0) > 0
+                );
+                if (!hasQuotaContext) return null;
+                const impact = financialData?.mandatoryFeeImpact || computeMandatoryFeeImpact({
+                  totalSales: stats.salesTotal,
+                  totalExpenses: stats.expensesTotal,
+                  mandatoryTotalPaid: stats.paidQuotas,
+                  fineTotalPaid: stats.fineTotalPaid ?? financialData?.fineTotalPaid ?? 0,
+                  netProfit: stats.netProfit
+                });
+                return (
+                  <p style={{ fontSize: '0.75rem', color: 'var(--warning)', margin: '0.25rem 0 0' }}>
+                    Sin cuota obligatoria: <strong>{formatMoney(impact.netProfitWithoutMandatory)}</strong>
+                    {stats.netProfit > 0 ? ` • Cuota = ${impact.mandatoryProfitSharePct.toFixed(1)}% de ganancia` : ''}
+                  </p>
+                );
+              })()}
             </div>
           </div>
         </div>
