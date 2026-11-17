@@ -1,17 +1,32 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import { createPortal } from 'react-dom';
 import { db } from '../../../firebase/config';
 import { collection, getDocs, query, where, doc, updateDoc, getDoc, setDoc, deleteDoc } from 'firebase/firestore';
-import { CheckSquare, Square, Search, RefreshCw, AlertCircle, Save, CheckCircle2, DollarSign, Users, UserX, Edit3 } from 'lucide-react';
+import {
+  CheckSquare, Square, Search, RefreshCw, AlertCircle, Save, CheckCircle2,
+  DollarSign, Users, UserX, Edit3, UserPlus, X, Clock, CreditCard, CheckCircle
+} from 'lucide-react';
 import { useModal } from '../../../context/ModalContext';
 import { formatStudentName } from '../../../utils/nameUtils';
+import { useLockBodyScroll } from '../../../hooks/useLockBodyScroll';
+import { addStudentsToEvent } from '../../AddStudentToEventsModal';
 
-const EventAttendance = ({ event }) => {
-  const { showAlert, showConfirm } = useModal();
+const EventAttendance = ({ event, onEventUpdated }) => {
+  const { showAlert } = useModal();
   const [localDebts, setLocalDebts] = useState([]);
+  const [allCourseStudents, setAllCourseStudents] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [hasChanges, setHasChanges] = useState(false);
   const [saving, setSaving] = useState(false);
+
+  // Modal para agregar alumnos faltantes al evento
+  const [showAddStudentsModal, setShowAddStudentsModal] = useState(false);
+  const [addSearchTerm, setAddSearchTerm] = useState('');
+  const [selectedNewStudentIds, setSelectedNewStudentIds] = useState(new Set());
+  const [newStudentsPaymentStatus, setNewStudentsPaymentStatus] = useState('pending');
+  const [addingStudents, setAddingStudents] = useState(false);
+  useLockBodyScroll(showAddStudentsModal);
   
   // Monto de la multa por inasistencia
   const [fineAmountInput, setFineAmountInput] = useState(String(event.noShowAmount || 0));
@@ -35,6 +50,12 @@ const EventAttendance = ({ event }) => {
           courseStudents.push(sData);
         }
       });
+      courseStudents.sort((a, b) => {
+        const aNum = parseInt(a.listNumber, 10) || 999;
+        const bNum = parseInt(b.listNumber, 10) || 999;
+        return aNum - bNum;
+      });
+      setAllCourseStudents(courseStudents);
 
       // Si el evento tiene selección personalizada de alumnos
       const participantIds = event.participantStudentIds && Array.isArray(event.participantStudentIds) && event.participantStudentIds.length > 0
@@ -260,6 +281,85 @@ const EventAttendance = ({ event }) => {
     }
   };
 
+  const missingStudents = useMemo(() => {
+    return allCourseStudents.filter(s => {
+      const existing = localDebts.find(d => d.studentId === s.id);
+      if (!existing) return true;
+      if (!event.isTestEvent && !existing.mainDebt) return true;
+      return false;
+    });
+  }, [allCourseStudents, localDebts, event.isTestEvent]);
+
+  const filteredMissingStudents = useMemo(() => {
+    if (!addSearchTerm.trim()) return missingStudents;
+    const t = addSearchTerm.toLowerCase();
+    return missingStudents.filter(s =>
+      formatStudentName(s).toLowerCase().includes(t) ||
+      String(s.listNumber || '').includes(t) ||
+      (s.rut || '').toLowerCase().includes(t)
+    );
+  }, [missingStudents, addSearchTerm]);
+
+  const handleOpenAddStudentsModal = () => {
+    setAddSearchTerm('');
+    setSelectedNewStudentIds(new Set());
+    setNewStudentsPaymentStatus('pending');
+    setShowAddStudentsModal(true);
+  };
+
+  const handleToggleNewStudent = (studentId) => {
+    setSelectedNewStudentIds(prev => {
+      const next = new Set(prev);
+      if (next.has(studentId)) next.delete(studentId);
+      else next.add(studentId);
+      return next;
+    });
+  };
+
+  const handleToggleAllFilteredNewStudents = () => {
+    const visibleIds = filteredMissingStudents.map(s => s.id);
+    const allSelected = visibleIds.length > 0 && visibleIds.every(id => selectedNewStudentIds.has(id));
+    setSelectedNewStudentIds(prev => {
+      const next = new Set(prev);
+      if (allSelected) visibleIds.forEach(id => next.delete(id));
+      else visibleIds.forEach(id => next.add(id));
+      return next;
+    });
+  };
+
+  const handleSaveAddStudents = async () => {
+    const studentsToAdd = missingStudents.filter(s => selectedNewStudentIds.has(s.id));
+    if (studentsToAdd.length === 0 || addingStudents) return;
+
+    setAddingStudents(true);
+    try {
+      const fallbackExistingIds = event.isTestEvent
+        ? localDebts.map(d => d.studentId)
+        : localDebts.filter(d => d.mainDebt || d.fineDebt).map(d => d.studentId);
+
+      await addStudentsToEvent({
+        event,
+        studentsToAdd,
+        initialStatus: newStudentsPaymentStatus,
+        courseId: event.courseId,
+        fallbackExistingIds,
+        initializeParticipantsIfMissing: true
+      });
+
+      setShowAddStudentsModal(false);
+      if (onEventUpdated) {
+        await onEventUpdated();
+      }
+      await fetchDebts();
+      await showAlert(`¡Se agregaron ${studentsToAdd.length} alumno(s) al evento correctamente!`);
+    } catch (err) {
+      console.error("Error agregando alumnos al evento:", err);
+      await showAlert("Error al agregar alumnos al evento: " + (err.message || "Intenta nuevamente."));
+    } finally {
+      setAddingStudents(false);
+    }
+  };
+
   const filteredDebts = localDebts.filter(d => d.studentName.toLowerCase().includes(searchTerm.toLowerCase()));
   const totalStudents = localDebts.length;
   const absentCount = localDebts.filter(s => s.notAttended).length;
@@ -283,6 +383,17 @@ const EventAttendance = ({ event }) => {
         </div>
         
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
+          <button
+            type="button"
+            onClick={handleOpenAddStudentsModal}
+            className="btn btn-primary"
+            style={{ padding: '0.45rem 0.85rem', fontSize: '0.85rem', display: 'inline-flex', alignItems: 'center', gap: '0.4rem' }}
+            title="Agregar alumnos del curso que no están incluidos en este evento"
+          >
+            <UserPlus size={15} />
+            Agregar Alumnos al Evento ({missingStudents.length})
+          </button>
+
           <div className="search-bar" style={{ maxWidth: '260px' }}>
             <Search size={16} style={{ color: 'var(--text-muted)', marginLeft: '10px' }} />
             <input 
@@ -305,6 +416,37 @@ const EventAttendance = ({ event }) => {
           </button>
         </div>
       </div>
+
+      {/* Banner informativo si faltan alumnos del curso en el evento */}
+      {missingStudents.length > 0 && (
+        <div style={{
+          marginBottom: '1.25rem',
+          padding: '0.85rem 1rem',
+          borderRadius: '10px',
+          backgroundColor: 'rgba(99, 102, 241, 0.1)',
+          border: '1px solid rgba(99, 102, 241, 0.35)',
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          flexWrap: 'wrap',
+          gap: '0.75rem'
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', fontSize: '0.86rem', color: 'var(--text-main)' }}>
+            <AlertCircle size={18} style={{ color: 'var(--primary)', flexShrink: 0 }} />
+            <span>
+              Hay <strong>{missingStudents.length}</strong> {missingStudents.length === 1 ? 'alumno activo del curso que aún no está registrado' : 'alumnos activos del curso que aún no están registrados'} en este evento.
+            </span>
+          </div>
+          <button
+            type="button"
+            onClick={handleOpenAddStudentsModal}
+            className="btn btn-outline"
+            style={{ padding: '0.35rem 0.75rem', fontSize: '0.8rem', borderColor: 'var(--primary)', color: 'var(--primary)', display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}
+          >
+            <UserPlus size={14} /> Agregar ahora
+          </button>
+        </div>
+      )}
 
       {/* Tarjeta de Configuración de Multa y Resumen */}
       <div style={{
@@ -512,6 +654,260 @@ const EventAttendance = ({ event }) => {
           </tbody>
         </table>
       </div>
+
+      {/* Modal para agregar alumnos faltantes al evento */}
+      {showAddStudentsModal && createPortal(
+        <div
+          className="modal-overlay"
+          onClick={(e) => {
+            if (e.target === e.currentTarget && !addingStudents) setShowAddStudentsModal(false);
+          }}
+          style={{
+            position: 'fixed',
+            inset: 0,
+            backgroundColor: 'rgba(15, 23, 42, 0.85)',
+            backdropFilter: 'blur(6px)',
+            zIndex: 10050,
+            display: 'flex',
+            justifyContent: 'center',
+            alignItems: 'flex-start',
+            padding: '1.25rem 0.75rem 2rem',
+            overflowY: 'auto',
+            WebkitOverflowScrolling: 'touch'
+          }}
+        >
+          <div
+            className="glass-panel animate-fade-in"
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              width: '100%',
+              maxWidth: '580px',
+              maxHeight: 'min(90vh, 740px)',
+              margin: '0.5rem auto',
+              backgroundColor: 'var(--bg-card)',
+              border: '1px solid var(--border-color)',
+              borderRadius: 'var(--radius-lg)',
+              boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.7)',
+              display: 'flex',
+              flexDirection: 'column',
+              overflow: 'hidden'
+            }}
+          >
+            {/* Header */}
+            <div style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              padding: '1.15rem 1.5rem',
+              borderBottom: '1px solid var(--border-color)',
+              backgroundColor: 'var(--bg-main)',
+              flexShrink: 0
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                <div style={{
+                  width: '38px',
+                  height: '38px',
+                  borderRadius: 'var(--radius-sm)',
+                  backgroundColor: 'rgba(99, 102, 241, 0.15)',
+                  border: '1px solid rgba(99, 102, 241, 0.3)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  color: 'var(--primary)'
+                }}>
+                  <UserPlus size={20} />
+                </div>
+                <div>
+                  <h3 style={{ margin: 0, fontSize: '1.1rem', color: 'var(--text-main)', fontWeight: '700' }}>
+                    Agregar Alumnos al Evento
+                  </h3>
+                  <p style={{ margin: '0.15rem 0 0', fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+                    {event.name} {!event.isTestEvent && `• Cuota obligatoria: ${formatMoney(event.mandatoryAmount)}`}
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowAddStudentsModal(false)}
+                disabled={addingStudents}
+                className="btn btn-outline"
+                style={{ padding: '0.35rem 0.5rem', borderColor: 'var(--border-color)' }}
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            {/* Search & Select All */}
+            <div style={{ padding: '1rem 1.5rem 0.75rem', borderBottom: '1px solid var(--border-color)', flexShrink: 0, display: 'flex', gap: '0.5rem', flexWrap: 'wrap', alignItems: 'center' }}>
+              <div style={{ position: 'relative', flex: 1, minWidth: '180px' }}>
+                <input
+                  type="text"
+                  className="input-field"
+                  placeholder="Buscar alumno por nombre, RUT o N° lista..."
+                  value={addSearchTerm}
+                  onChange={(e) => setAddSearchTerm(e.target.value)}
+                  style={{ width: '100%', padding: '0.45rem 0.65rem 0.45rem 2rem', fontSize: '0.85rem' }}
+                />
+                <Search size={14} style={{ position: 'absolute', left: '0.65rem', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
+              </div>
+
+              {filteredMissingStudents.length > 0 && (
+                <button
+                  type="button"
+                  onClick={handleToggleAllFilteredNewStudents}
+                  className="btn btn-outline"
+                  style={{ fontSize: '0.78rem', padding: '0.45rem 0.75rem' }}
+                >
+                  {filteredMissingStudents.every(s => selectedNewStudentIds.has(s.id)) ? 'Deseleccionar Todos' : 'Seleccionar Todos'}
+                </button>
+              )}
+            </div>
+
+            {/* Student List */}
+            <div style={{ padding: '1rem 1.5rem', overflowY: 'auto', flex: 1, minHeight: 0 }}>
+              {missingStudents.length === 0 ? (
+                <div style={{ textAlign: 'center', padding: '2rem 1rem', backgroundColor: 'rgba(16, 185, 129, 0.05)', borderRadius: 'var(--radius-md)', border: '1px dashed rgba(16, 185, 129, 0.3)', color: 'var(--text-muted)' }}>
+                  <CheckCircle size={28} style={{ color: 'var(--success)', margin: '0 auto 0.5rem' }} />
+                  <p style={{ margin: '0 0 0.25rem', color: 'var(--text-main)', fontWeight: '600' }}>
+                    Todos los alumnos activos del curso ya están en este evento
+                  </p>
+                  <p style={{ margin: 0, fontSize: '0.8rem' }}>
+                    No quedan alumnos pendientes por agregar.
+                  </p>
+                </div>
+              ) : filteredMissingStudents.length === 0 ? (
+                <div style={{ textAlign: 'center', padding: '2rem 1rem', color: 'var(--text-muted)' }}>
+                  No se encontraron alumnos con esa búsqueda.
+                </div>
+              ) : (
+                <div style={{ display: 'grid', gap: '0.5rem' }}>
+                  {filteredMissingStudents.map(s => {
+                    const isSelected = selectedNewStudentIds.has(s.id);
+                    const inAttendanceWithoutQuota = !event.isTestEvent && localDebts.some(d => d.studentId === s.id && !d.mainDebt);
+                    return (
+                      <div
+                        key={s.id}
+                        onClick={() => handleToggleNewStudent(s.id)}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'space-between',
+                          gap: '0.75rem',
+                          padding: '0.65rem 0.85rem',
+                          borderRadius: 'var(--radius-sm)',
+                          border: `1px solid ${isSelected ? 'var(--primary)' : 'var(--border-color)'}`,
+                          backgroundColor: isSelected ? 'rgba(99, 102, 241, 0.12)' : 'rgba(255,255,255,0.02)',
+                          cursor: 'pointer',
+                          transition: 'all 0.15s ease'
+                        }}
+                      >
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
+                          <input
+                            type="checkbox"
+                            checked={isSelected}
+                            onChange={() => handleToggleNewStudent(s.id)}
+                            onClick={(e) => e.stopPropagation()}
+                            style={{ width: '17px', height: '17px', accentColor: 'var(--primary)', cursor: 'pointer' }}
+                          />
+                          <div>
+                            <span style={{ fontWeight: '600', fontSize: '0.9rem', color: 'var(--text-main)' }}>
+                              {s.listNumber ? `${s.listNumber}. ` : ''}{formatStudentName(s)}
+                            </span>
+                            {inAttendanceWithoutQuota && (
+                              <span style={{ marginLeft: '0.45rem', fontSize: '0.72rem', color: 'var(--warning)' }}>
+                                (Sin cuota obligatoria)
+                              </span>
+                            )}
+                            {s.rut && (
+                              <span style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                                {s.rut}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+
+            {/* Footer */}
+            <div style={{
+              padding: '1rem 1.5rem',
+              borderTop: '1px solid var(--border-color)',
+              backgroundColor: 'var(--bg-main)',
+              flexShrink: 0,
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '0.85rem'
+            }}>
+              {!event.isTestEvent && missingStudents.length > 0 && (
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.78rem', color: 'var(--text-muted)', marginBottom: '0.45rem', fontWeight: '600' }}>
+                    Estado inicial de la cuota obligatoria ({formatMoney(event.mandatoryAmount)}):
+                  </label>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(145px, 1fr))', gap: '0.45rem' }}>
+                    {[
+                      { id: 'pending', label: 'Pendiente de pago', icon: <Clock size={14} />, color: 'var(--warning)' },
+                      { id: 'cash', label: 'Pagada (Efectivo)', icon: <DollarSign size={14} />, color: 'var(--success)' },
+                      { id: 'transfer', label: 'Pagada (Transf.)', icon: <CreditCard size={14} />, color: 'var(--primary)' }
+                    ].map(opt => {
+                      const active = newStudentsPaymentStatus === opt.id;
+                      return (
+                        <button
+                          key={opt.id}
+                          type="button"
+                          onClick={() => setNewStudentsPaymentStatus(opt.id)}
+                          style={{
+                            padding: '0.45rem 0.65rem',
+                            borderRadius: 'var(--radius-sm)',
+                            border: `1px solid ${active ? opt.color : 'var(--border-color)'}`,
+                            backgroundColor: active ? 'rgba(255,255,255,0.06)' : 'transparent',
+                            color: active ? opt.color : 'var(--text-muted)',
+                            fontSize: '0.78rem',
+                            fontWeight: active ? '600' : '500',
+                            cursor: 'pointer',
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            gap: '0.35rem'
+                          }}
+                        >
+                          {opt.icon} {opt.label}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.65rem' }}>
+                <button
+                  type="button"
+                  onClick={() => setShowAddStudentsModal(false)}
+                  disabled={addingStudents}
+                  className="btn btn-outline"
+                  style={{ padding: '0.5rem 1.15rem' }}
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="button"
+                  onClick={handleSaveAddStudents}
+                  disabled={addingStudents || selectedNewStudentIds.size === 0}
+                  className="btn btn-primary"
+                  style={{ padding: '0.5rem 1.25rem', display: 'inline-flex', alignItems: 'center', gap: '0.4rem' }}
+                >
+                  <UserPlus size={16} />
+                  {addingStudents ? 'Agregando...' : `Agregar al Evento (${selectedNewStudentIds.size})`}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
     </div>
   );
 };

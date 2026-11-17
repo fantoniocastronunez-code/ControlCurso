@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { db } from '../../firebase/config';
 import { doc, getDoc, updateDoc } from 'firebase/firestore';
-import { ArrowLeft, LayoutDashboard, CheckSquare, ShoppingBag, DollarSign, Receipt, Package, Printer, Sparkles, RotateCcw, Settings, ChefHat, Camera, Calculator, FileText, Edit, Calendar, X, Check, CheckCircle } from 'lucide-react';
+import { ArrowLeft, LayoutDashboard, CheckSquare, ShoppingBag, DollarSign, Receipt, Package, Printer, Sparkles, RotateCcw, Settings, ChefHat, Camera, Calculator, FileText, Edit, Calendar, X, Check, CheckCircle, UserPlus } from 'lucide-react';
 import EventSummary from './tabs/EventSummary';
 import EventAttendance from './tabs/EventAttendance';
 import EventInventory from './tabs/EventInventory';
@@ -330,6 +330,15 @@ const EventDetail = ({ eventId, onBack }) => {
               >
                 <Edit size={12} /> Editar Fecha
               </button>
+              <button
+                type="button"
+                onClick={() => setActiveTab('attendance')}
+                className="btn btn-outline"
+                style={{ padding: '0.15rem 0.55rem', fontSize: '0.75rem', display: 'inline-flex', alignItems: 'center', gap: '0.25rem', borderColor: 'rgba(99, 102, 241, 0.45)', color: 'var(--primary)', backgroundColor: 'rgba(99, 102, 241, 0.08)' }}
+                title="Agregar alumnos del curso que faltan en este evento"
+              >
+                <UserPlus size={12} /> Agregar Alumnos
+              </button>
             </p>
           </div>
         </div>
@@ -507,7 +516,7 @@ const EventDetail = ({ eventId, onBack }) => {
         {activeTab === 'pos' && <EventPOS event={eventData} onNavigateTab={setActiveTab} />}
         {activeTab === 'reconciliation' && <EventReconciliation event={eventData} onNavigateTab={setActiveTab} />}
         {activeTab === 'expenses' && <EventExpenses event={eventData} />}
-        {activeTab === 'attendance' && <EventAttendance event={eventData} />}
+        {activeTab === 'attendance' && <EventAttendance event={eventData} onEventUpdated={fetchEventData} />}
       </div>
 
       {/* Modal de Configuración de Impresora */}

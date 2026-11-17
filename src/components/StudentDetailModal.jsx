@@ -4,7 +4,7 @@ import { collection, query, where, getDocs, doc, updateDoc, addDoc, getDoc, dele
 import { 
   X, User, AlertCircle, CheckCircle, Clock, Download, 
   Sparkles, Eye, FileText, AlertTriangle, Receipt, MinusCircle,
-  Edit2, RotateCcw, XCircle, Check
+  Edit2, RotateCcw, XCircle, Check, PlusCircle
 } from 'lucide-react';
 import { formatStudentName } from '../utils/nameUtils';
 import { useModal } from '../context/ModalContext';
@@ -14,6 +14,7 @@ import { requestApproval } from '../services/approvalService';
 import html2canvas from 'html2canvas';
 import { useLockBodyScroll } from '../hooks/useLockBodyScroll';
 import DiscountBalanceModal from './DiscountBalanceModal';
+import AddStudentToEventsModal from './AddStudentToEventsModal';
 
 const formatDebtMoney = (amount) => {
   return new Intl.NumberFormat('es-CL', { style: 'currency', currency: 'CLP' }).format(amount || 0);
@@ -573,6 +574,7 @@ const StudentDetailModal = ({ student, usersMap = {}, onClose, isModal = false, 
   const [processingDebtId, setProcessingDebtId] = useState(null);
   const [studentBalance, setStudentBalance] = useState(Number(student?.balance) || 0);
   const [showDiscountModal, setShowDiscountModal] = useState(false);
+  const [showAddPastEventsModal, setShowAddPastEventsModal] = useState(false);
   const detailRef = useRef(null);
 
   useLockBodyScroll(isModal);
@@ -986,7 +988,26 @@ const StudentDetailModal = ({ student, usersMap = {}, onClose, isModal = false, 
           </p>
         </div>
 
-        <div id={`actions-${student.id}`} style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+        <div id={`actions-${student.id}`} style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', flexWrap: 'wrap' }}>
+          <button
+            type="button"
+            onClick={() => setShowAddPastEventsModal(true)}
+            className="btn btn-outline"
+            style={{
+              padding: '0.5rem 0.85rem',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '0.4rem',
+              borderColor: 'rgba(99, 102, 241, 0.5)',
+              color: 'var(--primary)',
+              backgroundColor: 'rgba(99, 102, 241, 0.08)',
+              fontSize: '0.85rem',
+              fontWeight: '600'
+            }}
+            title="Agregar este alumno a eventos o cuotas pasadas en las que no fue incluido"
+          >
+            <PlusCircle size={16} /> Agregar a Eventos Pasados
+          </button>
           {role === 'superadmin' && (
             <button 
               onClick={handleToggleExpensesInPortal}
@@ -1577,6 +1598,16 @@ const StudentDetailModal = ({ student, usersMap = {}, onClose, isModal = false, 
           }}
         />
       )}
+
+      <AddStudentToEventsModal
+        isOpen={showAddPastEventsModal}
+        student={student}
+        onClose={() => setShowAddPastEventsModal(false)}
+        onSuccess={() => {
+          fetchDebts();
+          onUpdate?.();
+        }}
+      />
     </div>
   );
 

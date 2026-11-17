@@ -3,7 +3,7 @@ import { db } from '../firebase/config';
 import { collection, getDocs } from 'firebase/firestore';
 import {
   Search, X, User, AlertCircle, CheckCircle, ArrowRight, Sparkles,
-  ChevronDown, ChevronUp, Edit2, RotateCcw, Clock, Eye, Check, XCircle, AlertTriangle
+  ChevronDown, ChevronUp, Edit2, RotateCcw, Clock, Eye, Check, XCircle, AlertTriangle, PlusCircle
 } from 'lucide-react';
 import { formatStudentName } from '../utils/nameUtils';
 import StudentDetailModal, {
@@ -18,6 +18,7 @@ import StudentDetailModal, {
   executeCancelPayment,
   executePayDebtWithBalance
 } from './StudentDetailModal';
+import AddStudentToEventsModal from './AddStudentToEventsModal';
 import { useModal } from '../context/ModalContext';
 import { useAuth } from '../context/AuthContext';
 import { useCourse } from '../context/CourseContext';
@@ -48,6 +49,7 @@ const StudentSearchModal = ({ isOpen, onClose, onSelectStudent: _onSelectStudent
   const [expandedOverrides, setExpandedOverrides] = useState({});
   const [processingDebtId, setProcessingDebtId] = useState(null);
   const [previewReceipt, setPreviewReceipt] = useState(null);
+  const [studentForPastEvents, setStudentForPastEvents] = useState(null);
 
   useLockBodyScroll(isOpen);
 
@@ -144,6 +146,7 @@ const StudentSearchModal = ({ isOpen, onClose, onSelectStudent: _onSelectStudent
     setSelectedStudentId(null);
     setExpandedOverrides({});
     setPreviewReceipt(null);
+    setStudentForPastEvents(null);
     onClose();
   };
 
@@ -571,50 +574,72 @@ const StudentSearchModal = ({ isOpen, onClose, onSelectStudent: _onSelectStudent
                             Cuotas del Alumno ({studentDebts.length})
                           </span>
 
-                          {payablePendings.length > 1 && (
-                            <div style={{ display: 'flex', gap: '0.35rem', flexWrap: 'wrap' }}>
-                              <button
-                                type="button"
-                                disabled={Boolean(processingDebtId)}
-                                onClick={() => runSearchDebtAction(`all_cash_${student.id}`, () =>
-                                  executePayAllPending({
-                                    debts: studentDebts,
-                                    student,
-                                    method: 'cash',
-                                    requiresApproval,
-                                    user,
-                                    selectedCourse,
-                                    showConfirm,
-                                    showAlert
-                                  })
-                                )}
-                                className="btn btn-outline"
-                                style={{ padding: '0.2rem 0.5rem', fontSize: '0.72rem', color: 'var(--success)', borderColor: 'rgba(16, 185, 129, 0.45)', backgroundColor: 'rgba(16, 185, 129, 0.08)' }}
-                              >
-                                Pagar Todas (Efectivo)
-                              </button>
-                              <button
-                                type="button"
-                                disabled={Boolean(processingDebtId)}
-                                onClick={() => runSearchDebtAction(`all_transfer_${student.id}`, () =>
-                                  executePayAllPending({
-                                    debts: studentDebts,
-                                    student,
-                                    method: 'transfer',
-                                    requiresApproval,
-                                    user,
-                                    selectedCourse,
-                                    showConfirm,
-                                    showAlert
-                                  })
-                                )}
-                                className="btn btn-outline"
-                                style={{ padding: '0.2rem 0.5rem', fontSize: '0.72rem', color: 'var(--primary)', borderColor: 'rgba(99, 102, 241, 0.45)', backgroundColor: 'rgba(99, 102, 241, 0.08)' }}
-                              >
-                                Pagar Todas (Transf.)
-                              </button>
-                            </div>
-                          )}
+                          <div style={{ display: 'flex', gap: '0.35rem', flexWrap: 'wrap', alignItems: 'center' }}>
+                            <button
+                              type="button"
+                              onClick={() => setStudentForPastEvents(student)}
+                              className="btn btn-outline"
+                              style={{
+                                padding: '0.2rem 0.55rem',
+                                fontSize: '0.72rem',
+                                color: 'var(--primary)',
+                                borderColor: 'rgba(99, 102, 241, 0.45)',
+                                backgroundColor: 'rgba(99, 102, 241, 0.08)',
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '0.25rem',
+                                fontWeight: '600'
+                              }}
+                              title="Agregar este alumno a eventos o cuotas pasadas"
+                            >
+                              <PlusCircle size={12} /> Agregar a Eventos Pasados
+                            </button>
+
+                            {payablePendings.length > 1 && (
+                              <>
+                                <button
+                                  type="button"
+                                  disabled={Boolean(processingDebtId)}
+                                  onClick={() => runSearchDebtAction(`all_cash_${student.id}`, () =>
+                                    executePayAllPending({
+                                      debts: studentDebts,
+                                      student,
+                                      method: 'cash',
+                                      requiresApproval,
+                                      user,
+                                      selectedCourse,
+                                      showConfirm,
+                                      showAlert
+                                    })
+                                  )}
+                                  className="btn btn-outline"
+                                  style={{ padding: '0.2rem 0.5rem', fontSize: '0.72rem', color: 'var(--success)', borderColor: 'rgba(16, 185, 129, 0.45)', backgroundColor: 'rgba(16, 185, 129, 0.08)' }}
+                                >
+                                  Pagar Todas (Efectivo)
+                                </button>
+                                <button
+                                  type="button"
+                                  disabled={Boolean(processingDebtId)}
+                                  onClick={() => runSearchDebtAction(`all_transfer_${student.id}`, () =>
+                                    executePayAllPending({
+                                      debts: studentDebts,
+                                      student,
+                                      method: 'transfer',
+                                      requiresApproval,
+                                      user,
+                                      selectedCourse,
+                                      showConfirm,
+                                      showAlert
+                                    })
+                                  )}
+                                  className="btn btn-outline"
+                                  style={{ padding: '0.2rem 0.5rem', fontSize: '0.72rem', color: 'var(--primary)', borderColor: 'rgba(99, 102, 241, 0.45)', backgroundColor: 'rgba(99, 102, 241, 0.08)' }}
+                                >
+                                  Pagar Todas (Transf.)
+                                </button>
+                              </>
+                            )}
+                          </div>
                         </div>
 
                         {studentDebts.length === 0 ? (
@@ -981,6 +1006,17 @@ const StudentSearchModal = ({ isOpen, onClose, onSelectStudent: _onSelectStudent
           }}
         />
       )}
+
+      {/* Add Student to Past Events Modal */}
+      <AddStudentToEventsModal
+        isOpen={Boolean(studentForPastEvents)}
+        student={studentForPastEvents}
+        onClose={() => setStudentForPastEvents(null)}
+        onSuccess={() => {
+          fetchSearchData(false);
+          onUpdate?.();
+        }}
+      />
     </>
   );
 };
