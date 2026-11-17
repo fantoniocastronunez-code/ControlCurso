@@ -1,20 +1,567 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { db } from '../firebase/config';
-import { collection, query, where, getDocs, doc, updateDoc, addDoc, getDoc } from 'firebase/firestore';
+import { collection, query, where, getDocs, doc, updateDoc, addDoc, getDoc, deleteDoc } from 'firebase/firestore';
 import { 
   X, User, AlertCircle, CheckCircle, Clock, Download, 
-  DollarSign, Sparkles, CreditCard, Eye, FileText, AlertTriangle, Receipt, MinusCircle 
+  Sparkles, Eye, FileText, AlertTriangle, Receipt, MinusCircle,
+  Edit2, RotateCcw, XCircle, Check
 } from 'lucide-react';
 import { formatStudentName } from '../utils/nameUtils';
 import { useModal } from '../context/ModalContext';
 import { useAuth } from '../context/AuthContext';
+import { useCourse } from '../context/CourseContext';
+import { requestApproval } from '../services/approvalService';
 import html2canvas from 'html2canvas';
 import { useLockBodyScroll } from '../hooks/useLockBodyScroll';
 import DiscountBalanceModal from './DiscountBalanceModal';
 
-const StudentDetailModal = ({ student, usersMap = {}, onClose, isModal = false }) => {
-  const { showAlert, showConfirm } = useModal();
-  const { role } = useAuth();
+const formatDebtMoney = (amount) => {
+  return new Intl.NumberFormat('es-CL', { style: 'currency', currency: 'CLP' }).format(amount || 0);
+};
+
+export const filterAndSortStudentDebts = (fetchedDebts) => {
+  const sorted = [...fetchedDebts].sort((a, b) => {
+    const order = { pending: 1, partial: 2, review: 3, paid: 4 };
+    const orderA = order[a.status] || 5;
+    const orderB = order[b.status] || 5;
+    if (orderA !== orderB) return orderA - orderB;
+    return new Date(b.createdAt || b.date || 0) - new Date(a.createdAt || a.date || 0);
+  });
+
+  // Hide 'partial' debts ONLY if a '(Saldo Restante)' debt was manually created for THIS SPECIFIC debt title
+  return sorted.filter(d => {
+    const baseTitle = (d.title || '').replace('(Saldo Restante)', '').trim();
+
+    if (d.status === 'partial') {
+      const hasSpecificSaldoRestante = sorted.some(other =>
+        (other.title || '').includes('(Saldo Restante)') && (other.title || '').includes(baseTitle)
+      );
+      if (hasSpecificSaldoRestante) return false;
+    }
+
+    if ((d.title || '').includes('(Saldo Restante)')) {
+      const originalIsPaid = sorted.some(other =>
+        (other.title || '').trim() === baseTitle && other.status === 'paid'
+      );
+      if (originalIsPaid) return false;
+    }
+
+    return true;
+  });
+};
+
+export const syncExpenseStats = async (expenseId) => {
+  if (!expenseId) return;
+  try {
+    const q = query(collection(db, 'debts'), where('expenseId', '==', expenseId));
+    const snap = await getDocs(q);
+    const updatedFullyPaidCount = snap.docs.filter(d => d.data().status === 'paid').length;
+    const updatedTotalAmount = snap.docs.reduce((sum, d) => sum + (Number(d.data().amount) || 0), 0);
+
+    const expenseRef = doc(db, 'expenses', expenseId);
+    const expSnap = await getDoc(expenseRef);
+    if (expSnap.exists()) {
+      const expUpdates = { paidCount: updatedFullyPaidCount };
+      if (expSnap.data().calculationMode !== 'divide' && updatedTotalAmount > 0) {
+        expUpdates.totalAmount = updatedTotalAmount;
+      }
+      await updateDoc(expenseRef, expUpdates);
+    }
+  } catch (err) {
+    console.warn("No se pudo sincronizar estadísticas de la cuota:", err);
+  }
+};
+
+export const getRequiresApprovalForStudent = ({ role, userData, student, selectedCourse }) => {
+  const effectiveCourseIdForRole = student?.courseId || selectedCourse?.id;
+  const courseRole = (role === 'superadmin' || userData?.roles?.global === 'superadmin')
+    ? 'superadmin'
+    : (userData?.roles?.[effectiveCourseIdForRole] || null);
+  return courseRole !== 'tesorero' && courseRole !== 'superadmin';
+};
+
+const getEffectivePrevPaid = (debt) => {
+  if (debt.status === 'review') {
+    if (debt.previousPaidAmount !== undefined && debt.previousPaidAmount !== null) {
+      return Number(debt.previousPaidAmount) || 0;
+    }
+    if (debt.lastPaymentAmount !== undefined && debt.lastPaymentAmount !== null) {
+      return Math.max(0, (Number(debt.paidAmount) || 0) - (Number(debt.lastPaymentAmount) || 0));
+    }
+    return 0;
+  }
+  return Number(debt.paidAmount) || 0;
+};
+
+export const executeMarkDebtPaid = async ({
+  debt, student, method, isApproval = false, requiresApproval, user, selectedCourse, showPrompt, showAlert
+}) => {
+  let targetDebtAmount = Number(debt.amount) || 0;
+  if (!isApproval && targetDebtAmount <= 0) {
+    const promptAmtStr = await showPrompt("Este alumno tiene un monto a cobrar de $0. Ingresa el monto de la cuota ($) para registrar su pago:", "");
+    if (promptAmtStr === null) return { updated: false };
+    const parsedAmt = parseFloat(promptAmtStr);
+    if (isNaN(parsedAmt) || parsedAmt <= 0) {
+      await showAlert("Debes ingresar un monto válido mayor a $0.");
+      return { updated: false };
+    }
+    targetDebtAmount = parsedAmt;
+  }
+
+  let finalTotalPaid = 0;
+  let exactPaidNow = 0;
+
+  if (isApproval) {
+    const suggestedAmount = Number(debt.paidAmount) || targetDebtAmount;
+    finalTotalPaid = suggestedAmount;
+    exactPaidNow = Number(debt.lastPaymentAmount) || suggestedAmount;
+  } else {
+    const currentPaid = getEffectivePrevPaid(debt);
+    const remaining = targetDebtAmount - currentPaid;
+    exactPaidNow = remaining > 0 ? remaining : targetDebtAmount;
+    finalTotalPaid = currentPaid + exactPaidNow;
+  }
+
+  let newStatus = 'pending';
+  if (targetDebtAmount > 0 && finalTotalPaid >= targetDebtAmount) newStatus = 'paid';
+  else if (finalTotalPaid > 0) newStatus = 'partial';
+
+  const effectiveCourseId = debt.courseId || student?.courseId || selectedCourse?.id || '';
+  const effectiveFundId = debt.fundId || 'general';
+  const studentDisplayName = debt.studentName || student?.name || formatStudentName(student);
+
+  if (requiresApproval) {
+    let expensePaidCount;
+    if (debt.expenseId) {
+      const snap = await getDocs(query(collection(db, 'debts'), where('expenseId', '==', debt.expenseId)));
+      const currentPaidCount = snap.docs.filter(d => d.data().status === 'paid').length;
+      expensePaidCount = currentPaidCount + (newStatus === 'paid' && debt.status !== 'paid' ? 1 : 0);
+    }
+    const payload = {
+      ...(debt.expenseId ? { expenseId: debt.expenseId, expensePaidCount } : {}),
+      debtsToUpdate: [{
+        debtId: debt.id,
+        amountToLog: exactPaidNow,
+        updates: {
+          amount: targetDebtAmount,
+          status: newStatus,
+          paidAmount: finalTotalPaid,
+          paymentMethod: method,
+          courseId: effectiveCourseId,
+          fundId: effectiveFundId,
+          studentName: studentDisplayName,
+          title: debt.title || 'Cuota'
+        }
+      }]
+    };
+    await requestApproval('REGISTER_PAYMENTS', `Pago: ${studentDisplayName} (${formatDebtMoney(finalTotalPaid)})`, payload, user, effectiveCourseId);
+    await showAlert('Solicitud de pago enviada a la tesorera.');
+    return { updated: true };
+  }
+
+  const approvedAtIso = new Date().toISOString();
+  await updateDoc(doc(db, 'debts', debt.id), {
+    amount: targetDebtAmount,
+    status: newStatus,
+    paidAmount: finalTotalPaid,
+    paymentMethod: method,
+    courseId: effectiveCourseId,
+    fundId: effectiveFundId,
+    approvedAt: approvedAtIso
+  });
+
+  if (exactPaidNow > 0) {
+    await addDoc(collection(db, 'payments'), {
+      debtId: debt.id,
+      courseId: effectiveCourseId,
+      fundId: effectiveFundId,
+      amount: exactPaidNow,
+      paymentMethod: method,
+      studentName: studentDisplayName,
+      title: debt.title || 'Cuota',
+      status: newStatus,
+      createdAt: approvedAtIso
+    });
+  }
+
+  await syncExpenseStats(debt.expenseId);
+  return { updated: true };
+};
+
+export const executePayAllPending = async ({
+  debts, student, method, requiresApproval, user, selectedCourse, showConfirm, showAlert
+}) => {
+  const rawPendings = debts.filter(d => d.status === 'pending' || d.status === 'partial');
+  if (rawPendings.length === 0) return { updated: false };
+
+  const targets = rawPendings.filter(d => (Number(d.amount) || 0) > 0);
+  if (targets.length === 0) {
+    await showAlert("Las cuotas pendientes tienen monto $0. Ingresa el monto pagando cada cuota individualmente.");
+    return { updated: false };
+  }
+
+  const totalToPay = targets.reduce((sum, d) => sum + Math.max(0, (Number(d.amount) || 0) - (Number(d.paidAmount) || 0)), 0);
+  const methodLabel = method === 'cash' ? 'Efectivo' : 'Transferencia';
+  if (!(await showConfirm(`¿Marcar como pagadas ${targets.length} cuota(s) de ${formatStudentName(student)} por ${formatDebtMoney(totalToPay)} en ${methodLabel}?`))) {
+    return { updated: false };
+  }
+
+  const effectiveCourseIdDefault = student?.courseId || selectedCourse?.id || '';
+  const studentDisplayName = student?.name || formatStudentName(student);
+
+  if (requiresApproval) {
+    const debtsToUpdate = targets.map(d => {
+      const targetAmt = Number(d.amount) || 0;
+      const currentPaid = Number(d.paidAmount) || 0;
+      const remaining = Math.max(0, targetAmt - currentPaid);
+      const finalPaid = currentPaid + remaining;
+      return {
+        debtId: d.id,
+        amountToLog: remaining,
+        updates: {
+          amount: targetAmt,
+          status: 'paid',
+          paidAmount: finalPaid,
+          paymentMethod: method,
+          courseId: d.courseId || effectiveCourseIdDefault,
+          fundId: d.fundId || 'general',
+          studentName: d.studentName || studentDisplayName,
+          title: d.title || 'Cuota'
+        }
+      };
+    });
+    const uniqueExpIds = [...new Set(targets.map(d => d.expenseId).filter(Boolean))];
+    let extraExpensePayload = {};
+    if (uniqueExpIds.length === 1) {
+      const snap = await getDocs(query(collection(db, 'debts'), where('expenseId', '==', uniqueExpIds[0])));
+      const alreadyPaid = snap.docs.filter(d => d.data().status === 'paid').length;
+      extraExpensePayload = { expenseId: uniqueExpIds[0], expensePaidCount: alreadyPaid + targets.length };
+    }
+    await requestApproval(
+      'REGISTER_PAYMENTS',
+      `Pago masivo (${targets.length} cuotas) - ${studentDisplayName}`,
+      { ...extraExpensePayload, debtsToUpdate },
+      user,
+      effectiveCourseIdDefault
+    );
+    await showAlert('Solicitud de pago enviada a la tesorera.');
+    return { updated: true };
+  }
+
+  const approvedAtIso = new Date().toISOString();
+  const expenseIdsToSync = new Set();
+
+  for (const d of targets) {
+    const targetAmt = Number(d.amount) || 0;
+    const currentPaid = Number(d.paidAmount) || 0;
+    const remaining = Math.max(0, targetAmt - currentPaid);
+    const finalPaid = currentPaid + remaining;
+    const effectiveCourseId = d.courseId || effectiveCourseIdDefault;
+    const effectiveFundId = d.fundId || 'general';
+
+    await updateDoc(doc(db, 'debts', d.id), {
+      amount: targetAmt,
+      status: 'paid',
+      paidAmount: finalPaid,
+      paymentMethod: method,
+      courseId: effectiveCourseId,
+      fundId: effectiveFundId,
+      approvedAt: approvedAtIso
+    });
+
+    if (remaining > 0) {
+      await addDoc(collection(db, 'payments'), {
+        debtId: d.id,
+        courseId: effectiveCourseId,
+        fundId: effectiveFundId,
+        amount: remaining,
+        paymentMethod: method,
+        studentName: d.studentName || studentDisplayName,
+        title: d.title || 'Cuota',
+        status: 'paid',
+        createdAt: approvedAtIso
+      });
+    }
+
+    if (d.expenseId) expenseIdsToSync.add(d.expenseId);
+  }
+
+  await Promise.all([...expenseIdsToSync].map(id => syncExpenseStats(id)));
+  await showAlert(`¡Se marcaron ${targets.length} cuota(s) como pagadas en ${methodLabel}!`);
+  return { updated: true };
+};
+
+export const executeRejectReviewDebt = async ({ debt, showConfirm, showAlert }) => {
+  if (!(await showConfirm('¿Seguro que deseas rechazar este comprobante? El apoderado tendrá que subir uno nuevo.'))) {
+    return { updated: false };
+  }
+  const previousValidPaidAmount = getEffectivePrevPaid(debt);
+  await updateDoc(doc(db, 'debts', debt.id), {
+    status: previousValidPaidAmount > 0 ? 'partial' : 'pending',
+    receiptUrl: null,
+    paidAmount: previousValidPaidAmount
+  });
+  await syncExpenseStats(debt.expenseId);
+  await showAlert('Comprobante rechazado.');
+  return { updated: true };
+};
+
+export const executeEditDebtAmount = async ({ debt, student, selectedCourse, showPrompt, showAlert }) => {
+  const newAmountStr = await showPrompt(`Ingresa el NUEVO Monto a Cobrar ($) para la cuota "${debt.title}":`, debt.amount || 0);
+  if (newAmountStr === null) return { updated: false };
+
+  const newAmount = parseFloat(newAmountStr);
+  if (isNaN(newAmount) || newAmount <= 0) {
+    await showAlert("Monto inválido.");
+    return { updated: false };
+  }
+
+  const effectiveCourseId = debt.courseId || student?.courseId || selectedCourse?.id || '';
+  const effectiveFundId = debt.fundId || 'general';
+  const wasPaidWithZero = debt.status === 'paid' && (!debt.paidAmount || debt.paidAmount <= 0);
+  let balanceToDeductOnEdit = 0;
+  let newStudentBalance = null;
+
+  if (wasPaidWithZero && debt.paymentMethod === 'balance' && student?.id) {
+    const freshSnap = await getDoc(doc(db, 'students', student.id));
+    const currentBal = freshSnap.exists() ? (Number(freshSnap.data().balance) || 0) : (Number(student.balance) || 0);
+    if (currentBal > 0) {
+      balanceToDeductOnEdit = Math.min(currentBal, newAmount);
+      newStudentBalance = Math.max(0, currentBal - balanceToDeductOnEdit);
+    }
+  }
+
+  const updatedPaidAmount = wasPaidWithZero
+    ? (debt.paymentMethod === 'balance' && balanceToDeductOnEdit > 0 ? balanceToDeductOnEdit : newAmount)
+    : (Number(debt.paidAmount) || 0);
+
+  let newStatus = debt.status;
+  if (wasPaidWithZero || updatedPaidAmount > 0) {
+    newStatus = updatedPaidAmount >= newAmount ? 'paid' : 'partial';
+  } else if (debt.status !== 'review') {
+    newStatus = 'pending';
+  }
+
+  const effectiveMethod = updatedPaidAmount > 0 ? (debt.paymentMethod || 'transfer') : null;
+  const effectiveApprovedAt = updatedPaidAmount > 0 ? (debt.approvedAt || new Date().toISOString()) : null;
+
+  await updateDoc(doc(db, 'debts', debt.id), {
+    amount: newAmount,
+    paidAmount: updatedPaidAmount,
+    status: newStatus,
+    paymentMethod: effectiveMethod,
+    approvedAt: effectiveApprovedAt,
+    courseId: effectiveCourseId,
+    fundId: effectiveFundId
+  });
+
+  if (newStudentBalance !== null && student?.id) {
+    await updateDoc(doc(db, 'students', student.id), { balance: newStudentBalance });
+  }
+
+  if (wasPaidWithZero && updatedPaidAmount > 0) {
+    const paymentsSnap = await getDocs(query(collection(db, 'payments'), where('debtId', '==', debt.id)));
+    for (const pDoc of paymentsSnap.docs) {
+      await deleteDoc(doc(db, 'payments', pDoc.id));
+    }
+    await addDoc(collection(db, 'payments'), {
+      debtId: debt.id,
+      courseId: effectiveCourseId,
+      fundId: effectiveFundId,
+      amount: updatedPaidAmount,
+      paymentMethod: effectiveMethod,
+      studentName: debt.studentName || student?.name || formatStudentName(student),
+      title: debt.title || 'Cuota',
+      status: newStatus,
+      createdAt: effectiveApprovedAt
+    });
+  }
+
+  await syncExpenseStats(debt.expenseId);
+  return { updated: true, ...(newStudentBalance !== null ? { newBalance: newStudentBalance } : {}) };
+};
+
+export const executeEditPaidAmount = async ({ debt, student, selectedCourse, showPrompt, showAlert }) => {
+  const currentEffectivePaid = getEffectivePrevPaid(debt);
+  const newAmountStr = await showPrompt(
+    `Ingresa el Monto Pagado / Abonado ($) para "${debt.title}" (Total cuota: ${formatDebtMoney(debt.amount)}):`,
+    currentEffectivePaid
+  );
+  if (newAmountStr === null) return { updated: false };
+
+  const newAmount = parseFloat(newAmountStr);
+  if (isNaN(newAmount) || newAmount < 0) {
+    await showAlert("Monto inválido.");
+    return { updated: false };
+  }
+
+  const effectiveCourseId = debt.courseId || student?.courseId || selectedCourse?.id || '';
+  const effectiveFundId = debt.fundId || 'general';
+  const existingAmount = Number(debt.amount) || 0;
+  const updatedDebtAmount = existingAmount > 0 ? existingAmount : (newAmount > 0 ? newAmount : 0);
+
+  let newStatus = 'pending';
+  if (newAmount > 0 && updatedDebtAmount > 0 && newAmount >= updatedDebtAmount) newStatus = 'paid';
+  else if (newAmount > 0) newStatus = 'partial';
+
+  const effectiveMethod = newAmount > 0 ? (debt.paymentMethod || 'transfer') : null;
+  const effectiveApprovedAt = newAmount > 0 ? (debt.approvedAt || new Date().toISOString()) : null;
+
+  await updateDoc(doc(db, 'debts', debt.id), {
+    amount: updatedDebtAmount,
+    paidAmount: newAmount,
+    status: newStatus,
+    paymentMethod: effectiveMethod,
+    approvedAt: effectiveApprovedAt,
+    courseId: effectiveCourseId,
+    fundId: effectiveFundId
+  });
+
+  const paymentsSnap = await getDocs(query(collection(db, 'payments'), where('debtId', '==', debt.id)));
+  for (const pDoc of paymentsSnap.docs) {
+    await deleteDoc(doc(db, 'payments', pDoc.id));
+  }
+
+  if (newAmount > 0) {
+    await addDoc(collection(db, 'payments'), {
+      debtId: debt.id,
+      courseId: effectiveCourseId,
+      fundId: effectiveFundId,
+      amount: newAmount,
+      paymentMethod: effectiveMethod,
+      studentName: debt.studentName || student?.name || formatStudentName(student),
+      title: debt.title || 'Cuota',
+      status: newStatus,
+      createdAt: effectiveApprovedAt
+    });
+  }
+
+  await syncExpenseStats(debt.expenseId);
+  return { updated: true };
+};
+
+export const executeTogglePaymentMethod = async ({ debt, showAlert }) => {
+  if (debt.paymentMethod === 'balance') {
+    await showAlert("Esta cuota fue pagada con Saldo a Favor. Si deseas cambiar el medio de pago, primero cancela el pago para devolver el saldo.");
+    return { updated: false };
+  }
+  const nextMethod = debt.paymentMethod === 'cash' ? 'transfer' : 'cash';
+  await updateDoc(doc(db, 'debts', debt.id), { paymentMethod: nextMethod });
+
+  const paymentsSnap = await getDocs(query(collection(db, 'payments'), where('debtId', '==', debt.id)));
+  for (const pDoc of paymentsSnap.docs) {
+    await updateDoc(doc(db, 'payments', pDoc.id), { paymentMethod: nextMethod });
+  }
+  return { updated: true };
+};
+
+export const executeCancelPayment = async ({ debt, student, showConfirm }) => {
+  if (!(await showConfirm(`¿Estás seguro de que deseas cancelar el pago de "${debt.title}"? El registro volverá a estar Pendiente.`))) {
+    return { updated: false };
+  }
+
+  await updateDoc(doc(db, 'debts', debt.id), {
+    status: 'pending',
+    paidAmount: 0,
+    paymentMethod: null,
+    receiptUrl: null,
+    approvedAt: null
+  });
+
+  const paymentsSnap = await getDocs(query(collection(db, 'payments'), where('debtId', '==', debt.id)));
+  let balanceRefund = 0;
+  for (const pDoc of paymentsSnap.docs) {
+    const pData = pDoc.data();
+    if (pData.paymentMethod === 'balance' && Number(pData.amount) > 0) {
+      balanceRefund += Number(pData.amount);
+    }
+    await deleteDoc(doc(db, 'payments', pDoc.id));
+  }
+
+  if (balanceRefund === 0 && debt.paymentMethod === 'balance' && Number(debt.paidAmount) > 0) {
+    balanceRefund = Number(debt.paidAmount);
+  }
+
+  let restoredBalance = null;
+  if (balanceRefund > 0 && student?.id) {
+    const studentRef = doc(db, 'students', student.id);
+    const freshStudent = await getDoc(studentRef);
+    const currentBal = freshStudent.exists() ? (Number(freshStudent.data().balance) || 0) : (Number(student.balance) || 0);
+    restoredBalance = currentBal + balanceRefund;
+    await updateDoc(studentRef, { balance: restoredBalance });
+  }
+
+  await syncExpenseStats(debt.expenseId);
+  return { updated: true, ...(restoredBalance !== null ? { newBalance: restoredBalance } : {}) };
+};
+
+export const executePayDebtWithBalance = async ({ debt, student, selectedCourse, showConfirm, showAlert }) => {
+  if (!student?.id) return { updated: false };
+  const studentRef = doc(db, 'students', student.id);
+  const freshSnap = await getDoc(studentRef);
+  const currentBalance = freshSnap.exists() ? (Number(freshSnap.data().balance) || 0) : (Number(student.balance) || 0);
+
+  if (currentBalance <= 0) {
+    await showAlert("El alumno no tiene saldo a favor disponible.");
+    return { updated: false };
+  }
+
+  const debtAmount = Number(debt.amount) || 0;
+  if (debtAmount <= 0) {
+    await showAlert("Esta cuota tiene monto $0. Primero modifica el monto a cobrar antes de aplicar saldo a favor.");
+    return { updated: false };
+  }
+
+  const currentPaid = getEffectivePrevPaid(debt);
+  const remaining = Math.max(0, debtAmount - currentPaid);
+  if (remaining <= 0) return { updated: false };
+
+  const amountToUse = Math.min(currentBalance, remaining);
+  const newBalance = currentBalance - amountToUse;
+  const newPaidAmount = currentPaid + amountToUse;
+  const isFullyPaid = newPaidAmount >= debtAmount;
+
+  if (!(await showConfirm(`¿Usar ${formatDebtMoney(amountToUse)} del saldo a favor de ${formatStudentName(student)} para la cuota "${debt.title}"? Le quedarán ${formatDebtMoney(newBalance)} a favor.`))) {
+    return { updated: false };
+  }
+
+  const effectiveCourseId = debt.courseId || student.courseId || selectedCourse?.id || '';
+  const effectiveFundId = debt.fundId || 'general';
+  const approvedAtIso = new Date().toISOString();
+
+  await updateDoc(doc(db, 'debts', debt.id), {
+    status: isFullyPaid ? 'paid' : 'partial',
+    paidAmount: newPaidAmount,
+    paymentMethod: 'balance',
+    courseId: effectiveCourseId,
+    fundId: effectiveFundId,
+    approvedAt: approvedAtIso
+  });
+
+  await addDoc(collection(db, 'payments'), {
+    debtId: debt.id,
+    courseId: effectiveCourseId,
+    fundId: effectiveFundId,
+    amount: amountToUse,
+    paymentMethod: 'balance',
+    studentName: debt.studentName || student.name || formatStudentName(student),
+    title: debt.title || 'Cuota',
+    status: isFullyPaid ? 'paid' : 'partial',
+    createdAt: approvedAtIso
+  });
+
+  await updateDoc(studentRef, { balance: newBalance });
+  await syncExpenseStats(debt.expenseId);
+  await showAlert(`¡Se aplicó ${formatDebtMoney(amountToUse)} de saldo a favor exitosamente!`);
+  return { updated: true, newBalance };
+};
+
+const StudentDetailModal = ({ student, usersMap = {}, onClose, isModal = false, onUpdate }) => {
+  const { showAlert, showConfirm, showPrompt } = useModal();
+  const { user, role, userData } = useAuth();
+  const { selectedCourse } = useCourse();
+  const requiresApproval = getRequiresApprovalForStudent({ role, userData, student, selectedCourse });
+
   const [debts, setDebts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [sharing, setSharing] = useState(false);
@@ -23,6 +570,8 @@ const StudentDetailModal = ({ student, usersMap = {}, onClose, isModal = false }
   const [expensesEnabled, setExpensesEnabled] = useState(Boolean(student?.showExpensesInPortal));
   const [togglingExpenses, setTogglingExpenses] = useState(false);
   const [applyingBalance, setApplyingBalance] = useState(false);
+  const [processingDebtId, setProcessingDebtId] = useState(null);
+  const [studentBalance, setStudentBalance] = useState(Number(student?.balance) || 0);
   const [showDiscountModal, setShowDiscountModal] = useState(false);
   const detailRef = useRef(null);
 
@@ -51,134 +600,144 @@ const StudentDetailModal = ({ student, usersMap = {}, onClose, isModal = false }
     }
   };
 
-  useEffect(() => {
-    if (student?.id) {
-      fetchDebts();
-    }
-  }, [student?.id]);
-
-  const fetchDebts = async () => {
+  const fetchDebts = useCallback(async () => {
+    if (!student?.id) return;
     setLoading(true);
     try {
-      const q = query(collection(db, 'debts'), where('studentId', '==', student.id));
-      const snap = await getDocs(q);
-      const fetchedDebts = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-      
-      // Sort: Pending/Review/Partial first, then by date descending
-      fetchedDebts.sort((a, b) => {
-        const order = { pending: 1, partial: 2, review: 3, paid: 4 };
-        const orderA = order[a.status] || 5;
-        const orderB = order[b.status] || 5;
-        if (orderA !== orderB) return orderA - orderB;
-        return new Date(b.createdAt || b.date || 0) - new Date(a.createdAt || a.date || 0);
-      });
-
-      // Hide 'partial' debts ONLY if a '(Saldo Restante)' debt was manually created for THIS SPECIFIC debt title
-      const filteredDebts = fetchedDebts.filter(d => {
-        const baseTitle = d.title.replace('(Saldo Restante)', '').trim();
-        
-        if (d.status === 'partial') {
-          const hasSpecificSaldoRestante = fetchedDebts.some(other => 
-            other.title.includes('(Saldo Restante)') && other.title.includes(baseTitle)
-          );
-          if (hasSpecificSaldoRestante) return false;
-        }
-
-        if (d.title.includes('(Saldo Restante)')) {
-          const originalIsPaid = fetchedDebts.some(other => 
-            other.title.trim() === baseTitle && other.status === 'paid'
-          );
-          if (originalIsPaid) return false;
-        }
-        
-        return true;
-      });
-
-      setDebts(filteredDebts);
+      const [snap, studentSnap] = await Promise.all([
+        getDocs(query(collection(db, 'debts'), where('studentId', '==', student.id))),
+        getDoc(doc(db, 'students', student.id))
+      ]);
+      const fetchedDebts = snap.docs.map(docSnap => ({ id: docSnap.id, ...docSnap.data() }));
+      setDebts(filterAndSortStudentDebts(fetchedDebts));
+      if (studentSnap.exists()) {
+        setStudentBalance(Number(studentSnap.data().balance) || 0);
+      }
     } catch (error) {
       console.error("Error fetching debts:", error);
     } finally {
       setLoading(false);
     }
-  };
+  }, [student?.id]);
 
-  const formatMoney = (amount) => {
-    return new Intl.NumberFormat('es-CL', { style: 'currency', currency: 'CLP' }).format(amount || 0);
-  };
+  useEffect(() => {
+    fetchDebts();
+  }, [fetchDebts]);
+
+  const formatMoney = (amount) => formatDebtMoney(amount);
 
   const pendingDebts = debts.filter(d => d.status === 'pending' || d.status === 'review' || d.status === 'partial');
+  const payablePendingDebts = pendingDebts.filter(d => d.status === 'pending' || d.status === 'partial');
   const paidDebts = debts.filter(d => d.status === 'paid');
 
+  const runDebtAction = async (debtId, actionFn) => {
+    if (processingDebtId) return;
+    setProcessingDebtId(debtId);
+    try {
+      const result = await actionFn();
+      if (result?.updated) {
+        if (result.newBalance !== undefined) {
+          setStudentBalance(result.newBalance);
+        }
+        await fetchDebts();
+        onUpdate?.();
+      }
+    } catch (err) {
+      console.error("Error procesando acción de cuota:", err);
+      await showAlert("Ocurrió un error al procesar la operación.");
+    } finally {
+      setProcessingDebtId(null);
+    }
+  };
+
+  const handleMarkDebtPaid = (debt, method, isApproval = false) =>
+    runDebtAction(debt.id, () =>
+      executeMarkDebtPaid({
+        debt,
+        student: { ...student, balance: studentBalance },
+        method,
+        isApproval,
+        requiresApproval,
+        user,
+        selectedCourse,
+        showPrompt,
+        showAlert
+      })
+    );
+
+  const handlePayAllPending = (method) =>
+    runDebtAction('all', () =>
+      executePayAllPending({
+        debts,
+        student: { ...student, balance: studentBalance },
+        method,
+        requiresApproval,
+        user,
+        selectedCourse,
+        showConfirm,
+        showAlert
+      })
+    );
+
+  const handleRejectReviewDebt = (debt) =>
+    runDebtAction(debt.id, () =>
+      executeRejectReviewDebt({ debt, showConfirm, showAlert })
+    );
+
+  const handleEditDebtAmount = (debt) =>
+    runDebtAction(debt.id, () =>
+      executeEditDebtAmount({
+        debt,
+        student: { ...student, balance: studentBalance },
+        selectedCourse,
+        showPrompt,
+        showAlert
+      })
+    );
+
+  const handleEditPaidAmount = (debt) =>
+    runDebtAction(debt.id, () =>
+      executeEditPaidAmount({
+        debt,
+        student: { ...student, balance: studentBalance },
+        selectedCourse,
+        showPrompt,
+        showAlert
+      })
+    );
+
+  const handleTogglePaymentMethod = (debt) =>
+    runDebtAction(debt.id, () =>
+      executeTogglePaymentMethod({ debt, showAlert })
+    );
+
+  const handleCancelPayment = (debt) =>
+    runDebtAction(debt.id, () =>
+      executeCancelPayment({
+        debt,
+        student: { ...student, balance: studentBalance },
+        showConfirm
+      })
+    );
+
   const handlePayDebtWithBalance = async (debt) => {
-    if (!student?.id || (student.balance || 0) <= 0) {
-      await showAlert("El alumno no tiene saldo a favor disponible.");
-      return;
-    }
-
-    const currentPaid = debt.paidAmount || 0;
-    const remaining = Math.max(0, (debt.amount || 0) - currentPaid);
-    if (remaining <= 0) return;
-
-    const amountToUse = Math.min(student.balance, remaining);
-    const newBalance = student.balance - amountToUse;
-    const newPaidAmount = currentPaid + amountToUse;
-    const isFullyPaid = newPaidAmount >= debt.amount;
-
-    if (!(await showConfirm(`¿Usar ${formatMoney(amountToUse)} del saldo a favor de ${formatStudentName(student)} para la cuota "${debt.title}"? Le quedarán ${formatMoney(newBalance)} a favor.`))) {
-      return;
-    }
-
+    if (applyingBalance || processingDebtId) return;
     setApplyingBalance(true);
     try {
-      const effectiveCourseId = debt.courseId || student.courseId;
-      const effectiveFundId = debt.fundId || 'general';
-      const approvedAtIso = new Date().toISOString();
-
-      // 1. Actualizar deuda
-      await updateDoc(doc(db, 'debts', debt.id), {
-        status: isFullyPaid ? 'paid' : 'partial',
-        paidAmount: newPaidAmount,
-        paymentMethod: 'balance',
-        courseId: effectiveCourseId,
-        fundId: effectiveFundId,
-        approvedAt: approvedAtIso
+      const result = await executePayDebtWithBalance({
+        debt,
+        student: { ...student, balance: studentBalance },
+        selectedCourse,
+        showConfirm,
+        showAlert
       });
-
-      // 2. Registrar pago
-      await addDoc(collection(db, 'payments'), {
-        debtId: debt.id,
-        courseId: effectiveCourseId,
-        fundId: effectiveFundId,
-        amount: amountToUse,
-        paymentMethod: 'balance',
-        studentName: student.name,
-        title: debt.title,
-        status: isFullyPaid ? 'paid' : 'partial',
-        createdAt: approvedAtIso
-      });
-
-      // 3. Descontar saldo del estudiante
-      await updateDoc(doc(db, 'students', student.id), {
-        balance: newBalance
-      });
-      student.balance = newBalance;
-
-      // 4. Actualizar contador del gasto si corresponde
-      if (isFullyPaid && debt.expenseId && debt.status !== 'paid') {
-        try {
-          const expenseRef = doc(db, 'expenses', debt.expenseId);
-          const expenseSnap = await getDoc(expenseRef);
-          if (expenseSnap.exists()) {
-            const currentCount = expenseSnap.data().paidCount || 0;
-            await updateDoc(expenseRef, { paidCount: currentCount + 1 });
-          }
-        } catch (e) {
-          console.warn("No se pudo actualizar paidCount del gasto:", e);
+      if (result?.updated) {
+        if (result.newBalance !== undefined) {
+          setStudentBalance(result.newBalance);
         }
+        await fetchDebts();
+        onUpdate?.();
       }
-
-      await fetchDebts();
-      await showAlert(`¡Se aplicó ${formatMoney(amountToUse)} de saldo a favor exitosamente!`);
     } catch (err) {
       console.error("Error al aplicar saldo a favor:", err);
       await showAlert("Error al registrar el pago con saldo a favor.");
@@ -188,7 +747,7 @@ const StudentDetailModal = ({ student, usersMap = {}, onClose, isModal = false }
   };
 
   const handleApplyBalanceToAllDebts = async () => {
-    if (!student?.id || (student.balance || 0) <= 0) {
+    if (!student?.id || studentBalance <= 0) {
       await showAlert("El alumno no tiene saldo a favor disponible.");
       return;
     }
@@ -199,7 +758,7 @@ const StudentDetailModal = ({ student, usersMap = {}, onClose, isModal = false }
       return;
     }
 
-    let currentBal = student.balance;
+    let currentBal = studentBalance;
     const plan = [];
     let totalDiscount = 0;
 
@@ -229,8 +788,9 @@ const StudentDetailModal = ({ student, usersMap = {}, onClose, isModal = false }
 
     setApplyingBalance(true);
     try {
+      const expenseIdsToSync = new Set();
       for (const p of plan) {
-        const effectiveCourseId = p.debt.courseId || student.courseId;
+        const effectiveCourseId = p.debt.courseId || student.courseId || selectedCourse?.id || '';
         const effectiveFundId = p.debt.fundId || 'general';
         const approvedAtIso = new Date().toISOString();
 
@@ -255,26 +815,17 @@ const StudentDetailModal = ({ student, usersMap = {}, onClose, isModal = false }
           createdAt: approvedAtIso
         });
 
-        if (p.isFullyPaid && p.debt.expenseId && p.debt.status !== 'paid') {
-          try {
-            const expRef = doc(db, 'expenses', p.debt.expenseId);
-            const expSnap = await getDoc(expRef);
-            if (expSnap.exists()) {
-              const currentCount = expSnap.data().paidCount || 0;
-              await updateDoc(expRef, { paidCount: currentCount + 1 });
-            }
-          } catch (e) {
-            console.warn("No se pudo actualizar paidCount:", e);
-          }
-        }
+        if (p.debt.expenseId) expenseIdsToSync.add(p.debt.expenseId);
       }
 
       await updateDoc(doc(db, 'students', student.id), {
         balance: currentBal
       });
-      student.balance = currentBal;
+      await Promise.all([...expenseIdsToSync].map(id => syncExpenseStats(id)));
+      setStudentBalance(currentBal);
 
       await fetchDebts();
+      onUpdate?.();
       await showAlert(`¡Se descontó ${formatMoney(totalDiscount)} de saldo a favor exitosamente!`);
     } catch (err) {
       console.error("Error al descontar saldos a favor:", err);
@@ -333,9 +884,13 @@ const StudentDetailModal = ({ student, usersMap = {}, onClose, isModal = false }
             card.classList.add('receipt-export-light');
             card.classList.remove('glass-panel', 'animate-fade-in');
             
-            // Ocultar botones interactivos (como "Ver comprobante")
+            // Ocultar botones interactivos (como "Ver comprobante") pero conservar badge de método de pago
             const buttons = card.querySelectorAll('button');
-            buttons.forEach(b => b.style.display = 'none');
+            buttons.forEach(b => {
+              if (!b.classList.contains('receipt-payment-badge')) {
+                b.style.display = 'none';
+              }
+            });
             
             // Encabezado institucional de la ficha
             const headerBanner = clonedDoc.createElement('div');
@@ -498,14 +1053,14 @@ const StudentDetailModal = ({ student, usersMap = {}, onClose, isModal = false }
         </div>
 
         {/* Saldo a Favor */}
-        <div className={(student.balance || 0) > 0 ? 'receipt-kpi-balance-active' : 'receipt-kpi-balance-neutral'} style={{ padding: '1rem', backgroundColor: (student.balance || 0) > 0 ? 'rgba(16, 185, 129, 0.15)' : 'rgba(255,255,255,0.02)', borderRadius: 'var(--radius-md)', border: (student.balance || 0) > 0 ? '1px solid rgba(16, 185, 129, 0.3)' : '1px solid var(--border-color)' }}>
+        <div className={studentBalance > 0 ? 'receipt-kpi-balance-active' : 'receipt-kpi-balance-neutral'} style={{ padding: '1rem', backgroundColor: studentBalance > 0 ? 'rgba(16, 185, 129, 0.15)' : 'rgba(255,255,255,0.02)', borderRadius: 'var(--radius-md)', border: studentBalance > 0 ? '1px solid rgba(16, 185, 129, 0.3)' : '1px solid var(--border-color)' }}>
           <p style={{ margin: '0 0 0.25rem 0', fontSize: '0.75rem', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
             <Sparkles size={14} style={{ color: 'var(--success)' }} /> Saldo a Favor
           </p>
-          <h3 style={{ margin: 0, color: (student.balance || 0) > 0 ? 'var(--success)' : 'var(--text-muted)', fontSize: '1.25rem' }}>
-            {formatMoney(student.balance || 0)}
+          <h3 style={{ margin: 0, color: studentBalance > 0 ? 'var(--success)' : 'var(--text-muted)', fontSize: '1.25rem' }}>
+            {formatMoney(studentBalance)}
           </h3>
-          {(student.balance || 0) > 0 && (
+          {studentBalance > 0 && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem', marginTop: '0.6rem' }}>
               <button
                 type="button"
@@ -594,9 +1149,47 @@ const StudentDetailModal = ({ student, usersMap = {}, onClose, isModal = false }
         
         {/* Deudas Pendientes / Por Pagar */}
         <div style={{ display: 'flex', flexDirection: 'column' }}>
-          <h4 className="receipt-section-pending-title" style={{ color: 'var(--danger)', display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.75rem', fontSize: '1rem' }}>
-            <AlertCircle size={18} /> Por Pagar / En Revisión ({pendingDebts.length})
-          </h4>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap', marginBottom: '0.75rem' }}>
+            <h4 className="receipt-section-pending-title" style={{ color: 'var(--danger)', display: 'flex', alignItems: 'center', gap: '0.5rem', margin: 0, fontSize: '1rem' }}>
+              <AlertCircle size={18} /> Por Pagar / En Revisión ({pendingDebts.length})
+            </h4>
+            {payablePendingDebts.length > 1 && (
+              <div style={{ display: 'flex', gap: '0.35rem', flexWrap: 'wrap' }}>
+                <button
+                  type="button"
+                  onClick={() => handlePayAllPending('cash')}
+                  disabled={Boolean(processingDebtId)}
+                  className="btn btn-outline"
+                  style={{
+                    padding: '0.2rem 0.5rem',
+                    fontSize: '0.72rem',
+                    borderColor: 'rgba(16, 185, 129, 0.45)',
+                    color: 'var(--success)',
+                    backgroundColor: 'rgba(16, 185, 129, 0.08)'
+                  }}
+                  title="Marcar todas las cuotas pendientes como pagadas en Efectivo"
+                >
+                  Pagar Todas (Efectivo)
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handlePayAllPending('transfer')}
+                  disabled={Boolean(processingDebtId)}
+                  className="btn btn-outline"
+                  style={{
+                    padding: '0.2rem 0.5rem',
+                    fontSize: '0.72rem',
+                    borderColor: 'rgba(99, 102, 241, 0.45)',
+                    color: 'var(--primary)',
+                    backgroundColor: 'rgba(99, 102, 241, 0.08)'
+                  }}
+                  title="Marcar todas las cuotas pendientes como pagadas por Transferencia"
+                >
+                  Pagar Todas (Transf.)
+                </button>
+              </div>
+            )}
+          </div>
           
           {loading ? (
             <p className="receipt-subtext" style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>Cargando cuotas...</p>
@@ -607,13 +1200,14 @@ const StudentDetailModal = ({ student, usersMap = {}, onClose, isModal = false }
               <p style={{ margin: 0, fontSize: '0.8rem', opacity: 0.85 }}>No tiene cuotas pendientes por pagar.</p>
             </div>
           ) : (
-            <ul style={{ listStyle: 'none', padding: 0, margin: 0, display: 'grid', gap: '0.75rem', maxHeight: (isModal && !isCapturing) ? '350px' : 'none', overflowY: (isModal && !isCapturing) ? 'auto' : 'visible' }}>
+            <ul style={{ listStyle: 'none', padding: 0, margin: 0, display: 'grid', gap: '0.75rem', maxHeight: (isModal && !isCapturing) ? '380px' : 'none', overflowY: (isModal && !isCapturing) ? 'auto' : 'visible' }}>
               {pendingDebts.map(d => {
                 const isPartial = d.status === 'partial';
                 const isReview = d.status === 'review';
                 const debtAmount = d.amount || 0;
                 const paidAmount = d.paidAmount || 0;
                 const remaining = isPartial ? Math.max(0, debtAmount - paidAmount) : debtAmount;
+                const isBusy = processingDebtId === d.id || processingDebtId === 'all';
 
                 return (
                   <li 
@@ -637,9 +1231,20 @@ const StudentDetailModal = ({ student, usersMap = {}, onClose, isModal = false }
                           </span>
                         )}
                       </span>
-                      <span className="receipt-debt-amount" style={{ fontWeight: '700', color: 'var(--danger)', fontSize: '1rem', whiteSpace: 'nowrap' }}>
-                        {formatMoney(remaining)}
-                      </span>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', flexShrink: 0 }}>
+                        <span className="receipt-debt-amount" style={{ fontWeight: '700', color: 'var(--danger)', fontSize: '1rem', whiteSpace: 'nowrap' }}>
+                          {formatMoney(remaining)}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => handleEditDebtAmount(d)}
+                          disabled={isBusy}
+                          style={{ background: 'none', border: 'none', color: 'var(--primary)', cursor: 'pointer', padding: '0.15rem', display: 'inline-flex', alignItems: 'center' }}
+                          title="Modificar monto a cobrar"
+                        >
+                          <Edit2 size={13} />
+                        </button>
+                      </div>
                     </div>
 
                     {isPartial && (
@@ -649,41 +1254,19 @@ const StudentDetailModal = ({ student, usersMap = {}, onClose, isModal = false }
                       </div>
                     )}
 
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.8rem', color: 'var(--text-muted)', flexWrap: 'wrap', gap: '0.5rem' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.8rem', color: 'var(--text-muted)', flexWrap: 'wrap', gap: '0.5rem', marginBottom: '0.5rem' }}>
                       <span className="receipt-debt-sub">Emitido: {d.date || (d.createdAt ? new Date(d.createdAt).toLocaleDateString() : '-')}</span>
                       
-                      <div style={{ display: 'flex', gap: '0.4rem', alignItems: 'center' }}>
+                      <div style={{ display: 'flex', gap: '0.4rem', alignItems: 'center', flexWrap: 'wrap' }}>
                         {isReview && (
                           <span style={{ color: 'var(--warning)', display: 'inline-flex', alignItems: 'center', gap: '0.25rem', fontWeight: '500' }}>
                             <Clock size={13} /> En Revisión
                           </span>
                         )}
 
-                        {(student.balance || 0) > 0 && (
-                          <button
-                            type="button"
-                            onClick={() => handlePayDebtWithBalance(d)}
-                            disabled={applyingBalance}
-                            className="btn btn-outline"
-                            style={{
-                              padding: '0.25rem 0.55rem',
-                              fontSize: '0.75rem',
-                              color: 'var(--success)',
-                              borderColor: 'rgba(16, 185, 129, 0.4)',
-                              backgroundColor: 'rgba(16, 185, 129, 0.08)',
-                              display: 'inline-flex',
-                              alignItems: 'center',
-                              gap: '0.25rem',
-                              borderRadius: 'var(--radius-sm)'
-                            }}
-                            title={`Usar saldo a favor de ${formatMoney(student.balance)} para esta cuota`}
-                          >
-                            <Sparkles size={12} /> Usar Saldo
-                          </button>
-                        )}
-
                         {d.receiptUrl && (
                           <button
+                            type="button"
                             onClick={() => setPreviewReceipt(d.receiptUrl)}
                             className="btn-view-receipt"
                             style={{
@@ -702,6 +1285,90 @@ const StudentDetailModal = ({ student, usersMap = {}, onClose, isModal = false }
                           </button>
                         )}
                       </div>
+                    </div>
+
+                    {/* Acciones de pago y modificación */}
+                    <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap', alignItems: 'center', paddingTop: '0.45rem', borderTop: '1px dashed rgba(255,255,255,0.08)' }}>
+                      {isReview && (
+                        <>
+                          <button
+                            type="button"
+                            onClick={() => handleMarkDebtPaid(d, 'transfer', true)}
+                            disabled={isBusy}
+                            className="btn btn-primary"
+                            style={{ padding: '0.25rem 0.55rem', fontSize: '0.74rem', backgroundColor: 'var(--success)', border: 'none', display: 'inline-flex', alignItems: 'center', gap: '0.25rem' }}
+                            title="Aprobar comprobante"
+                          >
+                            <Check size={12} /> Aprobar
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleRejectReviewDebt(d)}
+                            disabled={isBusy}
+                            className="btn btn-outline"
+                            style={{ padding: '0.25rem 0.55rem', fontSize: '0.74rem', color: 'var(--danger)', borderColor: 'rgba(239, 68, 68, 0.4)', display: 'inline-flex', alignItems: 'center', gap: '0.25rem' }}
+                            title="Rechazar comprobante"
+                          >
+                            <XCircle size={12} /> Rechazar
+                          </button>
+                        </>
+                      )}
+
+                      <button
+                        type="button"
+                        onClick={() => handleMarkDebtPaid(d, 'cash')}
+                        disabled={isBusy}
+                        className="btn btn-outline"
+                        style={{ padding: '0.25rem 0.55rem', fontSize: '0.74rem', color: 'var(--primary)', borderColor: 'rgba(99, 102, 241, 0.35)', display: 'inline-flex', alignItems: 'center', gap: '0.25rem' }}
+                        title="Marcar como pagada en Efectivo"
+                      >
+                        Efectivo
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => handleMarkDebtPaid(d, 'transfer')}
+                        disabled={isBusy}
+                        className="btn btn-outline"
+                        style={{ padding: '0.25rem 0.55rem', fontSize: '0.74rem', color: 'var(--primary)', borderColor: 'rgba(99, 102, 241, 0.35)', display: 'inline-flex', alignItems: 'center', gap: '0.25rem' }}
+                        title="Marcar como pagada por Transferencia"
+                      >
+                        Transf.
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => handleEditPaidAmount(d)}
+                        disabled={isBusy}
+                        className="btn btn-outline"
+                        style={{ padding: '0.25rem 0.55rem', fontSize: '0.74rem', color: '#f59e0b', borderColor: 'rgba(245, 158, 11, 0.4)', display: 'inline-flex', alignItems: 'center', gap: '0.25rem' }}
+                        title="Ingresar o modificar monto abonado / parcial"
+                      >
+                        <Edit2 size={12} /> Abonar / Modificar
+                      </button>
+
+                      {studentBalance > 0 && (
+                        <button
+                          type="button"
+                          onClick={() => handlePayDebtWithBalance(d)}
+                          disabled={applyingBalance || isBusy}
+                          className="btn btn-outline"
+                          style={{
+                            padding: '0.25rem 0.55rem',
+                            fontSize: '0.74rem',
+                            color: 'var(--success)',
+                            borderColor: 'rgba(16, 185, 129, 0.4)',
+                            backgroundColor: 'rgba(16, 185, 129, 0.08)',
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '0.25rem',
+                            borderRadius: 'var(--radius-sm)'
+                          }}
+                          title={`Usar saldo a favor de ${formatMoney(studentBalance)} para esta cuota`}
+                        >
+                          <Sparkles size={12} /> Usar Saldo
+                        </button>
+                      )}
                     </div>
                   </li>
                 );
@@ -723,10 +1390,11 @@ const StudentDetailModal = ({ student, usersMap = {}, onClose, isModal = false }
               <p className="receipt-subtext" style={{ margin: 0 }}>No tiene pagos registrados todavía.</p>
             </div>
           ) : (
-            <ul style={{ listStyle: 'none', padding: 0, margin: 0, display: 'grid', gap: '0.75rem', maxHeight: (isModal && !isCapturing) ? '350px' : 'none', overflowY: (isModal && !isCapturing) ? 'auto' : 'visible' }}>
+            <ul style={{ listStyle: 'none', padding: 0, margin: 0, display: 'grid', gap: '0.75rem', maxHeight: (isModal && !isCapturing) ? '380px' : 'none', overflowY: (isModal && !isCapturing) ? 'auto' : 'visible' }}>
               {paidDebts.map(d => {
                 const methodLabel = d.paymentMethod === 'transfer' ? 'Transferencia' : d.paymentMethod === 'cash' ? 'Efectivo' : d.paymentMethod === 'balance' ? 'Saldo a Favor' : 'Pagado';
                 const paidDate = d.paidAt ? new Date(d.paidAt).toLocaleDateString() : d.date || '-';
+                const isBusy = processingDebtId === d.id || processingDebtId === 'all';
                 
                 return (
                   <li 
@@ -750,28 +1418,60 @@ const StudentDetailModal = ({ student, usersMap = {}, onClose, isModal = false }
                           </span>
                         )}
                       </span>
-                      <span className="receipt-debt-amount" style={{ fontWeight: '700', color: 'var(--success)', fontSize: '1rem', whiteSpace: 'nowrap' }}>
-                        {formatMoney(d.paidAmount || d.amount)}
-                      </span>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', flexShrink: 0 }}>
+                        <span className="receipt-debt-amount" style={{ fontWeight: '700', color: 'var(--success)', fontSize: '1rem', whiteSpace: 'nowrap' }}>
+                          {formatMoney(d.paidAmount || d.amount)}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => handleEditPaidAmount(d)}
+                          disabled={isBusy}
+                          style={{ background: 'none', border: 'none', color: 'var(--success)', cursor: 'pointer', padding: '0.15rem', display: 'inline-flex', alignItems: 'center' }}
+                          title="Modificar monto pagado"
+                        >
+                          <Edit2 size={13} />
+                        </button>
+                      </div>
                     </div>
 
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.8rem', color: 'var(--text-muted)', flexWrap: 'wrap', gap: '0.5rem' }}>
-                      <span className="receipt-debt-sub">Fecha pago: {paidDate}</span>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', flexWrap: 'wrap' }}>
+                        <span className="receipt-debt-sub">Fecha pago: {paidDate}</span>
+                        <span className="receipt-debt-sub" style={{ opacity: 0.7 }}>• Cuota: {formatMoney(d.amount)}</span>
+                        <button
+                          type="button"
+                          onClick={() => handleEditDebtAmount(d)}
+                          disabled={isBusy}
+                          style={{ background: 'none', border: 'none', color: 'var(--primary)', cursor: 'pointer', padding: '0.1rem', display: 'inline-flex', alignItems: 'center' }}
+                          title="Modificar monto base de la cuota"
+                        >
+                          <Edit2 size={11} />
+                        </button>
+                      </div>
                       
-                      <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
-                        <span className="receipt-payment-badge" style={{ 
-                          fontSize: '0.75rem', 
-                          padding: '0.15rem 0.5rem', 
-                          borderRadius: '12px', 
-                          backgroundColor: 'rgba(16, 185, 129, 0.1)', 
-                          color: 'var(--success)',
-                          border: '1px solid rgba(16, 185, 129, 0.2)'
-                        }}>
+                      <div style={{ display: 'flex', gap: '0.45rem', alignItems: 'center', flexWrap: 'wrap' }}>
+                        <button
+                          type="button"
+                          onClick={() => handleTogglePaymentMethod(d)}
+                          disabled={isBusy}
+                          className="receipt-payment-badge"
+                          style={{ 
+                            fontSize: '0.75rem', 
+                            padding: '0.15rem 0.5rem', 
+                            borderRadius: '12px', 
+                            backgroundColor: 'rgba(16, 185, 129, 0.1)', 
+                            color: 'var(--success)',
+                            border: '1px solid rgba(16, 185, 129, 0.25)',
+                            cursor: d.paymentMethod === 'balance' ? 'default' : 'pointer'
+                          }}
+                          title={d.paymentMethod === 'balance' ? 'Pagado con Saldo a Favor' : 'Clic para cambiar entre Efectivo y Transferencia'}
+                        >
                           {methodLabel}
-                        </span>
+                        </button>
 
                         {d.receiptUrl && (
                           <button
+                            type="button"
                             onClick={() => setPreviewReceipt(d.receiptUrl)}
                             className="btn-view-receipt"
                             style={{
@@ -789,6 +1489,25 @@ const StudentDetailModal = ({ student, usersMap = {}, onClose, isModal = false }
                             <Eye size={13} /> Ver Comprobante
                           </button>
                         )}
+
+                        <button
+                          type="button"
+                          onClick={() => handleCancelPayment(d)}
+                          disabled={isBusy}
+                          className="btn btn-outline"
+                          style={{
+                            padding: '0.2rem 0.5rem',
+                            fontSize: '0.72rem',
+                            color: 'var(--danger)',
+                            borderColor: 'rgba(239, 68, 68, 0.35)',
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '0.25rem'
+                          }}
+                          title="Cancelar pago y volver a estado Pendiente"
+                        >
+                          <RotateCcw size={12} /> Cancelar Pago
+                        </button>
                       </div>
                     </div>
                   </li>
@@ -849,11 +1568,12 @@ const StudentDetailModal = ({ student, usersMap = {}, onClose, isModal = false }
 
       {showDiscountModal && (
         <DiscountBalanceModal
-          student={student}
+          student={{ ...student, balance: studentBalance }}
           onClose={() => setShowDiscountModal(false)}
           onSuccess={(newBal) => {
-            student.balance = newBal;
+            setStudentBalance(newBal);
             fetchDebts();
+            onUpdate?.();
           }}
         />
       )}

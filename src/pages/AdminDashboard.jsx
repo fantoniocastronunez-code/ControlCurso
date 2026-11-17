@@ -1210,6 +1210,7 @@ const AdminDashboard = () => {
         <StudentSearchModal
           isOpen={isSearchOpen}
           onClose={() => setIsSearchOpen(false)}
+          onUpdate={fetchDashboardData}
         />
       )}
 

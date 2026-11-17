@@ -974,6 +974,7 @@ const StudentManagement = ({ onBack }) => {
             usersMap={usersMap}
             onClose={() => setSelectedStudent(null)}
             isModal={true}
+            onUpdate={fetchStudents}
           />
         </div>
       )}
