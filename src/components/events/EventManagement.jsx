@@ -33,6 +33,7 @@ const EventManagement = ({ onBack }) => {
   const [mandatoryAmount, setMandatoryAmount] = useState('');
   const [noShowAmount, setNoShowAmount] = useState('');
   const [isTestEvent, setIsTestEvent] = useState(false);
+  const [noChargeQuotas, setNoChargeQuotas] = useState(false);
   const [preloadDemoData, setPreloadDemoData] = useState(true);
 
   // Selección de alumnos para el evento
@@ -187,6 +188,7 @@ const EventManagement = ({ onBack }) => {
     setMandatoryAmount('');
     setNoShowAmount('');
     setIsTestEvent(false);
+    setNoChargeQuotas(false);
     setPreloadDemoData(false);
     setStudentSelectionMode('all');
     setSelectedStudentIds(new Set(courseStudents.map(s => s.id)));
@@ -200,6 +202,7 @@ const EventManagement = ({ onBack }) => {
     setMandatoryAmount('0');
     setNoShowAmount('0');
     setIsTestEvent(true);
+    setNoChargeQuotas(false);
     setPreloadDemoData(true);
     setStudentSelectionMode('all');
     setSelectedStudentIds(new Set(courseStudents.map(s => s.id)));
@@ -221,8 +224,13 @@ const EventManagement = ({ onBack }) => {
 
   const handleCreateEvent = async (e) => {
     e.preventDefault();
-    if (!eventName || (!isTestEvent && (!mandatoryAmount || !noShowAmount)) || !selectedCourse) {
-      await showAlert('Debes ingresar el nombre y los montos requeridos.');
+    if (!eventName.trim() || !selectedCourse) {
+      await showAlert('Debes ingresar el nombre del evento.');
+      return;
+    }
+
+    if (!isTestEvent && !noChargeQuotas && (mandatoryAmount === '' || noShowAmount === '')) {
+      await showAlert('Debes ingresar los montos (puedes poner 0 o marcar la opción de no cobrar cuotas ni multas).');
       return;
     }
 
@@ -231,13 +239,18 @@ const EventManagement = ({ onBack }) => {
       return;
     }
 
+    const parsedMandatory = (isTestEvent || noChargeQuotas) ? 0 : Math.max(0, parseFloat(mandatoryAmount) || 0);
+    const parsedNoShow = (isTestEvent || noChargeQuotas) ? 0 : Math.max(0, parseFloat(noShowAmount) || 0);
+
     const targetStudents = studentSelectionMode === 'all'
       ? courseStudents
       : courseStudents.filter(s => selectedStudentIds.has(s.id));
 
     const confirmMessage = isTestEvent
       ? `¿Estás seguro de crear el evento "${eventName}"?\nES UN EVENTO DE PRUEBA. No se cobrará nada a los alumnos.`
-      : `¿Estás seguro de crear el evento "${eventName}"?\nEsto cobrará automáticamente $${mandatoryAmount} a los ${targetStudents.length} alumno(s) ${studentSelectionMode === 'all' ? '(todos)' : 'seleccionados'}.`;
+      : parsedMandatory <= 0
+        ? `¿Estás seguro de crear el evento "${eventName}"?\nNo se cobrará cuota obligatoria a los alumnos${parsedNoShow > 0 ? ` (Multa por inasistencia: $${parsedNoShow})` : ' ni multa por inasistencia'}.`
+        : `¿Estás seguro de crear el evento "${eventName}"?\nEsto cobrará automáticamente $${parsedMandatory} a los ${targetStudents.length} alumno(s) ${studentSelectionMode === 'all' ? '(todos)' : 'seleccionados'}.`;
 
     // Cerrar temporalmente la ventana modal para mostrar la confirmación de forma limpia
     setShowCreateModal(false);
@@ -265,8 +278,9 @@ const EventManagement = ({ onBack }) => {
       const newEvent = {
         name: eventName.trim(),
         date: eventDate,
-        mandatoryAmount: isTestEvent ? 0 : parseFloat(mandatoryAmount),
-        noShowAmount: isTestEvent ? 0 : parseFloat(noShowAmount),
+        mandatoryAmount: parsedMandatory,
+        noShowAmount: parsedNoShow,
+        noChargeQuotas: Boolean(noChargeQuotas || (parsedMandatory === 0 && parsedNoShow === 0)),
         fundId: fundId,
         courseId: selectedCourse.id,
         createdAt: new Date().toISOString(),
@@ -287,15 +301,15 @@ const EventManagement = ({ onBack }) => {
         }
       }
 
-      if (!isTestEvent) {
+      if (!isTestEvent && parsedMandatory > 0) {
         // 3. Crear el Gasto General (Expense)
         const expenseId = `exp_evt_${eventId}`;
 
         await setDoc(doc(db, 'expenses', expenseId), {
           title: `Cuota Obligatoria: ${eventName.trim()}`,
           date: eventDate,
-          totalAmount: parseFloat(mandatoryAmount) * targetStudents.length,
-          amountPerStudent: parseFloat(mandatoryAmount),
+          totalAmount: parsedMandatory * targetStudents.length,
+          amountPerStudent: parsedMandatory,
           studentsCount: targetStudents.length,
           paidCount: 0,
           fundId: fundId,
@@ -312,7 +326,7 @@ const EventManagement = ({ onBack }) => {
             studentId: student.id,
             studentName: formatStudentName(student),
             apoderadoEmails: student.apoderadoEmails || (student.apoderadoEmail ? [student.apoderadoEmail] : []),
-            amount: parseFloat(mandatoryAmount),
+            amount: parsedMandatory,
             status: 'pending', // pending, review, paid
             title: `Cuota Obligatoria: ${eventName.trim()}`,
             date: eventDate,
@@ -324,12 +338,17 @@ const EventManagement = ({ onBack }) => {
         }
       }
 
-      setMessage(isTestEvent ? 'Evento de prueba creado con éxito.' : 'Evento creado y cuotas generadas con éxito.');
+      setMessage(
+        isTestEvent
+          ? 'Evento de prueba creado con éxito.'
+          : (parsedMandatory > 0 ? 'Evento creado y cuotas generadas con éxito.' : 'Evento creado sin cobro de cuotas.')
+      );
       setShowCreateModal(false);
       setEventName('');
       setMandatoryAmount('');
       setNoShowAmount('');
       setIsTestEvent(false);
+      setNoChargeQuotas(false);
       setStudentSelectionMode('all');
       setSelectedStudentIds(new Set(courseStudents.map(s => s.id)));
       setStudentSearchTerm('');
@@ -1087,43 +1106,79 @@ const EventManagement = ({ onBack }) => {
 
                 {!isTestEvent && (
                   <>
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
-                      <div className="input-group">
-                        <label className="input-label">Monto Obligatorio ($)</label>
-                        <input
-                          type="number"
-                          min="1"
-                          required={!isTestEvent}
-                          className="input-field"
-                          placeholder="Ej. 1500"
-                          value={mandatoryAmount}
-                          onChange={(e) => setMandatoryAmount(e.target.value)}
-                        />
-                        <small style={{ color: 'var(--text-muted)', fontSize: '0.75rem', marginTop: '0.25rem', display: 'block' }}>
-                          Se cobrará a los alumnos asignados.
-                        </small>
-                      </div>
-
-                      <div className="input-group">
-                        <label className="input-label">Monto si NO Asiste ($)</label>
-                        <input
-                          type="number"
-                          min="1"
-                          required={!isTestEvent}
-                          className="input-field"
-                          placeholder="Ej. 3000"
-                          value={noShowAmount}
-                          onChange={(e) => setNoShowAmount(e.target.value)}
-                        />
-                        <small style={{ color: 'var(--text-muted)', fontSize: '0.75rem', marginTop: '0.25rem', display: 'block' }}>
-                          Multa aplicable si falta.
-                        </small>
-                      </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', backgroundColor: 'rgba(16, 185, 129, 0.08)', padding: '0.85rem 1rem', borderRadius: 'var(--radius-md)', border: '1px solid rgba(16, 185, 129, 0.25)' }}>
+                      <input
+                        type="checkbox"
+                        id="noChargeQuotas"
+                        checked={noChargeQuotas}
+                        onChange={(e) => {
+                          const checked = e.target.checked;
+                          setNoChargeQuotas(checked);
+                          if (checked) {
+                            setMandatoryAmount('0');
+                            setNoShowAmount('0');
+                          } else {
+                            setMandatoryAmount('');
+                            setNoShowAmount('');
+                          }
+                        }}
+                        style={{ width: '18px', height: '18px', accentColor: 'var(--success)', cursor: 'pointer' }}
+                      />
+                      <label htmlFor="noChargeQuotas" style={{ fontSize: '0.85rem', color: 'var(--success)', cursor: 'pointer', fontWeight: '500' }}>
+                        <strong>No cobrar cuota obligatoria ni multa a los alumnos</strong> (Sólo ventas / POS)
+                      </label>
                     </div>
 
-                    {mandatoryAmount && (
+                    {!noChargeQuotas && (
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                        <div className="input-group">
+                          <label className="input-label">Monto Obligatorio ($)</label>
+                          <input
+                            type="number"
+                            min="0"
+                            required={!isTestEvent && !noChargeQuotas}
+                            className="input-field"
+                            placeholder="Ej. 1500 (o 0 sin cuota)"
+                            value={mandatoryAmount}
+                            onChange={(e) => setMandatoryAmount(e.target.value)}
+                          />
+                          <small style={{ color: 'var(--text-muted)', fontSize: '0.75rem', marginTop: '0.25rem', display: 'block' }}>
+                            Se cobrará a los alumnos asignados (0 = sin cuota).
+                          </small>
+                        </div>
+
+                        <div className="input-group">
+                          <label className="input-label">Monto si NO Asiste ($)</label>
+                          <input
+                            type="number"
+                            min="0"
+                            required={!isTestEvent && !noChargeQuotas}
+                            className="input-field"
+                            placeholder="Ej. 3000 (o 0 sin multa)"
+                            value={noShowAmount}
+                            onChange={(e) => setNoShowAmount(e.target.value)}
+                          />
+                          <small style={{ color: 'var(--text-muted)', fontSize: '0.75rem', marginTop: '0.25rem', display: 'block' }}>
+                            Multa aplicable si falta (0 = sin multa).
+                          </small>
+                        </div>
+                      </div>
+                    )}
+
+                    {(noChargeQuotas || mandatoryAmount !== '') && (
                       <div style={{ padding: '0.75rem 1rem', backgroundColor: 'rgba(99, 102, 241, 0.08)', borderRadius: 'var(--radius-md)', border: '1px solid rgba(99, 102, 241, 0.25)', fontSize: '0.85rem' }}>
-                        <strong>Resumen de cuota:</strong> Se cobrará <strong>{formatMoney(parseFloat(mandatoryAmount) || 0)}</strong> a <strong>{targetStudentsCount}</strong> alumno(s) {studentSelectionMode === 'all' ? '(todo el curso)' : '(seleccionados)'} (Total inicial: <strong>{formatMoney((parseFloat(mandatoryAmount) || 0) * targetStudentsCount)}</strong>).
+                        {noChargeQuotas || (parseFloat(mandatoryAmount) || 0) <= 0 ? (
+                          <>
+                            <strong>Resumen:</strong> No se cobrará cuota obligatoria a los alumnos
+                            {!noChargeQuotas && (parseFloat(noShowAmount) || 0) > 0
+                              ? <> (Multa por inasistencia: <strong>{formatMoney(parseFloat(noShowAmount) || 0)}</strong>).</>
+                              : <> ni multa por inasistencia.</>}
+                          </>
+                        ) : (
+                          <>
+                            <strong>Resumen de cuota:</strong> Se cobrará <strong>{formatMoney(parseFloat(mandatoryAmount) || 0)}</strong> a <strong>{targetStudentsCount}</strong> alumno(s) {studentSelectionMode === 'all' ? '(todo el curso)' : '(seleccionados)'} (Total inicial: <strong>{formatMoney((parseFloat(mandatoryAmount) || 0) * targetStudentsCount)}</strong>).
+                          </>
+                        )}
                       </div>
                     )}
                   </>
@@ -1144,7 +1199,14 @@ const EventManagement = ({ onBack }) => {
                   Cancelar
                 </button>
                 <button type="submit" disabled={loading} className="btn btn-primary" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.55rem 1.4rem' }}>
-                  {loading ? 'Creando...' : <><Save size={18} /> Guardar y Generar Cuotas</>}
+                  {loading ? 'Creando...' : (
+                    <>
+                      <Save size={18} />
+                      {(!isTestEvent && !noChargeQuotas && (parseFloat(mandatoryAmount) || 0) > 0)
+                        ? 'Guardar y Generar Cuotas'
+                        : 'Guardar Evento'}
+                    </>
+                  )}
                 </button>
               </div>
             </form>

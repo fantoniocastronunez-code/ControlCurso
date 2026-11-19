@@ -191,7 +191,7 @@ const EventAttendance = ({ event, onEventUpdated }) => {
 
       // 1. Agregar o remover deudas de multa para cada alumno
       for (const s of localDebts) {
-        if (s.notAttended) {
+        if (s.notAttended && effectiveFineAmount > 0) {
           const newDebtId = `debt_${fineExpenseId}_${s.studentId}`;
           const mainDebt = s.mainDebt;
           const emails = (s.apoderadoEmails && s.apoderadoEmails.length > 0)
@@ -216,7 +216,7 @@ const EventAttendance = ({ event, onEventUpdated }) => {
             updatedAt: new Date().toISOString()
           }, { merge: true });
         } else {
-          // Si está marcado como asistente pero tenía multa previa, eliminarla
+          // Si está marcado como asistente o la multa es $0 pero tenía multa previa, eliminarla
           if (s.fineDebt) {
             await deleteDoc(doc(db, 'debts', s.fineDebt.id));
           }
@@ -227,7 +227,7 @@ const EventAttendance = ({ event, onEventUpdated }) => {
       const fineExpenseRef = doc(db, 'expenses', fineExpenseId);
       const fineSnap = await getDoc(fineExpenseRef);
       
-      if (absentCount > 0) {
+      if (absentCount > 0 && effectiveFineAmount > 0) {
         const fineDebtsSnap = await getDocs(query(collection(db, 'debts'), where('expenseId', '==', fineExpenseId)));
         const currentPaidCount = fineDebtsSnap.docs.filter(d => d.data().status === 'paid').length;
 
@@ -270,7 +270,11 @@ const EventAttendance = ({ event, onEventUpdated }) => {
       }
 
       setHasChanges(false);
-      await showAlert(`¡Asistencia guardada con éxito! Se registraron ${absentCount} alumno(s) inasistente(s) con una multa de ${formatMoney(effectiveFineAmount)} cada uno. La cuota ya está disponible en el panel de Cuotas y Morosos.`);
+      await showAlert(
+        effectiveFineAmount > 0
+          ? `¡Asistencia guardada con éxito! Se registraron ${absentCount} alumno(s) inasistente(s) con una multa de ${formatMoney(effectiveFineAmount)} cada uno. La cuota ya está disponible en el panel de Cuotas y Morosos.`
+          : 'Asistencia guardada. Como la multa es $0, no se generaron cobros de multa.'
+      );
       fetchDebts(); // Refrescar datos desde la base de datos
 
     } catch (error) {
@@ -281,14 +285,16 @@ const EventAttendance = ({ event, onEventUpdated }) => {
     }
   };
 
+  const requiresMainQuota = !event.isTestEvent && (Number(event.mandatoryAmount) || 0) > 0;
+
   const missingStudents = useMemo(() => {
     return allCourseStudents.filter(s => {
       const existing = localDebts.find(d => d.studentId === s.id);
       if (!existing) return true;
-      if (!event.isTestEvent && !existing.mainDebt) return true;
+      if (requiresMainQuota && !existing.mainDebt) return true;
       return false;
     });
-  }, [allCourseStudents, localDebts, event.isTestEvent]);
+  }, [allCourseStudents, localDebts, requiresMainQuota]);
 
   const filteredMissingStudents = useMemo(() => {
     if (!addSearchTerm.trim()) return missingStudents;
@@ -333,7 +339,7 @@ const EventAttendance = ({ event, onEventUpdated }) => {
 
     setAddingStudents(true);
     try {
-      const fallbackExistingIds = event.isTestEvent
+      const fallbackExistingIds = !requiresMainQuota
         ? localDebts.map(d => d.studentId)
         : localDebts.filter(d => d.mainDebt || d.fineDebt).map(d => d.studentId);
 
@@ -722,7 +728,7 @@ const EventAttendance = ({ event, onEventUpdated }) => {
                     Agregar Alumnos al Evento
                   </h3>
                   <p style={{ margin: '0.15rem 0 0', fontSize: '0.8rem', color: 'var(--text-muted)' }}>
-                    {event.name} {!event.isTestEvent && `• Cuota obligatoria: ${formatMoney(event.mandatoryAmount)}`}
+                    {event.name} {requiresMainQuota ? `• Cuota obligatoria: ${formatMoney(event.mandatoryAmount)}` : (!event.isTestEvent ? '• Sin cuota obligatoria' : '')}
                   </p>
                 </div>
               </div>
@@ -783,7 +789,7 @@ const EventAttendance = ({ event, onEventUpdated }) => {
                 <div style={{ display: 'grid', gap: '0.5rem' }}>
                   {filteredMissingStudents.map(s => {
                     const isSelected = selectedNewStudentIds.has(s.id);
-                    const inAttendanceWithoutQuota = !event.isTestEvent && localDebts.some(d => d.studentId === s.id && !d.mainDebt);
+                    const inAttendanceWithoutQuota = requiresMainQuota && localDebts.some(d => d.studentId === s.id && !d.mainDebt);
                     return (
                       <div
                         key={s.id}
@@ -842,7 +848,7 @@ const EventAttendance = ({ event, onEventUpdated }) => {
               flexDirection: 'column',
               gap: '0.85rem'
             }}>
-              {!event.isTestEvent && missingStudents.length > 0 && (
+              {requiresMainQuota && missingStudents.length > 0 && (
                 <div>
                   <label style={{ display: 'block', fontSize: '0.78rem', color: 'var(--text-muted)', marginBottom: '0.45rem', fontWeight: '600' }}>
                     Estado inicial de la cuota obligatoria ({formatMoney(event.mandatoryAmount)}):

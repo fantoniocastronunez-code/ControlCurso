@@ -43,9 +43,9 @@ export const addStudentsToEvent = async ({
   const effectiveCourseId = courseId || evData.courseId || studentsToAdd[0]?.courseId || '';
   const newIds = studentsToAdd.map(s => s.id);
 
-  // 1. Si no es evento de prueba, generar deudas individuales y sincronizar la cuota del evento
+  // 1. Si no es evento de prueba y tiene cuota obligatoria > $0, generar deudas individuales y sincronizar la cuota del evento
   let syncedExpenseStats = null;
-  if (!evData.isTestEvent) {
+  if (!evData.isTestEvent && (Number(evData.mandatoryAmount) || 0) > 0) {
     const expenseId = `exp_evt_${event.id}`;
     const amount = Number(evData.mandatoryAmount) || 0;
     const isPaid = initialStatus === 'cash' || initialStatus === 'transfer';
@@ -174,7 +174,7 @@ const AddStudentToEventsModal = ({ student, isOpen, onClose, onSuccess }) => {
       // 1. Eventos disponibles donde falta el alumno
       const allEvents = eventsSnap.docs.map(d => ({ id: d.id, ...d.data() }));
       const missingEvents = allEvents.filter(ev => {
-        if (ev.isTestEvent) {
+        if (ev.isTestEvent || (Number(ev.mandatoryAmount) || 0) <= 0) {
           return !Array.isArray(ev.participantStudentIds) || !ev.participantStudentIds.includes(student.id);
         }
         const mainExpId = `exp_evt_${ev.id}`;
@@ -626,7 +626,7 @@ const AddStudentToEventsModal = ({ student, isOpen, onClose, onSuccess }) => {
                     </div>
 
                     <div style={{ textAlign: 'right', flexShrink: 0 }}>
-                      {ev.isTestEvent ? (
+                      {ev.isTestEvent || (Number(ev.mandatoryAmount) || 0) <= 0 ? (
                         <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>Sin cuota</span>
                       ) : (
                         <>
