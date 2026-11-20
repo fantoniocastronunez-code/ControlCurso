@@ -137,35 +137,59 @@ const applyStudentWatermarkToAllPages = (doc, studentNameWatermark) => {
   const totalPages = doc.internal.getNumberOfPages();
   const pageWidth = doc.internal.pageSize.getWidth();
   const pageHeight = doc.internal.pageSize.getHeight();
-  const watermarkUpper = String(studentNameWatermark).toUpperCase();
+  const watermarkUpper = String(studentNameWatermark).toUpperCase().trim();
+
+  const angleDeg = 24;
+  const rad = (angleDeg * Math.PI) / 180;
 
   for (let p = 1; p <= totalPages; p++) {
     doc.setPage(p);
 
-    // 1. Marca de agua diagonal repetida en la página
+    // Calcular tamaño de fuente que garantice que el nombre completo quepa holgadamente dentro de los márgenes
+    let fontSize = 21;
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(fontSize);
+    let textW = doc.getTextWidth(watermarkUpper);
+    const maxHorizontalSpan = pageWidth - 34; // margen seguro a ambos lados
+    const currentHorizontalSpan = textW * Math.cos(rad);
+
+    if (currentHorizontalSpan > maxHorizontalSpan && currentHorizontalSpan > 0) {
+      fontSize = Math.max(12, Math.floor(fontSize * (maxHorizontalSpan / currentHorizontalSpan)));
+      doc.setFontSize(fontSize);
+      textW = doc.getTextWidth(watermarkUpper);
+    }
+
+    const centerX = pageWidth / 2;
+    // En jsPDF, cuando se usa angle sin align:'center', el punto (x,y) es el inicio del texto.
+    // Calculamos (startX, startY) para que el centro exacto del texto rotado quede en (centerX, yCenter)
+    // y nunca se corte con el encabezado oscuro superior ni con los bordes.
+    const startX = centerX - (textW / 2) * Math.cos(rad);
+    const yCenters = p === 1 ? [100, 175, 248] : [85, 165, 245];
+
     try {
       if (typeof doc.GState === 'function' && typeof doc.setGState === 'function') {
         doc.saveGraphicsState();
-        doc.setGState(new doc.GState({ opacity: 0.13 }));
+        doc.setGState(new doc.GState({ opacity: 0.18 }));
         doc.setFont('helvetica', 'bold');
-        doc.setFontSize(22);
+        doc.setFontSize(fontSize);
         doc.setTextColor(71, 85, 105);
 
-        const yPositions = [88, 165, 242];
-        yPositions.forEach((yPos) => {
-          doc.text(watermarkUpper, pageWidth / 2, yPos, {
-            align: 'center',
-            angle: 28
+        yCenters.forEach((yCenter) => {
+          const startY = yCenter + (textW / 2) * Math.sin(rad);
+          doc.text(watermarkUpper, startX, startY, {
+            angle: angleDeg
           });
         });
         doc.restoreGraphicsState();
       } else {
         doc.setFont('helvetica', 'bold');
-        doc.setFontSize(20);
-        doc.setTextColor(226, 232, 240);
-        doc.text(watermarkUpper, pageWidth / 2, pageHeight / 2, {
-          align: 'center',
-          angle: 28
+        doc.setFontSize(fontSize);
+        doc.setTextColor(215, 222, 232);
+        yCenters.forEach((yCenter) => {
+          const startY = yCenter + (textW / 2) * Math.sin(rad);
+          doc.text(watermarkUpper, startX, startY, {
+            angle: angleDeg
+          });
         });
       }
     } catch {
