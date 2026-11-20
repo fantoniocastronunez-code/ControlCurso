@@ -13,7 +13,11 @@ import { useCourse } from '../context/CourseContext';
 import StudentDetailModal from './StudentDetailModal';
 import SignaturePad from './SignaturePad';
 import html2canvas from 'html2canvas';
-import { jsPDF } from 'jspdf';
+import {
+  buildMeetingReportPayload,
+  createMeetingReportJsPdf,
+  getStudentPdfPassword
+} from '../utils/meetingReportPdfGenerator';
 import { createPortal } from 'react-dom';
 
 const MeetingReport = ({ onBack }) => {
@@ -604,7 +608,7 @@ const MeetingReport = ({ onBack }) => {
   };
 
   // -------------------------------------------------------------
-  // PDF Document Generation & Email Dispatch
+  // PDF Document Generation & Email Dispatch (Con Clave RUT + Marca de Agua por Alumno)
   // -------------------------------------------------------------
   const generatePDFReport = async (actionMode = 'download') => {
     const isDirectEmail = actionMode === 'email_only';
@@ -613,307 +617,33 @@ const MeetingReport = ({ onBack }) => {
 
     setGeneratingPdf(true);
     try {
-      const doc = new jsPDF({
-        orientation: 'portrait',
-        unit: 'mm',
-        format: 'a4'
+      const reportPayload = buildMeetingReportPayload({
+        meetingTitle,
+        meetingDate,
+        courseName: selectedCourse?.name || '',
+        totalAvailable,
+        totalCollected,
+        totalIncomes,
+        totalOutcomes,
+        students,
+        debts,
+        expenses,
+        outcomes,
+        finalFundsMap,
+        studentDebtStats,
+        exportIncludeDetails,
+        sigTreasurer,
+        sigSecretary,
+        sigPresident,
+        sigTreasurerMeta,
+        sigSecretaryMeta,
+        sigPresidentMeta
       });
 
-      const pageWidth = doc.internal.pageSize.getWidth();
-      const pageHeight = doc.internal.pageSize.getHeight();
-      let y = 15;
-
-      // Primary Brand Colors
-      const primaryColor = [99, 102, 241];
-      const textMain = [30, 41, 59];
-      const textMuted = [100, 116, 139];
-      const successColor = [16, 185, 129];
-      const dangerColor = [239, 68, 68];
-
-      // Header Banner
-      doc.setFillColor(15, 23, 42);
-      doc.roundedRect(12, y, pageWidth - 24, 28, 3, 3, 'F');
-
-      doc.setTextColor(255, 255, 255);
-      doc.setFontSize(16);
-      doc.setFont('helvetica', 'bold');
-      doc.text(meetingTitle, 18, y + 11);
-
-      doc.setFontSize(9);
-      doc.setFont('helvetica', 'normal');
-      doc.setTextColor(148, 163, 184);
-      doc.text(`Fecha del Informe: ${meetingDate}  •  Generado automáticamente para la Reunión de Apoderados`, 18, y + 19);
-
-      y += 35;
-
-      // Section 1: Resumen Financiero General
-      doc.setTextColor(textMain[0], textMain[1], textMain[2]);
-      doc.setFontSize(13);
-      doc.setFont('helvetica', 'bold');
-      doc.text('1. Balance Financiero General', 14, y);
-      y += 6;
-
-      // KPI Boxes (4 columns)
-      const boxW = (pageWidth - 28 - 9) / 4;
-      const boxH = 20;
-
-      const kpis = [
-        { label: 'Fondo Disponible', value: formatMoney(totalAvailable), color: successColor },
-        { label: 'Total Recaudado', value: formatMoney(totalCollected + totalIncomes), color: primaryColor },
-        { label: 'Gastos Realizados', value: formatMoney(totalOutcomes), color: dangerColor },
-        { label: '% Alumnos al Día', value: `${studentDebtStats.paidPercentage}%`, color: successColor }
-      ];
-
-      kpis.forEach((kpi, idx) => {
-        const bx = 14 + idx * (boxW + 3);
-        doc.setFillColor(248, 250, 252);
-        doc.setDrawColor(226, 232, 240);
-        doc.roundedRect(bx, y, boxW, boxH, 2, 2, 'FD');
-
-        doc.setFontSize(7.5);
-        doc.setFont('helvetica', 'normal');
-        doc.setTextColor(textMuted[0], textMuted[1], textMuted[2]);
-        doc.text(kpi.label, bx + 4, y + 6);
-
-        doc.setFontSize(10.5);
-        doc.setFont('helvetica', 'bold');
-        doc.setTextColor(kpi.color[0], kpi.color[1], kpi.color[2]);
-        doc.text(kpi.value, bx + 4, y + 14);
-      });
-
-      y += boxH + 8;
-
-      // Section 2: Distribución de Fondos
-      doc.setTextColor(textMain[0], textMain[1], textMain[2]);
-      doc.setFontSize(13);
-      doc.setFont('helvetica', 'bold');
-      doc.text('2. Distribución por Fondos del Curso', 14, y);
-      y += 5;
-
-      // Table Header for Funds
-      doc.setFillColor(241, 245, 249);
-      doc.rect(14, y, pageWidth - 28, 7, 'F');
-      doc.setFontSize(8);
-      doc.setFont('helvetica', 'bold');
-      doc.setTextColor(textMain[0], textMain[1], textMain[2]);
-      doc.text('Fondo / Categoría', 18, y + 5);
-      doc.text('Total Ingresos', 90, y + 5, { align: 'right' });
-      doc.text('Total Gastos', 135, y + 5, { align: 'right' });
-      doc.text('Saldo Actual', pageWidth - 18, y + 5, { align: 'right' });
-      y += 8;
-
-      Object.values(finalFundsMap).forEach((f) => {
-        doc.setFont('helvetica', 'normal');
-        doc.setFontSize(8.5);
-        doc.setTextColor(textMain[0], textMain[1], textMain[2]);
-        doc.text(f.name, 18, y + 4);
-        doc.text(formatMoney(f.totalIn), 90, y + 4, { align: 'right' });
-        doc.text(formatMoney(f.totalOut), 135, y + 4, { align: 'right' });
-
-        doc.setFont('helvetica', 'bold');
-        doc.setTextColor(f.balance >= 0 ? successColor[0] : dangerColor[0], f.balance >= 0 ? successColor[1] : dangerColor[1], f.balance >= 0 ? successColor[2] : dangerColor[2]);
-        doc.text(formatMoney(f.balance), pageWidth - 18, y + 4, { align: 'right' });
-
-        doc.setDrawColor(241, 245, 249);
-        doc.line(14, y + 6, pageWidth - 14, y + 6);
-        y += 7;
-      });
-
-      y += 6;
-
-      let sectionCount = 3;
-
-      // Section 3: Gastos Realizados
-      if (exportIncludeDetails) {
-        doc.setTextColor(textMain[0], textMain[1], textMain[2]);
-        doc.setFontSize(13);
-        doc.setFont('helvetica', 'bold');
-        doc.text(`${sectionCount}. Lista Detallada de Gastos (${outcomes.length} registros)`, 14, y);
-        y += 5;
-
-        doc.setFillColor(241, 245, 249);
-        doc.rect(14, y, pageWidth - 28, 7, 'F');
-        doc.setFontSize(8);
-        doc.setFont('helvetica', 'bold');
-        doc.setTextColor(textMain[0], textMain[1], textMain[2]);
-        doc.text('Fecha', 18, y + 5);
-        doc.text('Motivo / Descripción', 45, y + 5);
-        doc.text('Fondo', 130, y + 5);
-        doc.text('Monto', pageWidth - 18, y + 5, { align: 'right' });
-        y += 8;
-
-        outcomes.forEach((o) => {
-          // Check page overflow
-          if (y > pageHeight - 30) {
-            doc.addPage();
-            y = 15;
-            // Header on new page
-            doc.setFillColor(241, 245, 249);
-            doc.rect(14, y, pageWidth - 28, 7, 'F');
-            doc.setFontSize(8);
-            doc.setFont('helvetica', 'bold');
-            doc.text('Fecha', 18, y + 5);
-            doc.text('Motivo / Descripción', 45, y + 5);
-            doc.text('Fondo', 130, y + 5);
-            doc.text('Monto', pageWidth - 18, y + 5, { align: 'right' });
-            y += 8;
-          }
-
-          const fundName = finalFundsMap[o.fundId]?.name || 'General';
-          doc.setFont('helvetica', 'normal');
-          doc.setFontSize(8);
-          doc.setTextColor(textMain[0], textMain[1], textMain[2]);
-          doc.text(o.date || '-', 18, y + 4);
-
-          const titleStr = o.title && o.title.length > 45 ? o.title.substring(0, 42) + '...' : (o.title || '-');
-          doc.text(titleStr, 45, y + 4);
-          doc.text(fundName, 130, y + 4);
-
-          doc.setFont('helvetica', 'bold');
-          doc.setTextColor(dangerColor[0], dangerColor[1], dangerColor[2]);
-          doc.text(formatMoney(o.amount), pageWidth - 18, y + 4, { align: 'right' });
-
-          doc.setDrawColor(241, 245, 249);
-          doc.line(14, y + 6, pageWidth - 14, y + 6);
-          y += 7;
-        });
-
-        y += 6;
-        sectionCount++;
-      }
-
-      // Check page overflow for Cuotas & Debtors
-      if (y > pageHeight - 65) {
-        doc.addPage();
-        y = 15;
-      }
-
-      // Section 4: Estado de Cuotas
-      doc.setTextColor(textMain[0], textMain[1], textMain[2]);
-      doc.setFontSize(13);
-      doc.setFont('helvetica', 'bold');
-      doc.text(`${sectionCount}. Estado de Cuotas Emitidas`, 14, y);
-      sectionCount++;
-      y += 5;
-
-      doc.setFillColor(241, 245, 249);
-      doc.rect(14, y, pageWidth - 28, 7, 'F');
-      doc.setFontSize(8);
-      doc.setFont('helvetica', 'bold');
-      doc.text('Cuota', 18, y + 5);
-      doc.text('Monto Unitario', 85, y + 5, { align: 'right' });
-      doc.text('Recaudado', 130, y + 5, { align: 'right' });
-      doc.text('% Cumplimiento', pageWidth - 18, y + 5, { align: 'right' });
-      y += 8;
-
-      expenses.forEach((exp) => {
-        if (y > pageHeight - 30) {
-          doc.addPage();
-          y = 15;
-        }
-
-        const expDebts = debts.filter(d => d.expenseId === exp.id);
-        const expCollected = expDebts.reduce((sum, d) => sum + (d.status === 'paid' ? (Number(d.amount) || 0) : (Number(d.paidAmount) || 0)), 0);
-
-        const debtSum = expDebts.reduce((sum, d) => sum + (Number(d.amount) || 0), 0);
-        const expExpected = debtSum > 0 ? debtSum : (Number(exp.totalAmount) || (Number(exp.amount) || 0) * (expDebts.length || students.length || 1));
-        const expPct = expExpected > 0 ? Math.min(100, Math.round((expCollected / expExpected) * 100)) : 0;
-
-        const uniqueAmounts = [...new Set(expDebts.map(d => Number(d.amount) || 0).filter(a => a > 0))];
-        let unitText;
-        if (typeof exp.amountPerStudent === 'number' && !isNaN(exp.amountPerStudent) && exp.amountPerStudent > 0) {
-          unitText = formatMoney(exp.amountPerStudent);
-        } else if (uniqueAmounts.length === 1) {
-          unitText = formatMoney(uniqueAmounts[0]);
-        } else if (uniqueAmounts.length > 1 || exp.amountPerStudent === 'Variable') {
-          unitText = 'Variable';
-        } else {
-          unitText = formatMoney(exp.amount || 0);
-        }
-
-        doc.setFont('helvetica', 'normal');
-        doc.setFontSize(8);
-        doc.setTextColor(textMain[0], textMain[1], textMain[2]);
-        doc.text(exp.title || 'Cuota', 18, y + 4);
-        doc.text(unitText, 85, y + 4, { align: 'right' });
-        doc.text(formatMoney(expCollected), 130, y + 4, { align: 'right' });
-        doc.setFont('helvetica', 'bold');
-        doc.text(`${expPct}%`, pageWidth - 18, y + 4, { align: 'right' });
-
-        doc.setDrawColor(241, 245, 249);
-        doc.line(14, y + 6, pageWidth - 14, y + 6);
-        y += 7;
-      });
-
-      y += 8;
-
-      // Section 5: Resumen de Cumplimiento de Apoderados
-      if (y > pageHeight - 50) {
-        doc.addPage();
-        y = 15;
-      }
-
-      doc.setTextColor(textMain[0], textMain[1], textMain[2]);
-      doc.setFontSize(13);
-      doc.setFont('helvetica', 'bold');
-      doc.text(`${sectionCount}. Resumen de Cumplimiento de Apoderados`, 14, y);
-      y += 6;
-
-      doc.setFont('helvetica', 'normal');
-      doc.setFontSize(9);
-      doc.text(`• Total de Alumnos Registrados: ${students.length}`, 18, y);
-      y += 5;
-      doc.text(`• Alumnos al Día (Sin deudas): ${studentDebtStats.countPaid} (${studentDebtStats.paidPercentage}%)`, 18, y);
-      y += 5;
-      doc.text(`• Alumnos con Deuda Pendiente: ${studentDebtStats.countUnpaid} (${studentDebtStats.unpaidPercentage}%)  -  Total Pendiente: ${formatMoney(studentDebtStats.totalUnpaidAmount)}`, 18, y);
-      y += 12;
-
-      // Signatures
-      if (y > pageHeight - 35) {
-        doc.addPage();
-        y = 30;
-      }
-
-      doc.setDrawColor(203, 213, 225);
-      const sigY = y + 15;
-      const centerX = pageWidth / 2;
-      doc.line(16, sigY, 66, sigY);
-      doc.line(centerX - 25, sigY, centerX + 25, sigY);
-      doc.line(pageWidth - 66, sigY, pageWidth - 16, sigY);
-
-      doc.setFontSize(8);
-      doc.setFont('helvetica', 'normal');
-      doc.setTextColor(textMuted[0], textMuted[1], textMuted[2]);
-      doc.text('Firma Tesorero(a)', 41, sigY + 5, { align: 'center' });
-      doc.text('Firma Secretario(a)', centerX, sigY + 5, { align: 'center' });
-      doc.text('Firma Presidente(a)', pageWidth - 41, sigY + 5, { align: 'center' });
-      if (sigTreasurerMeta?.signerName) {
-        doc.setFontSize(7.5);
-        doc.text(String(sigTreasurerMeta.signerName), 41, sigY + 9.5, { align: 'center' });
-      }
-      if (sigSecretaryMeta?.signerName) {
-        doc.setFontSize(7.5);
-        doc.text(String(sigSecretaryMeta.signerName), centerX, sigY + 9.5, { align: 'center' });
-      }
-      if (sigPresidentMeta?.signerName) {
-        doc.setFontSize(7.5);
-        doc.text(String(sigPresidentMeta.signerName), pageWidth - 41, sigY + 9.5, { align: 'center' });
-      }
-
-      if (sigTreasurer) {
-        doc.addImage(sigTreasurer, 'PNG', 16, sigY - 20, 50, 18);
-      }
-      if (sigSecretary) {
-        doc.addImage(sigSecretary, 'PNG', centerX - 25, sigY - 20, 50, 18);
-      }
-      if (sigPresident) {
-        doc.addImage(sigPresident, 'PNG', pageWidth - 66, sigY - 20, 50, 18);
-      }
-
-      const pdfBase64 = doc.output('datauristring').split(',')[1];
       const signaturesCount = [sigTreasurer, sigPresident, sigSecretary].filter(Boolean).length;
 
-      // Publicar el informe firmado/enviado para que esté disponible para descarga directa en el Portal de cada Apoderado
+      // Publicar los datos estructurados del informe firmado para que el Portal de cada Apoderado
+      // genere su propio PDF con marca de agua del nombre de su alumno y encriptado con su RUT
       if (shouldSendEmail || signaturesCount > 0) {
         try {
           const publishedDocId = `published_report_${selectedCourse?.id || 'general'}_${meetingDate}`;
@@ -924,7 +654,7 @@ const MeetingReport = ({ onBack }) => {
             meetingTitle,
             meetingDate,
             filename: `Informe_Reunion_Apoderados_${meetingDate}.pdf`,
-            pdfBase64: pdfBase64.length < 850000 ? pdfBase64 : null,
+            reportPayload,
             signaturesCount,
             signers: {
               tesorero: sigTreasurerMeta?.signerName || (sigTreasurer ? 'Tesorero(a)' : null),
@@ -945,12 +675,16 @@ const MeetingReport = ({ onBack }) => {
         }
       }
 
-      // 1. Descargar PDF localmente (si corresponde)
+      // 1. Descargar PDF localmente para la Directiva (si corresponde)
       if (shouldDownload) {
-        doc.save(`Informe_Reunion_Apoderados_${meetingDate}.pdf`);
+        const directivaDoc = createMeetingReportJsPdf(reportPayload, {
+          studentNameWatermark: 'COPIA DIRECTIVA DEL CURSO',
+          userPassword: ''
+        });
+        directivaDoc.save(`Informe_Reunion_Apoderados_${meetingDate}.pdf`);
       }
 
-      // 2. Preparar el envío automático de correos a todos los apoderados registrados (Trigger Email)
+      // 2. Enviar por correo a cada apoderado su propio PDF encriptado con el RUT de su alumno y marca de agua con el nombre del alumno
       if (shouldSendEmail) {
         setSendingEmail(true);
         const emailList = allRecipientEmails;
@@ -958,49 +692,88 @@ const MeetingReport = ({ onBack }) => {
         if (emailList.length > 0) {
           const logoUrl = `${window.location.origin}/LOGOAPPCURSO.jpg`;
 
-          const emailHtml = `
-            <div style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; max-width: 600px; margin: 0 auto; border: 1px solid #eaeaea; border-radius: 8px; overflow: hidden; box-shadow: 0 4px 6px rgba(0,0,0,0.05);">
-              <div style="background-color: #1e1e2f; padding: 20px; text-align: center;">
-                <img src="${logoUrl}" alt="Control Curso" style="max-height: 70px; margin-bottom: 15px; border-radius: 8px; object-fit: cover;" />
-                <h2 style="color: #ffffff; margin: 0; font-size: 20px; letter-spacing: 0.5px;">Informe Financiero Oficial</h2>
-              </div>
-              <div style="padding: 30px; background-color: #ffffff;">
-                <p style="font-size: 16px; color: #333333; margin-top: 0;">Estimados Apoderados,</p>
-                <p style="font-size: 15px; color: #555555; line-height: 1.5;">Adjuntamos a este correo el <strong>informe financiero oficial y estado de cuenta actualizado</strong>, correspondiente a la reunión del <strong>${meetingDate}</strong>.</p>
-                
-                <div style="background-color: #f0fdf4; border: 1px solid #bbf7d0; padding: 15px; border-radius: 6px; margin: 25px 0;">
-                  <p style="margin: 0; font-size: 14px; color: #166534; text-align: center;">
-                    Este informe cuenta con las firmas digitales de la Directiva del curso, validando su autenticidad.
-                  </p>
-                </div>
-                
-                <p style="font-size: 14px; color: #888888; margin-top: 30px; margin-bottom: 0;">Atentamente,</p>
-                <p style="font-size: 15px; color: #333333; font-weight: bold; margin-top: 5px;">La Directiva del Curso</p>
-              </div>
-              <div style="background-color: #f8f9fa; padding: 15px; text-align: center; border-top: 1px solid #eaeaea;">
-                <p style="font-size: 12px; color: #999999; margin: 0;">Este es un mensaje automático generado por la plataforma del curso. Por favor no responda a este correo.</p>
-              </div>
-            </div>
-          `;
+          for (const recipientEmail of emailList) {
+            const matchedStudents = students.filter((s) => {
+              const list = Array.isArray(s.apoderadoEmails) ? s.apoderadoEmails : [];
+              const single = s.apoderadoEmail ? [s.apoderadoEmail] : [];
+              return [...list, ...single].some(
+                (e) => String(e || '').trim().toLowerCase() === recipientEmail
+              );
+            });
 
-          await addDoc(collection(db, 'mail'), {
-            to: emailList,
-            message: {
-              subject: `Informe Financiero Oficial - Reunión de Apoderados (${meetingDate})`,
-              html: emailHtml,
-              attachments: [
-                {
-                  filename: `Informe_Reunion_${meetingDate}.pdf`,
-                  content: pdfBase64,
-                  encoding: 'base64'
-                }
-              ]
-            }
-          });
+            const primaryStudent = matchedStudents[0] || null;
+            const studentNamesLabel =
+              matchedStudents.length > 0
+                ? matchedStudents.map((s) => formatStudentName(s)).join(' / ')
+                : (usersMap[recipientEmail] || recipientEmail);
+
+            const pdfPassword = primaryStudent
+              ? getStudentPdfPassword(primaryStudent)
+              : `CURSO${meetingDate.replace(/-/g, '')}`;
+
+            const personalDoc = createMeetingReportJsPdf(reportPayload, {
+              studentNameWatermark: studentNamesLabel,
+              userPassword: pdfPassword
+            });
+            const personalPdfBase64 = personalDoc.output('datauristring').split(',')[1];
+
+            const emailHtml = `
+              <div style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; max-width: 600px; margin: 0 auto; border: 1px solid #eaeaea; border-radius: 8px; overflow: hidden; box-shadow: 0 4px 6px rgba(0,0,0,0.05);">
+                <div style="background-color: #1e1e2f; padding: 20px; text-align: center;">
+                  <img src="${logoUrl}" alt="Control Curso" style="max-height: 70px; margin-bottom: 15px; border-radius: 8px; object-fit: cover;" />
+                  <h2 style="color: #ffffff; margin: 0; font-size: 20px; letter-spacing: 0.5px;">Informe Financiero Oficial</h2>
+                </div>
+                <div style="padding: 30px; background-color: #ffffff;">
+                  <p style="font-size: 16px; color: #333333; margin-top: 0;">Estimado(a) Apoderado(a),</p>
+                  <p style="font-size: 15px; color: #555555; line-height: 1.5;">Adjuntamos a este correo el <strong>informe financiero oficial y estado de cuenta actualizado</strong>, correspondiente a la reunión del <strong>${meetingDate}</strong>.</p>
+                  
+                  <div style="background-color: #eef2ff; border: 1px solid #c7d2fe; padding: 16px; border-radius: 8px; margin: 22px 0;">
+                    <p style="margin: 0 0 8px 0; font-size: 14px; color: #312e81; font-weight: bold;">
+                      🔒 Documento Protegido con Clave Personal
+                    </p>
+                    <p style="margin: 0 0 6px 0; font-size: 13.5px; color: #3730a3;">
+                      • <strong>Alumno(a) (Marca de agua):</strong> ${studentNamesLabel}
+                    </p>
+                    <p style="margin: 0; font-size: 13.5px; color: #3730a3;">
+                      • <strong>Clave para abrir el PDF (RUT del alumno sin puntos ni guion):</strong> <span style="background: #ffffff; padding: 2px 8px; border-radius: 4px; font-family: monospace; font-weight: bold; font-size: 15px; border: 1px solid #a5b4fc;">${pdfPassword}</span>
+                    </p>
+                  </div>
+
+                  <div style="background-color: #f0fdf4; border: 1px solid #bbf7d0; padding: 15px; border-radius: 6px; margin: 20px 0;">
+                    <p style="margin: 0; font-size: 13.5px; color: #166534; text-align: center;">
+                      Este informe cuenta con las firmas digitales de la Directiva del curso y marca de agua personalizada con el nombre del alumno para evitar su difusión a personas no registradas.
+                    </p>
+                  </div>
+                  
+                  <p style="font-size: 14px; color: #888888; margin-top: 30px; margin-bottom: 0;">Atentamente,</p>
+                  <p style="font-size: 15px; color: #333333; font-weight: bold; margin-top: 5px;">La Directiva del Curso</p>
+                </div>
+                <div style="background-color: #f8f9fa; padding: 15px; text-align: center; border-top: 1px solid #eaeaea;">
+                  <p style="font-size: 12px; color: #999999; margin: 0;">Este es un mensaje automático generado por la plataforma del curso. Por favor no responda a este correo.</p>
+                </div>
+              </div>
+            `;
+
+            await addDoc(collection(db, 'mail'), {
+              to: [recipientEmail],
+              message: {
+                subject: `Informe Financiero Oficial - Reunión de Apoderados (${meetingDate})`,
+                html: emailHtml,
+                attachments: [
+                  {
+                    filename: `Informe_Reunion_${meetingDate}.pdf`,
+                    content: personalPdfBase64,
+                    encoding: 'base64'
+                  }
+                ]
+              }
+            });
+          }
+
           await showAlert(
             shouldDownload
-              ? `¡PDF Oficial descargado y ENVIADO por correo a ${emailList.length} apoderado(s) registrado(s)!`
-              : `¡Informe PDF Oficial enviado exitosamente por correo a ${emailList.length} apoderado(s) registrado(s)!`
+              ? `¡PDF descargado y ${emailList.length} informe(s) personalizados (con clave de RUT y marca de agua del alumno) enviados por correo!`
+              : `¡Se enviaron exitosamente ${emailList.length} informe(s) PDF personalizados (con clave de RUT y marca de agua del nombre de cada alumno)!`
           );
         } else {
           await showAlert("No se encontraron correos electrónicos de apoderados registrados para enviar el informe.");
@@ -2470,7 +2243,7 @@ const MeetingReport = ({ onBack }) => {
             </div>
 
             <p style={{ margin: '0 0 1rem 0', fontSize: '0.88rem', color: 'var(--text-muted)', lineHeight: 1.5 }}>
-              Se generará el PDF oficial de la reunión del <strong>{meetingDate}</strong> (con las firmas digitales actuales de la Directiva) y se enviará automáticamente a los siguientes correos registrados:
+              Se generará un <strong>PDF individual protegido con clave</strong> para cada apoderado (la clave es el <strong>RUT de su alumno sin puntos ni guion</strong>) y con el <strong>nombre del alumno en marca de agua</strong> en todas las páginas:
             </p>
 
             {/* Resumen de Destinatarios */}

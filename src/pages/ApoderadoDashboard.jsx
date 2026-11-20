@@ -3,7 +3,7 @@ import { useAuth } from '../context/AuthContext';
 import {
   LogOut, CheckCircle, Clock, Search, UserPlus, Upload, AlertCircle, MessageCircle,
   Receipt, TrendingDown, Eye, X, ExternalLink, DollarSign, Calendar, CreditCard, User,
-  Download, FileText
+  Download, FileText, Lock, Copy, Check
 } from 'lucide-react';
 import { db, storage } from '../firebase/config';
 import { collection, query, where, getDocs, getDoc, doc, updateDoc, setDoc, or, addDoc, onSnapshot } from 'firebase/firestore';
@@ -11,6 +11,7 @@ import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { formatStudentName } from '../utils/nameUtils';
 import { formatRut } from '../utils/rutUtils';
+import { createMeetingReportJsPdf, getStudentPdfPassword } from '../utils/meetingReportPdfGenerator';
 import { useModal } from '../context/ModalContext';
 import InstallAppGuide from '../components/InstallAppGuide';
 
@@ -59,6 +60,7 @@ const ApoderadoDashboard = () => {
 
   // Informes de Reunión de Apoderados firmados y publicados
   const [publishedReports, setPublishedReports] = useState([]);
+  const [copiedPdfPassword, setCopiedPdfPassword] = useState(false);
 
   useEffect(() => {
     if (!user) return;
@@ -69,7 +71,7 @@ const ApoderadoDashboard = () => {
     const unsubscribe = onSnapshot(qReports, (snap) => {
       const list = snap.docs
         .map((d) => ({ id: d.id, ...d.data() }))
-        .filter((r) => Boolean(r.pdfBase64));
+        .filter((r) => Boolean(r.reportPayload || r.pdfBase64));
       list.sort((a, b) => (b.publishedAt || b.meetingDate || '').localeCompare(a.publishedAt || a.meetingDate || ''));
       setPublishedReports(list);
     }, (err) => {
@@ -78,12 +80,27 @@ const ApoderadoDashboard = () => {
     return () => unsubscribe();
   }, [user]);
 
-  const handleDownloadMeetingReport = (report) => {
-    if (!report?.pdfBase64) {
-      showAlert('El archivo PDF de este informe no está disponible.');
-      return;
-    }
+  const handleDownloadMeetingReport = (report, student) => {
+    const studentDisplayName = student ? formatStudentName(student) : 'Alumno';
+    const studentPassword = student ? getStudentPdfPassword(student) : '';
+
     try {
+      // 1. Si el informe tiene reportPayload, generamos en el acto el PDF con clave del RUT del alumno y marca de agua con el nombre del alumno
+      if (report?.reportPayload) {
+        const docPdf = createMeetingReportJsPdf(report.reportPayload, {
+          studentNameWatermark: studentDisplayName,
+          userPassword: studentPassword
+        });
+        const safeStudentFile = studentDisplayName.replace(/[^a-zA-Z0-9_-]/g, '_');
+        docPdf.save(`Informe_Reunion_${report.meetingDate || ''}_${safeStudentFile}.pdf`);
+        return;
+      }
+
+      // 2. Fallback para informes antiguos guardados solo en base64
+      if (!report?.pdfBase64) {
+        showAlert('El archivo PDF de este informe no está disponible.');
+        return;
+      }
       const byteCharacters = atob(report.pdfBase64);
       const byteNumbers = new Array(byteCharacters.length);
       for (let i = 0; i < byteCharacters.length; i++) {
@@ -803,6 +820,8 @@ const ApoderadoDashboard = () => {
                     !studentCourseId || !r.courseId || r.courseId === 'general' || r.courseId === studentCourseId
                   );
                   const visibleReports = courseReports.length > 0 ? courseReports : publishedReports;
+                  const studentPdfPassword = getStudentPdfPassword(student);
+                  const studentDisplayName = formatStudentName(student);
 
                   return (
                     <React.Fragment key={student.id}>
@@ -871,7 +890,7 @@ const ApoderadoDashboard = () => {
 
                             <button
                               type="button"
-                              onClick={() => handleDownloadMeetingReport(visibleReports[0])}
+                              onClick={() => handleDownloadMeetingReport(visibleReports[0], student)}
                               className="btn btn-primary"
                               style={{
                                 background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
@@ -886,6 +905,61 @@ const ApoderadoDashboard = () => {
                             >
                               <Download size={18} />
                               Descargar Informe PDF
+                            </button>
+                          </div>
+
+                          {/* Aviso de Clave Personal del PDF y Marca de Agua */}
+                          <div style={{
+                            marginTop: '1rem',
+                            padding: '0.75rem 1rem',
+                            borderRadius: '0.75rem',
+                            backgroundColor: 'rgba(99, 102, 241, 0.1)',
+                            border: '1px solid rgba(99, 102, 241, 0.3)',
+                            display: 'flex',
+                            justifyContent: 'space-between',
+                            alignItems: 'center',
+                            flexWrap: 'wrap',
+                            gap: '0.75rem'
+                          }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', fontSize: '0.84rem', color: 'var(--text-main)', flexWrap: 'wrap' }}>
+                              <Lock size={16} color="#818cf8" style={{ flexShrink: 0 }} />
+                              <span>
+                                <strong>Clave para abrir el PDF</strong> (RUT del alumno sin puntos ni guion):{' '}
+                                <code style={{
+                                  backgroundColor: 'rgba(15, 23, 42, 0.65)',
+                                  padding: '0.2rem 0.55rem',
+                                  borderRadius: '0.4rem',
+                                  border: '1px solid rgba(129, 140, 248, 0.4)',
+                                  color: '#a5b4fc',
+                                  fontWeight: '800',
+                                  fontSize: '0.9rem'
+                                }}>
+                                  {studentPdfPassword}
+                                </code>
+                                <span style={{ color: 'var(--text-muted)', marginLeft: '0.5rem', fontSize: '0.78rem' }}>
+                                  • Marca de agua en el documento: <strong>{studentDisplayName}</strong>
+                                </span>
+                              </span>
+                            </div>
+
+                            <button
+                              type="button"
+                              onClick={() => {
+                                navigator.clipboard.writeText(studentPdfPassword);
+                                setCopiedPdfPassword(true);
+                                setTimeout(() => setCopiedPdfPassword(false), 2200);
+                              }}
+                              className="btn btn-outline"
+                              style={{
+                                padding: '0.32rem 0.7rem',
+                                fontSize: '0.76rem',
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '0.35rem'
+                              }}
+                            >
+                              {copiedPdfPassword ? <Check size={14} color="#10b981" /> : <Copy size={14} />}
+                              {copiedPdfPassword ? 'Clave Copiada' : 'Copiar Clave'}
                             </button>
                           </div>
 
@@ -906,7 +980,7 @@ const ApoderadoDashboard = () => {
                                   <button
                                     key={rep.id}
                                     type="button"
-                                    onClick={() => handleDownloadMeetingReport(rep)}
+                                    onClick={() => handleDownloadMeetingReport(rep, student)}
                                     className="btn btn-outline"
                                     style={{
                                       padding: '0.35rem 0.75rem',
