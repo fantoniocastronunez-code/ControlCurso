@@ -216,6 +216,7 @@ const EventAttendance = ({ event, onEventUpdated }) => {
             updatedAt: new Date().toISOString()
           }, { merge: true });
         } else {
+          // Si está marcado como asistente pero tenía multa previa, eliminarla
           // Si está marcado como asistente o la multa es $0 pero tenía multa previa, eliminarla
           if (s.fineDebt) {
             await deleteDoc(doc(db, 'debts', s.fineDebt.id));

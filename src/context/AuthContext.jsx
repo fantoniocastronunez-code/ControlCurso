@@ -80,7 +80,8 @@ export const AuthProvider = ({ children }) => {
           console.error("Error al obtener o crear el usuario en Firestore:", error);
           const isPublicRoute = window.location.pathname.startsWith('/pedido') || 
                                 window.location.pathname.startsWith('/comandas') || 
-                                window.location.pathname.startsWith('/entrega');
+                                window.location.pathname.startsWith('/entrega') ||
+                                window.location.pathname.startsWith('/firmar-reunion');
           if (!isPublicRoute) {
             await showAlert("Error de permisos en la base de datos. Por favor revisa las reglas de Firestore.");
           }

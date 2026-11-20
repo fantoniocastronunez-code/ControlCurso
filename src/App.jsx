@@ -10,6 +10,7 @@ import AdminDashboard from './pages/AdminDashboard';
 import ApoderadoDashboard from './pages/ApoderadoDashboard';
 import EventComandas from './pages/EventComandas';
 import ClientOrderStatus from './pages/ClientOrderStatus';
+import MeetingSignPage from './pages/MeetingSignPage';
 import VersionChecker from './components/VersionChecker';
 import ErrorBoundary from './components/ErrorBoundary';
 import './App.css';
@@ -75,6 +76,7 @@ const AppRoutes = () => {
       <Route path="/comandas/:eventId" element={<EventComandas />} />
       <Route path="/pedido/:saleId" element={<ClientOrderStatus />} />
       <Route path="/entrega/:saleId" element={<ClientOrderStatus />} />
+      <Route path="/firmar-reunion/:sessionId/:roleKey" element={<MeetingSignPage />} />
       
       <Route
         path="/admin/*" 

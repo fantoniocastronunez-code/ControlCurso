@@ -66,17 +66,31 @@ export default function SignaturePad({ title, initialData, onSave, onClear, onCh
     return () => clearTimeout(timer);
   }, [isFullscreen]);
 
-  // 2. Cargar la firma que viene de la base de datos (solo la primera vez)
+  // 2. Cargar o sincronizar la firma cuando cambia initialData (ej. firma remota en tiempo real)
   useEffect(() => {
-    if (initialData && !loadedRef.current && canvasRef.current) {
-      const canvas = canvasRef.current;
-      const ctx = canvas.getContext('2d');
+    if (!canvasRef.current) return;
+    const canvas = canvasRef.current;
+    const ctx = canvas.getContext('2d');
+
+    if (initialData && initialData !== drawingDataRef.current) {
+      drawingDataRef.current = initialData;
       const img = new Image();
       img.onload = () => {
-         drawImageProportionally(ctx, img, canvas);
-         loadedRef.current = true;
+        drawImageProportionally(ctx, img, canvas);
+        loadedRef.current = true;
       };
       img.src = initialData;
+    } else if (!initialData && !loadedRef.current && drawingDataRef.current) {
+      const img = new Image();
+      img.onload = () => {
+        drawImageProportionally(ctx, img, canvas);
+        loadedRef.current = true;
+      };
+      img.src = drawingDataRef.current;
+    } else if (!initialData && drawingDataRef.current) {
+      ctx.clearRect(0, 0, canvas.offsetWidth, canvas.offsetHeight);
+      drawingDataRef.current = null;
+      loadedRef.current = false;
     }
   }, [initialData]);
 
