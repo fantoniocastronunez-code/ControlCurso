@@ -120,11 +120,27 @@ export default function SignaturePad({ title, initialData, onSave, onClear, onCh
     ctx.stroke();
   };
 
+  // Exporta la firma en tamaño compacto (máx 600px de ancho) para evitar PDFs y documentos pesados en pantallas Retina/móviles
+  const exportCompactSignature = (sourceCanvas) => {
+    if (!sourceCanvas) return null;
+    const maxW = 600;
+    if (sourceCanvas.width <= maxW) {
+      return sourceCanvas.toDataURL('image/png');
+    }
+    const scale = maxW / sourceCanvas.width;
+    const tempCanvas = document.createElement('canvas');
+    tempCanvas.width = Math.round(sourceCanvas.width * scale);
+    tempCanvas.height = Math.round(sourceCanvas.height * scale);
+    const tempCtx = tempCanvas.getContext('2d');
+    tempCtx.drawImage(sourceCanvas, 0, 0, tempCanvas.width, tempCanvas.height);
+    return tempCanvas.toDataURL('image/png');
+  };
+
   const stopDrawing = () => {
     if (isDrawing) {
       setIsDrawing(false);
       if (canvasRef.current) {
-        const data = canvasRef.current.toDataURL('image/png');
+        const data = exportCompactSignature(canvasRef.current);
         drawingDataRef.current = data;
         if (onChange) onChange(data);
       }
@@ -133,7 +149,7 @@ export default function SignaturePad({ title, initialData, onSave, onClear, onCh
 
   const handleSave = () => {
     if (canvasRef.current) {
-      const data = canvasRef.current.toDataURL('image/png');
+      const data = exportCompactSignature(canvasRef.current);
       drawingDataRef.current = data;
       if (onSave) onSave(data);
       loadedRef.current = true;

@@ -196,7 +196,8 @@ export const createMeetingReportJsPdf = (
   const pdfOptions = {
     orientation: 'portrait',
     unit: 'mm',
-    format: 'a4'
+    format: 'a4',
+    compress: true
   };
 
   if (userPassword) {
@@ -487,13 +488,13 @@ export const createMeetingReportJsPdf = (
   }
 
   if (sigs.sigTreasurer) {
-    doc.addImage(sigs.sigTreasurer, 'PNG', 16, sigY - 20, 50, 18);
+    doc.addImage(sigs.sigTreasurer, 'PNG', 16, sigY - 20, 50, 18, undefined, 'FAST');
   }
   if (sigs.sigSecretary) {
-    doc.addImage(sigs.sigSecretary, 'PNG', centerX - 25, sigY - 20, 50, 18);
+    doc.addImage(sigs.sigSecretary, 'PNG', centerX - 25, sigY - 20, 50, 18, undefined, 'FAST');
   }
   if (sigs.sigPresident) {
-    doc.addImage(sigs.sigPresident, 'PNG', pageWidth - 66, sigY - 20, 50, 18);
+    doc.addImage(sigs.sigPresident, 'PNG', pageWidth - 66, sigY - 20, 50, 18, undefined, 'FAST');
   }
 
   // Aplicar marca de agua del nombre del alumno en todas las páginas
