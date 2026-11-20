@@ -7,18 +7,13 @@ export default function SignaturePad({ title, initialData, onSave, onClear, onCh
   const [isDrawing, setIsDrawing] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const loadedRef = useRef(false);
-  const drawingDataRef = useRef(initialData || null);
-
-  useEffect(() => {
-    if (initialData && !loadedRef.current) {
-      drawingDataRef.current = initialData;
-    }
-  }, [initialData]);
+  const drawingDataRef = useRef(null);
 
   // Algoritmo para dibujar la imagen sin achatarla (Mantiene la proporción original)
   const drawImageProportionally = (ctx, img, canvas) => {
     const targetW = canvas.offsetWidth;
     const targetH = canvas.offsetHeight;
+    if (!targetW || !targetH) return;
     const imgAspect = img.width / img.height;
     const targetAspect = targetW / targetH;
     
@@ -40,28 +35,37 @@ export default function SignaturePad({ title, initialData, onSave, onClear, onCh
     ctx.drawImage(img, drawX, drawY, drawW, drawH);
   };
 
-  // 1. Manejar el redimensionado al abrir/cerrar pantalla completa
-  useEffect(() => {
+  const setupCanvasAndRedraw = () => {
     const canvas = canvasRef.current;
     if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    const ratio = Math.max(window.devicePixelRatio || 1, 1);
 
-    // Retraso de 150ms para permitir que la animación CSS de cierre termine
+    canvas.width = canvas.offsetWidth * ratio;
+    canvas.height = canvas.offsetHeight * ratio;
+    ctx.scale(ratio, ratio);
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    ctx.strokeStyle = '#0f172a';
+
+    const srcToDraw = drawingDataRef.current || initialData;
+    if (srcToDraw) {
+      drawingDataRef.current = srcToDraw;
+      const img = new Image();
+      img.onload = () => {
+        drawImageProportionally(ctx, img, canvas);
+        loadedRef.current = true;
+      };
+      img.src = srcToDraw;
+    }
+  };
+
+  // 1. Inicializar lienzo inmediatamente al montar y al cambiar pantalla completa
+  useEffect(() => {
+    setupCanvasAndRedraw();
     const timer = setTimeout(() => {
-      const ctx = canvas.getContext('2d');
-      const ratio = Math.max(window.devicePixelRatio || 1, 1);
-      
-      canvas.width = canvas.offsetWidth * ratio;
-      canvas.height = canvas.offsetHeight * ratio;
-      ctx.scale(ratio, ratio);
-      ctx.lineCap = 'round';
-      ctx.lineJoin = 'round';
-
-      if (drawingDataRef.current) {
-        const img = new Image();
-        img.onload = () => drawImageProportionally(ctx, img, canvas);
-        img.src = drawingDataRef.current;
-      }
-    }, 150); 
+      setupCanvasAndRedraw();
+    }, 150);
 
     return () => clearTimeout(timer);
   }, [isFullscreen]);
@@ -72,7 +76,7 @@ export default function SignaturePad({ title, initialData, onSave, onClear, onCh
     const canvas = canvasRef.current;
     const ctx = canvas.getContext('2d');
 
-    if (initialData && initialData !== drawingDataRef.current) {
+    if (initialData) {
       drawingDataRef.current = initialData;
       const img = new Image();
       img.onload = () => {
@@ -80,13 +84,6 @@ export default function SignaturePad({ title, initialData, onSave, onClear, onCh
         loadedRef.current = true;
       };
       img.src = initialData;
-    } else if (!initialData && !loadedRef.current && drawingDataRef.current) {
-      const img = new Image();
-      img.onload = () => {
-        drawImageProportionally(ctx, img, canvas);
-        loadedRef.current = true;
-      };
-      img.src = drawingDataRef.current;
     } else if (!initialData && drawingDataRef.current) {
       ctx.clearRect(0, 0, canvas.offsetWidth, canvas.offsetHeight);
       drawingDataRef.current = null;
@@ -102,6 +99,7 @@ export default function SignaturePad({ title, initialData, onSave, onClear, onCh
     
     const pressure = e.pressure && e.pointerType === 'pen' ? e.pressure * 5 : 2.5;
     
+    ctx.strokeStyle = '#0f172a';
     ctx.lineWidth = pressure;
     ctx.beginPath();
     ctx.moveTo(e.clientX - rect.left, e.clientY - rect.top);

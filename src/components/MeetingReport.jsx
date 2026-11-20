@@ -99,6 +99,93 @@ const MeetingReport = ({ onBack }) => {
     window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank', 'noopener,noreferrer');
   };
 
+  // Renderiza el recuadro blanco con la imagen de la firma recibida y el nombre del firmante
+  const renderReceivedSignatureBox = ({ signatureUrl, signerName, roleLabel, accentColor, onClearSignature }) => (
+    <div style={{
+      position: 'relative',
+      height: '155px',
+      backgroundColor: '#ffffff',
+      border: `2px solid ${accentColor || '#10b981'}`,
+      borderRadius: '1rem',
+      padding: '0.65rem 0.85rem 0.55rem 0.85rem',
+      display: 'flex',
+      flexDirection: 'column',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      boxShadow: '0 4px 12px rgba(0, 0, 0, 0.12)'
+    }}>
+      <button
+        type="button"
+        onClick={onClearSignature}
+        title="Borrar o volver a firmar"
+        style={{
+          position: 'absolute',
+          top: '0.45rem',
+          right: '0.45rem',
+          backgroundColor: '#fef2f2',
+          color: '#dc2626',
+          border: '1px solid #fecaca',
+          borderRadius: '0.45rem',
+          padding: '0.22rem 0.5rem',
+          fontSize: '0.7rem',
+          fontWeight: '700',
+          cursor: 'pointer',
+          display: 'inline-flex',
+          alignItems: 'center',
+          gap: '0.25rem'
+        }}
+      >
+        <RefreshCw size={11} /> Cambiar
+      </button>
+
+      <div style={{
+        flex: 1,
+        width: '100%',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        overflow: 'hidden',
+        paddingTop: '0.15rem'
+      }}>
+        <img
+          src={signatureUrl}
+          alt={`Firma de ${signerName || roleLabel}`}
+          style={{
+            maxHeight: '86px',
+            maxWidth: '88%',
+            objectFit: 'contain',
+            display: 'block'
+          }}
+        />
+      </div>
+
+      <div style={{
+        width: '82%',
+        borderTop: '1.5px solid #94a3b8',
+        paddingTop: '0.28rem',
+        textAlign: 'center'
+      }}>
+        <div style={{
+          fontSize: '0.84rem',
+          fontWeight: '800',
+          color: '#0f172a',
+          lineHeight: 1.15
+        }}>
+          {signerName || roleLabel}
+        </div>
+        <div style={{
+          fontSize: '0.68rem',
+          fontWeight: '600',
+          color: '#64748b',
+          textTransform: 'uppercase',
+          letterSpacing: '0.04em'
+        }}>
+          {roleLabel}
+        </div>
+      </div>
+    </div>
+  );
+
   const reportRef = useRef(null);
 
   useEffect(() => {
@@ -1699,15 +1786,34 @@ const MeetingReport = ({ onBack }) => {
               </span>
             </div>
 
-            <SignaturePad
-              initialData={sigTreasurer}
-              onChange={(b64) => setSigTreasurer(b64)}
-              onSave={(b64) => setSigTreasurer(b64)}
-              onClear={() => {
-                setSigTreasurer(null);
-                setSigTreasurerMeta(null);
-              }}
-            />
+            {sigTreasurer && sigTreasurerMeta ? (
+              renderReceivedSignatureBox({
+                signatureUrl: sigTreasurer,
+                signerName: sigTreasurerMeta.signerName,
+                roleLabel: 'Firma Tesorero(a)',
+                accentColor: '#10b981',
+                onClearSignature: () => {
+                  setSigTreasurer(null);
+                  setSigTreasurerMeta(null);
+                }
+              })
+            ) : (
+              <SignaturePad
+                initialData={sigTreasurer}
+                onChange={(b64) => setSigTreasurer(b64)}
+                onSave={(b64) => {
+                  setSigTreasurer(b64);
+                  setSigTreasurerMeta((prev) => prev || {
+                    signerName: 'Tesorero(a) de Curso',
+                    createdAt: new Date().toISOString()
+                  });
+                }}
+                onClear={() => {
+                  setSigTreasurer(null);
+                  setSigTreasurerMeta(null);
+                }}
+              />
+            )}
 
             <div style={{
               background: 'rgba(16, 185, 129, 0.06)',
@@ -1819,15 +1925,34 @@ const MeetingReport = ({ onBack }) => {
               </span>
             </div>
 
-            <SignaturePad
-              initialData={sigPresident}
-              onChange={(b64) => setSigPresident(b64)}
-              onSave={(b64) => setSigPresident(b64)}
-              onClear={() => {
-                setSigPresident(null);
-                setSigPresidentMeta(null);
-              }}
-            />
+            {sigPresident && sigPresidentMeta ? (
+              renderReceivedSignatureBox({
+                signatureUrl: sigPresident,
+                signerName: sigPresidentMeta.signerName,
+                roleLabel: 'Firma Presidente(a)',
+                accentColor: '#6366f1',
+                onClearSignature: () => {
+                  setSigPresident(null);
+                  setSigPresidentMeta(null);
+                }
+              })
+            ) : (
+              <SignaturePad
+                initialData={sigPresident}
+                onChange={(b64) => setSigPresident(b64)}
+                onSave={(b64) => {
+                  setSigPresident(b64);
+                  setSigPresidentMeta((prev) => prev || {
+                    signerName: 'Presidente(a) de Curso',
+                    createdAt: new Date().toISOString()
+                  });
+                }}
+                onClear={() => {
+                  setSigPresident(null);
+                  setSigPresidentMeta(null);
+                }}
+              />
+            )}
 
             <div style={{
               background: 'rgba(99, 102, 241, 0.06)',
@@ -1939,15 +2064,34 @@ const MeetingReport = ({ onBack }) => {
               </span>
             </div>
 
-            <SignaturePad
-              initialData={sigSecretary}
-              onChange={(b64) => setSigSecretary(b64)}
-              onSave={(b64) => setSigSecretary(b64)}
-              onClear={() => {
-                setSigSecretary(null);
-                setSigSecretaryMeta(null);
-              }}
-            />
+            {sigSecretary && sigSecretaryMeta ? (
+              renderReceivedSignatureBox({
+                signatureUrl: sigSecretary,
+                signerName: sigSecretaryMeta.signerName,
+                roleLabel: 'Firma Secretario(a)',
+                accentColor: '#f59e0b',
+                onClearSignature: () => {
+                  setSigSecretary(null);
+                  setSigSecretaryMeta(null);
+                }
+              })
+            ) : (
+              <SignaturePad
+                initialData={sigSecretary}
+                onChange={(b64) => setSigSecretary(b64)}
+                onSave={(b64) => {
+                  setSigSecretary(b64);
+                  setSigSecretaryMeta((prev) => prev || {
+                    signerName: 'Secretario(a) de Curso',
+                    createdAt: new Date().toISOString()
+                  });
+                }}
+                onClear={() => {
+                  setSigSecretary(null);
+                  setSigSecretaryMeta(null);
+                }}
+              />
+            )}
 
             <div style={{
               background: 'rgba(245, 158, 11, 0.06)',
