@@ -910,6 +910,41 @@ const MeetingReport = ({ onBack }) => {
         doc.addImage(sigPresident, 'PNG', pageWidth - 66, sigY - 20, 50, 18);
       }
 
+      const pdfBase64 = doc.output('datauristring').split(',')[1];
+      const signaturesCount = [sigTreasurer, sigPresident, sigSecretary].filter(Boolean).length;
+
+      // Publicar el informe firmado/enviado para que esté disponible para descarga directa en el Portal de cada Apoderado
+      if (shouldSendEmail || signaturesCount > 0) {
+        try {
+          const publishedDocId = `published_report_${selectedCourse?.id || 'general'}_${meetingDate}`;
+          await setDoc(doc(db, 'approvals', publishedDocId), {
+            type: 'PUBLISHED_MEETING_REPORT',
+            courseId: selectedCourse?.id || 'general',
+            courseName: selectedCourse?.name || '',
+            meetingTitle,
+            meetingDate,
+            filename: `Informe_Reunion_Apoderados_${meetingDate}.pdf`,
+            pdfBase64: pdfBase64.length < 850000 ? pdfBase64 : null,
+            signaturesCount,
+            signers: {
+              tesorero: sigTreasurerMeta?.signerName || (sigTreasurer ? 'Tesorero(a)' : null),
+              presidente: sigPresidentMeta?.signerName || (sigPresident ? 'Presidente(a)' : null),
+              secretario: sigSecretaryMeta?.signerName || (sigSecretary ? 'Secretario(a)' : null)
+            },
+            summary: {
+              totalAvailable,
+              totalIncome: totalCollected + totalIncomes,
+              totalOutcomes,
+              paidPercentage: studentDebtStats.paidPercentage
+            },
+            sentByEmail: Boolean(shouldSendEmail),
+            publishedAt: new Date().toISOString()
+          }, { merge: true });
+        } catch (pubErr) {
+          console.warn('No se pudo publicar el informe en el portal de apoderados:', pubErr);
+        }
+      }
+
       // 1. Descargar PDF localmente (si corresponde)
       if (shouldDownload) {
         doc.save(`Informe_Reunion_Apoderados_${meetingDate}.pdf`);
@@ -918,7 +953,6 @@ const MeetingReport = ({ onBack }) => {
       // 2. Preparar el envío automático de correos a todos los apoderados registrados (Trigger Email)
       if (shouldSendEmail) {
         setSendingEmail(true);
-        const pdfBase64 = doc.output('datauristring').split(',')[1];
         const emailList = allRecipientEmails;
 
         if (emailList.length > 0) {

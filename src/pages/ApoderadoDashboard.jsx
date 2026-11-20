@@ -2,7 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import {
   LogOut, CheckCircle, Clock, Search, UserPlus, Upload, AlertCircle, MessageCircle,
-  Receipt, TrendingDown, Eye, X, ExternalLink, DollarSign, Calendar, CreditCard, User
+  Receipt, TrendingDown, Eye, X, ExternalLink, DollarSign, Calendar, CreditCard, User,
+  Download, FileText
 } from 'lucide-react';
 import { db, storage } from '../firebase/config';
 import { collection, query, where, getDocs, getDoc, doc, updateDoc, setDoc, or, addDoc, onSnapshot } from 'firebase/firestore';
@@ -55,6 +56,54 @@ const ApoderadoDashboard = () => {
   const [linkingStudentId, setLinkingStudentId] = useState(null);
   const [rutInput, setRutInput] = useState('');
   const [rutError, setRutError] = useState('');
+
+  // Informes de Reunión de Apoderados firmados y publicados
+  const [publishedReports, setPublishedReports] = useState([]);
+
+  useEffect(() => {
+    if (!user) return;
+    const qReports = query(
+      collection(db, 'approvals'),
+      where('type', '==', 'PUBLISHED_MEETING_REPORT')
+    );
+    const unsubscribe = onSnapshot(qReports, (snap) => {
+      const list = snap.docs
+        .map((d) => ({ id: d.id, ...d.data() }))
+        .filter((r) => Boolean(r.pdfBase64));
+      list.sort((a, b) => (b.publishedAt || b.meetingDate || '').localeCompare(a.publishedAt || a.meetingDate || ''));
+      setPublishedReports(list);
+    }, (err) => {
+      console.warn('Error cargando informes de reunión publicados:', err);
+    });
+    return () => unsubscribe();
+  }, [user]);
+
+  const handleDownloadMeetingReport = (report) => {
+    if (!report?.pdfBase64) {
+      showAlert('El archivo PDF de este informe no está disponible.');
+      return;
+    }
+    try {
+      const byteCharacters = atob(report.pdfBase64);
+      const byteNumbers = new Array(byteCharacters.length);
+      for (let i = 0; i < byteCharacters.length; i++) {
+        byteNumbers[i] = byteCharacters.charCodeAt(i);
+      }
+      const byteArray = new Uint8Array(byteNumbers);
+      const blob = new Blob([byteArray], { type: 'application/pdf' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = report.filename || `Informe_Reunion_Apoderados_${report.meetingDate || ''}.pdf`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      setTimeout(() => URL.revokeObjectURL(url), 5000);
+    } catch (err) {
+      console.error('Error al descargar el informe PDF:', err);
+      showAlert('Hubo un error al descargar el informe PDF.');
+    }
+  };
 
   useEffect(() => {
     fetchData();
@@ -749,8 +798,134 @@ const ApoderadoDashboard = () => {
                     return true;
                   });
 
+                  const studentCourseId = student.courseId || allStudentDebts.find(d => d.courseId)?.courseId;
+                  const courseReports = publishedReports.filter(r =>
+                    !studentCourseId || !r.courseId || r.courseId === 'general' || r.courseId === studentCourseId
+                  );
+                  const visibleReports = courseReports.length > 0 ? courseReports : publishedReports;
+
                   return (
                     <React.Fragment key={student.id}>
+                      {/* Tarjeta de Descarga de Informes Oficiales de Reunión de Apoderados */}
+                      {visibleReports.length > 0 && (
+                        <div
+                          className="glass-panel"
+                          style={{
+                            padding: '1.5rem 2rem',
+                            marginBottom: '2rem',
+                            border: '1px solid rgba(16, 185, 129, 0.4)',
+                            background: 'linear-gradient(135deg, rgba(16, 185, 129, 0.08) 0%, rgba(99, 102, 241, 0.08) 100%)'
+                          }}
+                        >
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem' }}>
+                            <div style={{ display: 'flex', alignItems: 'flex-start', gap: '0.85rem' }}>
+                              <div style={{
+                                width: '44px',
+                                height: '44px',
+                                borderRadius: '0.75rem',
+                                backgroundColor: 'rgba(16, 185, 129, 0.15)',
+                                border: '1px solid rgba(16, 185, 129, 0.35)',
+                                color: '#10b981',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                flexShrink: 0
+                              }}>
+                                <FileText size={22} />
+                              </div>
+                              <div>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+                                  <h3 style={{ margin: 0, fontSize: '1.15rem', color: 'var(--text-main)' }}>
+                                    {visibleReports[0].meetingTitle || 'Informe Financiero - Reunión de Apoderados'}
+                                  </h3>
+                                  <span style={{
+                                    fontSize: '0.72rem',
+                                    fontWeight: '700',
+                                    padding: '0.2rem 0.6rem',
+                                    borderRadius: '999px',
+                                    backgroundColor: 'rgba(16, 185, 129, 0.15)',
+                                    color: '#10b981',
+                                    border: '1px solid rgba(16, 185, 129, 0.35)'
+                                  }}>
+                                    ✓ Firmado por la Directiva
+                                  </span>
+                                </div>
+                                <p style={{ margin: '0.3rem 0 0 0', fontSize: '0.86rem', color: 'var(--text-muted)' }}>
+                                  Fecha de reunión: <strong>{visibleReports[0].meetingDate}</strong>
+                                  {visibleReports[0].summary?.totalAvailable !== undefined && (
+                                    <> • Fondo disponible: <strong style={{ color: '#10b981' }}>{formatMoney(visibleReports[0].summary.totalAvailable)}</strong></>
+                                  )}
+                                </p>
+                                {visibleReports[0].signers && (
+                                  <p style={{ margin: '0.2rem 0 0 0', fontSize: '0.78rem', color: 'var(--text-muted)' }}>
+                                    Firmas registradas:{' '}
+                                    {[
+                                      visibleReports[0].signers.presidente && `Presidencia (${visibleReports[0].signers.presidente})`,
+                                      visibleReports[0].signers.tesorero && `Tesorería (${visibleReports[0].signers.tesorero})`,
+                                      visibleReports[0].signers.secretario && `Secretaría (${visibleReports[0].signers.secretario})`
+                                    ].filter(Boolean).join(' • ') || 'Directiva del Curso'}
+                                  </p>
+                                )}
+                              </div>
+                            </div>
+
+                            <button
+                              type="button"
+                              onClick={() => handleDownloadMeetingReport(visibleReports[0])}
+                              className="btn btn-primary"
+                              style={{
+                                background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
+                                border: 'none',
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '0.5rem',
+                                padding: '0.7rem 1.25rem',
+                                fontWeight: '700',
+                                boxShadow: '0 4px 14px rgba(16, 185, 129, 0.35)'
+                              }}
+                            >
+                              <Download size={18} />
+                              Descargar Informe PDF
+                            </button>
+                          </div>
+
+                          {visibleReports.length > 1 && (
+                            <div style={{
+                              marginTop: '1rem',
+                              paddingTop: '0.85rem',
+                              borderTop: '1px solid rgba(255,255,255,0.08)',
+                              display: 'flex',
+                              flexDirection: 'column',
+                              gap: '0.45rem'
+                            }}>
+                              <span style={{ fontSize: '0.76rem', fontWeight: '700', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                                Informes de reuniones anteriores:
+                              </span>
+                              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem' }}>
+                                {visibleReports.slice(1).map((rep) => (
+                                  <button
+                                    key={rep.id}
+                                    type="button"
+                                    onClick={() => handleDownloadMeetingReport(rep)}
+                                    className="btn btn-outline"
+                                    style={{
+                                      padding: '0.35rem 0.75rem',
+                                      fontSize: '0.78rem',
+                                      display: 'inline-flex',
+                                      alignItems: 'center',
+                                      gap: '0.35rem'
+                                    }}
+                                  >
+                                    <Download size={14} />
+                                    Informe {rep.meetingDate}
+                                  </button>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      )}
+
                       <div className="glass-panel" style={{ padding: '2rem', marginBottom: '2rem' }}>
                         <h3 style={{ marginBottom: '1.5rem', color: 'var(--primary)' }}>Estado de Pagos: {formatStudentName(student)}</h3>
 
