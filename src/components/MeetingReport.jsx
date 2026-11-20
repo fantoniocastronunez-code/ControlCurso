@@ -4,7 +4,7 @@ import { collection, getDocs, addDoc, doc, setDoc, onSnapshot, query, where } fr
 import {
   ArrowLeft, Download, PieChart, TrendingUp, TrendingDown,
   Users, CheckCircle, Calendar, DollarSign, Eye, EyeOff,
-  Share2, Search, RefreshCw, Smartphone, Copy, Check, QrCode, MessageCircle, ExternalLink, X, Mail, Send
+  Share2, Search, RefreshCw, Smartphone, Copy, Check, QrCode, MessageCircle, ExternalLink, X, Mail, Send, Lock, UserCheck
 } from 'lucide-react';
 import { QRCodeSVG } from 'qrcode.react';
 import { formatStudentName } from '../utils/nameUtils';
@@ -61,6 +61,9 @@ const MeetingReport = ({ onBack }) => {
   const [alsoDownloadPdf, setAlsoDownloadPdf] = useState(false);
   const [extraEmailInput, setExtraEmailInput] = useState('');
   const [extraEmails, setExtraEmails] = useState([]);
+  const [emailRecipientMode, setEmailRecipientMode] = useState('all'); // 'all' | 'selected_students'
+  const [selectedEmailStudentIds, setSelectedEmailStudentIds] = useState(new Set());
+  const [emailStudentSearch, setEmailStudentSearch] = useState('');
 
   // Signatures
   const [sigTreasurer, setSigTreasurer] = useState(null);
@@ -607,6 +610,147 @@ const MeetingReport = ({ onBack }) => {
     setExtraEmailInput('');
   };
 
+  const toggleEmailStudentSelection = (studentId) => {
+    setSelectedEmailStudentIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(studentId)) next.delete(studentId);
+      else next.add(studentId);
+      return next;
+    });
+  };
+
+  const filteredEmailStudents = useMemo(() => {
+    const term = emailStudentSearch.trim().toLowerCase();
+    if (!term) return students;
+    return students.filter((s) => {
+      const name = formatStudentName(s).toLowerCase();
+      const rut = String(s.rut || '').toLowerCase();
+      const listNum = String(s.listNumber || '');
+      const emails = [
+        ...(Array.isArray(s.apoderadoEmails) ? s.apoderadoEmails : []),
+        ...(s.apoderadoEmail ? [s.apoderadoEmail] : [])
+      ].map((e) => String(e || '').toLowerCase());
+      return (
+        name.includes(term) ||
+        rut.includes(term) ||
+        listNum === term ||
+        emails.some((e) => e.includes(term))
+      );
+    });
+  }, [students, emailStudentSearch]);
+
+  // Lista efectiva de envíos según el modo ('all' vs 'selected_students')
+  const effectiveEmailDeliveries = useMemo(() => {
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+    if (emailRecipientMode === 'selected_students') {
+      const selectedStudentsList = students.filter((s) => selectedEmailStudentIds.has(s.id));
+      const deliveries = [];
+
+      selectedStudentsList.forEach((st) => {
+        const stName = formatStudentName(st);
+        const stPassword = getStudentPdfPassword(st);
+        const rawEmails = [
+          ...(Array.isArray(st.apoderadoEmails) ? st.apoderadoEmails : []),
+          ...(st.apoderadoEmail ? [st.apoderadoEmail] : [])
+        ];
+        const validStudentEmails = Array.from(
+          new Set(
+            rawEmails
+              .map((e) => String(e || '').trim().toLowerCase())
+              .filter((e) => emailRegex.test(e))
+          )
+        );
+
+        validStudentEmails.forEach((email) => {
+          deliveries.push({
+            email,
+            studentNamesLabel: stName,
+            pdfPassword: stPassword,
+            student: st
+          });
+        });
+
+        // Si el usuario agregó correos extra de prueba, también les envía el PDF encriptado de este alumno seleccionado
+        extraEmails.forEach((extraEmail) => {
+          const cleanExtra = String(extraEmail || '').trim().toLowerCase();
+          if (emailRegex.test(cleanExtra) && !validStudentEmails.includes(cleanExtra)) {
+            deliveries.push({
+              email: cleanExtra,
+              studentNamesLabel: stName,
+              pdfPassword: stPassword,
+              student: st
+            });
+          }
+        });
+      });
+
+      return deliveries;
+    }
+
+    // Modo 'all': un envío por cada correo único registrado en el curso
+    return allRecipientEmails.map((recipientEmail) => {
+      const matchedStudents = students.filter((s) => {
+        const list = Array.isArray(s.apoderadoEmails) ? s.apoderadoEmails : [];
+        const single = s.apoderadoEmail ? [s.apoderadoEmail] : [];
+        return [...list, ...single].some(
+          (e) => String(e || '').trim().toLowerCase() === recipientEmail
+        );
+      });
+      const primaryStudent = matchedStudents[0] || null;
+      const studentNamesLabel =
+        matchedStudents.length > 0
+          ? matchedStudents.map((s) => formatStudentName(s)).join(' / ')
+          : (usersMap[recipientEmail] || recipientEmail);
+      const pdfPassword = primaryStudent
+        ? getStudentPdfPassword(primaryStudent)
+        : `CURSO${meetingDate.replace(/-/g, '')}`;
+
+      return {
+        email: recipientEmail,
+        studentNamesLabel,
+        pdfPassword,
+        student: primaryStudent
+      };
+    });
+  }, [emailRecipientMode, students, selectedEmailStudentIds, extraEmails, allRecipientEmails, usersMap, meetingDate]);
+
+  // Descargar directamente el PDF encriptado de un alumno específico para probar su clave
+  const handleDownloadStudentTestPdf = (student) => {
+    const reportPayload = buildMeetingReportPayload({
+      meetingTitle,
+      meetingDate,
+      courseName: selectedCourse?.name || '',
+      totalAvailable,
+      totalCollected,
+      totalIncomes,
+      totalOutcomes,
+      students,
+      debts,
+      expenses,
+      outcomes,
+      finalFundsMap,
+      studentDebtStats,
+      exportIncludeDetails,
+      sigTreasurer,
+      sigSecretary,
+      sigPresident,
+      sigTreasurerMeta,
+      sigSecretaryMeta,
+      sigPresidentMeta
+    });
+
+    const stName = formatStudentName(student);
+    const stPassword = getStudentPdfPassword(student);
+    const docPdf = createMeetingReportJsPdf(reportPayload, {
+      studentNameWatermark: stName,
+      userPassword: stPassword
+    });
+    const safeName = stName.replace(/[^a-zA-Z0-9_-]/g, '_');
+    docPdf.save(`Informe_Reunion_${meetingDate}_${safeName}.pdf`);
+    showAlert(`PDF de prueba descargado para ${stName}.\n\n🔒 Clave para abrirlo: ${stPassword}`);
+  };
+
   // -------------------------------------------------------------
   // PDF Document Generation & Email Dispatch (Con Clave RUT + Marca de Agua por Alumno)
   // -------------------------------------------------------------
@@ -675,41 +819,56 @@ const MeetingReport = ({ onBack }) => {
         }
       }
 
-      // 1. Descargar PDF localmente para la Directiva (si corresponde)
+      // 1. Descargar PDF localmente (si corresponde)
       if (shouldDownload) {
-        const directivaDoc = createMeetingReportJsPdf(reportPayload, {
-          studentNameWatermark: 'COPIA DIRECTIVA DEL CURSO',
-          userPassword: ''
-        });
-        directivaDoc.save(`Informe_Reunion_Apoderados_${meetingDate}.pdf`);
+        if (isDirectEmail && emailRecipientMode === 'selected_students' && selectedEmailStudentIds.size > 0) {
+          // Si seleccionó alumnos específicos y marcó descargar copia, descargar el PDF encriptado de los alumnos seleccionados para probar la clave
+          const selectedStudentsList = students.filter((s) => selectedEmailStudentIds.has(s.id));
+          selectedStudentsList.forEach((st) => {
+            const stName = formatStudentName(st);
+            const stPassword = getStudentPdfPassword(st);
+            const stDoc = createMeetingReportJsPdf(reportPayload, {
+              studentNameWatermark: stName,
+              userPassword: stPassword
+            });
+            const safeName = stName.replace(/[^a-zA-Z0-9_-]/g, '_');
+            stDoc.save(`Informe_Reunion_${meetingDate}_${safeName}.pdf`);
+          });
+        } else {
+          const directivaDoc = createMeetingReportJsPdf(reportPayload, {
+            studentNameWatermark: 'COPIA DIRECTIVA DEL CURSO',
+            userPassword: ''
+          });
+          directivaDoc.save(`Informe_Reunion_Apoderados_${meetingDate}.pdf`);
+        }
       }
 
       // 2. Enviar por correo a cada apoderado su propio PDF encriptado con el RUT de su alumno y marca de agua con el nombre del alumno
       if (shouldSendEmail) {
         setSendingEmail(true);
-        const emailList = allRecipientEmails;
+        const deliveriesToProcess = isDirectEmail ? effectiveEmailDeliveries : allRecipientEmails.map((recipientEmail) => {
+          const matchedStudents = students.filter((s) => {
+            const list = Array.isArray(s.apoderadoEmails) ? s.apoderadoEmails : [];
+            const single = s.apoderadoEmail ? [s.apoderadoEmail] : [];
+            return [...list, ...single].some(
+              (e) => String(e || '').trim().toLowerCase() === recipientEmail
+            );
+          });
+          const primaryStudent = matchedStudents[0] || null;
+          return {
+            email: recipientEmail,
+            studentNamesLabel: matchedStudents.length > 0
+              ? matchedStudents.map((s) => formatStudentName(s)).join(' / ')
+              : (usersMap[recipientEmail] || recipientEmail),
+            pdfPassword: primaryStudent ? getStudentPdfPassword(primaryStudent) : `CURSO${meetingDate.replace(/-/g, '')}`
+          };
+        });
 
-        if (emailList.length > 0) {
+        if (deliveriesToProcess.length > 0) {
           const logoUrl = `${window.location.origin}/LOGOAPPCURSO.jpg`;
 
-          for (const recipientEmail of emailList) {
-            const matchedStudents = students.filter((s) => {
-              const list = Array.isArray(s.apoderadoEmails) ? s.apoderadoEmails : [];
-              const single = s.apoderadoEmail ? [s.apoderadoEmail] : [];
-              return [...list, ...single].some(
-                (e) => String(e || '').trim().toLowerCase() === recipientEmail
-              );
-            });
-
-            const primaryStudent = matchedStudents[0] || null;
-            const studentNamesLabel =
-              matchedStudents.length > 0
-                ? matchedStudents.map((s) => formatStudentName(s)).join(' / ')
-                : (usersMap[recipientEmail] || recipientEmail);
-
-            const pdfPassword = primaryStudent
-              ? getStudentPdfPassword(primaryStudent)
-              : `CURSO${meetingDate.replace(/-/g, '')}`;
+          for (const delivery of deliveriesToProcess) {
+            const { email: recipientEmail, studentNamesLabel, pdfPassword } = delivery;
 
             const personalDoc = createMeetingReportJsPdf(reportPayload, {
               studentNameWatermark: studentNamesLabel,
@@ -772,11 +931,15 @@ const MeetingReport = ({ onBack }) => {
 
           await showAlert(
             shouldDownload
-              ? `¡PDF descargado y ${emailList.length} informe(s) personalizados (con clave de RUT y marca de agua del alumno) enviados por correo!`
-              : `¡Se enviaron exitosamente ${emailList.length} informe(s) PDF personalizados (con clave de RUT y marca de agua del nombre de cada alumno)!`
+              ? `¡PDF descargado y ${deliveriesToProcess.length} informe(s) personalizados (con clave de RUT y marca de agua del alumno) enviados por correo!`
+              : `¡Se enviaron exitosamente ${deliveriesToProcess.length} informe(s) PDF personalizados (con clave de RUT y marca de agua del nombre de cada alumno)!`
           );
         } else {
-          await showAlert("No se encontraron correos electrónicos de apoderados registrados para enviar el informe.");
+          await showAlert(
+            emailRecipientMode === 'selected_students'
+              ? 'Los alumnos seleccionados no tienen correos de apoderado vinculados. Puedes agregar un correo de prueba en el campo "+ Agregar" o usar el botón "Probar PDF" junto al alumno.'
+              : 'No se encontraron correos electrónicos de apoderados registrados para enviar el informe.'
+          );
         }
       } else {
         await showAlert("¡PDF Oficial descargado exitosamente!");
@@ -2223,12 +2386,13 @@ const MeetingReport = ({ onBack }) => {
             onClick={(e) => e.stopPropagation()}
             className="glass-panel"
             style={{
-              background: 'var(--bg-secondary)', width: '100%', maxWidth: '520px',
+              background: 'var(--bg-secondary)', width: '100%', maxWidth: '600px',
+              maxHeight: '92vh', overflowY: 'auto',
               borderRadius: 'var(--radius-lg)', padding: '1.75rem',
               border: '1px solid var(--border-color)', boxShadow: '0 25px 50px rgba(0,0,0,0.45)'
             }}
           >
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.85rem' }}>
               <h2 style={{ margin: 0, color: 'var(--text-main)', fontSize: '1.3rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                 <Mail size={22} color="#10b981" /> Enviar Informe PDF a Apoderados
               </h2>
@@ -2242,84 +2406,323 @@ const MeetingReport = ({ onBack }) => {
               </button>
             </div>
 
-            <p style={{ margin: '0 0 1rem 0', fontSize: '0.88rem', color: 'var(--text-muted)', lineHeight: 1.5 }}>
-              Se generará un <strong>PDF individual protegido con clave</strong> para cada apoderado (la clave es el <strong>RUT de su alumno sin puntos ni guion</strong>) y con el <strong>nombre del alumno en marca de agua</strong> en todas las páginas:
+            <p style={{ margin: '0 0 1rem 0', fontSize: '0.86rem', color: 'var(--text-muted)', lineHeight: 1.5 }}>
+              Se generará un <strong>PDF individual protegido con clave</strong> para cada apoderado (la clave es el <strong>RUT de su alumno sin puntos ni guion</strong>) y con el <strong>nombre del alumno en marca de agua</strong> en todas las páginas.
             </p>
 
-            {/* Resumen de Destinatarios */}
-            <div style={{
-              background: 'rgba(16, 185, 129, 0.08)',
-              border: '1px solid rgba(16, 185, 129, 0.25)',
-              borderRadius: '0.85rem',
-              padding: '0.85rem 1rem',
-              marginBottom: '1rem'
-            }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
-                <span style={{ fontSize: '0.82rem', fontWeight: '700', color: '#10b981' }}>
-                  Destinatarios detectados ({allRecipientEmails.length} correos)
+            {/* Selector de Modo de Envío: Todos vs Uno o varios alumnos */}
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.65rem', marginBottom: '1rem' }}>
+              <button
+                type="button"
+                onClick={() => setEmailRecipientMode('all')}
+                style={{
+                  padding: '0.7rem 0.6rem',
+                  borderRadius: '0.75rem',
+                  border: emailRecipientMode === 'all' ? '2px solid #10b981' : '1px solid var(--border-color)',
+                  backgroundColor: emailRecipientMode === 'all' ? 'rgba(16, 185, 129, 0.14)' : 'rgba(255,255,255,0.03)',
+                  color: emailRecipientMode === 'all' ? '#34d399' : 'var(--text-main)',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'center',
+                  gap: '0.2rem',
+                  textAlign: 'center'
+                }}
+              >
+                <Users size={18} />
+                <strong style={{ fontSize: '0.84rem' }}>Todos los apoderados</strong>
+                <span style={{ fontSize: '0.73rem', color: 'var(--text-muted)' }}>
+                  {allRecipientEmails.length} correos registrados
                 </span>
-                <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
-                  Firmas listas: {[sigTreasurer, sigPresident, sigSecretary].filter(Boolean).length}/3
-                </span>
-              </div>
+              </button>
 
-              {allRecipientEmails.length > 0 ? (
+              <button
+                type="button"
+                onClick={() => setEmailRecipientMode('selected_students')}
+                style={{
+                  padding: '0.7rem 0.6rem',
+                  borderRadius: '0.75rem',
+                  border: emailRecipientMode === 'selected_students' ? '2px solid var(--primary)' : '1px solid var(--border-color)',
+                  backgroundColor: emailRecipientMode === 'selected_students' ? 'rgba(99, 102, 241, 0.15)' : 'rgba(255,255,255,0.03)',
+                  color: emailRecipientMode === 'selected_students' ? '#a5b4fc' : 'var(--text-main)',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'center',
+                  gap: '0.2rem',
+                  textAlign: 'center'
+                }}
+              >
+                <UserCheck size={18} />
+                <strong style={{ fontSize: '0.84rem' }}>Uno o varios alumnos</strong>
+                <span style={{ fontSize: '0.73rem', color: 'var(--text-muted)' }}>
+                  {selectedEmailStudentIds.size} seleccionado(s) • Ideal para probar clave
+                </span>
+              </button>
+            </div>
+
+            {emailRecipientMode === 'selected_students' ? (
+              <div style={{
+                background: 'rgba(99, 102, 241, 0.06)',
+                border: '1px solid rgba(99, 102, 241, 0.25)',
+                borderRadius: '0.85rem',
+                padding: '0.85rem 1rem',
+                marginBottom: '1rem'
+              }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap', marginBottom: '0.6rem' }}>
+                  <div style={{ position: 'relative', flex: 1, minWidth: '170px' }}>
+                    <input
+                      type="text"
+                      value={emailStudentSearch}
+                      onChange={(e) => setEmailStudentSearch(e.target.value)}
+                      placeholder="Buscar alumno por nombre, RUT o N°..."
+                      className="input-field"
+                      style={{ width: '100%', padding: '0.4rem 0.6rem 0.4rem 1.85rem', fontSize: '0.82rem' }}
+                    />
+                    <Search size={14} style={{ position: 'absolute', left: '0.6rem', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
+                  </div>
+                  <div style={{ display: 'flex', gap: '0.35rem' }}>
+                    <button
+                      type="button"
+                      onClick={() => setSelectedEmailStudentIds(new Set(filteredEmailStudents.map((s) => s.id)))}
+                      className="btn btn-outline"
+                      style={{ padding: '0.32rem 0.6rem', fontSize: '0.74rem' }}
+                    >
+                      Todos
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setSelectedEmailStudentIds(new Set())}
+                      className="btn btn-outline"
+                      style={{ padding: '0.32rem 0.6rem', fontSize: '0.74rem' }}
+                    >
+                      Ninguno
+                    </button>
+                  </div>
+                </div>
+
                 <div style={{
-                  maxHeight: '125px',
+                  maxHeight: '195px',
                   overflowY: 'auto',
                   display: 'flex',
-                  flexWrap: 'wrap',
-                  gap: '0.35rem',
-                  paddingRight: '0.25rem'
+                  flexDirection: 'column',
+                  gap: '0.4rem',
+                  paddingRight: '0.2rem'
                 }}>
-                  {allRecipientEmails.map((email) => (
-                    <span
-                      key={email}
-                      style={{
-                        fontSize: '0.73rem',
-                        background: 'rgba(255,255,255,0.06)',
-                        border: '1px solid var(--border-color)',
-                        color: 'var(--text-main)',
-                        padding: '0.2rem 0.55rem',
-                        borderRadius: '999px'
-                      }}
-                    >
-                      {usersMap[email] && usersMap[email] !== email ? `${usersMap[email]} (${email})` : email}
-                    </span>
-                  ))}
-                </div>
-              ) : (
-                <div style={{ fontSize: '0.82rem', color: 'var(--danger)' }}>
-                  No hay correos registrados aún. Agrega uno manualmente abajo.
-                </div>
-              )}
+                  {filteredEmailStudents.map((st) => {
+                    const isSelected = selectedEmailStudentIds.has(st.id);
+                    const stPassword = getStudentPdfPassword(st);
+                    const stEmails = [
+                      ...(Array.isArray(st.apoderadoEmails) ? st.apoderadoEmails : []),
+                      ...(st.apoderadoEmail ? [st.apoderadoEmail] : [])
+                    ].filter(Boolean);
 
-              {/* Agregar correo extra opcional */}
-              <div style={{ display: 'flex', gap: '0.45rem', marginTop: '0.75rem' }}>
-                <input
-                  type="email"
-                  value={extraEmailInput}
-                  onChange={(e) => setExtraEmailInput(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter') {
-                      e.preventDefault();
-                      handleAddExtraEmail();
-                    }
-                  }}
-                  placeholder="Agregar otro correo opcional..."
-                  className="input-field"
-                  style={{ flex: 1, padding: '0.45rem 0.7rem', fontSize: '0.82rem' }}
-                />
-                <button
-                  type="button"
-                  onClick={handleAddExtraEmail}
-                  className="btn btn-outline"
-                  style={{ padding: '0.45rem 0.75rem', fontSize: '0.78rem' }}
-                >
-                  + Agregar
-                </button>
+                    return (
+                      <div
+                        key={st.id}
+                        onClick={() => toggleEmailStudentSelection(st.id)}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'space-between',
+                          gap: '0.6rem',
+                          padding: '0.5rem 0.65rem',
+                          borderRadius: '0.6rem',
+                          backgroundColor: isSelected ? 'rgba(99, 102, 241, 0.16)' : 'rgba(255,255,255,0.03)',
+                          border: isSelected ? '1px solid rgba(99, 102, 241, 0.5)' : '1px solid rgba(255,255,255,0.07)',
+                          cursor: 'pointer'
+                        }}
+                      >
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.55rem', minWidth: 0, flex: 1 }}>
+                          <input
+                            type="checkbox"
+                            checked={isSelected}
+                            onChange={() => toggleEmailStudentSelection(st.id)}
+                            onClick={(e) => e.stopPropagation()}
+                            style={{ width: '16px', height: '16px', accentColor: 'var(--primary)', cursor: 'pointer', flexShrink: 0 }}
+                          />
+                          <div style={{ minWidth: 0 }}>
+                            <div style={{ fontSize: '0.84rem', fontWeight: isSelected ? '700' : '600', color: 'var(--text-main)' }}>
+                              {st.listNumber ? `${st.listNumber}. ` : ''}{formatStudentName(st)}
+                            </div>
+                            <div style={{ fontSize: '0.73rem', color: 'var(--text-muted)', display: 'flex', flexWrap: 'wrap', gap: '0.45rem', alignItems: 'center', marginTop: '0.1rem' }}>
+                              <span style={{ color: '#a5b4fc', fontWeight: '700', display: 'inline-flex', alignItems: 'center', gap: '0.2rem' }}>
+                                <Lock size={11} /> Clave PDF: <code>{stPassword}</code>
+                              </span>
+                              <span>
+                                • {stEmails.length > 0 ? stEmails.join(', ') : 'Sin correo vinculado'}
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleDownloadStudentTestPdf(st);
+                          }}
+                          className="btn btn-outline"
+                          title={`Descargar PDF encriptado de ${formatStudentName(st)} para probar su clave (${stPassword})`}
+                          style={{
+                            padding: '0.28rem 0.55rem',
+                            fontSize: '0.72rem',
+                            flexShrink: 0,
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '0.25rem',
+                            borderColor: 'rgba(129, 140, 248, 0.4)',
+                            color: '#a5b4fc'
+                          }}
+                        >
+                          <Download size={12} /> Probar PDF
+                        </button>
+                      </div>
+                    );
+                  })}
+                  {filteredEmailStudents.length === 0 && (
+                    <div style={{ textAlign: 'center', padding: '1rem', fontSize: '0.82rem', color: 'var(--text-muted)' }}>
+                      No se encontraron alumnos con ese criterio.
+                    </div>
+                  )}
+                </div>
+
+                {/* Agregar correo de prueba opcional para recibir los PDFs de los alumnos seleccionados */}
+                <div style={{ marginTop: '0.75rem', paddingTop: '0.65rem', borderTop: '1px solid rgba(255,255,255,0.08)' }}>
+                  <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginBottom: '0.35rem' }}>
+                    ¿Quieres recibir el PDF de prueba en otro correo adicional? Agrégalo aquí:
+                  </div>
+                  {extraEmails.length > 0 && (
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.35rem', marginBottom: '0.45rem' }}>
+                      {extraEmails.map((em) => (
+                        <span
+                          key={em}
+                          style={{
+                            fontSize: '0.72rem',
+                            background: 'rgba(16, 185, 129, 0.15)',
+                            border: '1px solid rgba(16, 185, 129, 0.35)',
+                            color: '#34d399',
+                            padding: '0.15rem 0.5rem',
+                            borderRadius: '999px',
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '0.3rem'
+                          }}
+                        >
+                          {em}
+                          <button
+                            type="button"
+                            onClick={() => setExtraEmails((prev) => prev.filter((x) => x !== em))}
+                            style={{ background: 'none', border: 'none', color: '#34d399', cursor: 'pointer', padding: 0, fontWeight: 'bold' }}
+                          >
+                            ×
+                          </button>
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                  <div style={{ display: 'flex', gap: '0.45rem' }}>
+                    <input
+                      type="email"
+                      value={extraEmailInput}
+                      onChange={(e) => setExtraEmailInput(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault();
+                          handleAddExtraEmail();
+                        }
+                      }}
+                      placeholder="Ej. tucorreo@gmail.com para probar..."
+                      className="input-field"
+                      style={{ flex: 1, padding: '0.42rem 0.7rem', fontSize: '0.8rem' }}
+                    />
+                    <button
+                      type="button"
+                      onClick={handleAddExtraEmail}
+                      className="btn btn-outline"
+                      style={{ padding: '0.42rem 0.75rem', fontSize: '0.78rem' }}
+                    >
+                      + Agregar
+                    </button>
+                  </div>
+                </div>
               </div>
-            </div>
+            ) : (
+              /* Resumen de Destinatarios (Modo Todos) */
+              <div style={{
+                background: 'rgba(16, 185, 129, 0.08)',
+                border: '1px solid rgba(16, 185, 129, 0.25)',
+                borderRadius: '0.85rem',
+                padding: '0.85rem 1rem',
+                marginBottom: '1rem'
+              }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
+                  <span style={{ fontSize: '0.82rem', fontWeight: '700', color: '#10b981' }}>
+                    Destinatarios detectados ({allRecipientEmails.length} correos)
+                  </span>
+                  <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                    Firmas listas: {[sigTreasurer, sigPresident, sigSecretary].filter(Boolean).length}/3
+                  </span>
+                </div>
+
+                {allRecipientEmails.length > 0 ? (
+                  <div style={{
+                    maxHeight: '125px',
+                    overflowY: 'auto',
+                    display: 'flex',
+                    flexWrap: 'wrap',
+                    gap: '0.35rem',
+                    paddingRight: '0.25rem'
+                  }}>
+                    {allRecipientEmails.map((email) => (
+                      <span
+                        key={email}
+                        style={{
+                          fontSize: '0.73rem',
+                          background: 'rgba(255,255,255,0.06)',
+                          border: '1px solid var(--border-color)',
+                          color: 'var(--text-main)',
+                          padding: '0.2rem 0.55rem',
+                          borderRadius: '999px'
+                        }}
+                      >
+                        {usersMap[email] && usersMap[email] !== email ? `${usersMap[email]} (${email})` : email}
+                      </span>
+                    ))}
+                  </div>
+                ) : (
+                  <div style={{ fontSize: '0.82rem', color: 'var(--danger)' }}>
+                    No hay correos registrados aún. Agrega uno manualmente abajo.
+                  </div>
+                )}
+
+                {/* Agregar correo extra opcional */}
+                <div style={{ display: 'flex', gap: '0.45rem', marginTop: '0.75rem' }}>
+                  <input
+                    type="email"
+                    value={extraEmailInput}
+                    onChange={(e) => setExtraEmailInput(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault();
+                        handleAddExtraEmail();
+                      }
+                    }}
+                    placeholder="Agregar otro correo opcional..."
+                    className="input-field"
+                    style={{ flex: 1, padding: '0.45rem 0.7rem', fontSize: '0.82rem' }}
+                  />
+                  <button
+                    type="button"
+                    onClick={handleAddExtraEmail}
+                    className="btn btn-outline"
+                    style={{ padding: '0.45rem 0.75rem', fontSize: '0.78rem' }}
+                  >
+                    + Agregar
+                  </button>
+                </div>
+              </div>
+            )}
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.9rem', marginBottom: '1.5rem' }}>
               <label style={{ display: 'flex', alignItems: 'flex-start', gap: '0.75rem', cursor: 'pointer' }}>
@@ -2343,8 +2746,16 @@ const MeetingReport = ({ onBack }) => {
                   style={{ marginTop: '0.2rem', width: '17px', height: '17px', cursor: 'pointer' }}
                 />
                 <div>
-                  <div style={{ fontWeight: '600', color: 'var(--text-main)', fontSize: '0.9rem' }}>Descargar también una copia del PDF en este equipo</div>
-                  <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Además de enviarlo por correo, guarda el archivo PDF localmente.</div>
+                  <div style={{ fontWeight: '600', color: 'var(--text-main)', fontSize: '0.9rem' }}>
+                    {emailRecipientMode === 'selected_students'
+                      ? 'Descargar también el PDF encriptado del alumno seleccionado en este equipo'
+                      : 'Descargar también una copia del PDF en este equipo'}
+                  </div>
+                  <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+                    {emailRecipientMode === 'selected_students'
+                      ? 'Guarda el archivo PDF con clave y marca de agua del alumno seleccionado para probarlo localmente.'
+                      : 'Además de enviarlo por correo, guarda el archivo PDF localmente.'}
+                  </div>
                 </div>
               </label>
             </div>
@@ -2362,7 +2773,13 @@ const MeetingReport = ({ onBack }) => {
                 type="button"
                 className="btn btn-primary"
                 onClick={() => generatePDFReport('email_only')}
-                disabled={generatingPdf || sendingEmail || allRecipientEmails.length === 0}
+                disabled={
+                  generatingPdf ||
+                  sendingEmail ||
+                  (emailRecipientMode === 'all'
+                    ? allRecipientEmails.length === 0
+                    : (selectedEmailStudentIds.size === 0 || (effectiveEmailDeliveries.length === 0 && !alsoDownloadPdf)))
+                }
                 style={{
                   background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
                   border: 'none',
@@ -2375,7 +2792,9 @@ const MeetingReport = ({ onBack }) => {
                 <Send size={16} />
                 {(generatingPdf || sendingEmail)
                   ? 'Generando y Enviando...'
-                  : `Enviar Informe PDF (${allRecipientEmails.length} correos)`}
+                  : emailRecipientMode === 'selected_students'
+                    ? `Enviar a ${selectedEmailStudentIds.size} Alumno(s) (${effectiveEmailDeliveries.length} correo${effectiveEmailDeliveries.length === 1 ? '' : 's'})`
+                    : `Enviar Informe PDF (${allRecipientEmails.length} correos)`}
               </button>
             </div>
           </div>
