@@ -4,7 +4,7 @@ import { collection, getDocs, addDoc, doc, setDoc, onSnapshot, query, where } fr
 import {
   ArrowLeft, Download, PieChart, TrendingUp, TrendingDown,
   Users, CheckCircle, Calendar, DollarSign, Eye, EyeOff,
-  Share2, Search, RefreshCw, Smartphone, Copy, Check, QrCode, MessageCircle, ExternalLink, X
+  Share2, Search, RefreshCw, Smartphone, Copy, Check, QrCode, MessageCircle, ExternalLink, X, Mail, Send
 } from 'lucide-react';
 import { QRCodeSVG } from 'qrcode.react';
 import { formatStudentName } from '../utils/nameUtils';
@@ -28,6 +28,7 @@ const MeetingReport = ({ onBack }) => {
   // Data states
   const [students, setStudents] = useState([]);
   const [usersMap, setUsersMap] = useState({});
+  const [registeredUsers, setRegisteredUsers] = useState([]);
   const [debts, setDebts] = useState([]);
   const [expenses, setExpenses] = useState([]);
   const [funds, setFunds] = useState([]);
@@ -48,10 +49,14 @@ const MeetingReport = ({ onBack }) => {
   const [generatingImage, setGeneratingImage] = useState(false);
   const [sendingEmail, setSendingEmail] = useState(false);
 
-  // Export settings states
+  // Export & Email settings states
   const [showExportModal, setShowExportModal] = useState(false);
+  const [showSendEmailModal, setShowSendEmailModal] = useState(false);
   const [exportIncludeDetails, setExportIncludeDetails] = useState(false);
   const [exportSendEmail, setExportSendEmail] = useState(false);
+  const [alsoDownloadPdf, setAlsoDownloadPdf] = useState(false);
+  const [extraEmailInput, setExtraEmailInput] = useState('');
+  const [extraEmails, setExtraEmails] = useState([]);
 
   // Signatures
   const [sigTreasurer, setSigTreasurer] = useState(null);
@@ -114,12 +119,15 @@ const MeetingReport = ({ onBack }) => {
         ]);
 
         const uMap = {};
+        const uList = [];
         usersSnap.forEach(d => {
           const data = d.data();
+          uList.push({ id: d.id, ...data });
           uMap[d.id] = data.formalName || data.displayName || data.email;
           if (data.email) uMap[data.email.toLowerCase()] = data.formalName || data.displayName || data.email;
         });
         setUsersMap(uMap);
+        setRegisteredUsers(uList);
 
         const sList = studentsSnap.docs.map(d => ({ id: d.id, ...d.data() })).filter(s => s.status !== 'retirado');
         sList.sort((a, b) => (parseInt(a.listNumber) || 999) - (parseInt(b.listNumber) || 999));
@@ -451,10 +459,71 @@ const MeetingReport = ({ onBack }) => {
     });
   }, [studentDebtStats, debtorSearch, debtorFilterStatus, usersMap]);
 
+  // Consolidar todos los correos de apoderados registrados en la app (alumnos + colección users + extras)
+  const allRecipientEmails = useMemo(() => {
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    const emailSet = new Set();
+
+    // 1. Correos vinculados a los alumnos activos
+    students.forEach((s) => {
+      if (Array.isArray(s.apoderadoEmails) && s.apoderadoEmails.length > 0) {
+        s.apoderadoEmails.forEach((e) => {
+          const clean = String(e || '').trim().toLowerCase();
+          if (emailRegex.test(clean)) emailSet.add(clean);
+        });
+      }
+      if (s.apoderadoEmail) {
+        const clean = String(s.apoderadoEmail || '').trim().toLowerCase();
+        if (emailRegex.test(clean)) emailSet.add(clean);
+      }
+    });
+
+    // 2. Correos de usuarios registrados en la colección 'users' de la app
+    registeredUsers.forEach((u) => {
+      const rawEmail = u.email || (String(u.id || '').includes('@') ? u.id : '');
+      const clean = String(rawEmail || '').trim().toLowerCase();
+      if (!emailRegex.test(clean)) return;
+
+      if (selectedCourse?.id && u.roles && typeof u.roles === 'object' && Object.keys(u.roles).length > 0) {
+        if (u.roles[selectedCourse.id] || u.roles.global) {
+          emailSet.add(clean);
+        }
+      } else {
+        emailSet.add(clean);
+      }
+    });
+
+    // 3. Correos adicionales agregados manualmente en la sesión
+    extraEmails.forEach((e) => {
+      const clean = String(e || '').trim().toLowerCase();
+      if (emailRegex.test(clean)) emailSet.add(clean);
+    });
+
+    return Array.from(emailSet).sort();
+  }, [students, registeredUsers, selectedCourse?.id, extraEmails]);
+
+  const handleAddExtraEmail = () => {
+    const clean = extraEmailInput.trim().toLowerCase();
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!clean) return;
+    if (!emailRegex.test(clean)) {
+      showAlert('Por favor ingresa un correo electrónico válido.');
+      return;
+    }
+    if (!extraEmails.includes(clean)) {
+      setExtraEmails((prev) => [...prev, clean]);
+    }
+    setExtraEmailInput('');
+  };
+
   // -------------------------------------------------------------
-  // PDF Document Generation
+  // PDF Document Generation & Email Dispatch
   // -------------------------------------------------------------
-  const generatePDFReport = async () => {
+  const generatePDFReport = async (actionMode = 'download') => {
+    const isDirectEmail = actionMode === 'email_only';
+    const shouldDownload = !isDirectEmail || alsoDownloadPdf;
+    const shouldSendEmail = isDirectEmail || exportSendEmail;
+
     setGeneratingPdf(true);
     try {
       const doc = new jsPDF({
@@ -754,24 +823,16 @@ const MeetingReport = ({ onBack }) => {
         doc.addImage(sigPresident, 'PNG', pageWidth - 66, sigY - 20, 50, 18);
       }
 
-      // 1. Descargar PDF localmente
-      doc.save(`Informe_Reunion_Apoderados_${meetingDate}.pdf`);
+      // 1. Descargar PDF localmente (si corresponde)
+      if (shouldDownload) {
+        doc.save(`Informe_Reunion_Apoderados_${meetingDate}.pdf`);
+      }
 
-      // 2. Preparar el envío automático de correos (Trigger Email)
-      if (exportSendEmail) {
+      // 2. Preparar el envío automático de correos a todos los apoderados registrados (Trigger Email)
+      if (shouldSendEmail) {
         setSendingEmail(true);
         const pdfBase64 = doc.output('datauristring').split(',')[1];
-
-        const allEmails = new Set();
-        students.forEach(s => {
-          if (s.apoderadoEmails && s.apoderadoEmails.length > 0) {
-            s.apoderadoEmails.forEach(e => allEmails.add(e));
-          } else if (s.apoderadoEmail) {
-            allEmails.add(s.apoderadoEmail);
-          }
-        });
-
-        const emailList = Array.from(allEmails);
+        const emailList = allRecipientEmails;
 
         if (emailList.length > 0) {
           const logoUrl = `${window.location.origin}/LOGOAPPCURSO.jpg`;
@@ -793,7 +854,7 @@ const MeetingReport = ({ onBack }) => {
                 </div>
                 
                 <p style="font-size: 14px; color: #888888; margin-top: 30px; margin-bottom: 0;">Atentamente,</p>
-                <p style="font-size: 15px; color: #333333; font-weight: bold; margin-top: 5px;">La Tesorería del Curso</p>
+                <p style="font-size: 15px; color: #333333; font-weight: bold; margin-top: 5px;">La Directiva del Curso</p>
               </div>
               <div style="background-color: #f8f9fa; padding: 15px; text-align: center; border-top: 1px solid #eaeaea;">
                 <p style="font-size: 12px; color: #999999; margin: 0;">Este es un mensaje automático generado por la plataforma del curso. Por favor no responda a este correo.</p>
@@ -815,15 +876,20 @@ const MeetingReport = ({ onBack }) => {
               ]
             }
           });
-          await showAlert("¡PDF Oficial generado, descargado y ENVIADO por correo a todos los apoderados!");
+          await showAlert(
+            shouldDownload
+              ? `¡PDF Oficial descargado y ENVIADO por correo a ${emailList.length} apoderado(s) registrado(s)!`
+              : `¡Informe PDF Oficial enviado exitosamente por correo a ${emailList.length} apoderado(s) registrado(s)!`
+          );
         } else {
-          await showAlert("¡PDF generado y descargado! No se enviaron correos porque no hay apoderados registrados con email.");
+          await showAlert("No se encontraron correos electrónicos de apoderados registrados para enviar el informe.");
         }
       } else {
         await showAlert("¡PDF Oficial descargado exitosamente!");
       }
 
       setShowExportModal(false);
+      setShowSendEmailModal(false);
 
     } catch (error) {
       console.error("Error al generar PDF:", error);
@@ -923,6 +989,25 @@ const MeetingReport = ({ onBack }) => {
           >
             <Share2 size={16} />
             {generatingImage ? 'Generando...' : 'Exportar Imagen'}
+          </button>
+
+          {/* Send PDF by Email to All Registered Apoderados */}
+          <button
+            onClick={() => setShowSendEmailModal(true)}
+            disabled={generatingPdf || sendingEmail}
+            className="btn btn-primary"
+            style={{
+              background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
+              border: 'none',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '0.45rem',
+              boxShadow: '0 4px 14px rgba(16, 185, 129, 0.35)'
+            }}
+            title="Genera el informe PDF con las firmas y lo envía por correo a todos los apoderados registrados"
+          >
+            <Mail size={16} />
+            {sendingEmail ? 'Enviando Correos...' : `Enviar PDF a Apoderados (${allRecipientEmails.length})`}
           </button>
 
           {/* Export PDF Button */}
@@ -1942,6 +2027,60 @@ const MeetingReport = ({ onBack }) => {
             </div>
           </div>
         </div>
+
+        {/* Barra Inferior de Envío Oficial del Informe PDF a Todos los Apoderados */}
+        <div style={{
+          marginTop: '1.75rem',
+          padding: '1.25rem 1.5rem',
+          borderRadius: '1rem',
+          background: 'linear-gradient(135deg, rgba(16, 185, 129, 0.12) 0%, rgba(99, 102, 241, 0.12) 100%)',
+          border: '1px solid rgba(16, 185, 129, 0.35)',
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          flexWrap: 'wrap',
+          gap: '1rem'
+        }}>
+          <div>
+            <h4 style={{ margin: '0 0 0.25rem 0', fontSize: '1.05rem', color: 'var(--text-main)', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              <Mail size={18} color="#10b981" /> Envío del Informe Oficial a los Apoderados
+            </h4>
+            <p style={{ margin: 0, fontSize: '0.85rem', color: 'var(--text-muted)' }}>
+              Una vez reunidas las firmas ({[sigTreasurer, sigPresident, sigSecretary].filter(Boolean).length} de 3 listas), envía el PDF oficial a los <strong>{allRecipientEmails.length} correos de apoderados</strong> registrados en la aplicación.
+            </p>
+          </div>
+
+          <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap' }}>
+            <button
+              type="button"
+              onClick={() => setShowExportModal(true)}
+              disabled={generatingPdf || sendingEmail}
+              className="btn btn-outline"
+              style={{ display: 'inline-flex', alignItems: 'center', gap: '0.45rem' }}
+            >
+              <Download size={16} /> Descargar PDF
+            </button>
+            <button
+              type="button"
+              onClick={() => setShowSendEmailModal(true)}
+              disabled={generatingPdf || sendingEmail}
+              className="btn btn-primary"
+              style={{
+                background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
+                border: 'none',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '0.5rem',
+                padding: '0.75rem 1.35rem',
+                fontWeight: '700',
+                boxShadow: '0 6px 18px rgba(16, 185, 129, 0.35)'
+              }}
+            >
+              <Send size={16} />
+              {sendingEmail ? 'Enviando...' : `Enviar Informe PDF a Todos los Apoderados (${allRecipientEmails.length})`}
+            </button>
+          </div>
+        </div>
       </div>
 
       {/* Modal de Código QR y Link de Firma Remota */}
@@ -2106,7 +2245,7 @@ const MeetingReport = ({ onBack }) => {
               </button>
               <button
                 className="btn btn-primary"
-                onClick={generatePDFReport}
+                onClick={() => generatePDFReport('download')}
                 disabled={generatingPdf || sendingEmail}
                 style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}
               >
@@ -2117,6 +2256,181 @@ const MeetingReport = ({ onBack }) => {
           </div>
         </div>
         , document.body)}
+
+      {/* Modal Directo para Enviar Informe PDF por Correo a Todos los Apoderados */}
+      {showSendEmailModal && createPortal(
+        <div
+          onClick={() => !(generatingPdf || sendingEmail) && setShowSendEmailModal(false)}
+          style={{
+            position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+            backgroundColor: 'rgba(15, 23, 42, 0.72)', backdropFilter: 'blur(5px)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            zIndex: 99999, padding: '1rem'
+          }}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="glass-panel"
+            style={{
+              background: 'var(--bg-secondary)', width: '100%', maxWidth: '520px',
+              borderRadius: 'var(--radius-lg)', padding: '1.75rem',
+              border: '1px solid var(--border-color)', boxShadow: '0 25px 50px rgba(0,0,0,0.45)'
+            }}
+          >
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
+              <h2 style={{ margin: 0, color: 'var(--text-main)', fontSize: '1.3rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                <Mail size={22} color="#10b981" /> Enviar Informe PDF a Apoderados
+              </h2>
+              <button
+                type="button"
+                onClick={() => setShowSendEmailModal(false)}
+                disabled={generatingPdf || sendingEmail}
+                style={{ background: 'transparent', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', padding: '0.25rem' }}
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            <p style={{ margin: '0 0 1rem 0', fontSize: '0.88rem', color: 'var(--text-muted)', lineHeight: 1.5 }}>
+              Se generará el PDF oficial de la reunión del <strong>{meetingDate}</strong> (con las firmas digitales actuales de la Directiva) y se enviará automáticamente a los siguientes correos registrados:
+            </p>
+
+            {/* Resumen de Destinatarios */}
+            <div style={{
+              background: 'rgba(16, 185, 129, 0.08)',
+              border: '1px solid rgba(16, 185, 129, 0.25)',
+              borderRadius: '0.85rem',
+              padding: '0.85rem 1rem',
+              marginBottom: '1rem'
+            }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
+                <span style={{ fontSize: '0.82rem', fontWeight: '700', color: '#10b981' }}>
+                  Destinatarios detectados ({allRecipientEmails.length} correos)
+                </span>
+                <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                  Firmas listas: {[sigTreasurer, sigPresident, sigSecretary].filter(Boolean).length}/3
+                </span>
+              </div>
+
+              {allRecipientEmails.length > 0 ? (
+                <div style={{
+                  maxHeight: '125px',
+                  overflowY: 'auto',
+                  display: 'flex',
+                  flexWrap: 'wrap',
+                  gap: '0.35rem',
+                  paddingRight: '0.25rem'
+                }}>
+                  {allRecipientEmails.map((email) => (
+                    <span
+                      key={email}
+                      style={{
+                        fontSize: '0.73rem',
+                        background: 'rgba(255,255,255,0.06)',
+                        border: '1px solid var(--border-color)',
+                        color: 'var(--text-main)',
+                        padding: '0.2rem 0.55rem',
+                        borderRadius: '999px'
+                      }}
+                    >
+                      {usersMap[email] && usersMap[email] !== email ? `${usersMap[email]} (${email})` : email}
+                    </span>
+                  ))}
+                </div>
+              ) : (
+                <div style={{ fontSize: '0.82rem', color: 'var(--danger)' }}>
+                  No hay correos registrados aún. Agrega uno manualmente abajo.
+                </div>
+              )}
+
+              {/* Agregar correo extra opcional */}
+              <div style={{ display: 'flex', gap: '0.45rem', marginTop: '0.75rem' }}>
+                <input
+                  type="email"
+                  value={extraEmailInput}
+                  onChange={(e) => setExtraEmailInput(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                      handleAddExtraEmail();
+                    }
+                  }}
+                  placeholder="Agregar otro correo opcional..."
+                  className="input-field"
+                  style={{ flex: 1, padding: '0.45rem 0.7rem', fontSize: '0.82rem' }}
+                />
+                <button
+                  type="button"
+                  onClick={handleAddExtraEmail}
+                  className="btn btn-outline"
+                  style={{ padding: '0.45rem 0.75rem', fontSize: '0.78rem' }}
+                >
+                  + Agregar
+                </button>
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.9rem', marginBottom: '1.5rem' }}>
+              <label style={{ display: 'flex', alignItems: 'flex-start', gap: '0.75rem', cursor: 'pointer' }}>
+                <input
+                  type="checkbox"
+                  checked={exportIncludeDetails}
+                  onChange={(e) => setExportIncludeDetails(e.target.checked)}
+                  style={{ marginTop: '0.2rem', width: '17px', height: '17px', cursor: 'pointer' }}
+                />
+                <div>
+                  <div style={{ fontWeight: '600', color: 'var(--text-main)', fontSize: '0.9rem' }}>Incluir lista detallada de gastos en el PDF</div>
+                  <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Adjunta la tabla completa de todos los egresos registrados.</div>
+                </div>
+              </label>
+
+              <label style={{ display: 'flex', alignItems: 'flex-start', gap: '0.75rem', cursor: 'pointer' }}>
+                <input
+                  type="checkbox"
+                  checked={alsoDownloadPdf}
+                  onChange={(e) => setAlsoDownloadPdf(e.target.checked)}
+                  style={{ marginTop: '0.2rem', width: '17px', height: '17px', cursor: 'pointer' }}
+                />
+                <div>
+                  <div style={{ fontWeight: '600', color: 'var(--text-main)', fontSize: '0.9rem' }}>Descargar también una copia del PDF en este equipo</div>
+                  <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Además de enviarlo por correo, guarda el archivo PDF localmente.</div>
+                </div>
+              </label>
+            </div>
+
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem', flexWrap: 'wrap' }}>
+              <button
+                type="button"
+                className="btn btn-outline"
+                onClick={() => setShowSendEmailModal(false)}
+                disabled={generatingPdf || sendingEmail}
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                className="btn btn-primary"
+                onClick={() => generatePDFReport('email_only')}
+                disabled={generatingPdf || sendingEmail || allRecipientEmails.length === 0}
+                style={{
+                  background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
+                  border: 'none',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '0.5rem',
+                  fontWeight: '700'
+                }}
+              >
+                <Send size={16} />
+                {(generatingPdf || sendingEmail)
+                  ? 'Generando y Enviando...'
+                  : `Enviar Informe PDF (${allRecipientEmails.length} correos)`}
+              </button>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
     </div>
   );
 };
