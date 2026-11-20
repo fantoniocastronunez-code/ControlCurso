@@ -56,10 +56,12 @@ const MeetingReport = ({ onBack }) => {
   // Signatures
   const [sigTreasurer, setSigTreasurer] = useState(null);
   const [sigPresident, setSigPresident] = useState(null);
+  const [sigSecretary, setSigSecretary] = useState(null);
   const [sigTreasurerMeta, setSigTreasurerMeta] = useState(null);
   const [sigPresidentMeta, setSigPresidentMeta] = useState(null);
+  const [sigSecretaryMeta, setSigSecretaryMeta] = useState(null);
   const [copiedRoleLink, setCopiedRoleLink] = useState(null);
-  const [qrModalRole, setQrModalRole] = useState(null); // 'presidente' | 'tesorero' | null
+  const [qrModalRole, setQrModalRole] = useState(null); // 'presidente' | 'tesorero' | 'secretario' | null
 
   const sessionId = useMemo(() => {
     const cId = selectedCourse?.id || 'general';
@@ -81,7 +83,12 @@ const MeetingReport = ({ onBack }) => {
 
   const handleSendWhatsAppSignLink = (roleKey) => {
     const url = getRemoteSignUrl(roleKey);
-    const roleTitle = roleKey === 'presidente' ? 'Presidenta / Presidente de Curso' : 'Tesorera / Tesorero de Curso';
+    const roleTitle =
+      roleKey === 'presidente'
+        ? 'Presidenta / Presidente de Curso'
+        : roleKey === 'secretario'
+          ? 'Secretaria / Secretario de Curso'
+          : 'Tesorera / Tesorero de Curso';
     const courseLabel = selectedCourse?.name ? ` (${selectedCourse.name})` : '';
     const text = `Hola 👋 Te envío el enlace para revisar y firmar desde tu teléfono el *Informe Financiero de Reunión de Apoderados*${courseLabel} (${meetingDate}) como *${roleTitle}*:\n\n${url}`;
     window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank', 'noopener,noreferrer');
@@ -293,9 +300,11 @@ const MeetingReport = ({ onBack }) => {
 
       let latestTreasurer = null;
       let latestPresident = null;
+      let latestSecretary = null;
       submissions.forEach((sub) => {
         if (sub.signerRole === 'tesorero') latestTreasurer = sub;
         if (sub.signerRole === 'presidente') latestPresident = sub;
+        if (sub.signerRole === 'secretario') latestSecretary = sub;
       });
 
       if (latestTreasurer) {
@@ -310,6 +319,13 @@ const MeetingReport = ({ onBack }) => {
         setSigPresidentMeta(latestPresident.signatureDataUrl ? {
           signerName: latestPresident.signerName,
           createdAt: latestPresident.createdAt
+        } : null);
+      }
+      if (latestSecretary) {
+        setSigSecretary(latestSecretary.signatureDataUrl || null);
+        setSigSecretaryMeta(latestSecretary.signatureDataUrl ? {
+          signerName: latestSecretary.signerName,
+          createdAt: latestSecretary.createdAt
         } : null);
       }
     }, (err) => {
@@ -704,28 +720,38 @@ const MeetingReport = ({ onBack }) => {
 
       doc.setDrawColor(203, 213, 225);
       const sigY = y + 15;
-      doc.line(25, sigY, 80, sigY);
-      doc.line(pageWidth - 80, sigY, pageWidth - 25, sigY);
+      const centerX = pageWidth / 2;
+      doc.line(16, sigY, 66, sigY);
+      doc.line(centerX - 25, sigY, centerX + 25, sigY);
+      doc.line(pageWidth - 66, sigY, pageWidth - 16, sigY);
 
       doc.setFontSize(8);
       doc.setFont('helvetica', 'normal');
       doc.setTextColor(textMuted[0], textMuted[1], textMuted[2]);
-      doc.text('Firma Tesorero(a)', 52.5, sigY + 5, { align: 'center' });
-      doc.text('Firma Presidente(a)', pageWidth - 52.5, sigY + 5, { align: 'center' });
+      doc.text('Firma Tesorero(a)', 41, sigY + 5, { align: 'center' });
+      doc.text('Firma Secretario(a)', centerX, sigY + 5, { align: 'center' });
+      doc.text('Firma Presidente(a)', pageWidth - 41, sigY + 5, { align: 'center' });
       if (sigTreasurerMeta?.signerName) {
         doc.setFontSize(7.5);
-        doc.text(String(sigTreasurerMeta.signerName), 52.5, sigY + 9.5, { align: 'center' });
+        doc.text(String(sigTreasurerMeta.signerName), 41, sigY + 9.5, { align: 'center' });
+      }
+      if (sigSecretaryMeta?.signerName) {
+        doc.setFontSize(7.5);
+        doc.text(String(sigSecretaryMeta.signerName), centerX, sigY + 9.5, { align: 'center' });
       }
       if (sigPresidentMeta?.signerName) {
         doc.setFontSize(7.5);
-        doc.text(String(sigPresidentMeta.signerName), pageWidth - 52.5, sigY + 9.5, { align: 'center' });
+        doc.text(String(sigPresidentMeta.signerName), pageWidth - 41, sigY + 9.5, { align: 'center' });
       }
 
       if (sigTreasurer) {
-        doc.addImage(sigTreasurer, 'PNG', 25, sigY - 20, 55, 18);
+        doc.addImage(sigTreasurer, 'PNG', 16, sigY - 20, 50, 18);
+      }
+      if (sigSecretary) {
+        doc.addImage(sigSecretary, 'PNG', centerX - 25, sigY - 20, 50, 18);
       }
       if (sigPresident) {
-        doc.addImage(sigPresident, 'PNG', pageWidth - 80, sigY - 20, 55, 18);
+        doc.addImage(sigPresident, 'PNG', pageWidth - 66, sigY - 20, 50, 18);
       }
 
       // 1. Descargar PDF localmente
@@ -1536,7 +1562,7 @@ const MeetingReport = ({ onBack }) => {
               Firmas Digitales de la Directiva
             </h3>
             <p style={{ margin: 0, color: 'var(--text-muted)', fontSize: '0.9rem' }}>
-              Pueden firmar directamente aquí o enviar un link por WhatsApp a la <strong>Presidenta</strong> y a la <strong>Tesorera</strong> para que firmen desde su teléfono en tiempo real.
+              Pueden firmar directamente aquí o enviar un link por WhatsApp a la <strong>Presidenta</strong>, <strong>Tesorera</strong> y <strong>Secretaria</strong> para que firmen desde su teléfono en tiempo real.
             </p>
           </div>
           <span style={{
@@ -1795,6 +1821,126 @@ const MeetingReport = ({ onBack }) => {
               </div>
             </div>
           </div>
+
+          {/* Tarjeta Firma Secretaria */}
+          <div style={{
+            background: 'rgba(255,255,255,0.02)',
+            border: sigSecretary ? '1px solid rgba(245, 158, 11, 0.5)' : '1px solid var(--border-color)',
+            borderRadius: '1rem',
+            padding: '1.15rem',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '0.85rem'
+          }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+              <div>
+                <h4 style={{ margin: 0, fontSize: '1rem', color: 'var(--text-main)' }}>Firma Secretaria / Secretario</h4>
+                {sigSecretaryMeta?.signerName && (
+                  <span style={{ fontSize: '0.78rem', color: '#f59e0b', fontWeight: '600' }}>
+                    Firmado por: {sigSecretaryMeta.signerName}
+                  </span>
+                )}
+              </div>
+              <span style={{
+                fontSize: '0.74rem',
+                fontWeight: '700',
+                padding: '0.25rem 0.65rem',
+                borderRadius: '999px',
+                background: sigSecretary ? 'rgba(16, 185, 129, 0.15)' : 'rgba(148, 163, 184, 0.15)',
+                color: sigSecretary ? '#10b981' : 'var(--text-muted)',
+                border: sigSecretary ? '1px solid rgba(16, 185, 129, 0.35)' : '1px solid rgba(148, 163, 184, 0.25)'
+              }}>
+                {sigSecretary ? '✓ Firma Recibida' : 'Pendiente de firma'}
+              </span>
+            </div>
+
+            <SignaturePad
+              initialData={sigSecretary}
+              onChange={(b64) => setSigSecretary(b64)}
+              onSave={(b64) => setSigSecretary(b64)}
+              onClear={() => {
+                setSigSecretary(null);
+                setSigSecretaryMeta(null);
+              }}
+            />
+
+            <div style={{
+              background: 'rgba(245, 158, 11, 0.06)',
+              border: '1px solid rgba(245, 158, 11, 0.22)',
+              borderRadius: '0.75rem',
+              padding: '0.75rem'
+            }}>
+              <div style={{ fontSize: '0.76rem', fontWeight: '700', color: 'var(--text-muted)', marginBottom: '0.5rem', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                <Smartphone size={13} color="#f59e0b" /> Enviar link a la Secretaria para firmar desde su celular:
+              </div>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem' }}>
+                <button
+                  type="button"
+                  onClick={() => handleSendWhatsAppSignLink('secretario')}
+                  style={{
+                    flex: '1 1 auto',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '0.4rem',
+                    padding: '0.5rem 0.75rem',
+                    borderRadius: '0.6rem',
+                    border: 'none',
+                    background: '#f59e0b',
+                    color: '#ffffff',
+                    fontWeight: '700',
+                    fontSize: '0.8rem',
+                    cursor: 'pointer'
+                  }}
+                >
+                  <MessageCircle size={15} /> Enviar por WhatsApp
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleCopySignLink('secretario')}
+                  style={{
+                    flex: '1 1 auto',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '0.4rem',
+                    padding: '0.5rem 0.75rem',
+                    borderRadius: '0.6rem',
+                    border: '1px solid var(--border-color)',
+                    background: 'var(--bg-secondary)',
+                    color: 'var(--text-main)',
+                    fontWeight: '600',
+                    fontSize: '0.8rem',
+                    cursor: 'pointer'
+                  }}
+                >
+                  {copiedRoleLink === 'secretario' ? <Check size={15} color="#10b981" /> : <Copy size={15} />}
+                  {copiedRoleLink === 'secretario' ? '¡Link Copiado!' : 'Copiar Link'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setQrModalRole('secretario')}
+                  title="Mostrar código QR para la Secretaria"
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '0.35rem',
+                    padding: '0.5rem 0.7rem',
+                    borderRadius: '0.6rem',
+                    border: '1px solid var(--border-color)',
+                    background: 'var(--bg-secondary)',
+                    color: 'var(--text-main)',
+                    fontWeight: '600',
+                    fontSize: '0.8rem',
+                    cursor: 'pointer'
+                  }}
+                >
+                  <QrCode size={15} /> QR
+                </button>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -1821,8 +1967,8 @@ const MeetingReport = ({ onBack }) => {
           >
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
               <h3 style={{ margin: 0, fontSize: '1.1rem', color: 'var(--text-main)', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                <Smartphone size={18} color={qrModalRole === 'presidente' ? '#6366f1' : '#10b981'} />
-                Firma de {qrModalRole === 'presidente' ? 'Presidenta / Presidente' : 'Tesorera / Tesorero'}
+                <Smartphone size={18} color={qrModalRole === 'presidente' ? '#6366f1' : qrModalRole === 'secretario' ? '#f59e0b' : '#10b981'} />
+                Firma de {qrModalRole === 'presidente' ? 'Presidenta / Presidente' : qrModalRole === 'secretario' ? 'Secretaria / Secretario' : 'Tesorera / Tesorero'}
               </h3>
               <button
                 type="button"

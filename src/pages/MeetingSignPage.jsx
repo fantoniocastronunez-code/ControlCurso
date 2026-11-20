@@ -23,6 +23,13 @@ const ROLE_CONFIG = {
     color: '#10b981',
     bgLight: 'rgba(16, 185, 129, 0.12)',
     borderLight: 'rgba(16, 185, 129, 0.35)'
+  },
+  secretario: {
+    label: 'Secretaria / Secretario de Curso',
+    shortLabel: 'Secretario(a)',
+    color: '#f59e0b',
+    bgLight: 'rgba(245, 158, 11, 0.12)',
+    borderLight: 'rgba(245, 158, 11, 0.35)'
   }
 };
 
@@ -36,7 +43,12 @@ const formatMoney = (amount) => {
 
 export default function MeetingSignPage() {
   const { sessionId, roleKey } = useParams();
-  const normalizedInitialRole = roleKey === 'tesorero' ? 'tesorero' : 'presidente';
+  const normalizedInitialRole =
+    roleKey === 'tesorero'
+      ? 'tesorero'
+      : roleKey === 'secretario'
+        ? 'secretario'
+        : 'presidente';
 
   const [activeRole, setActiveRole] = useState(normalizedInitialRole);
   const [authReady, setAuthReady] = useState(false);
@@ -386,18 +398,18 @@ export default function MeetingSignPage() {
               <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: '700', color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '0.5rem' }}>
                 Cargo que firma
               </label>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '0.5rem' }}>
                 <button
                   type="button"
                   onClick={() => setActiveRole('presidente')}
                   style={{
-                    padding: '0.7rem 0.5rem',
+                    padding: '0.7rem 0.35rem',
                     borderRadius: '0.75rem',
                     border: activeRole === 'presidente' ? '2px solid #6366f1' : '1px solid rgba(255,255,255,0.1)',
                     background: activeRole === 'presidente' ? 'rgba(99, 102, 241, 0.18)' : 'rgba(255,255,255,0.03)',
                     color: activeRole === 'presidente' ? '#ffffff' : '#94a3b8',
                     fontWeight: '700',
-                    fontSize: '0.85rem',
+                    fontSize: '0.82rem',
                     cursor: 'pointer'
                   }}
                 >
@@ -407,17 +419,33 @@ export default function MeetingSignPage() {
                   type="button"
                   onClick={() => setActiveRole('tesorero')}
                   style={{
-                    padding: '0.7rem 0.5rem',
+                    padding: '0.7rem 0.35rem',
                     borderRadius: '0.75rem',
                     border: activeRole === 'tesorero' ? '2px solid #10b981' : '1px solid rgba(255,255,255,0.1)',
                     background: activeRole === 'tesorero' ? 'rgba(16, 185, 129, 0.18)' : 'rgba(255,255,255,0.03)',
                     color: activeRole === 'tesorero' ? '#ffffff' : '#94a3b8',
                     fontWeight: '700',
-                    fontSize: '0.85rem',
+                    fontSize: '0.82rem',
                     cursor: 'pointer'
                   }}
                 >
                   Tesorero(a)
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setActiveRole('secretario')}
+                  style={{
+                    padding: '0.7rem 0.35rem',
+                    borderRadius: '0.75rem',
+                    border: activeRole === 'secretario' ? '2px solid #f59e0b' : '1px solid rgba(255,255,255,0.1)',
+                    background: activeRole === 'secretario' ? 'rgba(245, 158, 11, 0.18)' : 'rgba(255,255,255,0.03)',
+                    color: activeRole === 'secretario' ? '#ffffff' : '#94a3b8',
+                    fontWeight: '700',
+                    fontSize: '0.82rem',
+                    cursor: 'pointer'
+                  }}
+                >
+                  Secretario(a)
                 </button>
               </div>
             </div>
