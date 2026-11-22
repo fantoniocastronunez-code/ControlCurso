@@ -45,6 +45,43 @@ const MeetingReport = ({ onBack }) => {
   const [debtorSearch, setDebtorSearch] = useState('');
   const [debtorFilterStatus, setDebtorFilterStatus] = useState('all'); // 'all' | 'unpaid' | 'paid' | 'partial'
 
+  // Fondos ocultos del informe de reunión (persistidos por curso en localStorage)
+  const hiddenFundsStorageKey = `meeting_hidden_funds_${selectedCourse?.id || 'general'}`;
+  const [hiddenFundIds, setHiddenFundIds] = useState(() => {
+    try {
+      const saved = localStorage.getItem(`meeting_hidden_funds_${selectedCourse?.id || 'general'}`);
+      return saved ? new Set(JSON.parse(saved)) : new Set();
+    } catch {
+      return new Set();
+    }
+  });
+
+  const toggleHideFund = (fundId) => {
+    setHiddenFundIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(fundId)) next.delete(fundId);
+      else next.add(fundId);
+      try {
+        localStorage.setItem(hiddenFundsStorageKey, JSON.stringify(Array.from(next)));
+      } catch {
+        // Ignorar errores de localStorage
+      }
+      return next;
+    });
+    if (outcomeFilterFund === fundId) {
+      setOutcomeFilterFund('all');
+    }
+  };
+
+  const showAllHiddenFunds = () => {
+    setHiddenFundIds(new Set());
+    try {
+      localStorage.removeItem(hiddenFundsStorageKey);
+    } catch {
+      // Ignorar errores de localStorage
+    }
+  };
+
   // Selected Student for payment detail
   const [selectedStudentForDetail, setSelectedStudentForDetail] = useState(null);
 
@@ -263,9 +300,9 @@ const MeetingReport = ({ onBack }) => {
   };
 
   // -------------------------------------------------------------
-  // Calculations & Analytics
+  // Calculations & Analytics (excluyendo fondos ocultos del informe)
   // -------------------------------------------------------------
-  const fundsMap = useMemo(() => {
+  const allFundsMap = useMemo(() => {
     const map = {};
     funds.forEach(f => {
       map[f.id] = { id: f.id, name: f.name, totalIn: 0, totalOut: 0, balance: 0 };
@@ -275,6 +312,36 @@ const MeetingReport = ({ onBack }) => {
     }
     return map;
   }, [funds]);
+
+  const fundsMap = useMemo(() => {
+    const map = {};
+    Object.values(allFundsMap).forEach(f => {
+      if (!hiddenFundIds.has(f.id)) {
+        map[f.id] = { ...f };
+      }
+    });
+    return map;
+  }, [allFundsMap, hiddenFundIds]);
+
+  const visibleDebts = useMemo(
+    () => debts.filter((d) => !hiddenFundIds.has(d.fundId || 'general')),
+    [debts, hiddenFundIds]
+  );
+
+  const visibleIncomes = useMemo(
+    () => incomes.filter((inc) => !hiddenFundIds.has(inc.fundId || 'general')),
+    [incomes, hiddenFundIds]
+  );
+
+  const visibleOutcomes = useMemo(
+    () => outcomes.filter((out) => !hiddenFundIds.has(out.fundId || 'general')),
+    [outcomes, hiddenFundIds]
+  );
+
+  const visibleExpenses = useMemo(
+    () => expenses.filter((exp) => !hiddenFundIds.has(exp.fundId || 'general')),
+    [expenses, hiddenFundIds]
+  );
 
   // Calculate totals and fund balances
   const { totalCollected, totalOutcomes, totalIncomes, cashIn, cashOut, finalFundsMap } = useMemo(() => {
@@ -289,7 +356,7 @@ const MeetingReport = ({ onBack }) => {
     const currentFunds = JSON.parse(JSON.stringify(fundsMap));
 
     // From Debts (Pagos recibidos)
-    debts.forEach(d => {
+    visibleDebts.forEach(d => {
       const fundId = d.fundId || 'general';
       if (!currentFunds[fundId]) return;
 
@@ -310,7 +377,7 @@ const MeetingReport = ({ onBack }) => {
     });
 
     // From Incomes (Ingresos manuales)
-    incomes.forEach(inc => {
+    visibleIncomes.forEach(inc => {
       const fundId = inc.fundId || 'general';
       if (!currentFunds[fundId]) return;
 
@@ -323,7 +390,7 @@ const MeetingReport = ({ onBack }) => {
     });
 
     // From Outcomes (Egresos / Gastos)
-    outcomes.forEach(out => {
+    visibleOutcomes.forEach(out => {
       const fundId = out.fundId || 'general';
       if (!currentFunds[fundId]) return;
 
@@ -339,7 +406,7 @@ const MeetingReport = ({ onBack }) => {
       f.balance = f.totalIn - f.totalOut;
     });
 
-    const totalOut = outcomes.reduce((sum, o) => sum + (o.amount || 0), 0);
+    const totalOut = visibleOutcomes.reduce((sum, o) => sum + (o.amount || 0), 0);
 
     return {
       totalCollected: collected,
@@ -351,7 +418,7 @@ const MeetingReport = ({ onBack }) => {
       transferOut: tOut,
       finalFundsMap: currentFunds
     };
-  }, [debts, incomes, outcomes, fundsMap]);
+  }, [visibleDebts, visibleIncomes, visibleOutcomes, fundsMap]);
 
   const totalAvailable = Object.values(finalFundsMap).reduce((sum, f) => sum + f.balance, 0);
   const cashBalance = cashIn - cashOut;
@@ -453,7 +520,7 @@ const MeetingReport = ({ onBack }) => {
       };
     });
 
-    debts.forEach(d => {
+    visibleDebts.forEach(d => {
       if (!d.studentId || !map[d.studentId]) return;
       const st = map[d.studentId];
       st.debts.push(d);
@@ -508,11 +575,11 @@ const MeetingReport = ({ onBack }) => {
       paidPercentage: Number(paidPercentage),
       unpaidPercentage: Number(unpaidPercentage)
     };
-  }, [students, debts]);
+  }, [students, visibleDebts]);
 
   // Filtered Outcomes
   const filteredOutcomes = useMemo(() => {
-    return outcomes.filter(o => {
+    return visibleOutcomes.filter(o => {
       const matchFund = outcomeFilterFund === 'all' || (o.fundId || 'general') === outcomeFilterFund;
       const matchSearch = !outcomeSearch.trim() || (
         (o.title || '').toLowerCase().includes(outcomeSearch.toLowerCase()) ||
@@ -520,7 +587,7 @@ const MeetingReport = ({ onBack }) => {
       );
       return matchFund && matchSearch;
     });
-  }, [outcomes, outcomeFilterFund, outcomeSearch]);
+  }, [visibleOutcomes, outcomeFilterFund, outcomeSearch]);
 
   // Filtered Debtors list
   const filteredStudentDebts = useMemo(() => {
@@ -726,9 +793,9 @@ const MeetingReport = ({ onBack }) => {
       totalIncomes,
       totalOutcomes,
       students,
-      debts,
-      expenses,
-      outcomes,
+      debts: visibleDebts,
+      expenses: visibleExpenses,
+      outcomes: visibleOutcomes,
       finalFundsMap,
       studentDebtStats,
       exportIncludeDetails,
@@ -770,9 +837,9 @@ const MeetingReport = ({ onBack }) => {
         totalIncomes,
         totalOutcomes,
         students,
-        debts,
-        expenses,
-        outcomes,
+        debts: visibleDebts,
+        expenses: visibleExpenses,
+        outcomes: visibleOutcomes,
         finalFundsMap,
         studentDebtStats,
         exportIncludeDetails,
@@ -1164,7 +1231,7 @@ const MeetingReport = ({ onBack }) => {
             </div>
             <h2 style={{ margin: 0, fontSize: '1.8rem', color: 'var(--danger)' }}>{formatMoney(totalOutcomes)}</h2>
             <p style={{ margin: '0.35rem 0 0 0', fontSize: '0.8rem', color: 'var(--text-muted)' }}>
-              {outcomes.length} gastos justificados en acta
+              {visibleOutcomes.length} gastos justificados en acta
             </p>
           </div>
 
@@ -1276,6 +1343,72 @@ const MeetingReport = ({ onBack }) => {
 
         </div>
 
+        {/* Barra de Fondos Ocultos (si hay alguno oculto) */}
+        {hiddenFundIds.size > 0 && (
+          <div
+            data-html2canvas-ignore="true"
+            style={{
+              marginBottom: '1.25rem',
+              padding: '0.85rem 1.15rem',
+              borderRadius: 'var(--radius-md)',
+              backgroundColor: 'rgba(245, 158, 11, 0.08)',
+              border: '1px solid rgba(245, 158, 11, 0.35)',
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              flexWrap: 'wrap',
+              gap: '0.75rem'
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+              <span style={{ fontSize: '0.82rem', fontWeight: '700', color: 'var(--warning)', display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}>
+                <EyeOff size={15} /> Fondos ocultos del informe ({hiddenFundIds.size}):
+              </span>
+              {Array.from(hiddenFundIds).map((fId) => {
+                const fundObj = allFundsMap[fId];
+                if (!fundObj) return null;
+                return (
+                  <button
+                    key={fId}
+                    type="button"
+                    onClick={() => toggleHideFund(fId)}
+                    title="Clic para volver a mostrar este fondo en el informe y en el PDF"
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '0.35rem',
+                      padding: '0.25rem 0.65rem',
+                      borderRadius: '999px',
+                      border: '1px solid rgba(245, 158, 11, 0.45)',
+                      backgroundColor: 'rgba(245, 158, 11, 0.14)',
+                      color: '#fcd34d',
+                      fontSize: '0.76rem',
+                      fontWeight: '600',
+                      cursor: 'pointer'
+                    }}
+                  >
+                    <Eye size={12} /> {fundObj.name} (Mostrar)
+                  </button>
+                );
+              })}
+            </div>
+
+            <button
+              type="button"
+              onClick={showAllHiddenFunds}
+              className="btn btn-outline"
+              style={{
+                padding: '0.3rem 0.75rem',
+                fontSize: '0.76rem',
+                borderColor: 'rgba(245, 158, 11, 0.45)',
+                color: '#fcd34d'
+              }}
+            >
+              Mostrar todos los fondos
+            </button>
+          </div>
+        )}
+
         {/* Navigation Tabs */}
         <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1.5rem', flexWrap: 'wrap', borderBottom: '1px solid var(--border-color)', paddingBottom: '0.5rem' }}>
           <button
@@ -1300,7 +1433,7 @@ const MeetingReport = ({ onBack }) => {
               fontSize: '0.9rem'
             }}
           >
-            Lista de Gastos ({outcomes.length})
+            Lista de Gastos ({visibleOutcomes.length})
           </button>
           <button
             onClick={() => setActiveTab('cuotas')}
@@ -1312,7 +1445,7 @@ const MeetingReport = ({ onBack }) => {
               fontSize: '0.9rem'
             }}
           >
-            Cuotas Emitidas ({expenses.length})
+            Cuotas Emitidas ({visibleExpenses.length})
           </button>
           <button
             onClick={() => setActiveTab('morosos')}
@@ -1331,9 +1464,16 @@ const MeetingReport = ({ onBack }) => {
         {/* Tab 1: Fondos de Curso */}
         {activeTab === 'resumen' && (
           <div className="glass-panel" style={{ padding: '1.75rem' }}>
-            <h3 style={{ fontSize: '1.25rem', marginBottom: '1rem', color: 'var(--text-main)' }}>
-              Fondos de Curso ({Object.keys(finalFundsMap).length})
-            </h3>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.75rem', marginBottom: '1rem' }}>
+              <div>
+                <h3 style={{ fontSize: '1.25rem', margin: 0, color: 'var(--text-main)' }}>
+                  Fondos de Curso ({Object.keys(finalFundsMap).length})
+                </h3>
+                <p style={{ margin: '0.2rem 0 0 0', fontSize: '0.82rem', color: 'var(--text-muted)' }}>
+                  Puedes ocultar cualquier fondo del informe y del PDF pulsando el botón <strong>Ocultar</strong> en su tarjeta.
+                </p>
+              </div>
+            </div>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: '1rem' }}>
               {Object.values(finalFundsMap).map(f => (
                 <div
@@ -1348,17 +1488,40 @@ const MeetingReport = ({ onBack }) => {
                     gap: '0.75rem'
                   }}
                 >
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <h4 style={{ margin: 0, fontSize: '1.1rem' }}>{f.name}</h4>
-                    <span style={{
-                      fontSize: '0.75rem',
-                      padding: '0.15rem 0.5rem',
-                      borderRadius: '10px',
-                      backgroundColor: f.balance >= 0 ? 'rgba(16, 185, 129, 0.1)' : 'rgba(239, 68, 68, 0.1)',
-                      color: f.balance >= 0 ? 'var(--success)' : 'var(--danger)'
-                    }}>
-                      {f.balance >= 0 ? 'Superávit' : 'Déficit'}
-                    </span>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '0.5rem' }}>
+                    <h4 style={{ margin: 0, fontSize: '1.05rem', flex: 1 }}>{f.name}</h4>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', flexShrink: 0 }}>
+                      <span style={{
+                        fontSize: '0.73rem',
+                        padding: '0.15rem 0.5rem',
+                        borderRadius: '10px',
+                        backgroundColor: f.balance >= 0 ? 'rgba(16, 185, 129, 0.1)' : 'rgba(239, 68, 68, 0.1)',
+                        color: f.balance >= 0 ? 'var(--success)' : 'var(--danger)'
+                      }}>
+                        {f.balance >= 0 ? 'Superávit' : 'Déficit'}
+                      </span>
+                      <button
+                        type="button"
+                        data-html2canvas-ignore="true"
+                        onClick={() => toggleHideFund(f.id)}
+                        title="Ocultar este fondo del informe en pantalla y del PDF"
+                        style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '0.25rem',
+                          padding: '0.2rem 0.5rem',
+                          borderRadius: '0.45rem',
+                          border: '1px solid var(--border-color)',
+                          backgroundColor: 'rgba(255, 255, 255, 0.04)',
+                          color: 'var(--text-muted)',
+                          fontSize: '0.72rem',
+                          fontWeight: '600',
+                          cursor: 'pointer'
+                        }}
+                      >
+                        <EyeOff size={12} /> Ocultar
+                      </button>
+                    </div>
                   </div>
 
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem', fontSize: '0.85rem' }}>
@@ -1403,8 +1566,8 @@ const MeetingReport = ({ onBack }) => {
                   className="input-field"
                   style={{ padding: '0.5rem', fontSize: '0.85rem' }}
                 >
-                  <option value="all">Todos los fondos</option>
-                  {funds.map(f => (
+                  <option value="all">Todos los fondos visibles</option>
+                  {funds.filter(f => !hiddenFundIds.has(f.id)).map(f => (
                     <option key={f.id} value={f.id}>{f.name}</option>
                   ))}
                 </select>
@@ -1497,12 +1660,12 @@ const MeetingReport = ({ onBack }) => {
           <div className="glass-panel" style={{ padding: '1.75rem' }}>
             <h3 style={{ margin: '0 0 1.25rem 0', color: 'var(--primary)' }}>Rendimiento de Cuotas Emitidas</h3>
 
-            {expenses.length === 0 ? (
+            {visibleExpenses.length === 0 ? (
               <p style={{ color: 'var(--text-muted)', textAlign: 'center', padding: '2rem' }}>No hay cuotas emitidas registradas.</p>
             ) : (
               <div style={{ display: 'grid', gap: '1rem' }}>
-                {expenses.map(exp => {
-                  const expDebts = debts.filter(d => d.expenseId === exp.id);
+                {visibleExpenses.map(exp => {
+                  const expDebts = visibleDebts.filter(d => d.expenseId === exp.id);
                   const paidCount = expDebts.filter(d => d.status === 'paid').length;
                   const partialCount = expDebts.filter(d => d.status === 'partial').length;
                   const pendingCount = expDebts.filter(d => d.status === 'pending' || d.status === 'review').length;
