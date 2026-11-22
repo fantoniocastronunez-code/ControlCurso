@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { db } from '../firebase/config';
 import { collection, doc, getDoc, getDocs, query, updateDoc, where, deleteDoc, setDoc, writeBatch, addDoc } from 'firebase/firestore';
-import { ArrowLeft, CheckCircle, Clock, XCircle, FileText, Download, Trash2, Edit2, Save, X, Calculator, CheckSquare, AlertTriangle, RotateCcw, Sparkles, Check, RefreshCw, MessageCircle, Copy, Eye, EyeOff } from 'lucide-react';
+import { ArrowLeft, CheckCircle, Clock, XCircle, FileText, Download, Trash2, Edit2, Save, X, Calculator, CheckSquare, AlertTriangle, RotateCcw, Sparkles, Check, RefreshCw, MessageCircle, Copy, Eye, EyeOff, Users, UserMinus } from 'lucide-react';
 import { formatStudentName } from '../utils/nameUtils';
 import { useModal } from '../context/ModalContext';
 import { useLockBodyScroll } from '../hooks/useLockBodyScroll';
@@ -1397,8 +1397,174 @@ const ExpenseDetail = ({ expenseId, onBack }) => {
     }
   };
 
+  const cleanupAndDeleteDebt = async (debtToRemove) => {
+    if (!debtToRemove) return;
+    // 1. Eliminar pagos asociados en 'payments' y devolver saldo a favor si corresponde
+    const paymentsQ = query(collection(db, 'payments'), where('debtId', '==', debtToRemove.id));
+    const paymentsSnap = await getDocs(paymentsQ);
+    let balanceRefund = 0;
+    for (const pDoc of paymentsSnap.docs) {
+      const pData = pDoc.data();
+      if (pData.paymentMethod === 'balance' && Number(pData.amount) > 0) {
+        balanceRefund += Number(pData.amount);
+      }
+      await deleteDoc(doc(db, 'payments', pDoc.id));
+    }
+    if (balanceRefund === 0 && debtToRemove.paymentMethod === 'balance' && Number(debtToRemove.paidAmount) > 0) {
+      balanceRefund = Number(debtToRemove.paidAmount);
+    }
+    if (balanceRefund > 0) {
+      const student = students.find(s => s.id === debtToRemove.studentId || s.name === debtToRemove.studentName);
+      if (student) {
+        const restoredBalance = (Number(student.balance) || 0) + balanceRefund;
+        setStudents(prev => prev.map(s => s.id === student.id ? { ...s, balance: restoredBalance } : s));
+        await updateDoc(doc(db, 'students', student.id), {
+          balance: restoredBalance
+        });
+      }
+    }
+
+    // 2. Eliminar documento de deuda
+    await deleteDoc(doc(db, 'debts', debtToRemove.id));
+  };
+
+  const syncEventParticipantsAfterRemoval = async (removedStudentIds) => {
+    if (!removedStudentIds || removedStudentIds.length === 0) return;
+    const effectiveEventId = expense?.eventId || (
+      expenseId.startsWith('exp_evt_') && !expenseId.startsWith('exp_evt_fine_')
+        ? expenseId.replace('exp_evt_', '')
+        : null
+    );
+    if (!effectiveEventId) return;
+
+    try {
+      const evRef = doc(db, 'events', effectiveEventId);
+      const evSnap = await getDoc(evRef);
+      if (!evSnap.exists()) return;
+      const evData = evSnap.data();
+      const removedSet = new Set(removedStudentIds);
+
+      if (Array.isArray(evData.participantStudentIds) && evData.participantStudentIds.length > 0) {
+        const nextParticipants = evData.participantStudentIds.filter(id => !removedSet.has(id));
+        await updateDoc(evRef, {
+          participantStudentIds: nextParticipants,
+          studentsCount: nextParticipants.length
+        });
+      } else {
+        const remainingStudentIds = debts
+          .map(d => d.studentId)
+          .filter(id => id && !removedSet.has(id));
+        await updateDoc(evRef, {
+          participantStudentIds: Array.from(new Set(remainingStudentIds)),
+          studentsCount: remainingStudentIds.length
+        });
+      }
+    } catch (err) {
+      console.warn("No se pudo sincronizar participantes del evento al quitar alumno:", err);
+    }
+  };
+
+  const handleRemoveSingleStudentDebt = async (debtToRemove) => {
+    if (!debtToRemove) return;
+    const student = students.find(s => s.id === debtToRemove.studentId);
+    const displayName = student ? formatStudentName(student) : (debtToRemove.studentName || 'este alumno');
+    const hasPayment = (Number(debtToRemove.paidAmount) || 0) > 0 || debtToRemove.status === 'paid' || debtToRemove.status === 'partial' || debtToRemove.status === 'review';
+
+    const confirmMsg = hasPayment
+      ? `ATENCIÓN: ${displayName} tiene un pago/registro de ${formatMoney(debtToRemove.paidAmount || debtToRemove.amount)} (${debtToRemove.status === 'review' ? 'En revisión' : 'Pagado'}).\n\n¿Estás seguro de QUITAR a ${displayName} de la cuota "${expense?.title}"?\nSe eliminará su cobro de esta cuota y se anulará su pago registrado${debtToRemove.paymentMethod === 'balance' ? ' (devolviendo su saldo a favor)' : ''}.`
+      : `¿Estás seguro de QUITAR a ${displayName} de la cuota "${expense?.title}"?\n\nSe eliminará su cobro de ${formatMoney(debtToRemove.amount)} de esta cuota.`;
+
+    if (!(await showConfirm(confirmMsg))) return;
+
+    try {
+      await cleanupAndDeleteDebt(debtToRemove);
+      await syncEventParticipantsAfterRemoval([debtToRemove.studentId]);
+
+      const remainingDebts = debts.filter(d => d.id !== debtToRemove.id);
+      const updatedPaidCount = remainingDebts.filter(d => d.status === 'paid').length;
+      const updatedStudentsCount = remainingDebts.length;
+      const updatedTotalAmount = expense?.calculationMode === 'divide'
+        ? (Number(expense.totalAmount) || 0)
+        : remainingDebts.reduce((sum, d) => sum + (Number(d.amount) || 0), 0);
+
+      await updateDoc(doc(db, 'expenses', expenseId), {
+        paidCount: updatedPaidCount,
+        studentsCount: updatedStudentsCount,
+        totalAmount: updatedTotalAmount
+      });
+
+      setDebts(remainingDebts);
+      setSelectedDebts(prev => prev.filter(id => id !== debtToRemove.id));
+      setExpense(prev => prev ? {
+        ...prev,
+        paidCount: updatedPaidCount,
+        studentsCount: updatedStudentsCount,
+        totalAmount: updatedTotalAmount
+      } : prev);
+
+      await showAlert(`Se quitó a ${displayName} de la cuota correctamente.`);
+    } catch (error) {
+      console.error("Error quitando alumno de la cuota:", error);
+      await showAlert("Hubo un error al quitar al alumno de la cuota.");
+      fetchDetail(false);
+    }
+  };
+
+  const handleBulkRemoveStudents = async (debtIdsToRemove) => {
+    if (!debtIdsToRemove || debtIdsToRemove.length === 0) return;
+    const targets = debts.filter(d => debtIdsToRemove.includes(d.id));
+    if (targets.length === 0) return;
+
+    const paidTargets = targets.filter(d => (Number(d.paidAmount) || 0) > 0 || d.status === 'paid' || d.status === 'partial' || d.status === 'review');
+    const confirmMsg = paidTargets.length > 0
+      ? `¿Estás seguro de QUITAR a ${targets.length} alumno(s) seleccionado(s) de la cuota "${expense?.title}"?\n\nATENCIÓN: ${paidTargets.length} de ellos tiene(n) pagos registrados que también serán anulados.`
+      : `¿Estás seguro de QUITAR a ${targets.length} alumno(s) seleccionado(s) de la cuota "${expense?.title}"?`;
+
+    if (!(await showConfirm(confirmMsg))) return;
+
+    setLoading(true);
+    try {
+      for (const d of targets) {
+        await cleanupAndDeleteDebt(d);
+      }
+      await syncEventParticipantsAfterRemoval(targets.map(d => d.studentId).filter(Boolean));
+
+      const removedIdSet = new Set(targets.map(d => d.id));
+      const remainingDebts = debts.filter(d => !removedIdSet.has(d.id));
+      const updatedPaidCount = remainingDebts.filter(d => d.status === 'paid').length;
+      const updatedStudentsCount = remainingDebts.length;
+      const updatedTotalAmount = expense?.calculationMode === 'divide'
+        ? (Number(expense.totalAmount) || 0)
+        : remainingDebts.reduce((sum, d) => sum + (Number(d.amount) || 0), 0);
+
+      await updateDoc(doc(db, 'expenses', expenseId), {
+        paidCount: updatedPaidCount,
+        studentsCount: updatedStudentsCount,
+        totalAmount: updatedTotalAmount
+      });
+
+      setDebts(remainingDebts);
+      setSelectedDebts([]);
+      setExpense(prev => prev ? {
+        ...prev,
+        paidCount: updatedPaidCount,
+        studentsCount: updatedStudentsCount,
+        totalAmount: updatedTotalAmount
+      } : prev);
+
+      await showAlert(`Se quitaron ${targets.length} alumno(s) de la cuota correctamente.`);
+    } catch (error) {
+      console.error("Error quitando alumnos seleccionados:", error);
+      await showAlert("Hubo un error al quitar los alumnos seleccionados.");
+      fetchDetail(false);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleStartManageStudents = () => {
     setSelectedManageStudents(debts.map(d => d.studentId));
+    setManageStudentsSearch('');
     setIsManagingStudents(true);
   };
 
@@ -1407,13 +1573,17 @@ const ExpenseDetail = ({ expenseId, onBack }) => {
     const addedIds = selectedManageStudents.filter(id => !currentStudentIds.includes(id));
     const removedIds = currentStudentIds.filter(id => !selectedManageStudents.includes(id));
 
-    // Validación para no borrar alumnos que ya pagaron
-    for (const id of removedIds) {
-      const debtToRemove = debts.find(d => d.studentId === id);
-      if (debtToRemove && (debtToRemove.paidAmount > 0 || debtToRemove.status === 'paid' || debtToRemove.status === 'review')) {
-        await showAlert(`No puedes quitar al alumno ${debtToRemove.studentName} porque ya tiene pagos registrados o en revisión.`);
-        return;
-      }
+    // Si hay alumnos con pagos entre los que se van a quitar, pedir confirmación explícita
+    const removedWithPayments = removedIds
+      .map(id => debts.find(d => d.studentId === id))
+      .filter(d => d && ((Number(d.paidAmount) || 0) > 0 || d.status === 'paid' || d.status === 'partial' || d.status === 'review'));
+
+    if (removedWithPayments.length > 0) {
+      const namesList = removedWithPayments.map(d => d.studentName).join(', ');
+      const ok = await showConfirm(
+        `Los siguientes alumnos que desmarcaste ya tenían pagos o comprobantes registrados:\n${namesList}\n\n¿Deseas quitarlos de todas formas y anular sus pagos en esta cuota?`
+      );
+      if (!ok) return;
     }
 
     // Resolver monto antes de iniciar cambios o activar loading
@@ -1439,19 +1609,18 @@ const ExpenseDetail = ({ expenseId, onBack }) => {
 
     setLoading(true);
     try {
-      // Eliminar alumnos
-      let removedAmount = 0;
+      // Eliminar alumnos desmarcados
       for (const id of removedIds) {
-        const debtToRemove = debts.find(d => d.studentId === id);
-        if (debtToRemove) {
-          removedAmount += Number(debtToRemove.amount) || 0;
-          await deleteDoc(doc(db, 'debts', debtToRemove.id));
+        const debtsForStudent = debts.filter(d => d.studentId === id);
+        for (const debtToRemove of debtsForStudent) {
+          await cleanupAndDeleteDebt(debtToRemove);
         }
       }
+      if (removedIds.length > 0) {
+        await syncEventParticipantsAfterRemoval(removedIds);
+      }
 
-      // Agregar alumnos
-      let addedAmount = 0;
-      let actualAddedCount = 0;
+      // Agregar alumnos nuevos
       const effectiveCourseId = expense.courseId || selectedCourse?.id;
       const effectiveEventId = expense.eventId || (
         expenseId.startsWith('exp_evt_fine_')
@@ -1483,23 +1652,26 @@ const ExpenseDetail = ({ expenseId, onBack }) => {
           visibleInPortal: expense.visibleInPortal !== false,
           createdAt: new Date().toISOString()
         });
-        addedAmount += defaultAmount;
-        actualAddedCount += 1;
       }
 
-      // Actualizar total y conteo en expense
-      const newTotalAmount = Math.max(0, (Number(expense.totalAmount) || 0) - removedAmount + addedAmount);
-      const newStudentsCount = Math.max(0, (expense.studentsCount || currentStudentIds.length) - removedIds.length + actualAddedCount);
+      // Recalcular total, pagados y conteo real en expense
+      const snapAfter = await getDocs(query(collection(db, 'debts'), where('expenseId', '==', expenseId)));
+      const newStudentsCount = snapAfter.size;
+      const newPaidCount = snapAfter.docs.filter(d => d.data().status === 'paid').length;
+      const newTotalAmount = expense.calculationMode === 'divide'
+        ? (Number(expense.totalAmount) || 0)
+        : snapAfter.docs.reduce((sum, d) => sum + (Number(d.data().amount) || 0), 0);
 
       await updateDoc(doc(db, 'expenses', expenseId), {
         totalAmount: newTotalAmount,
-        studentsCount: newStudentsCount
+        studentsCount: newStudentsCount,
+        paidCount: newPaidCount
       });
 
       setIsManagingStudents(false);
       await fetchDetail(false);
       setLoading(false);
-      await showAlert('Alumnos gestionados correctamente.');
+      await showAlert('Alumnos de la cuota actualizados correctamente.');
     } catch (error) {
       console.error("Error al gestionar alumnos:", error);
       await showAlert('Hubo un error al guardar los cambios.');
@@ -1842,58 +2014,127 @@ const ExpenseDetail = ({ expenseId, onBack }) => {
           </div>
         ) : isManagingStudents ? (
           <div style={{ flex: 1 }}>
-            <h4 style={{ color: 'var(--primary)', marginBottom: '1rem' }}>Agregar o Quitar Alumnos</h4>
-            <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', marginBottom: '1rem' }}>Selecciona los alumnos que deben pagar esta cuota. Los alumnos que ya tienen pagos registrados no pueden ser quitados.</p>
+            <h4 style={{ color: 'var(--primary)', marginBottom: '0.5rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              <Users size={18} /> Agregar o Quitar Alumnos de la Cuota
+            </h4>
+            <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', marginBottom: '1rem' }}>
+              Marca los alumnos que deben estar en esta cuota o desmarca a quienes desees quitar.
+            </p>
             
-            <div style={{ marginBottom: '1rem', display: 'flex', gap: '1rem', alignItems: 'center' }}>
+            <div style={{ marginBottom: '1rem', display: 'flex', gap: '0.75rem', alignItems: 'center', flexWrap: 'wrap' }}>
               <input 
                 type="text" 
                 className="input-field" 
                 placeholder="Buscar alumno..." 
                 value={manageStudentsSearch}
                 onChange={e => setManageStudentsSearch(e.target.value)}
-                style={{ flex: 1, marginBottom: 0 }}
+                style={{ flex: 1, minWidth: '200px', marginBottom: 0 }}
               />
               <button 
                 type="button" 
                 className="btn btn-outline" 
                 onClick={() => {
-                  if (selectedManageStudents.length === students.length) setSelectedManageStudents([]);
-                  else setSelectedManageStudents(students.map(s => s.id));
+                  const allIds = Array.from(new Set([...students.map(s => s.id), ...debts.map(d => d.studentId).filter(Boolean)]));
+                  if (selectedManageStudents.length === allIds.length) setSelectedManageStudents([]);
+                  else setSelectedManageStudents(allIds);
                 }}
               >
-                {selectedManageStudents.length === students.length ? 'Deseleccionar Todos' : 'Seleccionar Todos'}
+                {selectedManageStudents.length >= students.length ? 'Deseleccionar Todos' : 'Seleccionar Todos'}
               </button>
             </div>
 
-            <div style={{ maxHeight: '300px', overflowY: 'auto', border: '1px solid var(--border-color)', borderRadius: 'var(--radius-md)', padding: '0.5rem', marginBottom: '1.5rem', backgroundColor: 'rgba(0,0,0,0.1)' }}>
-              {students.filter(s => s.name.toLowerCase().includes(manageStudentsSearch.toLowerCase())).map(s => {
-                const existingDebt = debts.find(d => d.studentId === s.id);
-                const cannotRemove = existingDebt && (existingDebt.paidAmount > 0 || existingDebt.status === 'paid' || existingDebt.status === 'review');
-                
-                return (
-                  <label key={s.id} style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', padding: '0.5rem', cursor: cannotRemove ? 'not-allowed' : 'pointer', borderBottom: '1px solid rgba(255,255,255,0.05)', opacity: cannotRemove && !selectedManageStudents.includes(s.id) ? 0.5 : 1 }}>
-                    <input 
-                      type="checkbox"
-                      checked={selectedManageStudents.includes(s.id)}
-                      disabled={cannotRemove}
-                      onChange={(e) => {
-                        if (e.target.checked) setSelectedManageStudents([...selectedManageStudents, s.id]);
-                        else setSelectedManageStudents(selectedManageStudents.filter(id => id !== s.id));
-                      }}
-                      style={{ accentColor: 'var(--primary)', width: '16px', height: '16px' }}
-                    />
-                    <div>
-                      <span>{s.listNumber || '-'}. {formatStudentName(s)}</span>
-                      {cannotRemove && <span style={{ fontSize: '0.75rem', color: 'var(--warning)', marginLeft: '0.5rem' }}>(Tiene pagos)</span>}
-                    </div>
-                  </label>
-                );
-              })}
+            <div style={{ maxHeight: '340px', overflowY: 'auto', border: '1px solid var(--border-color)', borderRadius: 'var(--radius-md)', padding: '0.5rem', marginBottom: '1.5rem', backgroundColor: 'rgba(0,0,0,0.1)' }}>
+              {(() => {
+                // Combinar alumnos del curso + cualquier deuda huérfana cuyo alumno ya no esté en students
+                const knownIds = new Set(students.map(s => s.id));
+                const extraFromDebts = debts
+                  .filter(d => d.studentId && !knownIds.has(d.studentId))
+                  .map(d => ({
+                    id: d.studentId,
+                    name: d.studentName || 'Alumno',
+                    listNumber: '-'
+                  }));
+                const combinedStudents = [...students, ...extraFromDebts];
+                const term = manageStudentsSearch.toLowerCase();
+
+                return combinedStudents
+                  .filter(s =>
+                    formatStudentName(s).toLowerCase().includes(term) ||
+                    (s.name || '').toLowerCase().includes(term) ||
+                    String(s.listNumber || '').includes(term)
+                  )
+                  .map(s => {
+                    const existingDebt = debts.find(d => d.studentId === s.id);
+                    const hasPayment = existingDebt && ((Number(existingDebt.paidAmount) || 0) > 0 || existingDebt.status === 'paid' || existingDebt.status === 'review');
+                    const isChecked = selectedManageStudents.includes(s.id);
+
+                    return (
+                      <div
+                        key={s.id}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'space-between',
+                          gap: '0.75rem',
+                          padding: '0.5rem 0.65rem',
+                          borderBottom: '1px solid rgba(255,255,255,0.05)',
+                          backgroundColor: isChecked ? 'transparent' : 'rgba(239, 68, 68, 0.06)'
+                        }}
+                      >
+                        <label style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', cursor: 'pointer', flex: 1 }}>
+                          <input 
+                            type="checkbox"
+                            checked={isChecked}
+                            onChange={(e) => {
+                              if (e.target.checked) setSelectedManageStudents([...selectedManageStudents, s.id]);
+                              else setSelectedManageStudents(selectedManageStudents.filter(id => id !== s.id));
+                            }}
+                            style={{ accentColor: 'var(--primary)', width: '16px', height: '16px', cursor: 'pointer' }}
+                          />
+                          <div>
+                            <span style={{ fontWeight: isChecked ? '500' : '400', textDecoration: !isChecked && existingDebt ? 'line-through' : 'none', color: !isChecked && existingDebt ? 'var(--danger)' : 'var(--text-main)' }}>
+                              {s.listNumber || '-'}. {formatStudentName(s)}
+                            </span>
+                            {hasPayment && (
+                              <span style={{ fontSize: '0.75rem', color: 'var(--warning)', marginLeft: '0.5rem' }}>
+                                (Tiene pago registrado: {formatMoney(existingDebt.paidAmount || existingDebt.amount)})
+                              </span>
+                            )}
+                            {!isChecked && existingDebt && (
+                              <span style={{ fontSize: '0.75rem', color: 'var(--danger)', marginLeft: '0.5rem', fontWeight: '600' }}>
+                                — Se quitará al guardar
+                              </span>
+                            )}
+                          </div>
+                        </label>
+
+                        {existingDebt && isChecked && (
+                          <button
+                            type="button"
+                            onClick={() => setSelectedManageStudents(selectedManageStudents.filter(id => id !== s.id))}
+                            className="btn btn-outline"
+                            style={{
+                              padding: '0.2rem 0.55rem',
+                              fontSize: '0.75rem',
+                              color: 'var(--danger)',
+                              borderColor: 'rgba(239, 68, 68, 0.35)',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '0.25rem'
+                            }}
+                            title="Desmarcar para quitar de esta cuota"
+                          >
+                            <UserMinus size={13} /> Quitar
+                          </button>
+                        )}
+                      </div>
+                    );
+                  });
+              })()}
             </div>
 
-            <div style={{ display: 'flex', gap: '1rem' }}>
-              <button onClick={handleSaveManageStudents} className="btn btn-primary" style={{ backgroundColor: 'var(--success)' }}><Save size={18}/> Guardar Alumnos</button>
+            <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>
+              <button onClick={handleSaveManageStudents} className="btn btn-primary" style={{ backgroundColor: 'var(--success)' }}><Save size={18}/> Guardar Cambios de Alumnos</button>
               <button onClick={() => setIsManagingStudents(false)} className="btn btn-outline"><X size={18}/> Cancelar</button>
             </div>
           </div>
@@ -1903,7 +2144,24 @@ const ExpenseDetail = ({ expenseId, onBack }) => {
               <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginBottom: '0.5rem', flexWrap: 'wrap' }}>
                 <h2 style={{ color: 'var(--primary)', margin: 0 }}>{expense.title}</h2>
                 <button onClick={handleStartEdit} className="btn btn-outline" style={{ padding: '0.3rem', borderColor: 'var(--primary)', color: 'var(--primary)' }} title="Editar Cuota"><Edit2 size={16}/></button>
-                <button onClick={handleStartManageStudents} className="btn btn-outline" style={{ padding: '0.3rem', color: 'var(--text)' }} title="Agregar/Quitar Alumnos"><FileText size={16}/></button>
+                <button
+                  type="button"
+                  onClick={handleStartManageStudents}
+                  className="btn btn-outline"
+                  style={{
+                    padding: '0.3rem 0.75rem',
+                    fontSize: '0.85rem',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '0.4rem',
+                    borderColor: 'rgba(99, 102, 241, 0.45)',
+                    color: '#a5b4fc',
+                    backgroundColor: 'rgba(99, 102, 241, 0.08)'
+                  }}
+                  title="Agregar o quitar alumnos de esta cuota"
+                >
+                  <Users size={15}/> Agregar / Quitar Alumnos
+                </button>
                 <button onClick={handleDeleteExpense} className="btn btn-outline" style={{ padding: '0.3rem', borderColor: 'rgba(239, 68, 68, 0.3)', color: 'var(--danger)' }} title="Eliminar Cuota"><Trash2 size={16}/></button>
                 <button
                   type="button"
@@ -2154,6 +2412,25 @@ const ExpenseDetail = ({ expenseId, onBack }) => {
               title="Descontar saldo a favor a los alumnos seleccionados que tengan saldo disponible"
             >
               <Sparkles size={15}/> Saldo a Favor
+            </button>
+            <div style={{ borderLeft: '1px solid rgba(255,255,255,0.2)', height: '20px' }}></div>
+            <button
+              type="button"
+              onClick={() => handleBulkRemoveStudents(selectedDebts)}
+              className="btn btn-outline"
+              style={{
+                padding: '0.4rem 0.9rem',
+                fontSize: '0.85rem',
+                color: 'var(--danger)',
+                borderColor: 'rgba(239, 68, 68, 0.45)',
+                backgroundColor: 'rgba(239, 68, 68, 0.08)',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '0.35rem'
+              }}
+              title="Quitar a los alumnos seleccionados de esta cuota"
+            >
+              <UserMinus size={15} /> Quitar de la Cuota
             </button>
           </div>
         )}
@@ -2499,7 +2776,7 @@ const ExpenseDetail = ({ expenseId, onBack }) => {
 
                     <td style={{ padding: '1rem' }}>
                       {debt.status === 'review' ? (
-                        <div style={{ display: 'flex', gap: '0.5rem' }}>
+                        <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', alignItems: 'center' }}>
                           <button 
                             type="button"
                             onClick={(e) => { e.stopPropagation(); handleApprovePayment(debt.id); }}
@@ -2518,9 +2795,18 @@ const ExpenseDetail = ({ expenseId, onBack }) => {
                           >
                             <XCircle size={16} /> Rechazar
                           </button>
+                          <button
+                            type="button"
+                            onClick={(e) => { e.stopPropagation(); handleRemoveSingleStudentDebt(debt); }}
+                            className="btn btn-outline"
+                            style={{ padding: '0.3rem 0.55rem', fontSize: '0.8rem', color: 'var(--danger)', borderColor: 'rgba(239, 68, 68, 0.35)', display: 'inline-flex', alignItems: 'center', gap: '0.25rem' }}
+                            title="Quitar alumno de esta cuota"
+                          >
+                            <UserMinus size={14} /> Quitar
+                          </button>
                         </div>
                       ) : (debt.status === 'pending' || debt.status === 'partial') ? (
-                        <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+                        <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', alignItems: 'center' }}>
                           <button 
                             type="button"
                             onClick={(e) => { e.stopPropagation(); handleManualPayment(debt.id, 'cash'); }}
@@ -2556,9 +2842,18 @@ const ExpenseDetail = ({ expenseId, onBack }) => {
                             }
                             return null;
                           })()}
+                          <button
+                            type="button"
+                            onClick={(e) => { e.stopPropagation(); handleRemoveSingleStudentDebt(debt); }}
+                            className="btn btn-outline"
+                            style={{ padding: '0.3rem 0.55rem', fontSize: '0.8rem', color: 'var(--danger)', borderColor: 'rgba(239, 68, 68, 0.35)', display: 'inline-flex', alignItems: 'center', gap: '0.25rem' }}
+                            title="Quitar alumno de esta cuota"
+                          >
+                            <UserMinus size={14} /> Quitar
+                          </button>
                         </div>
                       ) : (
-                        <div style={{ display: 'flex', gap: '0.5rem' }}>
+                        <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', alignItems: 'center' }}>
                           <button 
                             type="button"
                             onClick={(e) => { e.stopPropagation(); handleCancelPayment(debt.id); }}
@@ -2567,6 +2862,15 @@ const ExpenseDetail = ({ expenseId, onBack }) => {
                             title="Cancelar pago registrado"
                           >
                             Cancelar Pago
+                          </button>
+                          <button
+                            type="button"
+                            onClick={(e) => { e.stopPropagation(); handleRemoveSingleStudentDebt(debt); }}
+                            className="btn btn-outline"
+                            style={{ padding: '0.3rem 0.55rem', fontSize: '0.8rem', color: 'var(--danger)', borderColor: 'rgba(239, 68, 68, 0.35)', display: 'inline-flex', alignItems: 'center', gap: '0.25rem' }}
+                            title="Quitar alumno de esta cuota"
+                          >
+                            <UserMinus size={14} /> Quitar
                           </button>
                         </div>
                       )}

@@ -5,7 +5,7 @@ import { db } from '../../../firebase/config';
 import { collection, getDocs, query, where, doc, updateDoc, getDoc, setDoc, deleteDoc } from 'firebase/firestore';
 import {
   CheckSquare, Square, Search, RefreshCw, AlertCircle, Save, CheckCircle2,
-  DollarSign, Users, UserX, Edit3, UserPlus, X, Clock, CreditCard, CheckCircle,
+  DollarSign, Users, UserX, Edit3, UserPlus, UserMinus, X, Clock, CreditCard, CheckCircle,
   Share2, Copy, Check, MessageCircle
 } from 'lucide-react';
 import { useModal } from '../../../context/ModalContext';
@@ -15,7 +15,7 @@ import { useLockBodyScroll } from '../../../hooks/useLockBodyScroll';
 import { addStudentsToEvent } from '../../AddStudentToEventsModal';
 
 const EventAttendance = ({ event, onEventUpdated }) => {
-  const { showAlert } = useModal();
+  const { showAlert, showConfirm } = useModal();
   const [localDebts, setLocalDebts] = useState([]);
   const [allCourseStudents, setAllCourseStudents] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -398,6 +398,65 @@ const EventAttendance = ({ event, onEventUpdated }) => {
       await showAlert("Error al agregar alumnos al evento: " + (err.message || "Intenta nuevamente."));
     } finally {
       setAddingStudents(false);
+    }
+  };
+
+  const handleRemoveStudentFromEvent = async (studentRow) => {
+    if (!studentRow?.studentId) return;
+    const hasPaidMain = studentRow.mainDebt && ((Number(studentRow.mainDebt.paidAmount) || 0) > 0 || studentRow.mainDebt.status === 'paid');
+    const hasPaidFine = studentRow.fineDebt && ((Number(studentRow.fineDebt.paidAmount) || 0) > 0 || studentRow.fineDebt.status === 'paid');
+
+    const confirmMsg = (hasPaidMain || hasPaidFine)
+      ? `ATENCIÓN: ${studentRow.studentName} tiene pagos registrados en este evento.\n\n¿Estás seguro de QUITAR a ${studentRow.studentName} de este evento y de sus cuotas asociadas? Se eliminarán sus cobros y pagos del evento.`
+      : `¿Estás seguro de QUITAR a ${studentRow.studentName} de este evento y eliminar sus cuotas asociadas?`;
+
+    if (!(await showConfirm(confirmMsg))) return;
+
+    try {
+      const debtsToDelete = [studentRow.mainDebt, studentRow.fineDebt].filter(Boolean);
+      for (const d of debtsToDelete) {
+        const paySnap = await getDocs(query(collection(db, 'payments'), where('debtId', '==', d.id)));
+        for (const pDoc of paySnap.docs) {
+          await deleteDoc(doc(db, 'payments', pDoc.id));
+        }
+        await deleteDoc(doc(db, 'debts', d.id));
+      }
+
+      // Actualizar participantes en el documento del evento
+      const remainingIds = localDebts
+        .filter(d => d.studentId !== studentRow.studentId)
+        .map(d => d.studentId);
+
+      await updateDoc(doc(db, 'events', event.id), {
+        participantStudentIds: remainingIds,
+        studentsCount: remainingIds.length
+      });
+
+      // Sincronizar cuota obligatoria y cuota de multa si existen
+      for (const expId of [`exp_evt_${event.id}`, `exp_evt_fine_${event.id}`]) {
+        const expRef = doc(db, 'expenses', expId);
+        const expSnap = await getDoc(expRef);
+        if (expSnap.exists()) {
+          const remDebtsSnap = await getDocs(query(collection(db, 'debts'), where('expenseId', '==', expId)));
+          const studentsCount = remDebtsSnap.size;
+          const paidCount = remDebtsSnap.docs.filter(d => d.data().status === 'paid').length;
+          const totalAmount = remDebtsSnap.docs.reduce((sum, d) => sum + (Number(d.data().amount) || 0), 0);
+          await updateDoc(expRef, {
+            studentsCount,
+            paidCount,
+            totalAmount
+          });
+        }
+      }
+
+      setLocalDebts(prev => prev.filter(d => d.studentId !== studentRow.studentId));
+      if (onEventUpdated) {
+        await onEventUpdated();
+      }
+      await showAlert(`Se quitó a ${studentRow.studentName} del evento y sus cuotas correctamente.`);
+    } catch (err) {
+      console.error("Error quitando alumno del evento:", err);
+      await showAlert("Error al quitar alumno del evento: " + (err.message || "Intenta nuevamente."));
     }
   };
 
@@ -1081,6 +1140,7 @@ const EventAttendance = ({ event, onEventUpdated }) => {
               <th style={{ padding: '0.85rem 1rem' }}>Alumno(a)</th>
               <th style={{ padding: '0.85rem 1rem' }}>Estado Cuota Obligatoria</th>
               <th style={{ padding: '0.85rem 1rem', textAlign: 'right' }}>Cobro Asignado</th>
+              <th style={{ padding: '0.85rem 1rem', width: '100px', textAlign: 'center' }}>Acción</th>
             </tr>
           </thead>
           <tbody>
@@ -1163,12 +1223,31 @@ const EventAttendance = ({ event, onEventUpdated }) => {
                       );
                     })()}
                   </td>
+                  <td style={{ padding: '0.75rem 1rem', textAlign: 'center' }}>
+                    <button
+                      type="button"
+                      onClick={() => handleRemoveStudentFromEvent(s)}
+                      className="btn btn-outline"
+                      style={{
+                        padding: '0.28rem 0.55rem',
+                        fontSize: '0.76rem',
+                        color: 'var(--danger)',
+                        borderColor: 'rgba(239, 68, 68, 0.35)',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '0.25rem'
+                      }}
+                      title="Quitar alumno de este evento y sus cuotas"
+                    >
+                      <UserMinus size={13} /> Quitar
+                    </button>
+                  </td>
                 </tr>
               );
             })}
             {filteredDebts.length === 0 && (
               <tr>
-                <td colSpan="4" style={{ textAlign: 'center', padding: '2rem', color: 'var(--text-muted)' }}>
+                <td colSpan="5" style={{ textAlign: 'center', padding: '2rem', color: 'var(--text-muted)' }}>
                   No se encontraron alumnos con ese criterio.
                 </td>
               </tr>
