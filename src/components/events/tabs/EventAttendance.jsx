@@ -1,13 +1,16 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { createPortal } from 'react-dom';
+import { jsPDF } from 'jspdf';
 import { db } from '../../../firebase/config';
 import { collection, getDocs, query, where, doc, updateDoc, getDoc, setDoc, deleteDoc } from 'firebase/firestore';
 import {
   CheckSquare, Square, Search, RefreshCw, AlertCircle, Save, CheckCircle2,
-  DollarSign, Users, UserX, Edit3, UserPlus, X, Clock, CreditCard, CheckCircle
+  DollarSign, Users, UserX, Edit3, UserPlus, X, Clock, CreditCard, CheckCircle,
+  Share2, Copy, Check, MessageCircle
 } from 'lucide-react';
 import { useModal } from '../../../context/ModalContext';
 import { formatStudentName } from '../../../utils/nameUtils';
+import { formatEventDate, shareOrDownloadEventPdf } from '../../../utils/eventPdfService';
 import { useLockBodyScroll } from '../../../hooks/useLockBodyScroll';
 import { addStudentsToEvent } from '../../AddStudentToEventsModal';
 
@@ -19,6 +22,8 @@ const EventAttendance = ({ event, onEventUpdated }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [hasChanges, setHasChanges] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [copiedAttendance, setCopiedAttendance] = useState(false);
+  const [sharingAttendancePdf, setSharingAttendancePdf] = useState(false);
 
   // Modal para agregar alumnos faltantes al evento
   const [showAddStudentsModal, setShowAddStudentsModal] = useState(false);
@@ -133,11 +138,18 @@ const EventAttendance = ({ event, onEventUpdated }) => {
           };
         }
         
-        if (data.expenseId === `exp_evt_${event.id}`) {
-          debtsByStudent[data.studentId].mainDebt = { id: d.id, ...data };
-        } else if (data.expenseId === `exp_evt_fine_${event.id}`) {
+        const isFineDebt =
+          data.expenseId === `exp_evt_fine_${event.id}` ||
+          Boolean(data.isEventFine || data.isMandatoryFine || data.isAttendanceFine) ||
+          String(data.expenseId || '').includes('_fine_') ||
+          String(data.title || '').toLowerCase().includes('multa') ||
+          String(data.title || '').toLowerCase().includes('inasistencia');
+
+        if (isFineDebt) {
           debtsByStudent[data.studentId].fineDebt = { id: d.id, ...data };
           debtsByStudent[data.studentId].notAttended = true;
+        } else if (data.expenseId === `exp_evt_${event.id}` || !debtsByStudent[data.studentId].mainDebt) {
+          debtsByStudent[data.studentId].mainDebt = { id: d.id, ...data };
         }
       });
       
@@ -395,6 +407,396 @@ const EventAttendance = ({ event, onEventUpdated }) => {
   const attendedCount = totalStudents - absentCount;
   const effectiveFine = Math.max(0, parseInt(fineAmountInput.replace(/\D/g, ''), 10) || Number(event.noShowAmount) || 0);
 
+  const getQuotaStatusLabel = (mainDebt) => {
+    if (!mainDebt) return 'Sin cuota obligatoria';
+    if (mainDebt.status === 'paid') return 'Pagado';
+    if (mainDebt.status === 'review') return 'En revisión';
+    if (mainDebt.status === 'partial') {
+      const paidAmt = Number(mainDebt.paidAmount) || 0;
+      const totalAmt = Number(mainDebt.amount) || Number(event.mandatoryAmount) || 0;
+      const pendAmt = Math.max(0, totalAmt - paidAmt);
+      return `Pago Parcial (Pagado ${formatMoney(paidAmt)} / Debe ${formatMoney(pendAmt)})`;
+    }
+    return 'Pendiente';
+  };
+
+  const getFineStatusInfo = useCallback((studentRow, fineAmt = effectiveFine) => {
+    if (fineAmt <= 0) {
+      return {
+        label: 'Sin multa ($0)',
+        shortLabel: 'Sin multa ($0)',
+        badgeText: 'Sin multa ($0)',
+        color: 'var(--text-muted)',
+        bgColor: 'rgba(148, 163, 184, 0.12)',
+        borderColor: 'rgba(148, 163, 184, 0.3)',
+        isPaid: true,
+        status: 'none',
+        paidAmount: 0,
+        pendingAmount: 0
+      };
+    }
+
+    const fDebt = studentRow.fineDebt;
+    if (fDebt) {
+      const totalAmt = Number(fDebt.amount) || fineAmt;
+      if (fDebt.status === 'paid') {
+        const paidAmt = Number(fDebt.paidAmount) > 0 ? Number(fDebt.paidAmount) : totalAmt;
+        return {
+          label: 'Multa Pagada',
+          shortLabel: 'Pagada',
+          badgeText: '✓ Multa Pagada',
+          color: '#10b981',
+          bgColor: 'rgba(16, 185, 129, 0.15)',
+          borderColor: 'rgba(16, 185, 129, 0.4)',
+          isPaid: true,
+          status: 'paid',
+          paidAmount: paidAmt,
+          pendingAmount: 0
+        };
+      }
+      if (fDebt.status === 'partial') {
+        const paidAmt = Number(fDebt.paidAmount) || 0;
+        const pendAmt = Math.max(0, totalAmt - paidAmt);
+        return {
+          label: `Multa Parcial (Pagado ${formatMoney(paidAmt)} / Debe ${formatMoney(pendAmt)})`,
+          shortLabel: `Parcial (Debe ${formatMoney(pendAmt)})`,
+          badgeText: `◐ Multa Parcial (Pagado ${formatMoney(paidAmt)} / Debe ${formatMoney(pendAmt)})`,
+          color: '#f59e0b',
+          bgColor: 'rgba(245, 158, 11, 0.15)',
+          borderColor: 'rgba(245, 158, 11, 0.4)',
+          isPaid: false,
+          status: 'partial',
+          paidAmount: paidAmt,
+          pendingAmount: pendAmt
+        };
+      }
+      if (fDebt.status === 'review') {
+        return {
+          label: 'Multa en Revisión',
+          shortLabel: 'En revisión',
+          badgeText: '⏳ Multa en Revisión',
+          color: '#3b82f6',
+          bgColor: 'rgba(59, 130, 246, 0.15)',
+          borderColor: 'rgba(59, 130, 246, 0.4)',
+          isPaid: false,
+          status: 'review',
+          paidAmount: 0,
+          pendingAmount: totalAmt
+        };
+      }
+      return {
+        label: 'Multa No Pagada (Pendiente)',
+        shortLabel: 'No pagada (Pendiente)',
+        badgeText: '✕ Multa No Pagada (Pendiente)',
+        color: '#ef4444',
+        bgColor: 'rgba(239, 68, 68, 0.15)',
+        borderColor: 'rgba(239, 68, 68, 0.45)',
+        isPaid: false,
+        status: 'pending',
+        paidAmount: 0,
+        pendingAmount: totalAmt
+      };
+    }
+
+    return {
+      label: 'Multa No Pagada (Guardar asistencia para emitir cobro)',
+      shortLabel: 'No pagada (Por emitir)',
+      badgeText: '✕ Multa No Pagada (Guardar asistencia)',
+      color: '#f59e0b',
+      bgColor: 'rgba(245, 158, 11, 0.15)',
+      borderColor: 'rgba(245, 158, 11, 0.45)',
+      isPaid: false,
+      status: 'unsaved',
+      paidAmount: 0,
+      pendingAmount: fineAmt
+    };
+  }, [effectiveFine]);
+
+  const fineStats = useMemo(() => {
+    const absentList = localDebts.filter(s => s.notAttended);
+    let paidCount = 0;
+    let pendingCount = 0;
+    let paidAmount = 0;
+    let pendingAmount = 0;
+
+    absentList.forEach(s => {
+      const info = getFineStatusInfo(s, effectiveFine);
+      paidAmount += info.paidAmount;
+      pendingAmount += info.pendingAmount;
+      if (info.status === 'paid' || info.status === 'none') {
+        paidCount++;
+      } else {
+        pendingCount++;
+      }
+    });
+
+    return { paidCount, pendingCount, paidAmount, pendingAmount };
+  }, [localDebts, effectiveFine, getFineStatusInfo]);
+
+  const buildAttendanceDetailText = () => {
+    const dateStr = formatEventDate(event.date) || 'Sin fecha';
+    const presentStudents = localDebts.filter(s => !s.notAttended);
+    const absentStudents = localDebts.filter(s => s.notAttended);
+    const baseQuota = Number(event.mandatoryAmount) || 0;
+
+    let lines = [];
+    lines.push(`📋 *DETALLE DE ASISTENCIA Y COBROS — ${(event.name || 'EVENTO').toUpperCase()}*`);
+    lines.push(`📅 Fecha: ${dateStr}`);
+    lines.push(`👥 Total Alumnos: ${totalStudents} | ✅ Presentes: ${attendedCount} | ❌ Inasistentes: ${absentCount}`);
+    lines.push(`💵 Cuota Obligatoria Base: ${formatMoney(baseQuota)} | ⚠️ Multa Inasistencia: ${formatMoney(effectiveFine)}`);
+    if (absentCount > 0 && effectiveFine > 0) {
+      lines.push(`📊 Estado Multas Inasistencia: ${fineStats.paidCount} pagada(s) (${formatMoney(fineStats.paidAmount)}) | ${fineStats.pendingCount} pendiente(s) (${formatMoney(fineStats.pendingAmount)})`);
+    }
+    lines.push('');
+
+    lines.push(`❌ *ALUMNOS INASISTENTES (${absentStudents.length}):*`);
+    if (absentStudents.length === 0) {
+      lines.push('• Sin alumnos inasistentes.');
+    } else {
+      absentStudents.forEach((s, idx) => {
+        const quotaLabel = getQuotaStatusLabel(s.mainDebt);
+        const fineInfo = getFineStatusInfo(s, effectiveFine);
+        lines.push(
+          `${idx + 1}. *${s.studentName}*\n   • Cuota Obligatoria (${formatMoney(baseQuota)}): ${quotaLabel}\n   • Multa Inasistencia (+${formatMoney(effectiveFine)}): *${fineInfo.label}*`
+        );
+      });
+    }
+    lines.push('');
+
+    lines.push(`✅ *ALUMNOS PRESENTES (${presentStudents.length}):*`);
+    if (presentStudents.length === 0) {
+      lines.push('• Sin alumnos presentes registrados.');
+    } else {
+      presentStudents.forEach((s, idx) => {
+        const quotaLabel = getQuotaStatusLabel(s.mainDebt);
+        lines.push(`${idx + 1}. ${s.studentName} — Cuota (${formatMoney(baseQuota)}): ${quotaLabel}`);
+      });
+    }
+
+    return lines.join('\n');
+  };
+
+  const handleCopyAttendanceDetail = async () => {
+    try {
+      const text = buildAttendanceDetailText();
+      await navigator.clipboard.writeText(text);
+      setCopiedAttendance(true);
+      setTimeout(() => setCopiedAttendance(false), 2500);
+    } catch (err) {
+      console.error('Error copiando detalle de asistencia:', err);
+      showAlert('No se pudo copiar al portapapeles: ' + err.message);
+    }
+  };
+
+  const handleShareWhatsAppAttendance = () => {
+    const text = buildAttendanceDetailText();
+    const url = `https://wa.me/?text=${encodeURIComponent(text)}`;
+    window.open(url, '_blank', 'noopener,noreferrer');
+  };
+
+  const handleShareAttendancePdf = async () => {
+    if (sharingAttendancePdf) return;
+    setSharingAttendancePdf(true);
+    try {
+      const docPdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4', compress: true });
+      const pageWidth = docPdf.internal.pageSize.getWidth();
+      const pageHeight = docPdf.internal.pageSize.getHeight();
+      const margin = 12;
+      const printableWidth = pageWidth - margin * 2;
+      const dateStr = formatEventDate(event.date) || 'Sin fecha';
+      const baseQuota = Number(event.mandatoryAmount) || 0;
+
+      // Encabezado
+      docPdf.setFillColor(15, 23, 42);
+      docPdf.rect(0, 0, pageWidth, 28, 'F');
+      docPdf.setFont('helvetica', 'bold');
+      docPdf.setFontSize(14);
+      docPdf.setTextColor(255, 255, 255);
+      docPdf.text(`INFORME DETALLADO DE ASISTENCIA Y MULTAS`, margin, 11);
+
+      docPdf.setFont('helvetica', 'normal');
+      docPdf.setFontSize(9.5);
+      docPdf.setTextColor(148, 163, 184);
+      docPdf.text(`Evento: ${event.name || 'Evento'}   |   Fecha: ${dateStr}   |   Emitido: ${new Date().toLocaleDateString('es-CL')}`, margin, 18);
+      docPdf.text(`Cuota Obligatoria Base: ${formatMoney(baseQuota)}   |   Multa por Inasistencia: ${formatMoney(effectiveFine)}`, margin, 23.5);
+
+      let y = 34;
+
+      // Tarjetas KPI
+      const boxW = (printableWidth - 9) / 4;
+      const kpis = [
+        { title: 'TOTAL ALUMNOS', val: `${totalStudents}`, sub: `Cuota base: ${formatMoney(baseQuota)}`, color: [30, 41, 59] },
+        { title: 'PRESENTES', val: `${attendedCount}`, sub: 'Sin multa de inasistencia', color: [16, 185, 129] },
+        { title: 'INASISTENTES', val: `${absentCount}`, sub: `Total multas: ${formatMoney(absentCount * effectiveFine)}`, color: [239, 68, 68] },
+        { title: 'ESTADO MULTAS', val: `${fineStats.paidCount} Pag. / ${fineStats.pendingCount} Pend.`, sub: `Pag: ${formatMoney(fineStats.paidAmount)} | Debe: ${formatMoney(fineStats.pendingAmount)}`, color: [217, 119, 6] }
+      ];
+
+      kpis.forEach((k, idx) => {
+        const bx = margin + idx * (boxW + 3);
+        docPdf.setFillColor(248, 250, 252);
+        docPdf.setDrawColor(226, 232, 240);
+        docPdf.roundedRect(bx, y, boxW, 18, 2, 2, 'FD');
+        docPdf.setFont('helvetica', 'bold');
+        docPdf.setFontSize(7);
+        docPdf.setTextColor(100, 116, 139);
+        docPdf.text(k.title, bx + 2.5, y + 5);
+
+        docPdf.setFont('helvetica', 'bold');
+        docPdf.setFontSize(10);
+        docPdf.setTextColor(...k.color);
+        docPdf.text(k.val, bx + 2.5, y + 11);
+
+        docPdf.setFont('helvetica', 'normal');
+        docPdf.setFontSize(6.5);
+        docPdf.setTextColor(100, 116, 139);
+        docPdf.text(k.sub, bx + 2.5, y + 15.8);
+      });
+
+      y += 24;
+
+      // Encabezado de tabla
+      const cols = {
+        num: margin,
+        name: margin + 9,
+        attendance: margin + 74,
+        quota: margin + 100,
+        charge: margin + 133,
+        fineStatus: margin + 162
+      };
+
+      const drawTableHeader = (currY) => {
+        docPdf.setFillColor(30, 41, 59);
+        docPdf.rect(margin, currY, printableWidth, 7, 'F');
+        docPdf.setFont('helvetica', 'bold');
+        docPdf.setFontSize(7.5);
+        docPdf.setTextColor(255, 255, 255);
+        docPdf.text('N°', cols.num + 1.5, currY + 4.8);
+        docPdf.text('Alumno(a)', cols.name, currY + 4.8);
+        docPdf.text('Asistencia', cols.attendance, currY + 4.8);
+        docPdf.text('Cuota Obligatoria', cols.quota, currY + 4.8);
+        docPdf.text('Cobro Asignado', cols.charge, currY + 4.8);
+        docPdf.text('Estado Multa', cols.fineStatus, currY + 4.8);
+        return currY + 7;
+      };
+
+      y = drawTableHeader(y);
+
+      localDebts.forEach((s, idx) => {
+        if (y > pageHeight - 18) {
+          docPdf.addPage();
+          y = 15;
+          y = drawTableHeader(y);
+        }
+
+        const attended = !s.notAttended;
+        const rowH = 7.2;
+
+        if (!attended) {
+          docPdf.setFillColor(254, 242, 242);
+          docPdf.rect(margin, y, printableWidth, rowH, 'F');
+        } else if (idx % 2 === 1) {
+          docPdf.setFillColor(248, 250, 252);
+          docPdf.rect(margin, y, printableWidth, rowH, 'F');
+        }
+
+        docPdf.setDrawColor(226, 232, 240);
+        docPdf.line(margin, y + rowH, margin + printableWidth, y + rowH);
+
+        docPdf.setFont('helvetica', 'normal');
+        docPdf.setFontSize(7.2);
+        docPdf.setTextColor(71, 85, 105);
+        docPdf.text(`${idx + 1}`, cols.num + 1.5, y + 4.9);
+
+        docPdf.setFont('helvetica', attended ? 'normal' : 'bold');
+        docPdf.setTextColor(15, 23, 42);
+        const cleanName = String(s.studentName || 'Alumno').slice(0, 36);
+        docPdf.text(cleanName, cols.name, y + 4.9);
+
+        // Asistencia
+        docPdf.setFont('helvetica', 'bold');
+        if (attended) {
+          docPdf.setTextColor(16, 185, 129);
+          docPdf.text('Presente', cols.attendance, y + 4.9);
+        } else {
+          docPdf.setTextColor(220, 38, 38);
+          docPdf.text('Inasistente', cols.attendance, y + 4.9);
+        }
+
+        // Estado Cuota Obligatoria
+        docPdf.setFont('helvetica', 'normal');
+        if (!s.mainDebt) {
+          docPdf.setTextColor(148, 163, 184);
+          docPdf.text('Sin cuota', cols.quota, y + 4.9);
+        } else if (s.mainDebt.status === 'paid') {
+          docPdf.setTextColor(16, 185, 129);
+          docPdf.text('Pagado', cols.quota, y + 4.9);
+        } else if (s.mainDebt.status === 'partial') {
+          docPdf.setTextColor(217, 119, 6);
+          const paidA = Number(s.mainDebt.paidAmount) || 0;
+          docPdf.text(`Parcial (${formatMoney(paidA)})`, cols.quota, y + 4.9);
+        } else if (s.mainDebt.status === 'review') {
+          docPdf.setTextColor(59, 130, 246);
+          docPdf.text('En revisión', cols.quota, y + 4.9);
+        } else {
+          docPdf.setTextColor(220, 38, 38);
+          docPdf.text('Pendiente', cols.quota, y + 4.9);
+        }
+
+        // Cobro Asignado
+        docPdf.setTextColor(15, 23, 42);
+        if (attended) {
+          docPdf.text(`${formatMoney(baseQuota)} (Base)`, cols.charge, y + 4.9);
+        } else {
+          docPdf.text(`${formatMoney(baseQuota)} + ${formatMoney(effectiveFine)}`, cols.charge, y + 4.9);
+        }
+
+        // Estado Multa Inasistencia
+        if (attended) {
+          docPdf.setTextColor(148, 163, 184);
+          docPdf.text('No aplica', cols.fineStatus, y + 4.9);
+        } else {
+          const fineInfo = getFineStatusInfo(s, effectiveFine);
+          docPdf.setFont('helvetica', 'bold');
+          if (fineInfo.status === 'paid') {
+            docPdf.setTextColor(16, 185, 129);
+          } else if (fineInfo.status === 'partial' || fineInfo.status === 'unsaved') {
+            docPdf.setTextColor(217, 119, 6);
+          } else if (fineInfo.status === 'review') {
+            docPdf.setTextColor(59, 130, 246);
+          } else {
+            docPdf.setTextColor(220, 38, 38);
+          }
+          docPdf.text(fineInfo.shortLabel, cols.fineStatus, y + 4.9);
+        }
+
+        y += rowH;
+      });
+
+      const totalPages = docPdf.internal.getNumberOfPages();
+      for (let p = 1; p <= totalPages; p++) {
+        docPdf.setPage(p);
+        docPdf.setFont('helvetica', 'italic');
+        docPdf.setFontSize(7.5);
+        docPdf.setTextColor(148, 163, 184);
+        docPdf.text(`AppCurso - Control de Asistencia y Multas   |   Página ${p} de ${totalPages}`, margin, pageHeight - 6);
+        docPdf.text(`${event.name || 'Evento'}`, margin + printableWidth, pageHeight - 6, { align: 'right' });
+      }
+
+      const safeEventName = String(event.name || 'Evento').replace(/[^a-zA-Z0-9_-]/g, '_');
+      await shareOrDownloadEventPdf(
+        docPdf,
+        `Asistencia_${safeEventName}.pdf`,
+        `Detalle de Asistencia - ${event.name}`,
+        `Adjunto el detalle completo de asistencia, cobros y estado de multas del evento "${event.name}".`
+      );
+    } catch (err) {
+      console.error('Error generando PDF de asistencia:', err);
+      showAlert('Error al generar el PDF de asistencia: ' + err.message);
+    } finally {
+      setSharingAttendancePdf(false);
+    }
+  };
+
   if (loading) return <div style={{ textAlign: 'center', padding: '2rem' }}>Cargando lista de asistencia...</div>;
 
   return (
@@ -510,9 +912,19 @@ const EventAttendance = ({ event, onEventUpdated }) => {
           <strong style={{ fontSize: '1.25rem', color: 'var(--danger)', display: 'block', marginTop: '0.15rem' }}>
             {absentCount} alumnos
           </strong>
-          <span style={{ fontSize: '0.75rem', color: '#fca5a5' }}>
+          <span style={{ fontSize: '0.75rem', color: '#fca5a5', display: 'block' }}>
             Total Multas: {formatMoney(absentCount * effectiveFine)}
           </span>
+          {absentCount > 0 && effectiveFine > 0 && (
+            <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', marginTop: '0.25rem', fontSize: '0.72rem' }}>
+              <span style={{ color: '#6ee7b7', fontWeight: '600' }}>
+                ✓ Pagadas: {fineStats.paidCount} ({formatMoney(fineStats.paidAmount)})
+              </span>
+              <span style={{ color: '#fca5a5', fontWeight: '600' }}>
+                • Pendientes: {fineStats.pendingCount} ({formatMoney(fineStats.pendingAmount)})
+              </span>
+            </div>
+          )}
         </div>
 
         {/* Monto de la Multa */}
@@ -557,9 +969,9 @@ const EventAttendance = ({ event, onEventUpdated }) => {
         </div>
       </div>
 
-      {/* Botonera de Acciones Rápidas */}
+      {/* Botonera de Acciones Rápidas y Compartir */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem', flexWrap: 'wrap', gap: '0.75rem' }}>
-        <div style={{ display: 'flex', gap: '0.5rem' }}>
+        <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
           <button
             type="button"
             onClick={markAllAttended}
@@ -575,6 +987,68 @@ const EventAttendance = ({ event, onEventUpdated }) => {
             style={{ fontSize: '0.8rem', padding: '0.35rem 0.75rem', display: 'flex', alignItems: 'center', gap: '0.35rem', color: '#f87171', borderColor: 'rgba(239, 68, 68, 0.4)' }}
           >
             <UserX size={14} /> Marcar Todos Inasistentes
+          </button>
+
+          <button
+            type="button"
+            onClick={handleShareAttendancePdf}
+            disabled={sharingAttendancePdf}
+            className="btn btn-outline"
+            style={{
+              fontSize: '0.8rem',
+              padding: '0.35rem 0.75rem',
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '0.35rem',
+              borderColor: 'rgba(99, 102, 241, 0.45)',
+              backgroundColor: 'rgba(99, 102, 241, 0.1)',
+              color: '#a5b4fc',
+              fontWeight: '600'
+            }}
+            title="Generar y compartir o descargar PDF con el detalle completo de asistencia y multas"
+          >
+            <Share2 size={14} />
+            {sharingAttendancePdf ? 'Generando PDF...' : 'Compartir Detalle PDF'}
+          </button>
+
+          <button
+            type="button"
+            onClick={handleShareWhatsAppAttendance}
+            className="btn btn-outline"
+            style={{
+              fontSize: '0.8rem',
+              padding: '0.35rem 0.75rem',
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '0.35rem',
+              borderColor: 'rgba(16, 185, 129, 0.45)',
+              backgroundColor: 'rgba(16, 185, 129, 0.1)',
+              color: '#6ee7b7',
+              fontWeight: '600'
+            }}
+            title="Compartir el detalle completo de asistencias y multas por WhatsApp"
+          >
+            <MessageCircle size={14} />
+            Compartir por WhatsApp
+          </button>
+
+          <button
+            type="button"
+            onClick={handleCopyAttendanceDetail}
+            className="btn btn-outline"
+            style={{
+              fontSize: '0.8rem',
+              padding: '0.35rem 0.75rem',
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '0.35rem',
+              borderColor: copiedAttendance ? 'rgba(16, 185, 129, 0.5)' : 'rgba(255, 255, 255, 0.15)',
+              color: copiedAttendance ? '#10b981' : 'var(--text-main)'
+            }}
+            title="Copiar resumen y listado completo de asistencia al portapapeles"
+          >
+            {copiedAttendance ? <Check size={14} /> : <Copy size={14} />}
+            {copiedAttendance ? '¡Detalle Copiado!' : 'Copiar Detalle'}
           </button>
         </div>
 
@@ -664,11 +1138,30 @@ const EventAttendance = ({ event, onEventUpdated }) => {
                     <div style={{ color: 'var(--text-main)', fontWeight: 'bold' }}>
                       {formatMoney(event.mandatoryAmount)} <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>(Base)</span>
                     </div>
-                    {!attended && (
-                      <div style={{ color: 'var(--danger)', fontSize: '0.85rem', fontWeight: 'bold', marginTop: '2px' }}>
-                        + {formatMoney(effectiveFine)} (Multa Inasistencia)
-                      </div>
-                    )}
+                    {!attended && (() => {
+                      const fineInfo = getFineStatusInfo(s, effectiveFine);
+                      return (
+                        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '0.25rem', marginTop: '3px' }}>
+                          <div style={{ color: 'var(--danger)', fontSize: '0.85rem', fontWeight: 'bold' }}>
+                            + {formatMoney(effectiveFine)} (Multa Inasistencia)
+                          </div>
+                          <span style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '0.25rem',
+                            fontSize: '0.73rem',
+                            fontWeight: '700',
+                            padding: '0.15rem 0.55rem',
+                            borderRadius: '999px',
+                            color: fineInfo.color,
+                            backgroundColor: fineInfo.bgColor,
+                            border: `1px solid ${fineInfo.borderColor}`
+                          }}>
+                            {fineInfo.badgeText}
+                          </span>
+                        </div>
+                      );
+                    })()}
                   </td>
                 </tr>
               );
