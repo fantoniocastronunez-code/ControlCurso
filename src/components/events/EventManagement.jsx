@@ -2,11 +2,12 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { db } from '../../firebase/config';
 import { collection, getDocs, doc, setDoc, query, deleteDoc, where, updateDoc, onSnapshot, getDoc } from 'firebase/firestore';
-import { ArrowLeft, PlusCircle, CheckCircle, Calendar, X, Save, Trash2, Users, UserCheck, Search, Sparkles, Filter, AlertTriangle, AlertCircle } from 'lucide-react';
+import { ArrowLeft, PlusCircle, CheckCircle, Calendar, X, Save, Trash2, Users, UserCheck, Search, Sparkles, Filter, AlertTriangle, AlertCircle, BarChart3 } from 'lucide-react';
 import { useModal } from '../../context/ModalContext';
 import { formatStudentName } from '../../utils/nameUtils';
 import { useAuth } from '../../context/AuthContext';
 import EventDetail from './EventDetail';
+import EventsGlobalReportModal from './EventsGlobalReportModal';
 import { useCourse } from '../../context/CourseContext';
 import { useLockBodyScroll } from '../../hooks/useLockBodyScroll';
 import { loadDemoEventData } from '../../utils/eventTestUtils';
@@ -27,6 +28,7 @@ const EventManagement = ({ onBack }) => {
 
   // Estados del modal de creación
   const [showCreateModal, setShowCreateModal] = useState(false);
+  const [showGlobalReportModal, setShowGlobalReportModal] = useState(false);
   useLockBodyScroll(showCreateModal);
   const [eventName, setEventName] = useState('');
   const [eventDate, setEventDate] = useState(new Date().toISOString().split('T')[0]);
@@ -515,6 +517,24 @@ const EventManagement = ({ onBack }) => {
           <h3 style={{ margin: 0 }}>Gestión de Eventos y Ventas</h3>
         </div>
         <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+          {events.length > 0 && (
+            <button
+              type="button"
+              onClick={() => setShowGlobalReportModal(true)}
+              className="btn btn-primary"
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.5rem',
+                background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
+                border: 'none',
+                boxShadow: '0 4px 12px rgba(16, 185, 129, 0.3)'
+              }}
+              title="Ver informe consolidado de todos los eventos: cuotas obligatorias, inasistencias, ventas, gastos, rentabilidad con y sin cuota, e impagos"
+            >
+              <BarChart3 size={18} /> Informe General de Eventos
+            </button>
+          )}
           <button
             onClick={handleOpenQuickTestEvent}
             className="btn btn-outline"
@@ -815,6 +835,14 @@ const EventManagement = ({ onBack }) => {
           })}
         </div>
       )}
+
+      {/* Modal de Informe Consolidado de Todos los Eventos */}
+      <EventsGlobalReportModal
+        isOpen={showGlobalReportModal}
+        onClose={() => setShowGlobalReportModal(false)}
+        events={events}
+        courseName={selectedCourse?.name || ''}
+      />
 
       {/* Modal de Creación */}
       {showCreateModal && createPortal(
