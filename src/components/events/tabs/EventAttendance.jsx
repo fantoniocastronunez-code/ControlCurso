@@ -66,15 +66,37 @@ const EventAttendance = ({ event, onEventUpdated }) => {
         ? courseStudents.filter(s => participantIds.has(s.id))
         : courseStudents;
 
-      // 2. Obtener las deudas existentes para este evento
-      const q = query(collection(db, 'debts'), where('eventId', '==', event.id));
-      const snap = await getDocs(q);
+      // 2. Obtener las deudas existentes para este evento (por eventId, expenseId y fundId)
+      const mainExpId = `exp_evt_${event.id}`;
+      const fineExpId = `exp_evt_fine_${event.id}`;
+      const debtQueries = [
+        getDocs(query(collection(db, 'debts'), where('eventId', '==', event.id))).catch(() => null),
+        getDocs(query(collection(db, 'debts'), where('expenseId', '==', mainExpId))).catch(() => null),
+        getDocs(query(collection(db, 'debts'), where('expenseId', '==', fineExpId))).catch(() => null)
+      ];
+      if (event.fundId && event.fundId !== 'general') {
+        debtQueries.push(getDocs(query(collection(db, 'debts'), where('fundId', '==', event.fundId))).catch(() => null));
+      }
+      const debtSnaps = await Promise.all(debtQueries);
+      const uniqueDebtDocsMap = new Map();
+      debtSnaps.forEach(s => {
+        if (!s) return;
+        s.docs.forEach(d => {
+          if (!uniqueDebtDocsMap.has(d.id)) {
+            uniqueDebtDocsMap.set(d.id, d);
+          }
+        });
+      });
+      const allDebtDocs = Array.from(uniqueDebtDocsMap.values());
 
-      // Auto-reparar si alguna deuda de multa no tenía courseId
-      for (const d of snap.docs) {
+      // Auto-reparar si alguna deuda del evento no tenía courseId o eventId
+      for (const d of allDebtDocs) {
         const data = d.data();
-        if (data.expenseId === `exp_evt_fine_${event.id}` && (!data.courseId || data.courseId !== event.courseId)) {
-          await updateDoc(d.ref, { courseId: event.courseId });
+        const repair = {};
+        if (!data.eventId) repair.eventId = event.id;
+        if (!data.courseId || data.courseId !== event.courseId) repair.courseId = event.courseId;
+        if (Object.keys(repair).length > 0) {
+          await updateDoc(d.ref, repair).catch(() => {});
         }
       }
 
@@ -98,7 +120,7 @@ const EventAttendance = ({ event, onEventUpdated }) => {
         };
       });
 
-      snap.docs.forEach(d => {
+      allDebtDocs.forEach(d => {
         const data = d.data();
         if (!debtsByStudent[data.studentId]) {
           debtsByStudent[data.studentId] = {

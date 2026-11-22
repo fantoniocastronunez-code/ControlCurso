@@ -116,6 +116,13 @@ const ExpenseDetail = ({ expenseId, onBack }) => {
       const expDataSnapshot = expenseSnap.exists() ? expenseSnap.data() : null;
       const effectiveCourseId = expDataSnapshot?.courseId || selectedCourse.id;
       const effectiveFundId = expDataSnapshot?.fundId || 'general';
+      const effectiveEventId = expDataSnapshot?.eventId || (
+        expenseId.startsWith('exp_evt_fine_')
+          ? expenseId.replace('exp_evt_fine_', '')
+          : expenseId.startsWith('exp_evt_')
+            ? expenseId.replace('exp_evt_', '')
+            : null
+      );
 
       const debtsData = debtSnap.docs.map(d => {
         const raw = { id: d.id, ...d.data() };
@@ -128,6 +135,10 @@ const ExpenseDetail = ({ expenseId, onBack }) => {
         if (!raw.fundId && effectiveFundId) {
           raw.fundId = effectiveFundId;
           repairUpdates.fundId = effectiveFundId;
+        }
+        if (!raw.eventId && effectiveEventId) {
+          raw.eventId = effectiveEventId;
+          repairUpdates.eventId = effectiveEventId;
         }
         if (raw.status === 'paid' && (!raw.paidAmount || raw.paidAmount <= 0) && (raw.amount || 0) > 0) {
           raw.paidAmount = raw.amount;
@@ -1442,6 +1453,13 @@ const ExpenseDetail = ({ expenseId, onBack }) => {
       let addedAmount = 0;
       let actualAddedCount = 0;
       const effectiveCourseId = expense.courseId || selectedCourse?.id;
+      const effectiveEventId = expense.eventId || (
+        expenseId.startsWith('exp_evt_fine_')
+          ? expenseId.replace('exp_evt_fine_', '')
+          : expenseId.startsWith('exp_evt_')
+            ? expenseId.replace('exp_evt_', '')
+            : null
+      );
       for (const studentId of addedIds) {
         const student = students.find(s => s.id === studentId);
         if (!student) continue;
@@ -1460,6 +1478,7 @@ const ExpenseDetail = ({ expenseId, onBack }) => {
           date: expense.date,
           fundId: expense.fundId || 'general',
           courseId: effectiveCourseId,
+          ...(effectiveEventId ? { eventId: effectiveEventId } : {}),
           transferData: expense.transferData || null,
           visibleInPortal: expense.visibleInPortal !== false,
           createdAt: new Date().toISOString()

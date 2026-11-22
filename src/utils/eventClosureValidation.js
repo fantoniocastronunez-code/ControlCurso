@@ -37,15 +37,32 @@ export async function checkEventClosureReadiness(event) {
   const isTest = Boolean(event.isTestEvent);
   const eventId = event.id;
 
-  // 1. Obtener deudas vinculadas al evento
-  let debts = [];
+  // 1. Obtener deudas vinculadas al evento (por eventId, expenseId o fundId)
+  const debtsMap = new Map();
   try {
-    const qDebts = query(collection(db, 'debts'), where('eventId', '==', eventId));
-    const snapDebts = await getDocs(qDebts);
-    debts = snapDebts.docs.map(d => ({ id: d.id, ...d.data() }));
+    const mainExpId = `exp_evt_${eventId}`;
+    const fineExpId = `exp_evt_fine_${eventId}`;
+    const queries = [
+      getDocs(query(collection(db, 'debts'), where('eventId', '==', eventId))).catch(() => null),
+      getDocs(query(collection(db, 'debts'), where('expenseId', '==', mainExpId))).catch(() => null),
+      getDocs(query(collection(db, 'debts'), where('expenseId', '==', fineExpId))).catch(() => null)
+    ];
+    if (event.fundId && event.fundId !== 'general') {
+      queries.push(getDocs(query(collection(db, 'debts'), where('fundId', '==', event.fundId))).catch(() => null));
+    }
+    const snaps = await Promise.all(queries);
+    snaps.forEach(s => {
+      if (!s) return;
+      s.docs.forEach(d => {
+        if (!debtsMap.has(d.id)) {
+          debtsMap.set(d.id, { id: d.id, ...d.data() });
+        }
+      });
+    });
   } catch (err) {
     console.warn("Error consultando deudas del evento:", err);
   }
+  const debts = Array.from(debtsMap.values());
 
   // Separar cuotas obligatorias vs multas
   const mandatoryDebts = debts.filter(d => {

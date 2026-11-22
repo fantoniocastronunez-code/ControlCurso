@@ -1,6 +1,6 @@
 import { jsPDF } from 'jspdf';
 import { db } from '../firebase/config';
-import { collection, doc as firestoreDoc, getDoc, getDocs, query, where } from 'firebase/firestore';
+import { collection, doc as firestoreDoc, getDoc, getDocs, query, where, updateDoc } from 'firebase/firestore';
 
 export const formatCLP = (amount) => {
   return new Intl.NumberFormat('es-CL', {
@@ -248,19 +248,106 @@ export async function loadEventFinancialReportData(eventInput) {
     }))
     .sort((a, b) => b.total - a.total);
 
-  // 4. Cuotas Obligatorias y Multas (debts)
-  let debtsList = [];
+  // 3.5. Ingresos registrados en el Fondo del Evento (incomes) que no estén ya en eventSales
+  // Esto garantiza 100% de cuadratura entre el Fondo del Evento (Modo Reunión / Fondos) y el Informe del Evento
   try {
-    const qDebts = query(collection(db, 'debts'), where('eventId', '==', eventId));
-    const debtsSnap = await getDocs(qDebts);
-    debtsList = debtsSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+    const activeSaleIds = new Set(salesList.map(s => s.id));
+    const incomesMap = new Map();
+    const incQueries = [];
+    if (eventId) {
+      incQueries.push(getDocs(query(collection(db, 'incomes'), where('eventId', '==', eventId))).catch(() => null));
+    }
+    if (event.fundId && event.fundId !== 'general') {
+      incQueries.push(getDocs(query(collection(db, 'incomes'), where('fundId', '==', event.fundId))).catch(() => null));
+    }
+    const incSnaps = await Promise.all(incQueries);
+    incSnaps.forEach(snap => {
+      if (!snap) return;
+      snap.docs.forEach(d => {
+        if (!incomesMap.has(d.id)) {
+          incomesMap.set(d.id, { id: d.id, ...d.data() });
+        }
+      });
+    });
+
+    incomesMap.forEach(inc => {
+      // Si el ingreso en el fondo NO corresponde a una venta ya sumada en salesList, sumarlo a ventas/ingresos del evento
+      if (!inc.saleId || !activeSaleIds.has(inc.saleId)) {
+        const incAmt = Number(inc.amount) || 0;
+        if (incAmt > 0) {
+          totalSales += incAmt;
+          if (inc.paymentMethod === 'cash') {
+            cashSales += incAmt;
+          } else {
+            transferSales += incAmt;
+          }
+        }
+      }
+    });
+  } catch (e) {
+    console.warn("Error verificando ingresos adicionales del fondo del evento:", e);
+  }
+
+  // 4. Cuotas Obligatorias y Multas (debts) - Búsqueda robusta por eventId, expenseId y fundId
+  // para recuperar cuotas de alumnos agregados desde el módulo de Cuotas sin eventId
+  const debtsMap = new Map();
+  const mainExpenseId = `exp_evt_${eventId}`;
+  const fineExpenseId = `exp_evt_fine_${eventId}`;
+  try {
+    const debtQueries = [];
+    if (eventId) {
+      debtQueries.push(getDocs(query(collection(db, 'debts'), where('eventId', '==', eventId))).catch(() => null));
+      debtQueries.push(getDocs(query(collection(db, 'debts'), where('expenseId', '==', mainExpenseId))).catch(() => null));
+      debtQueries.push(getDocs(query(collection(db, 'debts'), where('expenseId', '==', fineExpenseId))).catch(() => null));
+    }
+    if (event.fundId && event.fundId !== 'general') {
+      debtQueries.push(getDocs(query(collection(db, 'debts'), where('fundId', '==', event.fundId))).catch(() => null));
+    }
+
+    const debtSnaps = await Promise.all(debtQueries);
+    debtSnaps.forEach(snap => {
+      if (!snap) return;
+      snap.docs.forEach(d => {
+        if (!debtsMap.has(d.id)) {
+          const raw = { id: d.id, ...d.data() };
+          debtsMap.set(d.id, raw);
+
+          // Auto-reparar en Firestore si a la cuota del evento le faltaba eventId o fundId
+          const repairPayload = {};
+          if (eventId && !raw.eventId) {
+            raw.eventId = eventId;
+            repairPayload.eventId = eventId;
+          }
+          if (event.fundId && !raw.fundId) {
+            raw.fundId = event.fundId;
+            repairPayload.fundId = event.fundId;
+          }
+          if (Object.keys(repairPayload).length > 0) {
+            updateDoc(firestoreDoc(db, 'debts', d.id), repairPayload).catch(() => {});
+          }
+        }
+      });
+    });
   } catch (e) {
     console.error("Error cargando deudas del evento:", e);
   }
 
-  const fineExpenseId = `exp_evt_fine_${eventId}`;
-  const mandatoryDebts = debtsList.filter(d => d.expenseId !== fineExpenseId && !d.isMandatoryFine && !d.isAttendanceFine);
-  const fineDebts = debtsList.filter(d => d.expenseId === fineExpenseId || d.isMandatoryFine || d.isAttendanceFine);
+  const debtsList = Array.from(debtsMap.values());
+
+  const isFineDebtRecord = (d) => {
+    const expId = String(d.expenseId || '');
+    const titleLower = String(d.title || '').toLowerCase();
+    return (
+      expId === fineExpenseId ||
+      expId.includes('_fine_') ||
+      Boolean(d.isEventFine || d.isMandatoryFine || d.isAttendanceFine) ||
+      titleLower.includes('multa') ||
+      titleLower.includes('inasistencia')
+    );
+  };
+
+  const mandatoryDebts = debtsList.filter(d => !isFineDebtRecord(d));
+  const fineDebts = debtsList.filter(d => isFineDebtRecord(d));
 
   let mandatoryTotalExpected = 0;
   let mandatoryTotalPaid = 0;
@@ -269,17 +356,20 @@ export async function loadEventFinancialReportData(eventInput) {
 
   mandatoryDebts.forEach(d => {
     const amount = Number(d.amount) || 0;
-    mandatoryTotalExpected += amount;
+    const paidAmt = (d.status === 'paid' || d.status === 'partial')
+      ? ((typeof d.paidAmount === 'number' && d.paidAmount > 0) ? Number(d.paidAmount) : (d.status === 'paid' ? amount : 0))
+      : 0;
+
+    mandatoryTotalExpected += Math.max(amount, paidAmt);
     if (d.status === 'paid') {
-      mandatoryTotalPaid += amount;
+      mandatoryTotalPaid += paidAmt;
       mandatoryPaidCount++;
     } else {
-      const paidPart = Number(d.paidAmount) || 0;
-      mandatoryTotalPaid += paidPart;
+      mandatoryTotalPaid += paidAmt;
       mandatoryPendingList.push({
         id: d.id,
         studentName: d.studentName || 'Alumno',
-        amount: amount - paidPart,
+        amount: Math.max(0, amount - paidAmt),
         status: d.status,
         apoderadoEmails: d.apoderadoEmails || []
       });
@@ -290,9 +380,15 @@ export async function loadEventFinancialReportData(eventInput) {
   let fineTotalPaid = 0;
   let finePendingCount = 0;
   fineDebts.forEach(f => {
+    const amount = Number(f.amount) || 0;
+    const paidAmt = (f.status === 'paid' || f.status === 'partial')
+      ? ((typeof f.paidAmount === 'number' && f.paidAmount > 0) ? Number(f.paidAmount) : (f.status === 'paid' ? amount : 0))
+      : 0;
+
     if (f.status === 'paid') {
-      fineTotalPaid += (Number(f.amount) || 0);
+      fineTotalPaid += paidAmt;
     } else {
+      fineTotalPaid += paidAmt;
       finePendingCount++;
     }
   });

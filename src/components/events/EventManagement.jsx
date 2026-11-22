@@ -52,13 +52,25 @@ const EventManagement = ({ onBack }) => {
       return;
     }
     try {
-      // 1. Obtener deudas del curso para este lote de eventos
+      // 1. Obtener deudas del curso para este lote de eventos (vinculadas por eventId, expenseId o fundId)
       const qDebts = query(collection(db, 'debts'), where('courseId', '==', selectedCourse.id));
       const snapDebts = await getDocs(qDebts);
+      const fundToEventId = {};
+      eventsList.forEach(ev => {
+        if (ev.fundId && ev.fundId !== 'general') {
+          fundToEventId[ev.fundId] = ev.id;
+        }
+      });
       const debtsByEvent = {};
       snapDebts.docs.forEach(d => {
         const debt = d.data();
-        const evId = debt.eventId;
+        const expId = String(debt.expenseId || '');
+        const inferredFromExp = expId.startsWith('exp_evt_fine_')
+          ? expId.replace('exp_evt_fine_', '')
+          : expId.startsWith('exp_evt_')
+            ? expId.replace('exp_evt_', '')
+            : null;
+        const evId = debt.eventId || inferredFromExp || (debt.fundId ? fundToEventId[debt.fundId] : null);
         if (!evId) return;
         if (!debtsByEvent[evId]) debtsByEvent[evId] = [];
         debtsByEvent[evId].push(debt);
