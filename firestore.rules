@@ -132,12 +132,28 @@ service cloud.firestore {
         ('courseId' in resource.data && isCourseAdmin(resource.data.courseId))
       );
       
-      // Apoderados pueden actualizar SOLO deudas donde estén vinculados (para subir comprobantes)
+      // Apoderados pueden actualizar deudas donde estén vinculados (directamente o vía estudiante) o al informar un comprobante de pago en revisión
       allow update: if isAuthenticated() && (
         isSuperAdmin() ||
         ('courseId' in resource.data && isCourseAdmin(resource.data.courseId)) ||
         (request.auth.token.email != null && 'apoderadoEmails' in resource.data && resource.data.apoderadoEmails is list && request.auth.token.email in resource.data.apoderadoEmails) ||
-        (request.auth.token.email != null && 'apoderadoEmail' in resource.data && request.auth.token.email == resource.data.apoderadoEmail)
+        (request.auth.token.email != null && 'apoderadoEmail' in resource.data && request.auth.token.email == resource.data.apoderadoEmail) ||
+        (
+          request.auth.token.email != null &&
+          'studentId' in resource.data &&
+          resource.data.studentId is string &&
+          exists(/databases/$(database)/documents/students/$(resource.data.studentId)) &&
+          (
+            ('apoderadoEmails' in get(/databases/$(database)/documents/students/$(resource.data.studentId)).data && get(/databases/$(database)/documents/students/$(resource.data.studentId)).data.apoderadoEmails is list && request.auth.token.email in get(/databases/$(database)/documents/students/$(resource.data.studentId)).data.apoderadoEmails) ||
+            ('apoderadoEmail' in get(/databases/$(database)/documents/students/$(resource.data.studentId)).data && request.auth.token.email == get(/databases/$(database)/documents/students/$(resource.data.studentId)).data.apoderadoEmail)
+          )
+        ) ||
+        (
+          request.resource.data.status == 'review' &&
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+            'status', 'paidAmount', 'previousPaidAmount', 'lastPaymentAmount', 'paidAt', 'receiptUrl', 'apoderadoEmails', 'updatedAt'
+          ])
+        )
       );
     }
     

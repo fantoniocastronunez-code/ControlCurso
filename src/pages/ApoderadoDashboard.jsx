@@ -421,6 +421,20 @@ const ApoderadoDashboard = () => {
             rut: rutInput.trim()
           });
 
+          // Sincronizar también apoderadoEmails en todas las deudas existentes del alumno
+          try {
+            const studentDebtsSnap = await getDocs(
+              query(collection(db, 'debts'), where('studentId', '==', linkingStudentId))
+            );
+            for (const dDoc of studentDebtsSnap.docs) {
+              await updateDoc(doc(db, 'debts', dDoc.id), {
+                apoderadoEmails: emails
+              }).catch(() => {});
+            }
+          } catch (syncErr) {
+            console.warn("No se pudieron sincronizar apoderadoEmails en deudas previas:", syncErr);
+          }
+
           // Notificar al superadmin por correo
           try {
             const usersSnap = await getDocs(collection(db, 'users'));
@@ -504,10 +518,78 @@ const ApoderadoDashboard = () => {
   };
 
 
+  // Convierte una imagen (comprimiéndola en Canvas) o un PDF liviano a Data URL Base64
+  // como respaldo automático si Firebase Storage falla o está bloqueado en el dispositivo del apoderado.
+  const convertReceiptToDataUrlFallback = (file) => {
+    return new Promise((resolve) => {
+      if (!file) {
+        resolve(null);
+        return;
+      }
+
+      if (file.type && file.type.startsWith('image/')) {
+        const reader = new FileReader();
+        reader.onload = (ev) => {
+          const img = new Image();
+          img.onload = () => {
+            try {
+              const maxDim = 1100;
+              let width = img.width || 800;
+              let height = img.height || 800;
+              if (width > maxDim || height > maxDim) {
+                if (width > height) {
+                  height = Math.round((height * maxDim) / width);
+                  width = maxDim;
+                } else {
+                  width = Math.round((width * maxDim) / height);
+                  height = maxDim;
+                }
+              }
+              const canvas = document.createElement('canvas');
+              canvas.width = width;
+              canvas.height = height;
+              const ctx = canvas.getContext('2d');
+              ctx.fillStyle = '#ffffff';
+              ctx.fillRect(0, 0, width, height);
+              ctx.drawImage(img, 0, 0, width, height);
+              let dataUrl = canvas.toDataURL('image/jpeg', 0.72);
+              // Si aún supera ~650KB, comprimir un poco más para respetar el límite de 1MB de Firestore
+              if (dataUrl.length > 680000) {
+                dataUrl = canvas.toDataURL('image/jpeg', 0.5);
+              }
+              resolve(dataUrl);
+            } catch (canvasErr) {
+              console.warn('Error comprimiendo imagen en canvas:', canvasErr);
+              resolve(null);
+            }
+          };
+          img.onerror = () => resolve(null);
+          img.src = ev.target.result;
+        };
+        reader.onerror = () => resolve(null);
+        reader.readAsDataURL(file);
+        return;
+      }
+
+      // Si es PDF u otro archivo liviano (<= 650 KB)
+      if (file.size <= 650 * 1024) {
+        const reader = new FileReader();
+        reader.onload = (ev) => resolve(ev.target.result);
+        reader.onerror = () => resolve(null);
+        reader.readAsDataURL(file);
+        return;
+      }
+
+      resolve(null);
+    });
+  };
+
   const handlePaymentSubmit = async (e) => {
     e.preventDefault();
-    if (!paidAmount) {
-      await showAlert("Debes ingresar el monto que estás informando.");
+    const cleanedAmountStr = String(paidAmount ?? '').trim().replace(/\./g, '').replace(',', '.');
+    const parsedAmount = parseFloat(cleanedAmountStr);
+    if (!paidAmount || isNaN(parsedAmount) || parsedAmount <= 0) {
+      await showAlert("Debes ingresar un monto válido mayor a $0.");
       return;
     }
 
@@ -517,24 +599,33 @@ const ApoderadoDashboard = () => {
 
       if (receiptFile) {
         try {
-          // Subir archivo a Storage
-          const fileExt = receiptFile.name.split('.').pop();
-          const fileName = `receipts/${payingDebt.id}_${Date.now()}.${fileExt}`;
+          // 1. Intentar subir archivo a Firebase Storage
+          const rawExt = receiptFile.name ? receiptFile.name.split('.').pop() : 'jpg';
+          const safeExt = (rawExt || 'jpg').replace(/[^a-zA-Z0-9]/g, '').toLowerCase() || 'jpg';
+          const fileName = `receipts/${payingDebt.id}_${Date.now()}.${safeExt}`;
           const storageRef = ref(storage, fileName);
 
           await uploadBytes(storageRef, receiptFile);
           downloadURL = await getDownloadURL(storageRef);
         } catch (uploadError) {
-          console.error("Error al subir comprobante:", uploadError);
-          await showAlert("No pudimos subir tu foto. Error detallado: " + uploadError.message + " | Código: " + uploadError.code + ". Tu pago será registrado de todas formas.");
+          console.warn("Fallo subida a Storage, usando respaldo directo comprimido:", uploadError);
+          // 2. Respaldo automático en Base64 comprimido para que el comprobante se guarde sin fallar
+          downloadURL = await convertReceiptToDataUrlFallback(receiptFile);
         }
       }
+
+      // Calcular monto acumulado sin duplicar si ya estaba en revisión
+      const originalDebt = debts.find(d => d.id === payingDebt.id) || payingDebt;
+      const basePreviousPaid = originalDebt.status === 'partial'
+        ? (Number(originalDebt.paidAmount) || 0)
+        : (Number(originalDebt.previousPaidAmount) || 0);
 
       // Actualizar la deuda en Firestore
       const updateData = {
         status: 'review', // Pasa a revisión del admin
-        paidAmount: (payingDebt.paidAmount || 0) + parseFloat(paidAmount),
-        lastPaymentAmount: parseFloat(paidAmount),
+        paidAmount: basePreviousPaid + parsedAmount,
+        previousPaidAmount: basePreviousPaid,
+        lastPaymentAmount: parsedAmount,
         paidAt: new Date().toISOString()
       };
 
@@ -571,7 +662,7 @@ const ApoderadoDashboard = () => {
                   <div style="background-color: #f8fafc; padding: 15px; border-radius: 8px; margin-top: 20px;">
                     <p style="margin: 5px 0;"><strong>Alumno:</strong> ${payingDebt.studentName}</p>
                     <p style="margin: 5px 0;"><strong>Cuota/Motivo:</strong> ${payingDebt.title}</p>
-                    <p style="margin: 5px 0;"><strong>Monto Subido:</strong> $${parseFloat(paidAmount).toLocaleString('es-CL')}</p>
+                    <p style="margin: 5px 0;"><strong>Monto Subido:</strong> $${parsedAmount.toLocaleString('es-CL')}</p>
                     <p style="margin: 5px 0;"><strong>Enviado por (Email):</strong> ${user.email}</p>
                     <p style="margin: 5px 0;"><strong>Fecha y Hora:</strong> ${new Date().toLocaleString('es-CL')}</p>
                   </div>
@@ -586,11 +677,11 @@ const ApoderadoDashboard = () => {
         console.error("Error sending notification email for payment:", mailError);
       }
 
-      // Refrescar localmente
-      await showAlert("Comprobante enviado con éxito. Está pendiente de revisión por el administrador.");
+      // Cerrar modal y refrescar localmente
       setPayingDebt(null);
       setReceiptFile(null);
       setPaidAmount('');
+      await showAlert("Comprobante enviado con éxito. Está pendiente de revisión por el administrador.");
       fetchData();
 
     } catch (error) {

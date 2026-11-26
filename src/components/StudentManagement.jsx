@@ -616,6 +616,24 @@ const StudentManagement = ({ onBack }) => {
 
       await updateDoc(studentRef, studentUpdateData);
 
+      // Sincronizar apoderadoEmails y studentName en todas las deudas existentes de este alumno
+      try {
+        const studentDebtsSnap = await getDocs(
+          query(collection(db, 'debts'), where('studentId', '==', editingId))
+        );
+        if (!studentDebtsSnap.empty) {
+          const batch = writeBatch(db);
+          studentDebtsSnap.docs.forEach(dDoc => {
+            batch.update(doc(db, 'debts', dDoc.id), {
+              apoderadoEmails: emails
+            });
+          });
+          await batch.commit();
+        }
+      } catch (syncDebtErr) {
+        console.warn("No se pudieron sincronizar apoderadoEmails en las deudas del alumno:", syncDebtErr);
+      }
+
       let updatedList = students.map(s =>
         s.id === editingId ? {
           ...s,

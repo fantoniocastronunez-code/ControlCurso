@@ -31,12 +31,12 @@ const ExpenseDetail = ({ expenseId, onBack }) => {
   const [loading, setLoading] = useState(true);
   const [copiedPending, setCopiedPending] = useState(false);
   const [isReportModalOpen, setIsReportModalOpen] = useState(false);
-  
+
   // Modo Auditoría
   const [isAuditMode, setIsAuditMode] = useState(false);
   const [auditChecks, setAuditChecks] = useState({}); // { [debtId]: boolean }
   const [auditManualAmounts, setAuditManualAmounts] = useState({}); // { [debtId]: string | number }
-  
+
   // Para ver imagen en grande
   const [selectedReceipt, setSelectedReceipt] = useState(null);
   useLockBodyScroll(!!selectedReceipt);
@@ -162,16 +162,16 @@ const ExpenseDetail = ({ expenseId, onBack }) => {
 
         return raw;
       });
-      
+
       // Ordenar estrictamente por el número de lista del alumno
       debtsData.sort((a, b) => {
-         const studentA = studentsData.find(s => s.id === a.studentId);
-         const studentB = studentsData.find(s => s.id === b.studentId);
-         const aNum = studentA ? (parseInt(studentA.listNumber) || 999) : 999;
-         const bNum = studentB ? (parseInt(studentB.listNumber) || 999) : 999;
-         return aNum - bNum;
+        const studentA = studentsData.find(s => s.id === a.studentId);
+        const studentB = studentsData.find(s => s.id === b.studentId);
+        const aNum = studentA ? (parseInt(studentA.listNumber) || 999) : 999;
+        const bNum = studentB ? (parseInt(studentB.listNumber) || 999) : 999;
+        return aNum - bNum;
       });
-      
+
       setDebts(debtsData);
 
       // Sincronización y auto-reparación en Firestore de contadores
@@ -231,17 +231,17 @@ const ExpenseDetail = ({ expenseId, onBack }) => {
     const list = [...debts];
     if (sortBy === 'debt') {
       list.sort((a, b) => {
-         const getStatusWeight = (status) => {
-           if (status === 'pending') return 0;
-           if (status === 'review') return 1;
-           if (status === 'partial') return 2;
-           if (status === 'paid') return 3;
-           return 4;
-         };
-         const weightA = getStatusWeight(a.status);
-         const weightB = getStatusWeight(b.status);
-         if (weightA !== weightB) return weightA - weightB;
-         return 0; 
+        const getStatusWeight = (status) => {
+          if (status === 'pending') return 0;
+          if (status === 'review') return 1;
+          if (status === 'partial') return 2;
+          if (status === 'paid') return 3;
+          return 4;
+        };
+        const weightA = getStatusWeight(a.status);
+        const weightB = getStatusWeight(b.status);
+        if (weightA !== weightB) return weightA - weightB;
+        return 0;
       });
     }
     return list;
@@ -252,7 +252,7 @@ const ExpenseDetail = ({ expenseId, onBack }) => {
     report += `Emitido el: ${expense.date}\n\n`;
 
     const pending = debts.filter(d => d.status === 'pending' || d.status === 'partial');
-    
+
     if (pending.length === 0) {
       report += "¡Todos los alumnos han pagado!\n";
     } else {
@@ -262,11 +262,11 @@ const ExpenseDetail = ({ expenseId, onBack }) => {
         const expected = d.amount || expense.totalAmount || 0;
         const paid = d.paidAmount || 0;
         const remaining = expected - paid;
-        
+
         report += `• ${name}: ${d.status === 'partial' ? 'Pago Parcial (Falta $' + remaining.toLocaleString('es-CL') + ')' : 'Pendiente ($' + expected.toLocaleString('es-CL') + ')'}\n`;
       });
     }
-    
+
     navigator.clipboard.writeText(report).then(() => {
       showAlert('Reporte copiado', 'El detalle de morosos ha sido copiado al portapapeles para enviar por WhatsApp.');
     }).catch(err => {
@@ -333,7 +333,7 @@ const ExpenseDetail = ({ expenseId, onBack }) => {
   const processPayment = async (debtId, method, defaultAmount, isApproval = false) => {
     const debtToPay = debts.find(d => d.id === debtId);
     if (!debtToPay) return;
-    
+
     let targetDebtAmount = Number(debtToPay.amount) || 0;
     if (!isApproval && targetDebtAmount <= 0) {
       const promptAmtStr = await showPrompt("Este alumno tiene un monto a cobrar de $0. Ingresa el monto de la cuota ($) para registrar su pago:", "");
@@ -358,7 +358,7 @@ const ExpenseDetail = ({ expenseId, onBack }) => {
       // Pago manual (Efectivo/Transferencia): se registra de inmediato el monto pendiente sin prompts.
       const currentPaid = debtToPay.paidAmount || 0;
       const remaining = targetDebtAmount - currentPaid;
-      
+
       exactPaidNow = remaining > 0 ? remaining : targetDebtAmount;
       finalTotalPaid = currentPaid + exactPaidNow;
     }
@@ -367,18 +367,18 @@ const ExpenseDetail = ({ expenseId, onBack }) => {
       const fundId = debtToPay.fundId || expense.fundId || 'general';
       const effectiveCourseId = debtToPay.courseId || expense.courseId || selectedCourse.id;
       const relatedFund = funds.find(f => f.id === fundId);
-      
+
       if (relatedFund && relatedFund.isLocked) {
         const unlock = await showConfirm(`El fondo "${relatedFund.name}" asociado a esta cuota está bloqueado. ¿Quieres desbloquearlo para poder registrar el pago?`);
         if (!unlock) return; // Cancelar el pago
-        
+
         // Desbloquear el fondo
         await updateDoc(doc(db, 'funds', relatedFund.id), { isLocked: false });
         setFunds(funds.map(f => f.id === relatedFund.id ? { ...f, isLocked: false } : f));
       }
 
       const debtRef = doc(db, 'debts', debtId);
-      
+
       let newStatus = 'pending';
       if (targetDebtAmount > 0 && finalTotalPaid >= targetDebtAmount) newStatus = 'paid';
       else if (finalTotalPaid > 0) newStatus = 'partial';
@@ -459,7 +459,7 @@ const ExpenseDetail = ({ expenseId, onBack }) => {
       const snap = await getDocs(q);
       const updatedFullyPaidCount = snap.docs.filter(d => d.data().status === 'paid').length;
       const updatedTotalAmount = snap.docs.reduce((sum, d) => sum + (Number(d.data().amount) || 0), 0);
-      
+
       const expenseRef = doc(db, 'expenses', expenseId);
       const expUpdates = { paidCount: updatedFullyPaidCount };
       if (expense.calculationMode !== 'divide' && updatedTotalAmount > 0) {
@@ -478,10 +478,10 @@ const ExpenseDetail = ({ expenseId, onBack }) => {
   const handleFixDuplicates = async () => {
     if (!duplicateNames || duplicateNames.length === 0) return;
     if (!(await showConfirm(`¿Deseas unificar los registros duplicados de: ${duplicateNames.join(', ')}?`, 'Se sumarán los montos pagados en un solo registro.'))) return;
-    
+
     try {
       const batch = writeBatch(db);
-      
+
       for (const name of duplicateNames) {
         // Find all debts for this name
         const duplicates = debts.filter(d => {
@@ -489,15 +489,15 @@ const ExpenseDetail = ({ expenseId, onBack }) => {
           const dName = student ? student.name : (d.studentName || '');
           return dName === name;
         });
-        
+
         if (duplicates.length > 1) {
           // Sort to keep the one with most info (or receipt) as primary
           duplicates.sort((a, b) => (b.paidAmount || 0) - (a.paidAmount || 0));
           const primary = duplicates[0];
-          
+
           let totalPaid = 0;
           let combinedReceipt = primary.receiptUrl || '';
-          
+
           for (let i = 0; i < duplicates.length; i++) {
             totalPaid += (duplicates[i].paidAmount || 0);
             if (!combinedReceipt && duplicates[i].receiptUrl) {
@@ -508,11 +508,11 @@ const ExpenseDetail = ({ expenseId, onBack }) => {
               batch.delete(doc(db, 'debts', duplicates[i].id));
             }
           }
-          
+
           let newStatus = 'pending';
           if (totalPaid >= primary.amount) newStatus = 'paid';
           else if (totalPaid > 0) newStatus = 'partial';
-          
+
           batch.update(doc(db, 'debts', primary.id), {
             paidAmount: totalPaid,
             status: newStatus,
@@ -520,7 +520,7 @@ const ExpenseDetail = ({ expenseId, onBack }) => {
           });
         }
       }
-      
+
       await batch.commit();
       await showAlert('Registros unificados correctamente.');
       fetchDetail(false);
@@ -536,7 +536,7 @@ const ExpenseDetail = ({ expenseId, onBack }) => {
 
     const newAmountStr = await showPrompt("Ingresa el NUEVO Monto a Cobrar para este alumno:", debtToEdit.amount);
     if (newAmountStr === null) return;
-    
+
     const newAmount = parseFloat(newAmountStr);
     if (isNaN(newAmount) || newAmount <= 0) {
       await showAlert("Monto inválido.");
@@ -644,7 +644,7 @@ const ExpenseDetail = ({ expenseId, onBack }) => {
 
     const newAmountStr = await showPrompt("Ingresa el Monto Informado (Pagado) para este alumno:", debtToEdit.paidAmount || 0);
     if (newAmountStr === null) return;
-    
+
     const newAmount = parseFloat(newAmountStr);
     if (isNaN(newAmount) || newAmount < 0) {
       await showAlert("Monto inválido.");
@@ -709,7 +709,7 @@ const ExpenseDetail = ({ expenseId, onBack }) => {
       const snap = await getDocs(q);
       const updatedFullyPaidCount = snap.docs.filter(d => d.data().status === 'paid').length;
       const updatedTotalAmount = snap.docs.reduce((sum, d) => sum + (Number(d.data().amount) || 0), 0);
-      
+
       const expUpdates = { paidCount: updatedFullyPaidCount };
       if (expense?.calculationMode !== 'divide' && updatedTotalAmount > 0) {
         expUpdates.totalAmount = updatedTotalAmount;
@@ -744,9 +744,9 @@ const ExpenseDetail = ({ expenseId, onBack }) => {
   const handleCancelPayment = async (debtId) => {
     const debtToCancel = debts.find(d => d.id === debtId);
     if (!debtToCancel) return;
-    
+
     if (!(await showConfirm('¿Estás seguro de que deseas cancelar este pago?', 'El registro volverá a estar Pendiente.'))) return;
-    
+
     setDebts(prev => prev.map(d => d.id === debtId ? {
       ...d,
       status: 'pending',
@@ -797,7 +797,7 @@ const ExpenseDetail = ({ expenseId, onBack }) => {
       const q = query(collection(db, 'debts'), where('expenseId', '==', expenseId));
       const snap = await getDocs(q);
       const updatedFullyPaidCount = snap.docs.filter(d => d.data().status === 'paid').length;
-      
+
       await updateDoc(doc(db, 'expenses', expenseId), {
         paidCount: updatedFullyPaidCount
       });
@@ -813,7 +813,7 @@ const ExpenseDetail = ({ expenseId, onBack }) => {
   const handleBulkPayment = async (method) => {
     if (selectedDebts.length === 0) return;
     if (!(await showConfirm(`¿Registrar pago masivo a ${selectedDebts.length} alumnos en ${method === 'cash' ? 'Efectivo' : 'Transferencia'}?`))) return;
-    
+
     const selectedIds = [...selectedDebts];
     setSelectedDebts([]);
 
@@ -878,7 +878,7 @@ const ExpenseDetail = ({ expenseId, onBack }) => {
           ...update.updates,
           approvedAt: new Date().toISOString()
         });
-        
+
         const debtToPay = debts.find(d => d.id === update.debtId);
         await addDoc(collection(db, 'payments'), {
           debtId: update.debtId,
@@ -909,7 +909,7 @@ const ExpenseDetail = ({ expenseId, onBack }) => {
     const debtToPay = debts.find(d => d.id === debtId);
     if (!debtToPay) return;
     const student = students.find(s => s.id === debtToPay.studentId || s.name === debtToPay.studentName);
-    
+
     if (!student) return;
 
     if (!student.balance || student.balance <= 0) {
@@ -944,7 +944,7 @@ const ExpenseDetail = ({ expenseId, onBack }) => {
     const effectiveFundId = debtToPay.fundId || expense?.fundId || 'general';
 
     if (!(await showConfirm(`¿Usar ${formatMoney(amountToUse)} del saldo a favor de ${student.name}? Le quedarán ${formatMoney(newBalance)} a favor.`))) return;
-    
+
     const currentPaidCount = expense?.paidCount || 0;
     const expensePaidCount = (isFullyPaid && debtToPay.status !== 'paid') ? currentPaidCount + 1 : currentPaidCount;
 
@@ -1062,7 +1062,7 @@ const ExpenseDetail = ({ expenseId, onBack }) => {
       : debtsWithBalance;
 
     if (candidateDebts.length === 0) {
-      await showAlert(isSelectedMode 
+      await showAlert(isSelectedMode
         ? "Ninguno de los alumnos seleccionados tiene saldo a favor disponible o cuota pendiente."
         : "No hay alumnos con saldo a favor pendiente en esta cuota."
       );
@@ -1267,10 +1267,10 @@ const ExpenseDetail = ({ expenseId, onBack }) => {
     try {
       const debtRef = doc(db, 'debts', debtId);
       const debtToReject = debts.find(d => d.id === debtId);
-      
+
       // Revert status to partial if they had a previous valid partial payment, else pending
       const previousValidPaidAmount = debtToReject.previousPaidAmount || 0;
-      
+
       await updateDoc(debtRef, {
         status: previousValidPaidAmount > 0 ? 'partial' : 'pending',
         receiptUrl: null,
@@ -1294,7 +1294,7 @@ const ExpenseDetail = ({ expenseId, onBack }) => {
       }
       // 2. Borrar cuota
       await deleteDoc(doc(db, 'expenses', expenseId));
-      
+
       await showAlert('Cuota eliminada correctamente.');
       onBack();
     } catch (error) {
@@ -1305,8 +1305,8 @@ const ExpenseDetail = ({ expenseId, onBack }) => {
   };
 
   const handleStartEdit = () => {
-    setEditData({ 
-      title: expense.title, 
+    setEditData({
+      title: expense.title,
       totalAmount: expense.totalAmount,
       accountId: expense.transferData ? expense.transferData.id : (expense.transferData?.alias ? 'acc_legacy' : ''),
       fundId: expense.fundId || 'general',
@@ -1354,7 +1354,7 @@ const ExpenseDetail = ({ expenseId, onBack }) => {
       const newAmount = Number(editData.totalAmount);
       const selectedAccount = transferAccounts.find(a => a.id === editData.accountId) || null;
       const newVisibleInPortal = editData.visibleInPortal !== false;
-      
+
       // 1. Actualizar Cuota
       await updateDoc(doc(db, 'expenses', expenseId), {
         title: editData.title,
@@ -1380,7 +1380,7 @@ const ExpenseDetail = ({ expenseId, onBack }) => {
         if (debt.visibleInPortal !== newVisibleInPortal) {
           updates.visibleInPortal = newVisibleInPortal;
         }
-        
+
         if (Object.keys(updates).length > 0) {
           batch.update(doc(db, 'debts', debt.id), updates);
         }
@@ -1696,11 +1696,11 @@ const ExpenseDetail = ({ expenseId, onBack }) => {
 
   Object.values(studentStatusMap).forEach(statusCounts => {
     if (statusCounts.partial > 0 || (statusCounts.pending > 0 && statusCounts.paid > 0)) {
-       partialCount++;
+      partialCount++;
     } else if (statusCounts.pending > 0 || statusCounts.review > 0) {
-       unpaidCount++;
+      unpaidCount++;
     } else if (statusCounts.paid > 0) {
-       fullyPaidCount++;
+      fullyPaidCount++;
     }
   });
 
@@ -1729,14 +1729,14 @@ const ExpenseDetail = ({ expenseId, onBack }) => {
   const handleToggleAuditCheck = (debtId) => {
     const isCurrentlyChecked = !!auditChecks[debtId];
     const newCheckState = !isCurrentlyChecked;
-    
+
     setAuditChecks(prev => ({ ...prev, [debtId]: newCheckState }));
 
     // Si se activa y no hay monto manual ingresado, pre-cargar el valor del sistema para agilizar
     if (newCheckState && (auditManualAmounts[debtId] === undefined || auditManualAmounts[debtId] === '')) {
       const debt = debts.find(d => d.id === debtId);
       if (debt) {
-        const sysVal = debt.status === 'paid' 
+        const sysVal = debt.status === 'paid'
           ? ((typeof debt.paidAmount === 'number' && debt.paidAmount > 0) ? debt.paidAmount : (debt.amount || 0))
           : (debt.status === 'partial' ? (debt.paidAmount || 0) : 0);
         setAuditManualAmounts(prev => ({ ...prev, [debtId]: sysVal }));
@@ -1793,7 +1793,7 @@ const ExpenseDetail = ({ expenseId, onBack }) => {
       let updatedCount = 0;
       const effectiveCourseId = expense?.courseId || selectedCourse.id;
       const effectiveFundId = expense?.fundId || 'general';
-      
+
       const fullyPaidCount = debts.filter(d => {
         const amtStr = auditManualAmounts[d.id];
         const amt = (amtStr !== undefined && amtStr !== '') ? parseFloat(amtStr) : 0;
@@ -1802,7 +1802,7 @@ const ExpenseDetail = ({ expenseId, onBack }) => {
 
       for (const debt of debts) {
         const manualAmtStr = auditManualAmounts[debt.id];
-        
+
         let manualAmt = 0;
         if (manualAmtStr !== undefined && manualAmtStr !== '') {
           manualAmt = parseFloat(manualAmtStr);
@@ -1823,10 +1823,10 @@ const ExpenseDetail = ({ expenseId, onBack }) => {
             fundId: debt.fundId || effectiveFundId
           }
         });
-        
+
         updatedCount++;
       }
-      
+
       if (requiresApproval) {
         const payload = {
           expenseId,
@@ -1847,11 +1847,11 @@ const ExpenseDetail = ({ expenseId, onBack }) => {
         });
         await showAlert(`Se ha reemplazado la suma del sistema con éxito. ${updatedCount} registros actualizados.`);
       }
-      
+
       // Limpiar auditoría tras aplicar
       setAuditChecks({});
       setAuditManualAmounts({});
-      
+
       fetchDetail(false);
     } catch (error) {
       console.error("Error al actualizar montos de auditoría masivos:", error);
@@ -1915,10 +1915,10 @@ const ExpenseDetail = ({ expenseId, onBack }) => {
         </div>
 
         {/* Botón de Modo Auditoría */}
-        <button 
-          onClick={() => setIsAuditMode(!isAuditMode)} 
+        <button
+          onClick={() => setIsAuditMode(!isAuditMode)}
           className="btn"
-          style={{ 
+          style={{
             backgroundColor: isAuditMode ? '#8b5cf6' : 'rgba(139, 92, 246, 0.1)',
             borderColor: '#8b5cf6',
             color: isAuditMode ? 'white' : '#a78bfa',
@@ -1958,19 +1958,19 @@ const ExpenseDetail = ({ expenseId, onBack }) => {
           <div style={{ flex: 1 }}>
             <div className="input-group">
               <label className="input-label">Título de la Cuota</label>
-              <input type="text" className="input-field" value={editData.title} onChange={e => setEditData({...editData, title: e.target.value})} />
+              <input type="text" className="input-field" value={editData.title} onChange={e => setEditData({ ...editData, title: e.target.value })} />
             </div>
             <div className="input-group">
               <label className="input-label">Monto por Alumno ($)</label>
-              <input type="number" className="input-field" value={editData.totalAmount} onChange={e => setEditData({...editData, totalAmount: e.target.value})} />
+              <input type="number" className="input-field" value={editData.totalAmount} onChange={e => setEditData({ ...editData, totalAmount: e.target.value })} />
               <small style={{ color: 'var(--text-muted)' }}>Esto solo actualizará el cobro de los alumnos que aún no han pagado.</small>
             </div>
             <div className="input-group">
               <label className="input-label">Cuenta para Transferencias</label>
-              <select 
+              <select
                 className="input-field"
                 value={editData.accountId}
-                onChange={(e) => setEditData({...editData, accountId: e.target.value})}
+                onChange={(e) => setEditData({ ...editData, accountId: e.target.value })}
               >
                 <option value="">No aplica (Solo efectivo / otro)</option>
                 {transferAccounts.map(acc => (
@@ -1980,10 +1980,10 @@ const ExpenseDetail = ({ expenseId, onBack }) => {
             </div>
             <div className="input-group">
               <label className="input-label">Fondo de Destino</label>
-              <select 
+              <select
                 className="input-field"
                 value={editData.fundId}
-                onChange={(e) => setEditData({...editData, fundId: e.target.value})}
+                onChange={(e) => setEditData({ ...editData, fundId: e.target.value })}
               >
                 <option value="general">Fondo General</option>
                 {funds.filter(f => !f.isLocked || f.id === editData.fundId).map(f => (
@@ -1993,23 +1993,23 @@ const ExpenseDetail = ({ expenseId, onBack }) => {
             </div>
             <div className="input-group">
               <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer', fontSize: '0.9rem', fontWeight: 500 }}>
-                <input 
-                  type="checkbox" 
-                  checked={editData.visibleInPortal} 
-                  onChange={e => setEditData({...editData, visibleInPortal: e.target.checked})} 
+                <input
+                  type="checkbox"
+                  checked={editData.visibleInPortal}
+                  onChange={e => setEditData({ ...editData, visibleInPortal: e.target.checked })}
                   style={{ width: '18px', height: '18px', accentColor: 'var(--primary)', cursor: 'pointer' }}
                 />
                 Visible para apoderados en su portal
               </label>
               <small style={{ color: 'var(--text-muted)' }}>
-                {editData.visibleInPortal 
-                  ? 'Los apoderados podrán ver esta cuota y pagarla desde su portal.' 
+                {editData.visibleInPortal
+                  ? 'Los apoderados podrán ver esta cuota y pagarla desde su portal.'
                   : 'Oculto: los apoderados no verán esta cuota en su portal ni en alertas.'}
               </small>
             </div>
             <div style={{ display: 'flex', gap: '1rem' }}>
-              <button onClick={handleSaveEdit} className="btn btn-primary" style={{ backgroundColor: 'var(--success)' }}><Save size={18}/> Guardar Cambios</button>
-              <button onClick={() => setIsEditing(false)} className="btn btn-outline"><X size={18}/> Cancelar</button>
+              <button onClick={handleSaveEdit} className="btn btn-primary" style={{ backgroundColor: 'var(--success)' }}><Save size={18} /> Guardar Cambios</button>
+              <button onClick={() => setIsEditing(false)} className="btn btn-outline"><X size={18} /> Cancelar</button>
             </div>
           </div>
         ) : isManagingStudents ? (
@@ -2020,19 +2020,19 @@ const ExpenseDetail = ({ expenseId, onBack }) => {
             <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', marginBottom: '1rem' }}>
               Marca los alumnos que deben estar en esta cuota o desmarca a quienes desees quitar.
             </p>
-            
+
             <div style={{ marginBottom: '1rem', display: 'flex', gap: '0.75rem', alignItems: 'center', flexWrap: 'wrap' }}>
-              <input 
-                type="text" 
-                className="input-field" 
-                placeholder="Buscar alumno..." 
+              <input
+                type="text"
+                className="input-field"
+                placeholder="Buscar alumno..."
                 value={manageStudentsSearch}
                 onChange={e => setManageStudentsSearch(e.target.value)}
                 style={{ flex: 1, minWidth: '200px', marginBottom: 0 }}
               />
-              <button 
-                type="button" 
-                className="btn btn-outline" 
+              <button
+                type="button"
+                className="btn btn-outline"
                 onClick={() => {
                   const allIds = Array.from(new Set([...students.map(s => s.id), ...debts.map(d => d.studentId).filter(Boolean)]));
                   if (selectedManageStudents.length === allIds.length) setSelectedManageStudents([]);
@@ -2082,7 +2082,7 @@ const ExpenseDetail = ({ expenseId, onBack }) => {
                         }}
                       >
                         <label style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', cursor: 'pointer', flex: 1 }}>
-                          <input 
+                          <input
                             type="checkbox"
                             checked={isChecked}
                             onChange={(e) => {
@@ -2134,8 +2134,8 @@ const ExpenseDetail = ({ expenseId, onBack }) => {
             </div>
 
             <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>
-              <button onClick={handleSaveManageStudents} className="btn btn-primary" style={{ backgroundColor: 'var(--success)' }}><Save size={18}/> Guardar Cambios de Alumnos</button>
-              <button onClick={() => setIsManagingStudents(false)} className="btn btn-outline"><X size={18}/> Cancelar</button>
+              <button onClick={handleSaveManageStudents} className="btn btn-primary" style={{ backgroundColor: 'var(--success)' }}><Save size={18} /> Guardar Cambios de Alumnos</button>
+              <button onClick={() => setIsManagingStudents(false)} className="btn btn-outline"><X size={18} /> Cancelar</button>
             </div>
           </div>
         ) : (
@@ -2143,7 +2143,7 @@ const ExpenseDetail = ({ expenseId, onBack }) => {
             <div>
               <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginBottom: '0.5rem', flexWrap: 'wrap' }}>
                 <h2 style={{ color: 'var(--primary)', margin: 0 }}>{expense.title}</h2>
-                <button onClick={handleStartEdit} className="btn btn-outline" style={{ padding: '0.3rem', borderColor: 'var(--primary)', color: 'var(--primary)' }} title="Editar Cuota"><Edit2 size={16}/></button>
+                <button onClick={handleStartEdit} className="btn btn-outline" style={{ padding: '0.3rem', borderColor: 'var(--primary)', color: 'var(--primary)' }} title="Editar Cuota"><Edit2 size={16} /></button>
                 <button
                   type="button"
                   onClick={handleStartManageStudents}
@@ -2160,9 +2160,9 @@ const ExpenseDetail = ({ expenseId, onBack }) => {
                   }}
                   title="Agregar o quitar alumnos de esta cuota"
                 >
-                  <Users size={15}/> Agregar / Quitar Alumnos
+                  <Users size={15} /> Agregar / Quitar Alumnos
                 </button>
-                <button onClick={handleDeleteExpense} className="btn btn-outline" style={{ padding: '0.3rem', borderColor: 'rgba(239, 68, 68, 0.3)', color: 'var(--danger)' }} title="Eliminar Cuota"><Trash2 size={16}/></button>
+                <button onClick={handleDeleteExpense} className="btn btn-outline" style={{ padding: '0.3rem', borderColor: 'rgba(239, 68, 68, 0.3)', color: 'var(--danger)' }} title="Eliminar Cuota"><Trash2 size={16} /></button>
                 <button
                   type="button"
                   onClick={handleToggleVisibility}
@@ -2179,10 +2179,10 @@ const ExpenseDetail = ({ expenseId, onBack }) => {
                   }}
                   title="Haz clic para alternar si los apoderados pueden ver esta cuota en su portal"
                 >
-                  {expense.visibleInPortal !== false ? <Eye size={15}/> : <EyeOff size={15}/>}
+                  {expense.visibleInPortal !== false ? <Eye size={15} /> : <EyeOff size={15} />}
                   {expense.visibleInPortal !== false ? 'Visible en Portal' : 'Oculta en Portal'}
                 </button>
-                <button onClick={handleGenerateWhatsappReport} className="btn btn-outline" style={{ padding: '0.3rem', borderColor: '#25D366', color: '#25D366' }} title="Generar reporte WhatsApp de deudas"><MessageCircle size={16}/></button>
+                <button onClick={handleGenerateWhatsappReport} className="btn btn-outline" style={{ padding: '0.3rem', borderColor: '#25D366', color: '#25D366' }} title="Generar reporte WhatsApp de deudas"><MessageCircle size={16} /></button>
                 <button
                   onClick={handleCopyPendingApoderados}
                   className="btn btn-outline"
@@ -2198,7 +2198,7 @@ const ExpenseDetail = ({ expenseId, onBack }) => {
                   }}
                   title="Copiar al portapapeles: nombre de la cuota, monto y alumnos que no han pagado"
                 >
-                  {copiedPending ? <Check size={16}/> : <Copy size={16}/>}
+                  {copiedPending ? <Check size={16} /> : <Copy size={16} />}
                   {copiedPending ? '¡Copiado!' : 'Copiar pendientes'}
                 </button>
                 <button
@@ -2217,7 +2217,7 @@ const ExpenseDetail = ({ expenseId, onBack }) => {
                   }}
                   title="Descargar reporte PDF estilo Excel (Totales, Impagos o Pagados)"
                 >
-                  <Download size={16}/> Reporte PDF
+                  <Download size={16} /> Reporte PDF
                 </button>
                 <button
                   type="button"
@@ -2237,18 +2237,18 @@ const ExpenseDetail = ({ expenseId, onBack }) => {
                     transition: 'all 0.2s ease',
                     fontWeight: debtsWithBalance.length > 0 ? '600' : 'normal'
                   }}
-                  title={debtsWithBalance.length > 0 
-                    ? `Descontar saldo a favor automáticamente a los ${debtsWithBalance.length} apoderados con saldo disponible` 
+                  title={debtsWithBalance.length > 0
+                    ? `Descontar saldo a favor automáticamente a los ${debtsWithBalance.length} apoderados con saldo disponible`
                     : "No hay apoderados con saldo a favor pendiente en esta cuota"}
                 >
-                  <Sparkles size={16}/> Descontar Saldo a Favor {debtsWithBalance.length > 0 ? `(${debtsWithBalance.length})` : ''}
+                  <Sparkles size={16} /> Descontar Saldo a Favor {debtsWithBalance.length > 0 ? `(${debtsWithBalance.length})` : ''}
                 </button>
               </div>
               <p style={{ color: 'var(--text-muted)' }}>Emitido el: {expense.date}</p>
             </div>
             <div style={{ textAlign: 'right', display: 'flex', flexDirection: 'column', gap: '0.5rem', alignItems: 'flex-end' }}>
               <p style={{ fontSize: '1.25rem', fontWeight: 'bold', margin: 0 }}>Total a recaudar: {formatMoney(expense.totalAmount)}</p>
-              
+
               <div style={{ display: 'flex', gap: '1.5rem', marginTop: '0.5rem', backgroundColor: 'rgba(255,255,255,0.03)', padding: '1rem', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-color)' }}>
                 <div style={{ textAlign: 'center' }}>
                   <p style={{ margin: 0, fontSize: '0.85rem', color: 'var(--text-muted)' }}>Pagados completo</p>
@@ -2288,7 +2288,7 @@ const ExpenseDetail = ({ expenseId, onBack }) => {
 
             {/* Acciones Rápidas de Auditoría */}
             <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
-              <button 
+              <button
                 onClick={handleToggleAllAuditChecks}
                 className="btn btn-outline"
                 style={{ padding: '0.45rem 0.85rem', fontSize: '0.85rem', borderColor: '#8b5cf6', color: '#c4b5fd', display: 'flex', alignItems: 'center', gap: '0.3rem' }}
@@ -2296,7 +2296,7 @@ const ExpenseDetail = ({ expenseId, onBack }) => {
                 <CheckSquare size={15} />
                 {auditTickedCount === debts.length ? 'Desmarcar Todos' : 'Tickear Todos'}
               </button>
-              <button 
+              <button
                 onClick={handleAutoFillAudit}
                 className="btn btn-outline"
                 style={{ padding: '0.45rem 0.85rem', fontSize: '0.85rem', borderColor: 'var(--primary)', color: 'var(--primary)', display: 'flex', alignItems: 'center', gap: '0.3rem' }}
@@ -2305,7 +2305,7 @@ const ExpenseDetail = ({ expenseId, onBack }) => {
                 <Sparkles size={15} />
                 Copiar del Sistema
               </button>
-              <button 
+              <button
                 onClick={handleClearAudit}
                 className="btn btn-outline"
                 style={{ padding: '0.45rem 0.85rem', fontSize: '0.85rem', color: 'var(--danger)', borderColor: 'rgba(239, 68, 68, 0.3)', display: 'flex', alignItems: 'center', gap: '0.3rem' }}
@@ -2314,7 +2314,7 @@ const ExpenseDetail = ({ expenseId, onBack }) => {
                 <RotateCcw size={15} />
                 Limpiar
               </button>
-              <button 
+              <button
                 onClick={handleAcceptAllAudit}
                 className="btn btn-primary"
                 style={{ padding: '0.45rem 0.85rem', fontSize: '0.85rem', backgroundColor: '#8b5cf6', border: 'none', display: 'flex', alignItems: 'center', gap: '0.3rem', fontWeight: 'bold' }}
@@ -2346,11 +2346,11 @@ const ExpenseDetail = ({ expenseId, onBack }) => {
             </div>
 
             {/* Diferencia / Cuadratura */}
-            <div style={{ 
-              padding: '1rem', 
-              backgroundColor: auditDifference === 0 ? 'rgba(16, 185, 129, 0.1)' : 'rgba(239, 68, 68, 0.15)', 
-              borderRadius: 'var(--radius-md)', 
-              border: auditDifference === 0 ? '1px solid rgba(16, 185, 129, 0.3)' : '1px solid rgba(239, 68, 68, 0.4)' 
+            <div style={{
+              padding: '1rem',
+              backgroundColor: auditDifference === 0 ? 'rgba(16, 185, 129, 0.1)' : 'rgba(239, 68, 68, 0.15)',
+              borderRadius: 'var(--radius-md)',
+              border: auditDifference === 0 ? '1px solid rgba(16, 185, 129, 0.3)' : '1px solid rgba(239, 68, 68, 0.4)'
             }}>
               <span style={{ fontSize: '0.8rem', color: auditDifference === 0 ? 'var(--success)' : 'var(--danger)' }}>
                 Diferencia de Cuadratura
@@ -2379,7 +2379,7 @@ const ExpenseDetail = ({ expenseId, onBack }) => {
             {isAuditMode ? 'Lista de Alumnos (Modo Auditoría)' : 'Estado de los Alumnos'}
           </h4>
           {!isAuditMode && (
-            <select 
+            <select
               value={sortBy}
               onChange={(e) => setSortBy(e.target.value)}
               style={{ padding: '0.3rem 0.5rem', borderRadius: 'var(--radius-sm)', backgroundColor: 'rgba(255,255,255,0.05)', color: 'var(--text-main)', border: '1px solid var(--border-color)', fontSize: '0.85rem' }}
@@ -2396,14 +2396,14 @@ const ExpenseDetail = ({ expenseId, onBack }) => {
             <span style={{ fontSize: '0.9rem' }}>Marcar como pagado por:</span>
             <button onClick={() => handleBulkPayment('cash')} className="btn btn-primary" style={{ padding: '0.4rem 1rem', fontSize: '0.85rem' }}>Efectivo</button>
             <button onClick={() => handleBulkPayment('transfer')} className="btn btn-outline" style={{ padding: '0.4rem 1rem', fontSize: '0.85rem', color: 'var(--primary)', borderColor: 'var(--primary)' }}>Transferencia</button>
-            <button 
-              onClick={() => handleBulkPayWithBalance(selectedDebts)} 
-              className="btn btn-outline" 
-              style={{ 
-                padding: '0.4rem 1rem', 
-                fontSize: '0.85rem', 
-                color: 'var(--success)', 
-                borderColor: 'var(--success)', 
+            <button
+              onClick={() => handleBulkPayWithBalance(selectedDebts)}
+              className="btn btn-outline"
+              style={{
+                padding: '0.4rem 1rem',
+                fontSize: '0.85rem',
+                color: 'var(--success)',
+                borderColor: 'var(--success)',
                 backgroundColor: 'rgba(16, 185, 129, 0.08)',
                 display: 'inline-flex',
                 alignItems: 'center',
@@ -2411,7 +2411,7 @@ const ExpenseDetail = ({ expenseId, onBack }) => {
               }}
               title="Descontar saldo a favor a los alumnos seleccionados que tengan saldo disponible"
             >
-              <Sparkles size={15}/> Saldo a Favor
+              <Sparkles size={15} /> Saldo a Favor
             </button>
             <div style={{ borderLeft: '1px solid rgba(255,255,255,0.2)', height: '20px' }}></div>
             <button
@@ -2454,8 +2454,8 @@ const ExpenseDetail = ({ expenseId, onBack }) => {
               ) : (
                 <>
                   <th style={{ padding: '1rem', width: '40px' }}>
-                    <input 
-                      type="checkbox" 
+                    <input
+                      type="checkbox"
                       onChange={toggleSelectAll}
                       checked={debts.filter(d => d.status === 'pending' || d.status === 'partial').length > 0 && selectedDebts.length === debts.filter(d => d.status === 'pending' || d.status === 'partial').length}
                       disabled={debts.filter(d => d.status === 'pending' || d.status === 'partial').length === 0}
@@ -2477,407 +2477,407 @@ const ExpenseDetail = ({ expenseId, onBack }) => {
             {sortedDebts.map(debt => {
               const isExpanded = expandedDebts.includes(debt.id);
               const isAudited = !!auditChecks[debt.id];
-              const sysPaidAmt = debt.status === 'paid' 
+              const sysPaidAmt = debt.status === 'paid'
                 ? ((typeof debt.paidAmount === 'number' && debt.paidAmount > 0) ? debt.paidAmount : (debt.amount || 0))
                 : (debt.status === 'partial' ? (debt.paidAmount || 0) : 0);
 
-              const rowBgColor = isAuditMode 
+              const rowBgColor = isAuditMode
                 ? (isAudited ? 'rgba(139, 92, 246, 0.12)' : 'transparent')
-                : (selectedDebts.includes(debt.id) 
-                  ? 'rgba(99,102,241,0.1)' 
-                  : debt.status === 'paid' 
+                : (selectedDebts.includes(debt.id)
+                  ? 'rgba(99,102,241,0.1)'
+                  : debt.status === 'paid'
                     ? (isExpanded ? 'rgba(16, 185, 129, 0.08)' : 'rgba(16, 185, 129, 0.35)')
-                    : debt.status === 'partial' 
+                    : debt.status === 'partial'
                       ? (isExpanded ? 'rgba(234, 179, 8, 0.08)' : 'rgba(234, 179, 8, 0.35)')
                       : debt.status === 'pending'
                         ? (isExpanded ? 'rgba(239, 68, 68, 0.08)' : 'rgba(239, 68, 68, 0.35)')
                         : 'transparent');
 
               return (
-              <tr 
-                key={debt.id} 
-                onClick={(e) => toggleAccordionRow(debt.id, e)}
-                className={isExpanded ? 'expanded' : ''}
-                style={{ 
-                  borderBottom: '1px solid var(--border-color)', 
-                  backgroundColor: rowBgColor, 
-                  transition: 'background-color 0.2s',
-                  borderLeft: isAuditMode && isAudited ? '4px solid #8b5cf6' : 'none'
-                }}
-              >
-                {isAuditMode ? (
-                  /* Celdas de Auditoría */
-                  <>
-                    <td style={{ padding: '1rem', textAlign: 'center' }}>
-                      <button 
-                        type="button"
-                        onClick={(e) => { e.stopPropagation(); handleToggleAuditCheck(debt.id); }}
-                        style={{
-                          background: isAudited ? 'rgba(139, 92, 246, 0.3)' : 'rgba(255,255,255,0.05)',
-                          border: isAudited ? '2px solid #8b5cf6' : '1px solid var(--border-color)',
-                          color: isAudited ? '#c4b5fd' : 'var(--text-muted)',
-                          borderRadius: '6px',
-                          width: '30px',
-                          height: '30px',
-                          display: 'inline-flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          cursor: 'pointer',
-                          transition: 'all 0.2s'
-                        }}
-                        title={isAudited ? 'Desmarcar tick' : 'Marcar como verificado'}
-                      >
-                        {isAudited ? <Check size={18} /> : null}
-                      </button>
-                    </td>
+                <tr
+                  key={debt.id}
+                  onClick={(e) => toggleAccordionRow(debt.id, e)}
+                  className={isExpanded ? 'expanded' : ''}
+                  style={{
+                    borderBottom: '1px solid var(--border-color)',
+                    backgroundColor: rowBgColor,
+                    transition: 'background-color 0.2s',
+                    borderLeft: isAuditMode && isAudited ? '4px solid #8b5cf6' : 'none'
+                  }}
+                >
+                  {isAuditMode ? (
+                    /* Celdas de Auditoría */
+                    <>
+                      <td style={{ padding: '1rem', textAlign: 'center' }}>
+                        <button
+                          type="button"
+                          onClick={(e) => { e.stopPropagation(); handleToggleAuditCheck(debt.id); }}
+                          style={{
+                            background: isAudited ? 'rgba(139, 92, 246, 0.3)' : 'rgba(255,255,255,0.05)',
+                            border: isAudited ? '2px solid #8b5cf6' : '1px solid var(--border-color)',
+                            color: isAudited ? '#c4b5fd' : 'var(--text-muted)',
+                            borderRadius: '6px',
+                            width: '30px',
+                            height: '30px',
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            cursor: 'pointer',
+                            transition: 'all 0.2s'
+                          }}
+                          title={isAudited ? 'Desmarcar tick' : 'Marcar como verificado'}
+                        >
+                          {isAudited ? <Check size={18} /> : null}
+                        </button>
+                      </td>
 
-                    <td style={{ padding: '1rem', fontWeight: '500' }}>
-                      {(() => {
-                        const student = students.find(s => s.id === debt.studentId);
-                        return (
-                          <div>
-                            {student ? `${student.listNumber || '-'}. ${formatStudentName(student)}` : debt.studentName}
-                            <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.15rem' }}>
-                              {(() => {
-                                const emails = student?.apoderadoEmails?.length > 0 ? student.apoderadoEmails : (student?.apoderadoEmail ? [student.apoderadoEmail] : (debt.apoderadoEmails?.length > 0 ? debt.apoderadoEmails : (debt.apoderadoEmail ? [debt.apoderadoEmail] : [])));
-                                if (!emails || emails.length === 0) return 'Sin apoderado';
-                                return (
-                                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
-                                    {emails.map((email, idx) => (
-                                      <div key={idx}>
-                                        <span style={{ color: 'var(--text-main)', fontWeight: '500' }}>
-                                          {usersMap[email] || 'Sin registrar'}
-                                        </span>
-                                        <br />
-                                        <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
-                                          {email}
-                                        </span>
-                                      </div>
-                                    ))}
-                                  </div>
-                                );
-                              })()}
-                            </div>
-                          </div>
-                        );
-                      })()}
-                    </td>
-
-                    <td style={{ padding: '1rem' }}>
-                      {debt.status === 'paid' && (
-                        <span style={{ padding: '0.2rem 0.6rem', borderRadius: '1rem', fontSize: '0.8rem', backgroundColor: 'rgba(16, 185, 129, 0.2)', color: 'var(--success)', display: 'inline-flex', alignItems: 'center', gap: '0.25rem' }}>
-                          <CheckCircle size={13}/> Pagado
-                        </span>
-                      )}
-                      {debt.status === 'review' && (
-                        <span style={{ padding: '0.2rem 0.6rem', borderRadius: '1rem', fontSize: '0.8rem', backgroundColor: 'rgba(245, 158, 11, 0.2)', color: 'var(--warning)', display: 'inline-flex', alignItems: 'center', gap: '0.25rem' }}>
-                          <Clock size={13}/> En Revisión
-                        </span>
-                      )}
-                      {debt.status === 'partial' && (
-                        <span style={{ padding: '0.2rem 0.6rem', borderRadius: '1rem', fontSize: '0.8rem', backgroundColor: 'rgba(234, 179, 8, 0.2)', color: '#eab308', display: 'inline-flex', alignItems: 'center', gap: '0.25rem' }}>
-                          <Clock size={13}/> Parcial
-                        </span>
-                      )}
-                      {debt.status === 'pending' && (
-                        <span style={{ padding: '0.2rem 0.6rem', borderRadius: '1rem', fontSize: '0.8rem', backgroundColor: 'rgba(239, 68, 68, 0.2)', color: 'var(--danger)', display: 'inline-flex', alignItems: 'center', gap: '0.25rem' }}>
-                          <XCircle size={13}/> Pendiente
-                        </span>
-                      )}
-                    </td>
-
-                    <td style={{ padding: '1rem', fontWeight: 'bold', color: sysPaidAmt > 0 ? 'var(--success)' : 'var(--text-muted)' }}>
-                      {formatMoney(sysPaidAmt)}
-                    </td>
-
-                    <td style={{ padding: '1rem' }}>
-                      <input 
-                        type="number"
-                        className="input-field"
-                        placeholder="$ 0"
-                        value={auditManualAmounts[debt.id] ?? ''}
-                        onChange={(e) => handleAuditManualAmountChange(debt.id, e.target.value)}
-                        onClick={(e) => e.stopPropagation()}
-                        style={{
-                          width: '120px',
-                          padding: '0.4rem 0.6rem',
-                          fontSize: '0.9rem',
-                          fontWeight: 'bold',
-                          borderColor: isAudited ? '#8b5cf6' : 'var(--border-color)',
-                          backgroundColor: 'rgba(15, 23, 42, 0.8)'
-                        }}
-                      />
-                    </td>
-
-                    <td style={{ padding: '1rem' }}>
-                      {(() => {
-                        const manualVal = parseFloat(auditManualAmounts[debt.id]);
-                        if (isNaN(manualVal)) {
-                          return <span style={{ color: 'var(--text-muted)', fontSize: '0.8rem' }}>Sin ingresar</span>;
-                        }
-                        const diff = manualVal - sysPaidAmt;
-                        if (diff === 0) {
+                      <td style={{ padding: '1rem', fontWeight: '500' }}>
+                        {(() => {
+                          const student = students.find(s => s.id === debt.studentId);
                           return (
-                            <span style={{ 
-                              fontSize: '0.75rem', 
-                              padding: '0.2rem 0.5rem', 
-                              borderRadius: '10px', 
-                              backgroundColor: 'rgba(16, 185, 129, 0.15)', 
-                              color: 'var(--success)',
+                            <div>
+                              {student ? `${student.listNumber || '-'}. ${formatStudentName(student)}` : debt.studentName}
+                              <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.15rem' }}>
+                                {(() => {
+                                  const emails = student?.apoderadoEmails?.length > 0 ? student.apoderadoEmails : (student?.apoderadoEmail ? [student.apoderadoEmail] : (debt.apoderadoEmails?.length > 0 ? debt.apoderadoEmails : (debt.apoderadoEmail ? [debt.apoderadoEmail] : [])));
+                                  if (!emails || emails.length === 0) return 'Sin apoderado';
+                                  return (
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
+                                      {emails.map((email, idx) => (
+                                        <div key={idx}>
+                                          <span style={{ color: 'var(--text-main)', fontWeight: '500' }}>
+                                            {usersMap[email] || 'Sin registrar'}
+                                          </span>
+                                          <br />
+                                          <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                                            {email}
+                                          </span>
+                                        </div>
+                                      ))}
+                                    </div>
+                                  );
+                                })()}
+                              </div>
+                            </div>
+                          );
+                        })()}
+                      </td>
+
+                      <td style={{ padding: '1rem' }}>
+                        {debt.status === 'paid' && (
+                          <span style={{ padding: '0.2rem 0.6rem', borderRadius: '1rem', fontSize: '0.8rem', backgroundColor: 'rgba(16, 185, 129, 0.2)', color: 'var(--success)', display: 'inline-flex', alignItems: 'center', gap: '0.25rem' }}>
+                            <CheckCircle size={13} /> Pagado
+                          </span>
+                        )}
+                        {debt.status === 'review' && (
+                          <span style={{ padding: '0.2rem 0.6rem', borderRadius: '1rem', fontSize: '0.8rem', backgroundColor: 'rgba(245, 158, 11, 0.2)', color: 'var(--warning)', display: 'inline-flex', alignItems: 'center', gap: '0.25rem' }}>
+                            <Clock size={13} /> En Revisión
+                          </span>
+                        )}
+                        {debt.status === 'partial' && (
+                          <span style={{ padding: '0.2rem 0.6rem', borderRadius: '1rem', fontSize: '0.8rem', backgroundColor: 'rgba(234, 179, 8, 0.2)', color: '#eab308', display: 'inline-flex', alignItems: 'center', gap: '0.25rem' }}>
+                            <Clock size={13} /> Parcial
+                          </span>
+                        )}
+                        {debt.status === 'pending' && (
+                          <span style={{ padding: '0.2rem 0.6rem', borderRadius: '1rem', fontSize: '0.8rem', backgroundColor: 'rgba(239, 68, 68, 0.2)', color: 'var(--danger)', display: 'inline-flex', alignItems: 'center', gap: '0.25rem' }}>
+                            <XCircle size={13} /> Pendiente
+                          </span>
+                        )}
+                      </td>
+
+                      <td style={{ padding: '1rem', fontWeight: 'bold', color: sysPaidAmt > 0 ? 'var(--success)' : 'var(--text-muted)' }}>
+                        {formatMoney(sysPaidAmt)}
+                      </td>
+
+                      <td style={{ padding: '1rem' }}>
+                        <input
+                          type="number"
+                          className="input-field"
+                          placeholder="$ 0"
+                          value={auditManualAmounts[debt.id] ?? ''}
+                          onChange={(e) => handleAuditManualAmountChange(debt.id, e.target.value)}
+                          onClick={(e) => e.stopPropagation()}
+                          style={{
+                            width: '120px',
+                            padding: '0.4rem 0.6rem',
+                            fontSize: '0.9rem',
+                            fontWeight: 'bold',
+                            borderColor: isAudited ? '#8b5cf6' : 'var(--border-color)',
+                            backgroundColor: 'rgba(15, 23, 42, 0.8)'
+                          }}
+                        />
+                      </td>
+
+                      <td style={{ padding: '1rem' }}>
+                        {(() => {
+                          const manualVal = parseFloat(auditManualAmounts[debt.id]);
+                          if (isNaN(manualVal)) {
+                            return <span style={{ color: 'var(--text-muted)', fontSize: '0.8rem' }}>Sin ingresar</span>;
+                          }
+                          const diff = manualVal - sysPaidAmt;
+                          if (diff === 0) {
+                            return (
+                              <span style={{
+                                fontSize: '0.75rem',
+                                padding: '0.2rem 0.5rem',
+                                borderRadius: '10px',
+                                backgroundColor: 'rgba(16, 185, 129, 0.15)',
+                                color: 'var(--success)',
+                                fontWeight: 'bold',
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '0.2rem'
+                              }}>
+                                <Check size={13} /> OK ($0)
+                              </span>
+                            );
+                          }
+                          return (
+                            <span style={{
+                              fontSize: '0.75rem',
+                              padding: '0.2rem 0.5rem',
+                              borderRadius: '10px',
+                              backgroundColor: 'rgba(239, 68, 68, 0.2)',
+                              color: 'var(--danger)',
                               fontWeight: 'bold',
                               display: 'inline-flex',
                               alignItems: 'center',
                               gap: '0.2rem'
                             }}>
-                              <Check size={13} /> OK ($0)
+                              <AlertTriangle size={13} /> {diff > 0 ? `+${formatMoney(diff)}` : formatMoney(diff)}
                             </span>
                           );
-                        }
-                        return (
-                          <span style={{ 
-                            fontSize: '0.75rem', 
-                            padding: '0.2rem 0.5rem', 
-                            borderRadius: '10px', 
-                            backgroundColor: 'rgba(239, 68, 68, 0.2)', 
-                            color: 'var(--danger)',
-                            fontWeight: 'bold',
-                            display: 'inline-flex',
-                            alignItems: 'center',
-                            gap: '0.2rem'
-                          }}>
-                            <AlertTriangle size={13} /> {diff > 0 ? `+${formatMoney(diff)}` : formatMoney(diff)}
+                        })()}
+                      </td>
+
+                      <td style={{ padding: '1rem' }}>
+                        {debt.receiptUrl ? (
+                          <button
+                            onClick={(e) => { e.stopPropagation(); setSelectedReceipt(debt.receiptUrl); }}
+                            className="btn btn-outline"
+                            style={{ padding: '0.3rem 0.6rem', fontSize: '0.8rem' }}
+                          >
+                            <FileText size={13} /> Ver
+                          </button>
+                        ) : '-'}
+                      </td>
+
+                      <td style={{ padding: '1rem' }}>
+                        <button
+                          onClick={(e) => { e.stopPropagation(); handleToggleAuditCheck(debt.id); }}
+                          className="btn btn-outline"
+                          style={{ padding: '0.3rem 0.6rem', fontSize: '0.8rem', borderColor: isAudited ? 'var(--success)' : 'var(--border-color)', color: isAudited ? 'var(--success)' : 'var(--text-muted)' }}
+                        >
+                          {isAudited ? 'Listo' : 'Verificar'}
+                        </button>
+                      </td>
+                    </>
+                  ) : (
+                    /* Celdas Estándar */
+                    <>
+                      <td style={{ padding: '1rem' }}>
+                        {(debt.status === 'pending' || debt.status === 'partial') && (
+                          <input
+                            type="checkbox"
+                            checked={selectedDebts.includes(debt.id)}
+                            onChange={() => toggleSelectDebt(debt.id)}
+                            style={{ cursor: 'pointer' }}
+                          />
+                        )}
+                      </td>
+                      <td style={{ padding: '1rem', fontWeight: '500' }}>
+                        {(() => {
+                          const student = students.find(s => s.id === debt.studentId);
+                          return (
+                            <div>
+                              {student ? `${student.listNumber || '-'}. ${formatStudentName(student)}` : debt.studentName}
+                              {student && student.balance > 0 && (
+                                <div style={{ fontSize: '0.75rem', color: 'var(--success)', marginTop: '0.2rem', display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
+                                  <span>Saldo a favor:</span>
+                                  <strong>{formatMoney(student.balance)}</strong>
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })()}
+                      </td>
+
+                      <td style={{ padding: '1rem' }}>
+                        {debt.status === 'paid' && (
+                          <span style={{ padding: '0.25rem 0.75rem', borderRadius: '1rem', fontSize: '0.85rem', backgroundColor: 'rgba(16, 185, 129, 0.2)', color: 'var(--success)', display: 'inline-flex', alignItems: 'center', gap: '0.3rem' }}>
+                            <CheckCircle size={14} /> Pagado
                           </span>
-                        );
-                      })()}
-                    </td>
+                        )}
+                        {debt.status === 'review' && (
+                          <span style={{ padding: '0.25rem 0.75rem', borderRadius: '1rem', fontSize: '0.85rem', backgroundColor: 'rgba(245, 158, 11, 0.2)', color: 'var(--warning)', display: 'inline-flex', alignItems: 'center', gap: '0.3rem' }}>
+                            <Clock size={14} /> En Revisión
+                          </span>
+                        )}
+                        {debt.status === 'partial' && (
+                          <span style={{ padding: '0.25rem 0.75rem', borderRadius: '1rem', fontSize: '0.85rem', backgroundColor: 'rgba(234, 179, 8, 0.2)', color: '#eab308', display: 'inline-flex', alignItems: 'center', gap: '0.3rem', whiteSpace: 'nowrap' }}>
+                            <Clock size={14} /> Pago Parcial
+                          </span>
+                        )}
+                        {debt.status === 'pending' && (
+                          <span style={{ padding: '0.25rem 0.75rem', borderRadius: '1rem', fontSize: '0.85rem', backgroundColor: 'rgba(239, 68, 68, 0.2)', color: 'var(--danger)', display: 'inline-flex', alignItems: 'center', gap: '0.3rem' }}>
+                            <XCircle size={14} /> Pendiente
+                          </span>
+                        )}
+                      </td>
 
-                    <td style={{ padding: '1rem' }}>
-                      {debt.receiptUrl ? (
-                        <button 
-                          onClick={(e) => { e.stopPropagation(); setSelectedReceipt(debt.receiptUrl); }} 
-                          className="btn btn-outline" 
-                          style={{ padding: '0.3rem 0.6rem', fontSize: '0.8rem' }}
-                        >
-                          <FileText size={13}/> Ver
-                        </button>
-                      ) : '-'}
-                    </td>
+                      <td style={{ padding: '1rem', fontWeight: 'bold' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                          {formatMoney(debt.amount)}
+                          <button
+                            onClick={() => handleEditDebtAmount(debt.id)}
+                            style={{ background: 'none', border: 'none', color: 'var(--primary)', cursor: 'pointer', padding: '0.2rem' }}
+                            title="Modificar Monto A Cobrar"
+                          >
+                            <Edit2 size={14} />
+                          </button>
+                        </div>
+                      </td>
 
-                    <td style={{ padding: '1rem' }}>
-                      <button
-                        onClick={(e) => { e.stopPropagation(); handleToggleAuditCheck(debt.id); }}
-                        className="btn btn-outline"
-                        style={{ padding: '0.3rem 0.6rem', fontSize: '0.8rem', borderColor: isAudited ? 'var(--success)' : 'var(--border-color)', color: isAudited ? 'var(--success)' : 'var(--text-muted)' }}
-                      >
-                        {isAudited ? 'Listo' : 'Verificar'}
-                      </button>
-                    </td>
-                  </>
-                ) : (
-                  /* Celdas Estándar */
-                  <>
-                    <td style={{ padding: '1rem' }}>
-                      {(debt.status === 'pending' || debt.status === 'partial') && (
-                        <input 
-                          type="checkbox" 
-                          checked={selectedDebts.includes(debt.id)}
-                          onChange={() => toggleSelectDebt(debt.id)}
-                          style={{ cursor: 'pointer' }}
-                        />
-                      )}
-                    </td>
-                    <td style={{ padding: '1rem', fontWeight: '500' }}>
-                      {(() => {
-                        const student = students.find(s => s.id === debt.studentId);
-                        return (
-                          <div>
-                            {student ? `${student.listNumber || '-'}. ${formatStudentName(student)}` : debt.studentName}
-                            {student && student.balance > 0 && (
-                              <div style={{ fontSize: '0.75rem', color: 'var(--success)', marginTop: '0.2rem', display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
-                                <span>Saldo a favor:</span>
-                                <strong>{formatMoney(student.balance)}</strong>
-                              </div>
-                            )}
+                      <td style={{ padding: '1rem', color: 'var(--success)' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                          {debt.paidAmount ? `+${formatMoney(debt.paidAmount)}` : '-'}
+                          <button
+                            type="button"
+                            onClick={(e) => { e.stopPropagation(); handleEditPaidAmount(debt.id); }}
+                            style={{ background: 'none', border: 'none', color: 'var(--success)', cursor: 'pointer', padding: '0.2rem' }}
+                            title={debt.paidAmount ? "Modificar Monto Informado" : "Ingresar Monto Personalizado / Parcial"}
+                          >
+                            <Edit2 size={14} />
+                          </button>
+                        </div>
+                      </td>
+
+                      <td style={{ padding: '1rem', color: 'var(--warning)', fontWeight: 'bold' }}>
+                        {debt.paidAmount > 0 && debt.paidAmount < debt.amount ? (
+                          formatMoney(debt.amount - debt.paidAmount)
+                        ) : (
+                          '-'
+                        )}
+                      </td>
+
+                      <td style={{ padding: '1rem' }}>
+                        {debt.receiptUrl ? (
+                          <button
+                            type="button"
+                            onClick={(e) => { e.stopPropagation(); setSelectedReceipt(debt.receiptUrl); }}
+                            className="btn btn-outline"
+                            style={{ padding: '0.3rem 0.6rem', fontSize: '0.85rem' }}
+                          >
+                            <FileText size={14} /> Ver Archivo
+                          </button>
+                        ) : '-'}
+                      </td>
+
+                      <td style={{ padding: '1rem' }}>
+                        {debt.status === 'review' ? (
+                          <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', alignItems: 'center' }}>
+                            <button
+                              type="button"
+                              onClick={(e) => { e.stopPropagation(); handleApprovePayment(debt.id); }}
+                              className="btn btn-primary"
+                              style={{ padding: '0.3rem 0.6rem', fontSize: '0.85rem', backgroundColor: 'var(--success)' }}
+                              title="Aprobar Pago"
+                            >
+                              <CheckCircle size={16} /> Aprobar
+                            </button>
+                            <button
+                              type="button"
+                              onClick={(e) => { e.stopPropagation(); handleRejectPayment(debt.id); }}
+                              className="btn btn-outline"
+                              style={{ padding: '0.3rem 0.6rem', fontSize: '0.85rem', color: 'var(--danger)', borderColor: 'rgba(239, 68, 68, 0.3)' }}
+                              title="Rechazar Comprobante"
+                            >
+                              <XCircle size={16} /> Rechazar
+                            </button>
+                            <button
+                              type="button"
+                              onClick={(e) => { e.stopPropagation(); handleRemoveSingleStudentDebt(debt); }}
+                              className="btn btn-outline"
+                              style={{ padding: '0.3rem 0.55rem', fontSize: '0.8rem', color: 'var(--danger)', borderColor: 'rgba(239, 68, 68, 0.35)', display: 'inline-flex', alignItems: 'center', gap: '0.25rem' }}
+                              title="Quitar alumno de esta cuota"
+                            >
+                              <UserMinus size={14} /> Quitar
+                            </button>
                           </div>
-                        );
-                      })()}
-                    </td>
-                    
-                    <td style={{ padding: '1rem' }}>
-                      {debt.status === 'paid' && (
-                        <span style={{ padding: '0.25rem 0.75rem', borderRadius: '1rem', fontSize: '0.85rem', backgroundColor: 'rgba(16, 185, 129, 0.2)', color: 'var(--success)', display: 'inline-flex', alignItems: 'center', gap: '0.3rem' }}>
-                          <CheckCircle size={14}/> Pagado
-                        </span>
-                      )}
-                      {debt.status === 'review' && (
-                        <span style={{ padding: '0.25rem 0.75rem', borderRadius: '1rem', fontSize: '0.85rem', backgroundColor: 'rgba(245, 158, 11, 0.2)', color: 'var(--warning)', display: 'inline-flex', alignItems: 'center', gap: '0.3rem' }}>
-                          <Clock size={14}/> En Revisión
-                        </span>
-                      )}
-                      {debt.status === 'partial' && (
-                        <span style={{ padding: '0.25rem 0.75rem', borderRadius: '1rem', fontSize: '0.85rem', backgroundColor: 'rgba(234, 179, 8, 0.2)', color: '#eab308', display: 'inline-flex', alignItems: 'center', gap: '0.3rem', whiteSpace: 'nowrap' }}>
-                          <Clock size={14}/> Pago Parcial
-                        </span>
-                      )}
-                      {debt.status === 'pending' && (
-                        <span style={{ padding: '0.25rem 0.75rem', borderRadius: '1rem', fontSize: '0.85rem', backgroundColor: 'rgba(239, 68, 68, 0.2)', color: 'var(--danger)', display: 'inline-flex', alignItems: 'center', gap: '0.3rem' }}>
-                          <XCircle size={14}/> Pendiente
-                        </span>
-                      )}
-                    </td>
-
-                    <td style={{ padding: '1rem', fontWeight: 'bold' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                        {formatMoney(debt.amount)}
-                        <button 
-                          onClick={() => handleEditDebtAmount(debt.id)}
-                          style={{ background: 'none', border: 'none', color: 'var(--primary)', cursor: 'pointer', padding: '0.2rem' }}
-                          title="Modificar Monto A Cobrar"
-                        >
-                          <Edit2 size={14} />
-                        </button>
-                      </div>
-                    </td>
-                    
-                    <td style={{ padding: '1rem', color: 'var(--success)' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                        {debt.paidAmount ? `+${formatMoney(debt.paidAmount)}` : '-'}
-                        <button 
-                          type="button"
-                          onClick={(e) => { e.stopPropagation(); handleEditPaidAmount(debt.id); }}
-                          style={{ background: 'none', border: 'none', color: 'var(--success)', cursor: 'pointer', padding: '0.2rem' }}
-                          title={debt.paidAmount ? "Modificar Monto Informado" : "Ingresar Monto Personalizado / Parcial"}
-                        >
-                          <Edit2 size={14} />
-                        </button>
-                      </div>
-                    </td>
-
-                    <td style={{ padding: '1rem', color: 'var(--warning)', fontWeight: 'bold' }}>
-                      {debt.paidAmount > 0 && debt.paidAmount < debt.amount ? (
-                        formatMoney(debt.amount - debt.paidAmount)
-                      ) : (
-                        '-'
-                      )}
-                    </td>
-
-                    <td style={{ padding: '1rem' }}>
-                      {debt.receiptUrl ? (
-                        <button 
-                          type="button"
-                          onClick={(e) => { e.stopPropagation(); setSelectedReceipt(debt.receiptUrl); }} 
-                          className="btn btn-outline" 
-                          style={{ padding: '0.3rem 0.6rem', fontSize: '0.85rem' }}
-                        >
-                          <FileText size={14}/> Ver Archivo
-                        </button>
-                      ) : '-'}
-                    </td>
-
-                    <td style={{ padding: '1rem' }}>
-                      {debt.status === 'review' ? (
-                        <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', alignItems: 'center' }}>
-                          <button 
-                            type="button"
-                            onClick={(e) => { e.stopPropagation(); handleApprovePayment(debt.id); }}
-                            className="btn btn-primary" 
-                            style={{ padding: '0.3rem 0.6rem', fontSize: '0.85rem', backgroundColor: 'var(--success)' }}
-                            title="Aprobar Pago"
-                          >
-                            <CheckCircle size={16} /> Aprobar
-                          </button>
-                          <button 
-                            type="button"
-                            onClick={(e) => { e.stopPropagation(); handleRejectPayment(debt.id); }}
-                            className="btn btn-outline" 
-                            style={{ padding: '0.3rem 0.6rem', fontSize: '0.85rem', color: 'var(--danger)', borderColor: 'rgba(239, 68, 68, 0.3)' }}
-                            title="Rechazar Comprobante"
-                          >
-                            <XCircle size={16} /> Rechazar
-                          </button>
-                          <button
-                            type="button"
-                            onClick={(e) => { e.stopPropagation(); handleRemoveSingleStudentDebt(debt); }}
-                            className="btn btn-outline"
-                            style={{ padding: '0.3rem 0.55rem', fontSize: '0.8rem', color: 'var(--danger)', borderColor: 'rgba(239, 68, 68, 0.35)', display: 'inline-flex', alignItems: 'center', gap: '0.25rem' }}
-                            title="Quitar alumno de esta cuota"
-                          >
-                            <UserMinus size={14} /> Quitar
-                          </button>
-                        </div>
-                      ) : (debt.status === 'pending' || debt.status === 'partial') ? (
-                        <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', alignItems: 'center' }}>
-                          <button 
-                            type="button"
-                            onClick={(e) => { e.stopPropagation(); handleManualPayment(debt.id, 'cash'); }}
-                            className="btn btn-outline" 
-                            style={{ padding: '0.3rem 0.6rem', fontSize: '0.8rem', color: 'var(--primary)', borderColor: 'rgba(99, 102, 241, 0.3)' }}
-                            title="Registrar pago completo en Efectivo inmediatamente"
-                          >
-                             Efectivo
-                          </button>
-                          <button 
-                            type="button"
-                            onClick={(e) => { e.stopPropagation(); handleManualPayment(debt.id, 'transfer'); }}
-                            className="btn btn-outline" 
-                            style={{ padding: '0.3rem 0.6rem', fontSize: '0.8rem', color: 'var(--primary)', borderColor: 'rgba(99, 102, 241, 0.3)' }}
-                            title="Registrar pago completo con Transferencia inmediatamente"
-                          >
-                             Transf.
-                          </button>
-                          {(() => {
-                            const student = students.find(s => s.id === debt.studentId || s.name === debt.studentName);
-                            if (student && student.balance > 0) {
-                              return (
-                                <button 
-                                  type="button"
-                                  onClick={(e) => { e.stopPropagation(); handlePayWithBalance(debt.id); }}
-                                  className="btn btn-primary" 
-                                  style={{ padding: '0.3rem 0.6rem', fontSize: '0.8rem', backgroundColor: 'var(--success)', border: 'none' }}
-                                  title={`Usar saldo a favor de ${formatMoney(student.balance)}`}
-                                >
-                                   Usar Saldo
-                                </button>
-                              );
-                            }
-                            return null;
-                          })()}
-                          <button
-                            type="button"
-                            onClick={(e) => { e.stopPropagation(); handleRemoveSingleStudentDebt(debt); }}
-                            className="btn btn-outline"
-                            style={{ padding: '0.3rem 0.55rem', fontSize: '0.8rem', color: 'var(--danger)', borderColor: 'rgba(239, 68, 68, 0.35)', display: 'inline-flex', alignItems: 'center', gap: '0.25rem' }}
-                            title="Quitar alumno de esta cuota"
-                          >
-                            <UserMinus size={14} /> Quitar
-                          </button>
-                        </div>
-                      ) : (
-                        <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', alignItems: 'center' }}>
-                          <button 
-                            type="button"
-                            onClick={(e) => { e.stopPropagation(); handleCancelPayment(debt.id); }}
-                            className="btn btn-outline" 
-                            style={{ padding: '0.3rem 0.6rem', fontSize: '0.8rem', color: 'var(--danger)', borderColor: 'rgba(239, 68, 68, 0.3)' }}
-                            title="Cancelar pago registrado"
-                          >
-                            Cancelar Pago
-                          </button>
-                          <button
-                            type="button"
-                            onClick={(e) => { e.stopPropagation(); handleRemoveSingleStudentDebt(debt); }}
-                            className="btn btn-outline"
-                            style={{ padding: '0.3rem 0.55rem', fontSize: '0.8rem', color: 'var(--danger)', borderColor: 'rgba(239, 68, 68, 0.35)', display: 'inline-flex', alignItems: 'center', gap: '0.25rem' }}
-                            title="Quitar alumno de esta cuota"
-                          >
-                            <UserMinus size={14} /> Quitar
-                          </button>
-                        </div>
-                      )}
-                    </td>
-                  </>
-                )}
-              </tr>
+                        ) : (debt.status === 'pending' || debt.status === 'partial') ? (
+                          <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', alignItems: 'center' }}>
+                            <button
+                              type="button"
+                              onClick={(e) => { e.stopPropagation(); handleManualPayment(debt.id, 'cash'); }}
+                              className="btn btn-outline"
+                              style={{ padding: '0.3rem 0.6rem', fontSize: '0.8rem', color: 'var(--primary)', borderColor: 'rgba(99, 102, 241, 0.3)' }}
+                              title="Registrar pago completo en Efectivo inmediatamente"
+                            >
+                              Efectivo
+                            </button>
+                            <button
+                              type="button"
+                              onClick={(e) => { e.stopPropagation(); handleManualPayment(debt.id, 'transfer'); }}
+                              className="btn btn-outline"
+                              style={{ padding: '0.3rem 0.6rem', fontSize: '0.8rem', color: 'var(--primary)', borderColor: 'rgba(99, 102, 241, 0.3)' }}
+                              title="Registrar pago completo con Transferencia inmediatamente"
+                            >
+                              Transf.
+                            </button>
+                            {(() => {
+                              const student = students.find(s => s.id === debt.studentId || s.name === debt.studentName);
+                              if (student && student.balance > 0) {
+                                return (
+                                  <button
+                                    type="button"
+                                    onClick={(e) => { e.stopPropagation(); handlePayWithBalance(debt.id); }}
+                                    className="btn btn-primary"
+                                    style={{ padding: '0.3rem 0.6rem', fontSize: '0.8rem', backgroundColor: 'var(--success)', border: 'none' }}
+                                    title={`Usar saldo a favor de ${formatMoney(student.balance)}`}
+                                  >
+                                    Usar Saldo
+                                  </button>
+                                );
+                              }
+                              return null;
+                            })()}
+                            <button
+                              type="button"
+                              onClick={(e) => { e.stopPropagation(); handleRemoveSingleStudentDebt(debt); }}
+                              className="btn btn-outline"
+                              style={{ padding: '0.3rem 0.55rem', fontSize: '0.8rem', color: 'var(--danger)', borderColor: 'rgba(239, 68, 68, 0.35)', display: 'inline-flex', alignItems: 'center', gap: '0.25rem' }}
+                              title="Quitar alumno de esta cuota"
+                            >
+                              <UserMinus size={14} /> Quitar
+                            </button>
+                          </div>
+                        ) : (
+                          <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', alignItems: 'center' }}>
+                            <button
+                              type="button"
+                              onClick={(e) => { e.stopPropagation(); handleCancelPayment(debt.id); }}
+                              className="btn btn-outline"
+                              style={{ padding: '0.3rem 0.6rem', fontSize: '0.8rem', color: 'var(--danger)', borderColor: 'rgba(239, 68, 68, 0.3)' }}
+                              title="Cancelar pago registrado"
+                            >
+                              Cancelar Pago
+                            </button>
+                            <button
+                              type="button"
+                              onClick={(e) => { e.stopPropagation(); handleRemoveSingleStudentDebt(debt); }}
+                              className="btn btn-outline"
+                              style={{ padding: '0.3rem 0.55rem', fontSize: '0.8rem', color: 'var(--danger)', borderColor: 'rgba(239, 68, 68, 0.35)', display: 'inline-flex', alignItems: 'center', gap: '0.25rem' }}
+                              title="Quitar alumno de esta cuota"
+                            >
+                              <UserMinus size={14} /> Quitar
+                            </button>
+                          </div>
+                        )}
+                      </td>
+                    </>
+                  )}
+                </tr>
               );
             })}
           </tbody>

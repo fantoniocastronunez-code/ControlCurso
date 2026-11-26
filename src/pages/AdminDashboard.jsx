@@ -133,8 +133,9 @@ const AdminDashboard = () => {
       const courseExpenseIds = new Set(expensesSnap.docs.map(d => d.id));
       const courseStudentIds = new Set(studentsSnap.docs.map(d => d.id));
       const expensesDataMap = new Map(expensesSnap.docs.map(d => [d.id, d.data()]));
+      const studentsDataMap = new Map(studentsSnap.docs.map(d => [d.id, d.data()]));
 
-      // Filter debts belonging to this course and auto-repair missing courseId / paymentMethod / paidAmount
+      // Filter debts belonging to this course and auto-repair missing courseId / paymentMethod / paidAmount / apoderadoEmails
       const courseDebts = [];
       allDebtsSnap.docs.forEach(d => {
         const raw = { id: d.id, ...d.data() };
@@ -143,7 +144,23 @@ const AdminDashboard = () => {
         if (!belongsToCourse) return;
 
         const parentExp = expensesDataMap.get(raw.expenseId);
+        const studentDocData = studentsDataMap.get(raw.studentId);
         const repairUpdates = {};
+
+        if (studentDocData) {
+          const studentEmails = Array.isArray(studentDocData.apoderadoEmails) && studentDocData.apoderadoEmails.length > 0
+            ? studentDocData.apoderadoEmails
+            : (studentDocData.apoderadoEmail ? [studentDocData.apoderadoEmail] : []);
+          if (studentEmails.length > 0) {
+            const debtEmails = Array.isArray(raw.apoderadoEmails) ? raw.apoderadoEmails : [];
+            const missingAny = studentEmails.some(em => !debtEmails.includes(em));
+            if (missingAny) {
+              const mergedEmails = Array.from(new Set([...debtEmails, ...studentEmails]));
+              raw.apoderadoEmails = mergedEmails;
+              repairUpdates.apoderadoEmails = mergedEmails;
+            }
+          }
+        }
 
         if (!raw.courseId) {
           raw.courseId = selectedCourse.id;

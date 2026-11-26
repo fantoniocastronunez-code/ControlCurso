@@ -32,7 +32,7 @@ const EventAttendance = ({ event, onEventUpdated }) => {
   const [newStudentsPaymentStatus, setNewStudentsPaymentStatus] = useState('pending');
   const [addingStudents, setAddingStudents] = useState(false);
   useLockBodyScroll(showAddStudentsModal);
-  
+
   // Monto de la multa por inasistencia
   const [fineAmountInput, setFineAmountInput] = useState(String(event.noShowAmount || 0));
   const [isEditingFineAmount, setIsEditingFineAmount] = useState(false);
@@ -67,7 +67,7 @@ const EventAttendance = ({ event, onEventUpdated }) => {
         ? new Set(event.participantStudentIds)
         : null;
 
-      const targetStudents = participantIds 
+      const targetStudents = participantIds
         ? courseStudents.filter(s => participantIds.has(s.id))
         : courseStudents;
 
@@ -101,7 +101,7 @@ const EventAttendance = ({ event, onEventUpdated }) => {
         if (!data.eventId) repair.eventId = event.id;
         if (!data.courseId || data.courseId !== event.courseId) repair.courseId = event.courseId;
         if (Object.keys(repair).length > 0) {
-          await updateDoc(d.ref, repair).catch(() => {});
+          await updateDoc(d.ref, repair).catch(() => { });
         }
       }
 
@@ -137,7 +137,7 @@ const EventAttendance = ({ event, onEventUpdated }) => {
             notAttended: false
           };
         }
-        
+
         const isFineDebt =
           data.expenseId === `exp_evt_fine_${event.id}` ||
           Boolean(data.isEventFine || data.isMandatoryFine || data.isAttendanceFine) ||
@@ -152,7 +152,7 @@ const EventAttendance = ({ event, onEventUpdated }) => {
           debtsByStudent[data.studentId].mainDebt = { id: d.id, ...data };
         }
       });
-      
+
       const list = Object.values(debtsByStudent);
       list.sort((a, b) => a.studentName.localeCompare(b.studentName));
       setLocalDebts(list);
@@ -170,9 +170,9 @@ const EventAttendance = ({ event, onEventUpdated }) => {
 
   const toggleAttendance = (studentData) => {
     const willBeNotAttended = !studentData.notAttended;
-    setLocalDebts(prev => prev.map(s => 
-      s.studentId === studentData.studentId 
-        ? { ...s, notAttended: willBeNotAttended, _modified: true } 
+    setLocalDebts(prev => prev.map(s =>
+      s.studentId === studentData.studentId
+        ? { ...s, notAttended: willBeNotAttended, _modified: true }
         : s
     ));
     setHasChanges(true);
@@ -257,11 +257,11 @@ const EventAttendance = ({ event, onEventUpdated }) => {
           }
         }
       }
-      
+
       // 2. Actualizar o crear la Cuota General (Expense) en la colección 'expenses'
       const fineExpenseRef = doc(db, 'expenses', fineExpenseId);
       const fineSnap = await getDoc(fineExpenseRef);
-      
+
       if (absentCount > 0 && effectiveFineAmount > 0) {
         const fineDebtsSnap = await getDocs(query(collection(db, 'debts'), where('expenseId', '==', fineExpenseId)));
         const currentPaidCount = fineDebtsSnap.docs.filter(d => d.data().status === 'paid').length;
@@ -860,7 +860,7 @@ const EventAttendance = ({ event, onEventUpdated }) => {
 
   return (
     <div className="glass-panel" style={{ padding: '2rem' }}>
-      
+
       {/* Cabecera y Barra de Búsqueda */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem', flexWrap: 'wrap', gap: '1rem' }}>
         <div>
@@ -871,7 +871,7 @@ const EventAttendance = ({ event, onEventUpdated }) => {
             Marca o desmarca quién asistió. A los inasistentes se les generará la multa correspondiente en el sistema.
           </p>
         </div>
-        
+
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
           <button
             type="button"
@@ -886,16 +886,16 @@ const EventAttendance = ({ event, onEventUpdated }) => {
 
           <div className="search-bar" style={{ maxWidth: '260px' }}>
             <Search size={16} style={{ color: 'var(--text-muted)', marginLeft: '10px' }} />
-            <input 
-              type="text" 
-              placeholder="Buscar alumno..." 
+            <input
+              type="text"
+              placeholder="Buscar alumno..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               style={{ width: '100%', padding: '0.45rem', background: 'transparent', border: 'none', color: 'white', outline: 'none', fontSize: '0.85rem' }}
             />
           </div>
 
-          <button 
+          <button
             type="button"
             onClick={fetchDebts}
             className="btn btn-outline"
@@ -1001,7 +1001,7 @@ const EventAttendance = ({ event, onEventUpdated }) => {
 
           {isEditingFineAmount ? (
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', marginTop: '0.35rem' }}>
-              <input 
+              <input
                 type="number"
                 min="0"
                 value={fineAmountInput}
@@ -1111,15 +1111,15 @@ const EventAttendance = ({ event, onEventUpdated }) => {
           </button>
         </div>
 
-        <button 
-          onClick={handleSave} 
+        <button
+          onClick={handleSave}
           disabled={saving}
-          className="btn btn-primary" 
-          style={{ 
-            padding: '0.55rem 1.35rem', 
-            fontWeight: 'bold', 
-            display: 'flex', 
-            alignItems: 'center', 
+          className="btn btn-primary"
+          style={{
+            padding: '0.55rem 1.35rem',
+            fontWeight: 'bold',
+            display: 'flex',
+            alignItems: 'center',
             gap: '0.45rem',
             backgroundColor: hasChanges ? '#10b981' : 'var(--primary)',
             borderColor: hasChanges ? '#10b981' : 'var(--primary)',
@@ -1159,7 +1159,7 @@ const EventAttendance = ({ event, onEventUpdated }) => {
               return (
                 <tr key={s.studentId} style={{ borderBottom: '1px solid rgba(255,255,255,0.04)', backgroundColor: attended ? 'transparent' : 'rgba(239, 68, 68, 0.05)' }}>
                   <td style={{ padding: '0.75rem 1rem', textAlign: 'center' }}>
-                    <button 
+                    <button
                       type="button"
                       onClick={() => toggleAttendance(s)}
                       style={{ background: 'none', border: 'none', color: attended ? 'var(--success)' : '#ef4444', cursor: 'pointer', padding: 0 }}
